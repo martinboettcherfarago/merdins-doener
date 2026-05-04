@@ -1,0 +1,3264 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Mêrdîn's Cheesy Döner Dresden — Chili-Cheese-Döner, ofenfrische Pide, eigene Soßen. 4,7★ aus 245 Bewertungen. In der Altmarkt-Galerie.">
+<meta name="theme-color" content="#0a0908">
+<title>Mêrdîn's Cheesy Döner — Dresdens cheesyster Döner</title>
+<link rel="canonical" href="https://merdins-cheesy-doener.de/">
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230a0908'/%3E%3Ctext x='16' y='22' font-family='Arial Black' font-size='18' font-weight='900' text-anchor='middle' fill='%23f5b935'%3EM%3C/text%3E%3C/svg%3E">
+
+<meta property="og:type" content="restaurant.restaurant">
+<meta property="og:title" content="Mêrdîn's Cheesy Döner — Dresdens cheesyster Döner">
+<meta property="og:description" content="4,7★ aus 245 Google-Bewertungen. Eigene Firmensauce, Chili-Cheese-Döner mit Jalapeños, ofenfrische Pide. In der Altmarkt-Galerie Dresden.">
+<meta property="og:locale" content="de_DE">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mêrdîn's Cheesy Döner — Dresden">
+<meta name="twitter:description" content="Eigene Soßen. Ofenfrische Pide. Mehr Käse als der Rest.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Pacifico&display=swap" rel="stylesheet">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Restaurant",
+  "name": "Mêrdîn's Cheesy Döner",
+  "image": "https://merdins-cheesy-doener.de/og.jpg",
+  "url": "https://merdins-cheesy-doener.de/",
+  "telephone": "+49 351 21527880",
+  "priceRange": "€€",
+  "servesCuisine": ["Türkisch", "Döner", "Mediterran"],
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Altmarkt-Galerie, Webergasse 1",
+    "addressLocality": "Dresden",
+    "addressRegion": "Sachsen",
+    "postalCode": "01067",
+    "addressCountry": "DE"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": 51.0494874,
+    "longitude": 13.7356567
+  },
+  "aggregateRating": {
+    "@type": "AggregateRating",
+    "ratingValue": "4.7",
+    "reviewCount": "245"
+  },
+  "openingHoursSpecification": [
+    {"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday"], "opens": "11:00", "closes": "22:00"},
+    {"@type": "OpeningHoursSpecification", "dayOfWeek": ["Friday","Saturday"], "opens": "11:00", "closes": "23:30"},
+    {"@type": "OpeningHoursSpecification", "dayOfWeek": "Sunday", "opens": "12:00", "closes": "22:00"}
+  ]
+}
+</script>
+
+<style>
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+
+  :root {
+    --color-bg: #0a0908;
+    --color-surface: #15110d;
+    --color-card: #1c1712;
+    --color-card-2: #221c16;
+    --color-text: #faf6ee;
+    --color-muted: #9b9388;
+    --color-mute-2: #6e685e;
+    --color-primary: #f5b935;
+    --color-primary-dark: #d99e1c;
+    --color-accent: #c73c20;
+    --color-accent-light: #e85a3a;
+    --color-border: rgba(245, 239, 230, 0.08);
+    --color-border-strong: rgba(245, 239, 230, 0.16);
+    --color-success: #4ade80;
+    --color-brand-teal: #4FB5BF;
+    --color-brand-teal-dark: #3a929b;
+    --color-brand-teal-soft: rgba(79, 181, 191, 0.14);
+
+    --font-display: 'Anton', 'Impact', sans-serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+    --radius-sm: 6px;
+    --radius: 12px;
+    --radius-lg: 20px;
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 12px 40px rgba(0, 0, 0, 0.45);
+    --shadow-glow: 0 0 60px rgba(245, 185, 53, 0.18);
+
+    --container: 1200px;
+    --header-h: 76px;
+
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.5;
+    mix-blend-mode: overlay;
+  }
+
+  img, svg { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+
+  ::selection { background: var(--color-primary); color: var(--color-bg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  .container {
+    width: 100%;
+    max-width: var(--container);
+    padding: 0 24px;
+    margin: 0 auto;
+  }
+
+  section { position: relative; z-index: 2; }
+
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    line-height: 0.95;
+    text-transform: uppercase;
+  }
+
+  h1, h2, h3, h4 { margin: 0; font-weight: 700; }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+  }
+  .eyebrow::before {
+    content: '';
+    width: 28px;
+    height: 1px;
+    background: var(--color-primary);
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 5vw, 64px);
+    line-height: 1.04;
+    text-transform: uppercase;
+    margin: 12px 0 16px;
+  }
+  .section-title em {
+    font-style: normal;
+    color: var(--color-primary);
+  }
+
+  .section-lead {
+    color: var(--color-muted);
+    font-size: 17px;
+    max-width: 56ch;
+    margin: 0;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 26px;
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    border-radius: 999px;
+    transition: transform 0.25s var(--ease), background 0.25s var(--ease), color 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    min-height: 48px;
+    white-space: nowrap;
+  }
+  .btn svg { width: 18px; height: 18px; }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-primary {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    box-shadow: 0 6px 24px rgba(245, 185, 53, 0.3), inset 0 0 0 1px rgba(0,0,0,0.05);
+  }
+  .btn-primary:hover {
+    background: #ffc845;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 32px rgba(245, 185, 53, 0.45);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-text);
+    box-shadow: inset 0 0 0 1.5px var(--color-border-strong);
+  }
+  .btn-ghost:hover {
+    background: rgba(255,255,255,0.05);
+    box-shadow: inset 0 0 0 1.5px var(--color-text);
+  }
+
+  .btn-accent {
+    background: var(--color-accent);
+    color: var(--color-text);
+  }
+  .btn-accent:hover { background: var(--color-accent-light); }
+
+  .header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--header-h);
+    z-index: 100;
+    background: rgba(10, 9, 8, 0.7);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.3s var(--ease), background 0.3s var(--ease);
+  }
+  .header.scrolled {
+    border-bottom-color: var(--color-border);
+    background: rgba(10, 9, 8, 0.92);
+  }
+  .header-inner {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo-stamp {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #4FB5BF;
+    display: grid;
+    place-items: center;
+    font-family: 'Anton', Impact, sans-serif;
+    font-size: 11px;
+    color: #F5B935;
+    letter-spacing: 0.05em;
+    box-shadow: inset 0 0 0 1.4px rgba(245, 185, 53, 0.7), 0 4px 14px rgba(79, 181, 191, 0.28);
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .logo-script {
+    font-family: 'Pacifico', cursive;
+    color: var(--color-primary);
+    display: flex;
+    flex-direction: column;
+    line-height: 0.92;
+    font-size: 22px;
+    letter-spacing: -0.005em;
+  }
+  .logo-script span:last-child { padding-left: 8px; }
+  .footer .logo-stamp { width: 56px; height: 56px; font-size: 12px; }
+  .footer .logo-script { font-size: 26px; }
+
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+  .nav a {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-muted);
+    transition: color 0.2s;
+    position: relative;
+  }
+  .nav a:hover { color: var(--color-text); }
+  .nav a::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 0;
+    height: 2px;
+    width: 0;
+    background: var(--color-primary);
+    transition: width 0.3s var(--ease);
+  }
+  .nav a:hover::after { width: 100%; }
+
+  .header .btn { padding: 12px 20px; font-size: 13px; }
+
+  .menu-toggle {
+    display: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: var(--color-card);
+    align-items: center;
+    justify-content: center;
+  }
+  .menu-toggle svg { width: 22px; height: 22px; }
+
+  @media (max-width: 900px) {
+    .nav, .header > .container > .btn { display: none; }
+    .menu-toggle { display: flex; }
+  }
+
+  .hero {
+    padding-top: calc(var(--header-h) + 60px);
+    padding-bottom: 100px;
+    position: relative;
+    overflow: hidden;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+  }
+
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+  }
+  .hero-bg::before {
+    content: '';
+    position: absolute;
+    inset: -100px;
+    background:
+      radial-gradient(60% 50% at 80% 20%, rgba(245, 185, 53, 0.18), transparent 70%),
+      radial-gradient(40% 40% at 10% 80%, rgba(79, 181, 191, 0.18), transparent 60%),
+      radial-gradient(30% 30% at 50% 100%, rgba(199, 60, 32, 0.1), transparent 60%);
+  }
+  .hero-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--color-border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-border) 1px, transparent 1px);
+    background-size: 80px 80px;
+    background-position: -1px -1px;
+    opacity: 0.4;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 30%, transparent 80%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 30%, transparent 80%);
+  }
+
+  .hero-content {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 60px;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 28px;
+  }
+  .hero-badge .stars {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .hero-badge .stars svg {
+    width: 14px;
+    height: 14px;
+    fill: var(--color-primary);
+  }
+  .hero-badge strong { color: var(--color-text); font-weight: 700; }
+  .hero-badge .dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--color-mute-2);
+  }
+
+  .hero h1 {
+    font-family: var(--font-display);
+    font-size: clamp(48px, 8vw, 104px);
+    font-weight: 400;
+    line-height: 1.04;
+    text-transform: uppercase;
+    letter-spacing: 0.005em;
+    margin: 0 0 24px;
+  }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--color-primary);
+    position: relative;
+  }
+  .hero h1 em::after {
+    content: '';
+    position: absolute;
+    left: -4px;
+    right: -4px;
+    bottom: 8%;
+    height: 16%;
+    background: var(--color-primary);
+    opacity: 0.18;
+    z-index: -1;
+    transform: skewX(-6deg);
+  }
+  .hero h1 .stroke {
+    -webkit-text-stroke: 1.5px var(--color-text);
+    color: transparent;
+  }
+
+  .hero-lead {
+    font-size: 18px;
+    color: var(--color-muted);
+    max-width: 52ch;
+    margin: 0 0 36px;
+  }
+  .hero-lead strong { color: var(--color-text); font-weight: 600; }
+
+  .hero-cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+
+  .hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    padding-top: 28px;
+    border-top: 1px solid var(--color-border);
+  }
+  .hero-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--color-muted);
+  }
+  .hero-meta-item svg {
+    width: 18px;
+    height: 18px;
+    color: var(--color-primary);
+    flex-shrink: 0;
+  }
+
+  .hero-visual {
+    position: relative;
+    aspect-ratio: 4/5;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-card);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--color-border);
+  }
+  .hero-visual-art {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 30% 30%, rgba(245, 185, 53, 0.4), transparent 50%),
+      radial-gradient(circle at 70% 70%, rgba(199, 60, 32, 0.35), transparent 55%),
+      linear-gradient(135deg, #2a1a0d 0%, #15110d 100%);
+  }
+  .hero-visual-art::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cfilter id='b'%3E%3CfeTurbulence baseFrequency='0.6' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.96 0 0 0 0 0.73 0 0 0 0 0.21 0 0 0 0.4 0'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23b)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    opacity: 0.6;
+  }
+  .hero-visual-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 32px;
+  }
+  .hero-tag {
+    align-self: flex-start;
+    background: var(--color-primary);
+    color: var(--color-bg);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .hero-tag::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--color-bg);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .hero-tag-bottom {
+    background: rgba(10, 9, 8, 0.7);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .hero-tag-bottom .num {
+    font-family: var(--font-display);
+    font-size: 36px;
+    color: var(--color-primary);
+    line-height: 1;
+  }
+  .hero-tag-bottom .lbl {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--color-muted);
+  }
+  .hero-tag-bottom .lbl strong {
+    color: var(--color-text);
+    display: block;
+    font-size: 13px;
+  }
+
+  .hero-rotor {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 70%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    animation: spin 28s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+  .hero-rotor svg { width: 100%; height: 100%; }
+
+  @media (max-width: 900px) {
+    .hero { padding-top: calc(var(--header-h) + 32px); padding-bottom: 60px; }
+    .hero-content { grid-template-columns: 1fr; gap: 40px; }
+    .hero-visual { max-width: 420px; margin: 0 auto; aspect-ratio: 3/4; }
+  }
+
+  .trust {
+    padding: 40px 0;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .trust-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+  }
+  .trust-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .trust-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: rgba(245, 185, 53, 0.12);
+    color: var(--color-primary);
+    display: grid;
+    place-items: center;
+  }
+  .trust-icon svg { width: 22px; height: 22px; }
+  .trust-item:nth-child(2) .trust-icon,
+  .trust-item:nth-child(4) .trust-icon {
+    background: var(--color-brand-teal-soft);
+    color: var(--color-brand-teal);
+  }
+  .trust-text strong {
+    display: block;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--color-text);
+    line-height: 1.2;
+  }
+  .trust-text span {
+    font-size: 13px;
+    color: var(--color-muted);
+  }
+  @media (max-width: 768px) {
+    .trust-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .trust-grid { grid-template-columns: 1fr; }
+  }
+
+  .menu-sec {
+    padding: 120px 0;
+  }
+  .menu-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 40px;
+    margin-bottom: 64px;
+  }
+  @media (max-width: 768px) {
+    .menu-head { grid-template-columns: 1fr; }
+  }
+
+  .menu-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  @media (max-width: 1024px) {
+    .menu-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .menu-grid { grid-template-columns: 1fr; }
+  }
+
+  .menu-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 40px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .menu-tabs::-webkit-scrollbar { height: 4px; }
+  .menu-tabs::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 4px; }
+  .menu-tab {
+    padding: 12px 20px;
+    border-radius: 999px;
+    background: var(--color-card);
+    box-shadow: inset 0 0 0 1px var(--color-border);
+    color: var(--color-muted);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.2s var(--ease);
+    flex-shrink: 0;
+  }
+  .menu-tab:hover {
+    box-shadow: inset 0 0 0 1px var(--color-border-strong);
+    color: var(--color-text);
+  }
+  .menu-tab.active {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    box-shadow: inset 0 0 0 1px var(--color-primary), 0 4px 14px rgba(245, 185, 53, 0.25);
+  }
+
+  .menu-panels { position: relative; min-height: 400px; }
+  .menu-panel { display: none; }
+  .menu-panel.active {
+    display: block;
+    animation: fadeInUp 0.45s var(--ease);
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .menu-rows {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: 56px;
+    row-gap: 0;
+  }
+  @media (max-width: 768px) {
+    .menu-rows { grid-template-columns: 1fr; }
+  }
+
+  .menu-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    padding: 22px 0;
+    border-bottom: 1px solid var(--color-border);
+    transition: padding 0.2s var(--ease);
+  }
+  .menu-row:hover { padding-left: 4px; padding-right: 4px; }
+
+  .menu-row-main { flex-grow: 1; min-width: 0; }
+  .menu-row-name {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.18;
+    text-transform: uppercase;
+    letter-spacing: 0.015em;
+    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .row-tag {
+    display: inline-block;
+    font-family: var(--font-body);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    background: var(--color-primary);
+    color: var(--color-bg);
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-weight: 800;
+    text-transform: uppercase;
+    line-height: 1.4;
+  }
+  .row-tag.spicy { background: var(--color-accent); color: var(--color-text); }
+  .row-tag.veggie { background: var(--color-success); color: var(--color-bg); }
+  .row-tag.signature { background: #4FB5BF; color: var(--color-bg); }
+
+  .menu-row-desc {
+    font-size: 13px;
+    color: var(--color-muted);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .menu-row-price {
+    text-align: right;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    padding-top: 2px;
+  }
+  .row-single {
+    font-family: var(--font-display);
+    font-size: 26px;
+    color: var(--color-primary);
+    line-height: 1;
+    letter-spacing: 0.01em;
+  }
+  .row-menu {
+    font-size: 10px;
+    color: var(--color-mute-2);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+
+  .menu-subhead {
+    font-family: var(--font-display);
+    font-size: 28px;
+    line-height: 1.04;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--color-brand-teal);
+    margin: 24px 0 12px;
+    padding-bottom: 12px;
+    border-bottom: 1.5px solid var(--color-brand-teal-soft);
+  }
+  .menu-panel > .menu-subhead:first-child { margin-top: 0; }
+
+  .menu-info {
+    margin-top: 56px;
+    padding: 32px 36px;
+    background: linear-gradient(135deg, var(--color-brand-teal-soft), transparent 60%);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-brand-teal);
+    border-radius: var(--radius);
+  }
+  .menu-info-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    line-height: 1.04;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-brand-teal);
+    margin: 0 0 16px;
+  }
+  .menu-info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 32px;
+  }
+  @media (max-width: 768px) {
+    .menu-info { padding: 24px; }
+    .menu-info-list { grid-template-columns: 1fr; }
+  }
+  .menu-info-list li {
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--color-muted);
+    padding-left: 22px;
+    position: relative;
+  }
+  .menu-info-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-brand-teal);
+  }
+
+  .menu-card {
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: transform 0.4s var(--ease), border-color 0.4s var(--ease), box-shadow 0.4s var(--ease);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .menu-card:hover {
+    transform: translateY(-6px);
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-md);
+  }
+
+  .menu-card-img {
+    aspect-ratio: 4/3;
+    position: relative;
+    overflow: hidden;
+  }
+  .menu-card-img-art {
+    position: absolute;
+    inset: 0;
+  }
+  .menu-card-img-art::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cfilter id='b'%3E%3CfeTurbulence baseFrequency='0.7' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.4 0 0 0 0 0.2 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23b)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+  .menu-card-img .icon-wrap {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--color-text);
+    opacity: 0.18;
+  }
+  .menu-card-img .icon-wrap svg {
+    width: 60%;
+    height: 60%;
+  }
+
+  .badge-sig {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: var(--color-primary);
+    color: var(--color-bg);
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    z-index: 2;
+  }
+  .badge-spicy {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    background: var(--color-accent);
+    color: var(--color-text);
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    z-index: 2;
+  }
+  .badge-spicy svg { width: 11px; height: 11px; }
+
+  .menu-card-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  .menu-card-name {
+    font-family: var(--font-display);
+    font-size: 24px;
+    line-height: 1.05;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    margin-bottom: 8px;
+  }
+  .menu-card-desc {
+    color: var(--color-muted);
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0 0 18px;
+    flex-grow: 1;
+  }
+  .menu-card-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 18px;
+    border-top: 1px solid var(--color-border);
+  }
+  .menu-card-price {
+    font-family: var(--font-display);
+    font-size: 26px;
+    color: var(--color-primary);
+    line-height: 1;
+  }
+  .menu-card-price small {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--color-muted);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-right: 4px;
+    vertical-align: 6px;
+  }
+
+  .art-cheese { background: linear-gradient(135deg, #f5b935 0%, #d99e1c 60%, #8b620f 100%); }
+  .art-chili  { background: linear-gradient(135deg, #e85a3a 0%, #c73c20 60%, #6e1d0d 100%); }
+  .art-bbq    { background: linear-gradient(135deg, #8b4513 0%, #4a2308 100%); }
+  .art-truffle{ background: linear-gradient(135deg, #2d2316 0%, #0f0a04 100%); }
+  .art-veggie { background: linear-gradient(135deg, #6b8e3a 0%, #3a5018 100%); }
+  .art-box    { background: linear-gradient(135deg, #c97f2e 0%, #6e3f10 100%); }
+
+  .menu-foot {
+    margin-top: 48px;
+    padding: 28px;
+    border: 1px dashed var(--color-border-strong);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .menu-foot-text { color: var(--color-muted); font-size: 14px; max-width: 50ch; }
+  .menu-foot-text strong { color: var(--color-text); font-weight: 600; }
+
+  .story-sec {
+    padding: 120px 0;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    position: relative;
+    overflow: hidden;
+  }
+  .story-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 80px;
+    align-items: center;
+  }
+  @media (max-width: 900px) {
+    .story-grid { grid-template-columns: 1fr; gap: 48px; }
+  }
+  .story-photo {
+    position: relative;
+    margin: 0;
+    aspect-ratio: 4/5;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-card);
+    box-shadow: var(--shadow-md), 0 0 0 4px var(--color-brand-teal-soft);
+    border: 1px solid var(--color-brand-teal);
+  }
+  .story-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+  }
+  .story-photo-cap {
+    position: absolute;
+    left: 20px;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(10, 9, 8, 0.78);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .story-photo-eyebrow {
+    background: var(--color-primary);
+    color: var(--color-bg);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+  .story-photo-eyebrow::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--color-bg);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .story-photo-text {
+    font-size: 13px;
+    color: var(--color-text);
+    font-weight: 500;
+  }
+
+  .story-art {
+    position: relative;
+    aspect-ratio: 4/5;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-card);
+  }
+  .story-art-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 80%, rgba(245, 185, 53, 0.5), transparent 50%),
+      linear-gradient(135deg, #1a130a 0%, #0a0908 100%);
+  }
+  .story-art-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cfilter id='b'%3E%3CfeTurbulence baseFrequency='0.55' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.96 0 0 0 0 0.73 0 0 0 0 0.21 0 0 0 0.3 0'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23b)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    opacity: 0.7;
+  }
+  .story-art-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 40px;
+    z-index: 2;
+  }
+  .story-art-text .big {
+    font-family: var(--font-display);
+    font-size: clamp(56px, 8vw, 96px);
+    color: var(--color-primary);
+    line-height: 0.85;
+    text-transform: uppercase;
+  }
+  .story-art-text .label {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    margin-top: 14px;
+  }
+  .story-art-watermark {
+    position: absolute;
+    top: 0;
+    right: -10%;
+    font-family: var(--font-display);
+    font-size: clamp(120px, 18vw, 220px);
+    color: rgba(255, 255, 255, 0.04);
+    line-height: 0.85;
+    pointer-events: none;
+    z-index: 1;
+    text-transform: uppercase;
+  }
+
+  .story-content p {
+    font-size: 17px;
+    color: var(--color-muted);
+    margin: 0 0 18px;
+  }
+  .story-content p strong { color: var(--color-text); font-weight: 600; }
+
+  .story-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-top: 40px;
+    padding-top: 40px;
+    border-top: 1px solid var(--color-border);
+  }
+  .story-stat {
+    text-align: left;
+  }
+  .story-stat .num {
+    font-family: var(--font-display);
+    font-size: clamp(36px, 4vw, 52px);
+    color: var(--color-primary);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .story-stat .lbl {
+    font-size: 12px;
+    color: var(--color-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .reviews-sec {
+    padding: 120px 0;
+  }
+  .reviews-head {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+  .reviews-head .eyebrow { justify-content: center; }
+  .reviews-head .eyebrow::before, .reviews-head .eyebrow::after {
+    content: '';
+    width: 28px;
+    height: 1px;
+    background: var(--color-primary);
+  }
+  .reviews-head .section-title { max-width: 16ch; margin: 12px auto 0; }
+  .reviews-head .section-lead { margin: 16px auto 0; }
+
+  .reviews-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 22px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    margin-bottom: 24px;
+  }
+  .reviews-rating .big {
+    font-family: var(--font-display);
+    font-size: 32px;
+    color: var(--color-primary);
+    line-height: 1;
+  }
+  .reviews-rating .stars {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .reviews-rating .stars svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--color-primary);
+  }
+  .reviews-rating .meta {
+    font-size: 13px;
+    color: var(--color-muted);
+    line-height: 1.3;
+  }
+  .reviews-rating .meta strong { color: var(--color-text); display: block; font-size: 14px; }
+
+  .reviews-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  @media (max-width: 900px) {
+    .reviews-grid { grid-template-columns: 1fr; }
+  }
+
+  .review-card {
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    position: relative;
+    transition: border-color 0.3s var(--ease), transform 0.3s var(--ease);
+  }
+  .review-card:hover {
+    border-color: var(--color-border-strong);
+    transform: translateY(-4px);
+  }
+  .review-card .quote-mark {
+    font-family: var(--font-display);
+    font-size: 80px;
+    color: var(--color-brand-teal);
+    line-height: 0.7;
+    opacity: 0.4;
+    margin-bottom: 8px;
+  }
+  .review-card:nth-child(2) .quote-mark { color: var(--color-primary); }
+  .review-card:hover { border-color: var(--color-brand-teal); }
+  .review-stars {
+    display: inline-flex;
+    gap: 3px;
+    margin-bottom: 16px;
+  }
+  .review-stars svg {
+    width: 16px;
+    height: 16px;
+    fill: var(--color-primary);
+  }
+  .review-quote {
+    font-size: 17px;
+    line-height: 1.5;
+    color: var(--color-text);
+    margin: 0 0 24px;
+    font-weight: 500;
+  }
+  .review-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid var(--color-border);
+  }
+  .review-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--color-bg);
+    flex-shrink: 0;
+  }
+  .review-name { font-size: 14px; font-weight: 600; }
+  .review-source { font-size: 12px; color: var(--color-muted); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .review-source svg { width: 12px; height: 12px; }
+
+  .visit-sec {
+    padding: 120px 0;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .visit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: stretch;
+  }
+  @media (max-width: 900px) {
+    .visit-grid { grid-template-columns: 1fr; }
+  }
+
+  .visit-info { display: flex; flex-direction: column; justify-content: center; }
+  .visit-info > .eyebrow { margin-bottom: 12px; }
+  .visit-info > .section-title { margin-bottom: 24px; }
+
+  .info-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .info-block:last-child { border-bottom: 0; }
+  .info-block .icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(245, 185, 53, 0.1);
+    color: var(--color-primary);
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+  }
+  .info-block .icon svg { width: 20px; height: 20px; }
+  .info-block .text strong {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--color-muted);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .info-block .text p { margin: 0; font-size: 15px; line-height: 1.5; }
+  .info-block .text a:hover { color: var(--color-primary); }
+
+  .hours-table {
+    width: 100%;
+    margin-top: 8px;
+    font-size: 14px;
+    border-collapse: collapse;
+  }
+  .hours-table tr td {
+    padding: 6px 0;
+    color: var(--color-muted);
+  }
+  .hours-table tr td:first-child { font-weight: 500; }
+  .hours-table tr td:last-child { text-align: right; color: var(--color-text); font-variant-numeric: tabular-nums; }
+  .hours-table tr.today td { color: var(--color-primary); font-weight: 700; }
+
+  .open-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 10px;
+  }
+  .open-status.open { background: rgba(74, 222, 128, 0.15); color: var(--color-success); }
+  .open-status.closed { background: rgba(199, 60, 32, 0.15); color: var(--color-accent-light); }
+  .open-status .live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 0 0 currentColor;
+    animation: live 2s ease-in-out infinite;
+  }
+  @keyframes live {
+    0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); }
+    70% { box-shadow: 0 0 0 8px rgba(74, 222, 128, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); }
+  }
+
+  .visit-cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .visit-map {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    min-height: 480px;
+    position: relative;
+  }
+  .visit-map iframe {
+    width: 100%;
+    height: 100%;
+    min-height: 480px;
+    border: 0;
+    filter: grayscale(0.3) contrast(1.1);
+  }
+
+  .contact-sec {
+    padding: 120px 0;
+  }
+  .contact-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 64px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .contact-grid { grid-template-columns: 1fr; gap: 40px; }
+  }
+
+  .contact-side .section-title { margin-bottom: 20px; }
+  .contact-side p { color: var(--color-muted); }
+
+  .contact-options {
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .contact-opt {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .contact-opt:hover { border-color: var(--color-primary); transform: translateX(4px); }
+  .contact-opt .ic {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: rgba(245, 185, 53, 0.12);
+    color: var(--color-primary);
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+  }
+  .contact-opt .ic svg { width: 20px; height: 20px; }
+  .contact-opt .txt strong { display: block; font-size: 15px; }
+  .contact-opt .txt span { font-size: 13px; color: var(--color-muted); }
+  .contact-opt .arr {
+    margin-left: auto;
+    color: var(--color-muted);
+    transition: transform 0.3s, color 0.3s;
+  }
+  .contact-opt:hover .arr { color: var(--color-primary); transform: translateX(4px); }
+
+  .contact-form {
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: 36px;
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .form-row.single { grid-template-columns: 1fr; }
+  @media (max-width: 600px) {
+    .form-row { grid-template-columns: 1fr; }
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label {
+    font-size: 12px;
+    color: var(--color-muted);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .field label .req { color: var(--color-accent-light); }
+  .field input,
+  .field select,
+  .field textarea {
+    width: 100%;
+    background: var(--color-bg);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: 15px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .field input:focus,
+  .field select:focus,
+  .field textarea:focus {
+    outline: 0;
+    border-color: var(--color-primary);
+    background: var(--color-surface);
+  }
+  .field textarea {
+    resize: vertical;
+    min-height: 110px;
+  }
+  .field select { cursor: pointer; }
+
+  .form-submit {
+    margin-top: 8px;
+    width: 100%;
+    justify-content: center;
+    padding: 18px;
+    font-size: 16px;
+  }
+
+  .form-foot {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--color-mute-2);
+    text-align: center;
+  }
+
+  .form-success {
+    display: none;
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .form-success.show { display: block; }
+  .form-success-icon {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    background: rgba(74, 222, 128, 0.15);
+    color: var(--color-success);
+    display: grid;
+    place-items: center;
+  }
+  .form-success-icon svg { width: 36px; height: 36px; }
+  .form-success h4 {
+    font-family: var(--font-display);
+    font-size: 28px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .form-success p { color: var(--color-muted); margin: 0; }
+
+  .footer {
+    background: #050403;
+    border-top: 1px solid var(--color-border);
+    padding: 64px 0 32px;
+    position: relative;
+    z-index: 2;
+  }
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 48px;
+  }
+  @media (max-width: 768px) {
+    .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
+  }
+  @media (max-width: 480px) {
+    .footer-grid { grid-template-columns: 1fr; }
+  }
+  .footer-col h5 {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-mute-2);
+    margin: 0 0 18px;
+    font-weight: 600;
+  }
+  .footer-col ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  .footer-col a { font-size: 14px; color: var(--color-muted); transition: color 0.2s; }
+  .footer-col a:hover { color: var(--color-primary); }
+  .footer-col p { font-size: 14px; color: var(--color-muted); line-height: 1.6; margin: 0 0 12px; }
+
+  .footer-brand .logo { margin-bottom: 18px; }
+  .footer-socials {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .footer-socials a {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--color-card);
+    color: var(--color-muted);
+    display: grid;
+    place-items: center;
+    transition: background 0.2s, color 0.2s;
+  }
+  .footer-socials a:hover { background: var(--color-primary); color: var(--color-bg); }
+  .footer-socials a svg { width: 18px; height: 18px; }
+
+  .footer-bottom {
+    padding-top: 28px;
+    border-top: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    color: var(--color-mute-2);
+    font-size: 12px;
+  }
+  .footer-bottom a { color: var(--color-mute-2); }
+  .footer-bottom a:hover { color: var(--color-text); }
+
+  .mbar {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 90;
+    background: rgba(10, 9, 8, 0.95);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--color-border);
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+  .mbar a {
+    flex: 1;
+    height: 52px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 14px;
+    transition: transform 0.2s;
+  }
+  .mbar a:active { transform: scale(0.97); }
+  .mbar svg { width: 18px; height: 18px; }
+  .mbar .m-call { background: var(--color-primary); color: var(--color-bg); }
+  .mbar .m-route { background: var(--color-card); color: var(--color-text); border: 1px solid var(--color-border-strong); }
+
+  @media (max-width: 768px) {
+    .mbar { display: flex; }
+    body { padding-bottom: 80px; }
+  }
+
+  .mob-nav {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 9, 8, 0.98);
+    backdrop-filter: blur(20px);
+    z-index: 99;
+    padding: calc(var(--header-h) + 24px) 24px 24px;
+    display: none;
+    flex-direction: column;
+  }
+  .mob-nav.open { display: flex; }
+  .mob-nav a {
+    display: block;
+    padding: 18px 0;
+    font-family: var(--font-display);
+    font-size: 32px;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--color-border);
+    transition: color 0.2s;
+  }
+  .mob-nav a:hover { color: var(--color-primary); }
+  .mob-nav .btn {
+    margin-top: 32px;
+    align-self: flex-start;
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.8s var(--ease), transform 0.8s var(--ease);
+    will-change: opacity, transform;
+  }
+  .reveal.in {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-d-1 { transition-delay: 0.08s; }
+  .reveal-d-2 { transition-delay: 0.16s; }
+  .reveal-d-3 { transition-delay: 0.24s; }
+  .reveal-d-4 { transition-delay: 0.32s; }
+  .reveal-d-5 { transition-delay: 0.4s; }
+  .reveal-d-6 { transition-delay: 0.48s; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  section[id] {
+    scroll-margin-top: calc(var(--header-h) + 16px);
+  }
+
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(0, 0, 0, 0.78);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.3s var(--ease);
+  }
+  .modal-overlay.open {
+    display: flex;
+    opacity: 1;
+  }
+  .modal-card {
+    position: relative;
+    background: var(--color-card);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    padding: 44px 36px 32px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: var(--shadow-md), 0 0 60px rgba(79, 181, 191, 0.18);
+    transform: translateY(16px) scale(0.96);
+    transition: transform 0.35s var(--ease);
+  }
+  .modal-overlay.open .modal-card {
+    transform: translateY(0) scale(1);
+  }
+  .modal-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--color-bg);
+    color: var(--color-muted);
+    display: grid;
+    place-items: center;
+    transition: color 0.2s, background 0.2s;
+  }
+  .modal-close:hover { color: var(--color-text); background: var(--color-surface); }
+  .modal-close svg { width: 16px; height: 16px; }
+  .modal-eyebrow { color: var(--color-brand-teal); }
+  .modal-eyebrow::before { background: var(--color-brand-teal); }
+  .modal-title {
+    font-family: var(--font-display);
+    font-size: 36px;
+    line-height: 1.04;
+    text-transform: uppercase;
+    letter-spacing: 0.005em;
+    margin: 14px 0 14px;
+    font-weight: 400;
+  }
+  .modal-title em {
+    font-style: normal;
+    color: var(--color-primary);
+  }
+  .modal-lead {
+    color: var(--color-muted);
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0 0 24px;
+  }
+  .modal-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .modal-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-radius: var(--radius);
+    font-weight: 700;
+    font-size: 16px;
+    transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+    color: #fff;
+  }
+  .modal-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+  }
+  .modal-wolt { background: #00C2E8; }
+  .modal-wolt:hover { background: #00b0d3; }
+  .modal-lieferando { background: #FF8000; }
+  .modal-lieferando:hover { background: #f07700; }
+  .modal-option-name {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .modal-option-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.22);
+    display: grid;
+    place-items: center;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 400;
+  }
+  .modal-option-arr { width: 18px; height: 18px; }
+  .modal-foot {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--color-mute-2);
+  }
+  .modal-foot a {
+    color: var(--color-primary);
+    font-weight: 600;
+  }
+  .modal-foot a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<header class="header" id="siteHeader">
+  <div class="container header-inner">
+    <a href="#top" class="logo" aria-label="Mêrdîn's Cheesy Döner — Startseite">
+      <span class="logo-stamp" aria-hidden="true">MÊRDÎNS</span>
+      <span class="logo-script" aria-hidden="true">
+        <span>Cheesy</span>
+        <span>Döner</span>
+      </span>
+    </a>
+
+    <nav class="nav" aria-label="Hauptnavigation">
+      <a href="#speisekarte">Speisekarte</a>
+      <a href="#geschichte">Story</a>
+      <a href="#bewertungen">Bewertungen</a>
+      <a href="#besuch">Besuchen</a>
+      <a href="#kontakt">Kontakt</a>
+    </nav>
+
+    <button type="button" class="btn btn-primary" data-order>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      Online bestellen
+    </button>
+
+    <button class="menu-toggle" id="menuToggle" aria-label="Menü öffnen" aria-controls="mobNav" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="mob-nav" id="mobNav" aria-hidden="true">
+  <a href="#speisekarte" data-mob-link>Speisekarte</a>
+  <a href="#geschichte" data-mob-link>Story</a>
+  <a href="#bewertungen" data-mob-link>Bewertungen</a>
+  <a href="#besuch" data-mob-link>Besuchen</a>
+  <a href="#kontakt" data-mob-link>Kontakt</a>
+  <button type="button" class="btn btn-primary" data-mob-link data-order>Online bestellen</button>
+</div>
+
+<main id="top">
+
+<section class="hero">
+  <div class="hero-bg" aria-hidden="true"></div>
+  <div class="container hero-content">
+    <div class="hero-text">
+      <div class="hero-badge reveal">
+        <span class="stars" aria-label="4,7 von 5 Sternen">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </span>
+        <strong>4,7</strong>
+        <span class="dot"></span>
+        <span>245 Google-Bewertungen</span>
+      </div>
+
+      <h1 class="reveal reveal-d-1">
+        Käse, Schärfe<br>
+        und ein Döner,<br>
+        <em>den&nbsp;es&nbsp;so</em><br>
+        <span class="stroke">nur hier gibt.</span>
+      </h1>
+
+      <p class="hero-lead reveal reveal-d-2">
+        Käsige Streetfood-Kreationen. <strong>Chili-Cheese mit Jalapeños.</strong> Ofenfrische Pide.
+        Mêrdîn's ist Dresdens Antwort auf langweiligen Döner — kreativ, käsig und mitten in der Altmarkt-Galerie.
+      </p>
+
+      <div class="hero-cta reveal reveal-d-3">
+        <button type="button" class="btn btn-primary" data-order>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+          Online bestellen
+        </button>
+        <a href="#speisekarte" class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Speisekarte
+        </a>
+      </div>
+
+      <div class="hero-meta reveal reveal-d-4">
+        <div class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Altmarkt-Galerie · Webergasse 1
+        </div>
+        <div class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Heute geöffnet bis 20:00
+        </div>
+        <div class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          Frisch zubereitet zum Mitnehmen
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-visual reveal reveal-d-2">
+      <div class="hero-visual-art" aria-hidden="true"></div>
+      <div class="hero-rotor" aria-hidden="true">
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <path id="circle" d="M 100, 100 m -75, 0 a 75,75 0 1,1 150,0 a 75,75 0 1,1 -150,0" />
+          </defs>
+          <text font-family="Anton, sans-serif" font-size="18" letter-spacing="6" fill="#f5b935">
+            <textPath href="#circle">CHILI · CHEESE · DÖNER · STREETFOOD · DRESDEN · CHILI · CHEESE · DÖNER · STREETFOOD</textPath>
+          </text>
+          <circle cx="100" cy="100" r="38" fill="none" stroke="#f5b935" stroke-width="1.5" stroke-dasharray="2 4"/>
+          <text x="100" y="95" font-family="Anton, sans-serif" font-size="22" fill="#f5b935" text-anchor="middle">IN</text>
+          <text x="100" y="115" font-family="Anton, sans-serif" font-size="14" fill="#f5b935" text-anchor="middle">DRESDEN</text>
+        </svg>
+      </div>
+      <div class="hero-visual-overlay">
+        <span class="hero-tag">Live • Heute geöffnet</span>
+        <div class="hero-tag-bottom">
+          <span class="num">4,7</span>
+          <div class="lbl">
+            <strong>Google-Bewertung</strong>
+            245 zufriedene Kund:innen
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="trust">
+  <div class="container">
+    <div class="trust-grid">
+      <div class="trust-item reveal">
+        <div class="trust-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 11h.01"/><path d="M11 15h.01"/><path d="M16 16h.01"/><path d="m2 16 20 6-6-20A20 20 0 0 0 2 16"/><path d="M5.71 17.11a17.04 17.04 0 0 1 11.4-11.4"/></svg>
+        </div>
+        <div class="trust-text">
+          <strong>30+ Kreationen</strong>
+          <span>Cheesy, scharf, Pide, vegan</span>
+        </div>
+      </div>
+
+      <div class="trust-item reveal reveal-d-1">
+        <div class="trust-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>
+        </div>
+        <div class="trust-text">
+          <strong>7 Eigene Soßen</strong>
+          <span>BBQ, Smokey, Mexican Fire &amp; mehr</span>
+        </div>
+      </div>
+
+      <div class="trust-item reveal reveal-d-2">
+        <div class="trust-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"/><line x1="6" y1="17" x2="18" y2="17"/></svg>
+        </div>
+        <div class="trust-text">
+          <strong>Frische Zutaten</strong>
+          <span>Knuspriges Fleisch, knackiger Salat</span>
+        </div>
+      </div>
+
+      <div class="trust-item reveal reveal-d-3">
+        <div class="trust-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div class="trust-text">
+          <strong>Mitten in Dresden</strong>
+          <span>Altmarkt-Galerie · Altstadt</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="menu-sec" id="speisekarte">
+  <div class="container">
+    <div class="menu-head">
+      <div>
+        <span class="eyebrow reveal">Speisekarte</span>
+        <h2 class="section-title reveal reveal-d-1">Über 30 Kreationen.<br><em>Hausgemacht.</em></h2>
+        <p class="section-lead reveal reveal-d-2">
+          Klassiker auf hausgemachtem Brot, ausgefallene Cheesy-Kreationen, Bowls, Pide, vegane Optionen und Snacks. Alles mit eigenen Soßen.
+        </p>
+      </div>
+      <a href="tel:+4935121527880" class="btn btn-ghost reveal reveal-d-3">
+        Vorbestellen
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </div>
+
+    <div class="menu-tabs reveal" role="tablist">
+      <button class="menu-tab active" data-cat="kreationen" role="tab" aria-selected="true">Cheesy Kreationen</button>
+      <button class="menu-tab" data-cat="klassiker" role="tab" aria-selected="false">Klassiker</button>
+      <button class="menu-tab" data-cat="plates" role="tab" aria-selected="false">Plates &amp; Bowls</button>
+      <button class="menu-tab" data-cat="pide" role="tab" aria-selected="false">Pide</button>
+      <button class="menu-tab" data-cat="green" role="tab" aria-selected="false">Vegan / Veggie</button>
+      <button class="menu-tab" data-cat="salate" role="tab" aria-selected="false">Salate</button>
+      <button class="menu-tab" data-cat="snacks" role="tab" aria-selected="false">Snacks</button>
+      <button class="menu-tab" data-cat="extras" role="tab" aria-selected="false">Soßen &amp; Extras</button>
+      <button class="menu-tab" data-cat="drinks" role="tab" aria-selected="false">Getränke</button>
+    </div>
+
+    <div class="menu-panels reveal reveal-d-1">
+
+      <div class="menu-panel active" data-cat="kreationen" role="tabpanel">
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Crunch Cheese Döner <span class="row-tag">Cheesy</span></h3>
+              <p class="menu-row-desc">Knuspriges Sandwichbrot, Dönerfleisch, Rucola, Tomaten, Zwiebelringe, Gewürzgurken, würzige Cheddar-Soße, House Special &amp; Cheddar.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Chili Cheese Döner <span class="row-tag signature">Bestseller</span> <span class="row-tag spicy">Scharf</span></h3>
+              <p class="menu-row-desc">Knuspriges Sandwichbrot, Dönerfleisch, Rucola, Jalapeño, würzige Cheddar-Soße, House Special &amp; Cheddar-Käse.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">BBQ Steakhouse</h3>
+              <p class="menu-row-desc">Knuspriges Sandwichbrot, Dönerfleisch, geröstete Zwiebeln, Tomaten, Gewürzgurken, BBQ-Soße &amp; Käse.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Mexican Fire <span class="row-tag spicy">Extrem scharf</span></h3>
+              <p class="menu-row-desc">Knuspriges Sandwichbrot, Dönerfleisch, Tomaten, Chilischoten, Mais, Kidneybohnen, Cheddar, Limettensaft &amp; Curacao-Soße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">American Smoked</h3>
+              <p class="menu-row-desc">Knuspriges Sandwichbrot, Dönerfleisch, Grünsalat, Kraut, Tomaten, American-Smoked-Soße, House Special &amp; Cheddar.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">UFO Döner</h3>
+              <p class="menu-row-desc">Knuspriges Ufobrot, Dönerfleisch, Salat nach Wahl, eine Haussoße nach Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="menu-panel" data-cat="klassiker" role="tabpanel">
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Döner Classic</h3>
+              <p class="menu-row-desc">Knuspriges Sandwichbrot, Dönerfleisch nach Wahl, Salat nach Wahl, eine Haussoße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">7,50 €</span>
+              <span class="row-menu">Menü 13,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Döner Original</h3>
+              <p class="menu-row-desc">Hausgemachter Dürüm mit Fleisch nach Wahl, Zwiebeln, Tomaten, Petersilie, Sumach und Zitronensaft.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Döner Wrap</h3>
+              <p class="menu-row-desc">Hausgemachter Dürüm mit Fleisch nach Wahl, Salat nach Wahl und eine Haussoße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Gemüse Döner</h3>
+              <p class="menu-row-desc">Ofenfrisches Brot mit Fleisch nach Wahl, knusprig frittiertem Saisongemüse und einer Haussoße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,90 €</span>
+              <span class="row-menu">Menü 14,50 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Lahmacun mit Döner</h3>
+              <p class="menu-row-desc">Frisch gebackener Lahmacun mit Fleisch nach Wahl, Salat und einer Haussoße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">9,50 €</span>
+              <span class="row-menu">Menü 15,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Lahmacun mit Salat</h3>
+              <p class="menu-row-desc">Frisch gebackener Lahmacun mit Salat nach Wahl und einer Haussoße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="menu-panel" data-cat="plates" role="tabpanel">
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Döner-Teller mit Salat</h3>
+              <p class="menu-row-desc">Mit Fleisch nach Wahl, frischem Salat und einer Soße deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">11,50 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Döner-Teller mit Salat &amp; Pommes</h3>
+              <p class="menu-row-desc">Mit Fleisch nach Wahl, knusprigen Pommes, frischem Salat und einer Soße deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">12,50 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Lahmacun-Teller</h3>
+              <p class="menu-row-desc">Hausgemachter Lahmacun mit Dönerfleisch, frischem Salat und einer Soße deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">12,50 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Döner-Box</h3>
+              <p class="menu-row-desc">Döner mit Pommes oder Salat. Schnell, herzhaft und perfekt für unterwegs.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Döner Bowl</h3>
+              <p class="menu-row-desc">Saftiges Dönerfleisch mit Halloumi, Grünsalat, Krautsalat, Mais, Kidneybohnen, Avocado und einer Soße deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">13,50 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">V-Falafel Bowl <span class="row-tag veggie">Vegan</span></h3>
+              <p class="menu-row-desc">Knuspriger Falafel mit Halloumi, frischem Krautsalat, Kidneybohnen, Avocado, Mais und einer Soße deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">12,50 €</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="menu-panel" data-cat="pide" role="tabpanel">
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Pide Classica</h3>
+              <p class="menu-row-desc">Mit zartem Mozzarella und würzigem Schafskäse — die perfekte Kombination aus mild und kräftig. Mit Salat und Soße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">9,90 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Pide Anatolia</h3>
+              <p class="menu-row-desc">Hausgemachte Pide mit würzigem Hackfleisch und zartem Mozzarella — herzhaft und traditionell. Mit Salat und Soße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">12,90 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Pide Fungi</h3>
+              <p class="menu-row-desc">Mit frischen Champignons und feinem Mozzarella — ein Klassiker für Pilzliebhaber. Mit Salat und Soße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">11,90 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Pide Dönero</h3>
+              <p class="menu-row-desc">Mit zartem Mozzarella und saftigem Dönerfleisch — feurig, herzhaft und unwiderstehlich. Mit Salat und Soße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">12,90 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Pide Piccante <span class="row-tag spicy">Pikant</span></h3>
+              <p class="menu-row-desc">Mit pikanter Salami und zartem Mozzarella — herzhaft, würzig und voller Geschmack. Mit Salat und Soße.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">10,90 €</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="menu-panel" data-cat="green" role="tabpanel">
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Plant Döner <span class="row-tag veggie">100% Vegan</span></h3>
+              <p class="menu-row-desc">Mit ofenfrischem Brot, Salat nach Wahl und einer veganen Soße nach Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Plant Dürüm <span class="row-tag veggie">100% Vegan</span></h3>
+              <p class="menu-row-desc">Mit hausgemachtem Dürüm, Salat nach Wahl und einer veganen Soße nach Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">9,50 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Veggy Döner <span class="row-tag veggie">Veggie</span></h3>
+              <p class="menu-row-desc">Hausgemachtes Brot mit knusprig frittiertem Saisongemüse, Salat nach Wahl und einer Soße nach Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">7,00 €</span>
+              <span class="row-menu">Menü 14,00 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Veggy Dürüm <span class="row-tag veggie">Veggie</span></h3>
+              <p class="menu-row-desc">Hausgemachter Dürüm mit knusprig frittiertem Saisongemüse, Salat nach Wahl und einer Soße nach Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">8,90 €</span>
+              <span class="row-menu">Menü 14,50 €</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="menu-panel" data-cat="salate" role="tabpanel">
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Feta Frische-Salat</h3>
+              <p class="menu-row-desc">Knackiger Salatmix nach Wahl, dazu würziger Schafskäse — verfeinert mit einer Soße deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">10,90 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Falafel Garden <span class="row-tag veggie">Vegan</span></h3>
+              <p class="menu-row-desc">Frischer Salat nach Wahl trifft auf knusprigen, würzigen Falafel — mit einer Soße deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">11,90 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Orient Garden</h3>
+              <p class="menu-row-desc">Salatbasis nach Wahl, geschmortes Gemüse, Falafel und würziger Schafskäse — perfekt kombiniert mit einer Soße deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">12,90 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Türkischer Bauernsalat</h3>
+              <p class="menu-row-desc">Grüner Salat, Tomaten, Gurken und rote Zwiebeln — abgerundet mit Olivenöl, Zitrone und Granatapfelsirup.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">9,90 €</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="menu-panel" data-cat="snacks" role="tabpanel">
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Pommes</h3>
+              <p class="menu-row-desc">Knusprig goldene Pommes Frites.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">4,50 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Falafel <span class="row-tag veggie">Vegan</span></h3>
+              <p class="menu-row-desc">6 knusprig gebackene Kichererbsenbällchen.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">4,50 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Nuggets</h3>
+              <p class="menu-row-desc">6 knusprig goldene Hähnchennuggets.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">5,50 €</span>
+            </div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Cheese Fries Balls</h3>
+              <p class="menu-row-desc">8 knusprige Bällchen mit geschmolzenem Mozzarella.</p>
+            </div>
+            <div class="menu-row-price">
+              <span class="row-single">4,50 €</span>
+            </div>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="menu-panel" data-cat="extras" role="tabpanel">
+        <h3 class="menu-subhead">Dips &amp; Soßen</h3>
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Ketchup</h3>
+              <p class="menu-row-desc">Klassisch &amp; süß-würzig.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">0,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Majo</h3>
+              <p class="menu-row-desc">Cremig, vollmundig, sahnig.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">0,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">BBQ</h3>
+              <p class="menu-row-desc">Süßlich-rauchig, mit Holzkohle-Note.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">0,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Spread</h3>
+              <p class="menu-row-desc">Cremig, mild, vielseitig.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">0,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Mexican Fire <span class="row-tag spicy">Scharf</span></h3>
+              <p class="menu-row-desc">Limette, Curaçao, Chili — feurig &amp; frisch.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">0,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Smokey</h3>
+              <p class="menu-row-desc">American Smoked-Style mit Holzfeuer-Aroma.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">0,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Mack <span class="row-tag signature">House</span></h3>
+              <p class="menu-row-desc">Unsere House-Special-Soße — würzig, käsig, geheim.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">0,80 €</span></div>
+          </article>
+
+        </div>
+
+        <h3 class="menu-subhead">Extras &amp; Beilagen</h3>
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Feta</h3>
+              <p class="menu-row-desc">Würziger Schafskäse als Topping.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">1,00 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Gegrilltes Gemüse <span class="row-tag veggie">Vegan</span></h3>
+              <p class="menu-row-desc">Knusprig frittiertes Saisongemüse.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">1,50 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Halloumi <span class="row-tag veggie">Veggie</span></h3>
+              <p class="menu-row-desc">Gegrillter Grillkäse — herzhaft &amp; quietschig.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">1,50 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main">
+              <h3 class="menu-row-name">Extra Fleisch</h3>
+              <p class="menu-row-desc">Doppelte Portion Dönerfleisch deiner Wahl.</p>
+            </div>
+            <div class="menu-row-price"><span class="row-single">2,00 €</span></div>
+          </article>
+
+        </div>
+      </div>
+
+      <div class="menu-panel" data-cat="drinks" role="tabpanel">
+        <div class="menu-rows">
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Coca Cola</h3><p class="menu-row-desc">0,33 l · klassisch &amp; eisgekühlt.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,50 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Fanta</h3><p class="menu-row-desc">0,33 l · spritzig-fruchtig.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,50 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Apfelschorle</h3><p class="menu-row-desc">0,33 l · Apfelsaft mit Mineralwasser.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,50 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Eistee</h3><p class="menu-row-desc">0,33 l · Pfirsich oder Zitrone.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,50 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Wasser</h3><p class="menu-row-desc">0,5 l · still oder mit Kohlensäure.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,00 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Ayran</h3><p class="menu-row-desc">0,25 l · der Klassiker zum Döner.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,00 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Club-Mate</h3><p class="menu-row-desc">0,33 l · Mate-Tee, koffeinhaltig.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Fritz-Kola</h3><p class="menu-row-desc">0,33 l · viel Koffein, viel Kola.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Fritz-Limo Melone</h3><p class="menu-row-desc">0,33 l · fruchtig-spritzig.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Fritz-Limo Orange</h3><p class="menu-row-desc">0,33 l · echte Orange, weniger Zucker.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,80 €</span></div>
+          </article>
+
+          <article class="menu-row">
+            <div class="menu-row-main"><h3 class="menu-row-name">Fritz-Limo Zitrone</h3><p class="menu-row-desc">0,33 l · spritzig &amp; erfrischend.</p></div>
+            <div class="menu-row-price"><span class="row-single">2,80 €</span></div>
+          </article>
+
+        </div>
+      </div>
+
+    </div>
+
+    <div class="menu-info reveal">
+      <h3 class="menu-info-title">Wichtig zu wissen</h3>
+      <ul class="menu-info-list">
+        <li>Alle Menüs enthalten ein Getränk deiner Wahl &amp; Pommes. Für 1,50 € extra kannst du die Pommes gegen einen anderen Snack tauschen.</li>
+        <li>Alle Döner-Varianten gibt es auch als Dürüm — für 1,00 € Aufpreis.</li>
+        <li>Alle Varianten sind auch vegetarisch erhältlich. Wählbar: Falafel, Halloumi, gegrilltes Gemüse oder Feta.</li>
+        <li>Alle Varianten gibt es auch vegan — für 1,00 € Aufpreis. Statt Fleisch kommt Seitan ins Brot.</li>
+      </ul>
+    </div>
+
+    <div class="menu-foot reveal">
+      <div class="menu-foot-text">
+        <strong>Hinweis:</strong> Wir akzeptieren Karte ab 10 €, sonst gerne bar. Glutenfrei oder Allergien? Sprich uns vor Ort an — wir finden was für dich.
+      </div>
+      <button type="button" class="btn btn-primary" data-order>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        Online bestellen
+      </button>
+    </div>
+  </div>
+</section>
+
+<section class="story-sec" id="geschichte">
+  <div class="container">
+    <div class="story-grid">
+      <figure class="story-photo reveal">
+        <img src="merdins-shop.jpg" alt="Mêrdîn's Cheesy Döner — Restaurant in der Altmarkt-Galerie Dresden" loading="lazy">
+        <figcaption class="story-photo-cap">
+          <span class="story-photo-eyebrow">Live</span>
+          <span class="story-photo-text">Unser Spot in der Altmarkt-Galerie</span>
+        </figcaption>
+      </figure>
+
+      <div class="story-content">
+        <span class="eyebrow reveal">Mêrdîn's</span>
+        <h2 class="section-title reveal reveal-d-1">Mehr als<br><em>nur Döner.</em></h2>
+
+        <p class="reveal reveal-d-2">
+          Mêrdîn's ist Dresdens neuer Lieblingsspot für käsiges, kreatives Streetfood — mitten in der Altmarkt-Galerie. Wir verbinden orientalische Küche mit modernen Streetfood-Ideen: Cheesy-Döner-Kreationen, ofenfrische Pide, herzhafte Bowls und vegetarische sowie vegane Varianten — für jeden Geschmack das Richtige.
+        </p>
+
+        <p class="reveal reveal-d-3">
+          Was uns ausmacht: Geschmack, der hängenbleibt. Eine Theke, an der es schnell geht. Ein Team, das dich mit einem Strahlen begrüßt. Du gehst nicht nur satt raus — sondern mit dem Gedanken: <strong>das war besser als erwartet.</strong>
+        </p>
+
+        <div class="story-stats">
+          <div class="story-stat reveal reveal-d-3">
+            <div class="num">4,7<span style="font-size:0.5em;color:var(--color-muted);"> /5</span></div>
+            <div class="lbl">Google-Rating</div>
+          </div>
+          <div class="story-stat reveal reveal-d-4">
+            <div class="num">245+</div>
+            <div class="lbl">Bewertungen</div>
+          </div>
+          <div class="story-stat reveal reveal-d-5">
+            <div class="num">30+</div>
+            <div class="lbl">Kreationen</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="reviews-sec" id="bewertungen">
+  <div class="container">
+    <div class="reviews-head">
+      <div class="reviews-rating reveal">
+        <span class="big">4,7</span>
+        <div>
+          <span class="stars" aria-label="4,7 von 5 Sternen">
+            <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          </span>
+          <div class="meta"><strong>245 Google-Bewertungen</strong>Stand: laufend aktualisiert</div>
+        </div>
+      </div>
+      <span class="eyebrow reveal reveal-d-1">Was Stammgäste sagen</span>
+      <h2 class="section-title reveal reveal-d-2">Echte Stimmen.<br><em>Echte Teller.</em></h2>
+    </div>
+
+    <div class="reviews-grid">
+
+      <article class="review-card reveal">
+        <div class="quote-mark">&ldquo;</div>
+        <div class="review-stars" aria-label="5 Sterne">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <p class="review-quote">&bdquo;Knuspriges Fleisch mit angenehmer Schärfe — für mich genau richtig.&ldquo;</p>
+        <div class="review-meta">
+          <div class="review-avatar" style="background:#f5b935;">W</div>
+          <div>
+            <div class="review-name">Waldemar S.</div>
+            <div class="review-source">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.83z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.83c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+              Google-Bewertung · vor 3 Monaten
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="review-card reveal reveal-d-1">
+        <div class="quote-mark">&ldquo;</div>
+        <div class="review-stars" aria-label="5 Sterne">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <p class="review-quote">&bdquo;Der beste und ausgefallenste Döner, den ich seit langem gegessen habe.&ldquo;</p>
+        <div class="review-meta">
+          <div class="review-avatar" style="background:#c73c20;color:#fff;">J</div>
+          <div>
+            <div class="review-name">Josie M.</div>
+            <div class="review-source">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.83z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.83c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+              Google-Bewertung · vor 7 Monaten
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="review-card reveal reveal-d-2">
+        <div class="quote-mark">&ldquo;</div>
+        <div class="review-stars" aria-label="5 Sterne">
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+          <svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        </div>
+        <p class="review-quote">&bdquo;Chili-Cheese-Döner war mega lecker, schön scharf mit Jalapeños.&ldquo;</p>
+        <div class="review-meta">
+          <div class="review-avatar" style="background:#4ade80;color:#0a0908;">V</div>
+          <div>
+            <div class="review-name">Violetta T.</div>
+            <div class="review-source">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.83z"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.83c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+              Google-Bewertung · vor 5 Monaten
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+
+    <div style="text-align:center; margin-top:48px;" class="reveal">
+      <a href="https://www.google.com/maps/place/M%C3%AArd%C3%AEn%C2%B4s+Cheesy+D%C3%B6ner/@51.0494874,13.7330818,17z/data=!3m1!5s0x4709cf6736c6b5f3:0x7edf0a3af7efa76c!4m8!3m7!1s0x4709cf222feefa3b:0x278dcc84edb7f888!8m2!3d51.0494874!4d13.7356567!9m1!1b1!16s%2Fg%2F11yg1ddrp0?entry=ttu" target="_blank" rel="noopener" class="btn btn-ghost">
+        Alle 245 Bewertungen lesen
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="visit-sec" id="besuch">
+  <div class="container">
+    <div class="visit-grid">
+
+      <div class="visit-info reveal">
+        <span class="eyebrow">So findest du uns</span>
+        <h2 class="section-title">Komm einfach<br><em>vorbei.</em></h2>
+        <p class="section-lead" style="margin-bottom:24px;">
+          Mitten in der Altmarkt-Galerie — direkt an der Webergasse. Stoßzeiten 12–14 Uhr und 17–19 Uhr.
+        </p>
+
+        <div class="info-block">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <div class="text">
+            <strong>Adresse</strong>
+            <p>
+              <a href="https://www.google.com/maps/dir/?api=1&destination=Mêrdîn's+Cheesy+Döner+Altmarkt+Galerie+Dresden" target="_blank" rel="noopener">
+                Altmarkt-Galerie · Webergasse 1<br>01067 Dresden
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <div class="info-block">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </div>
+          <div class="text">
+            <strong>Telefon</strong>
+            <p><a href="tel:+4935121527880">0351 21527880</a></p>
+          </div>
+        </div>
+
+        <div class="info-block">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="text">
+            <strong>Öffnungszeiten</strong>
+            <table class="hours-table" id="hoursTable">
+              <tr data-day="1"><td>Montag</td><td>10:00 – 20:00</td></tr>
+              <tr data-day="2"><td>Dienstag</td><td>10:00 – 20:00</td></tr>
+              <tr data-day="3"><td>Mittwoch</td><td>10:00 – 20:00</td></tr>
+              <tr data-day="4"><td>Donnerstag</td><td>10:00 – 20:00</td></tr>
+              <tr data-day="5"><td>Freitag</td><td>10:00 – 20:00</td></tr>
+              <tr data-day="6"><td>Samstag</td><td>10:00 – 20:00</td></tr>
+              <tr data-day="0"><td>Sonntag</td><td>10:00 – 20:00</td></tr>
+            </table>
+            <div class="open-status open" id="openStatus">
+              <span class="live-dot"></span>
+              <span id="openStatusText">Jetzt geöffnet</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-block">
+          <div class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="16" rx="2"/><path d="m9 19-2 3"/><path d="m15 19 2 3"/><path d="M8 11h8"/><path d="M8 7h8"/></svg>
+          </div>
+          <div class="text">
+            <strong>Anreise</strong>
+            <p>Tram 1, 2, 4 oder S-Bahn bis Altmarkt — wir sind direkt im Erdgeschoss der Galerie. Parkhaus im Haus.</p>
+          </div>
+        </div>
+
+        <div class="visit-cta-row">
+          <a href="https://www.google.com/maps/dir/?api=1&destination=Mêrdîn's+Cheesy+Döner+Dresden" target="_blank" rel="noopener" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+            Route planen
+          </a>
+          <a href="tel:+4935121527880" class="btn btn-ghost">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            Anrufen
+          </a>
+        </div>
+      </div>
+
+      <div class="visit-map reveal reveal-d-2">
+        <iframe
+          src="https://maps.google.com/maps?q=M%C3%AArd%C3%AEn%27s%20Cheesy%20D%C3%B6ner%20Dresden&hl=de&z=16&output=embed"
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          title="Mêrdîn's Cheesy Döner — Karte">
+        </iframe>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<section class="contact-sec" id="kontakt">
+  <div class="container">
+    <div class="contact-grid">
+
+      <div class="contact-side">
+        <span class="eyebrow reveal">Schreib uns</span>
+        <h2 class="section-title reveal reveal-d-1">Kontakt &<br><em>Vorbestellung.</em></h2>
+        <p class="reveal reveal-d-2">
+          Größere Bestellung? Catering für deine Crew? Frage zu Allergenen? Wähle deinen Weg — am schnellsten geht's per Anruf.
+        </p>
+
+        <div class="contact-options reveal reveal-d-3">
+          <a href="tel:+4935121527880" class="contact-opt">
+            <span class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            </span>
+            <div class="txt">
+              <strong>0351 21527880</strong>
+              <span>Direkt durchklingeln · schnellste Antwort</span>
+            </div>
+            <svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+
+          <a href="https://www.google.com/maps/dir/?api=1&destination=Mêrdîn's+Cheesy+Döner+Dresden" target="_blank" rel="noopener" class="contact-opt">
+            <span class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+            </span>
+            <div class="txt">
+              <strong>Vorbeikommen</strong>
+              <span>Altmarkt-Galerie · Webergasse 1, 01067 Dresden</span>
+            </div>
+            <svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+
+          <a href="mailto:hallo@merdins-cheesy.de" class="contact-opt">
+            <span class="ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </span>
+            <div class="txt">
+              <strong>hallo@merdins-cheesy.de</strong>
+              <span>Geschäftliches & Catering-Anfragen</span>
+            </div>
+            <svg class="arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <form class="contact-form reveal reveal-d-2" id="contactForm" novalidate>
+        <div class="form-row">
+          <div class="field">
+            <label for="f-name">Name <span class="req">*</span></label>
+            <input type="text" id="f-name" name="name" required autocomplete="name">
+          </div>
+          <div class="field">
+            <label for="f-phone">Telefon <span class="req">*</span></label>
+            <input type="tel" id="f-phone" name="phone" required autocomplete="tel">
+          </div>
+        </div>
+
+        <div class="form-row single">
+          <div class="field">
+            <label for="f-email">E-Mail (optional)</label>
+            <input type="email" id="f-email" name="email" autocomplete="email">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="f-date">Wunschdatum</label>
+            <input type="date" id="f-date" name="date">
+          </div>
+          <div class="field">
+            <label for="f-time">Uhrzeit</label>
+            <input type="time" id="f-time" name="time">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label for="f-people">Personen</label>
+            <select id="f-people" name="people">
+              <option value="1">1 Person</option>
+              <option value="2">2 Personen</option>
+              <option value="3-5">3–5 Personen</option>
+              <option value="6-10">6–10 Personen</option>
+              <option value="10+">Mehr als 10 (Catering)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="f-type">Anliegen</label>
+            <select id="f-type" name="type">
+              <option value="vorbestellung">Vorbestellung Abholung</option>
+              <option value="catering">Catering-Anfrage</option>
+              <option value="frage">Allgemeine Frage</option>
+              <option value="feedback">Feedback</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row single">
+          <div class="field">
+            <label for="f-msg">Nachricht</label>
+            <textarea id="f-msg" name="message" placeholder="Was möchtest du bestellen oder wissen?"></textarea>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary form-submit">
+          Anfrage senden
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+
+        <div class="form-foot">
+          Du erhältst eine Antwort meist innerhalb von 30 Minuten während der Öffnungszeiten.
+        </div>
+
+        <div class="form-success" id="formSuccess">
+          <div class="form-success-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h4>Danke!</h4>
+          <p>Deine Anfrage ist auf dem Weg. Wir melden uns gleich.</p>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="modal-overlay" id="orderModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="orderModalTitle">
+  <div class="modal-card" role="document">
+    <button class="modal-close" id="modalClose" aria-label="Schließen" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <span class="eyebrow modal-eyebrow">Online bestellen</span>
+    <h3 class="modal-title" id="orderModalTitle">Wo möchtest<br><em>du bestellen?</em></h3>
+    <p class="modal-lead">Wähle deinen Lieferdienst — dort findest du die komplette Speisekarte und kannst direkt bestellen.</p>
+    <div class="modal-options">
+      <a href="https://wolt.com/de/deu/dresden/restaurant/mrdns-cheesy-dner" target="_blank" rel="noopener noreferrer" class="modal-option modal-wolt">
+        <span class="modal-option-name">
+          <span class="modal-option-mark" aria-hidden="true">W</span>
+          Wolt
+        </span>
+        <svg class="modal-option-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+      <a href="https://www.lieferando.de/speisekarte/merdins-cheesy-doner" target="_blank" rel="noopener noreferrer" class="modal-option modal-lieferando">
+        <span class="modal-option-name">
+          <span class="modal-option-mark" aria-hidden="true">L</span>
+          Lieferando
+        </span>
+        <svg class="modal-option-arr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+      </a>
+    </div>
+    <div class="modal-foot">
+      Lieber telefonisch? <a href="tel:+4935121527880">0351 21527880</a>
+    </div>
+  </div>
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+
+      <div class="footer-col footer-brand">
+        <div class="logo">
+          <span class="logo-stamp" aria-hidden="true">MÊRDÎNS</span>
+          <span class="logo-script" aria-hidden="true">
+            <span>Cheesy</span>
+            <span>Döner</span>
+          </span>
+        </div>
+        <p>Hausgemachtes Brot, eigene Soßen, Käse satt. Dresdens cheesyster Döner — seit Jahren am Standort Striesen.</p>
+        <div class="footer-socials">
+          <a href="https://www.google.com/maps/place/M%C3%AArd%C3%AEn%C2%B4s+Cheesy+D%C3%B6ner/@51.0494874,13.7330818,17z/data=!3m1!5s0x4709cf6736c6b5f3:0x7edf0a3af7efa76c!4m8!3m7!1s0x4709cf222feefa3b:0x278dcc84edb7f888!8m2!3d51.0494874!4d13.7356567!9m1!1b1!16s%2Fg%2F11yg1ddrp0?entry=ttu" target="_blank" rel="noopener" aria-label="Google Maps">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </a>
+          <a href="tel:+4935121527880" aria-label="Anrufen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </a>
+          <a href="mailto:hallo@merdins-cheesy.de" aria-label="E-Mail">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="footer-col">
+        <h5>Besuchen</h5>
+        <ul>
+          <li><a href="https://www.google.com/maps/dir/?api=1&destination=Mêrdîn's+Cheesy+Döner+Altmarkt+Galerie+Dresden" target="_blank" rel="noopener">Altmarkt-Galerie · Webergasse 1<br>01067 Dresden</a></li>
+          <li><a href="tel:+4935121527880">0351 21527880</a></li>
+          <li><a href="mailto:hallo@merdins-cheesy.de">hallo@merdins-cheesy.de</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Öffnungszeiten</h5>
+        <ul>
+          <li><span style="color:var(--color-mute-2)">Täglich</span> &nbsp; 10:00 – 20:00</li>
+          <li><span style="color:var(--color-mute-2)">Mo – So</span> &nbsp; durchgehend warm</li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Karte</h5>
+        <ul>
+          <li><a href="#speisekarte">Speisekarte</a></li>
+          <li><a href="#geschichte">Unsere Story</a></li>
+          <li><a href="#bewertungen">Bewertungen</a></li>
+          <li><a href="#kontakt">Kontakt & Bestellung</a></li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div class="footer-bottom">
+      <span>© <span id="year"></span> Mêrdîn's Cheesy Döner Dresden · Alle Rechte vorbehalten.</span>
+      <span style="color:var(--color-mute-2);">Mit Sorgfalt gemacht.</span>
+    </div>
+  </div>
+</footer>
+
+<div class="mbar" role="navigation" aria-label="Schnellaktionen">
+  <button type="button" class="m-call" data-order>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+    Online bestellen
+  </button>
+  <a href="https://www.google.com/maps/dir/?api=1&destination=Mêrdîn's+Cheesy+Döner+Altmarkt+Galerie+Dresden" target="_blank" rel="noopener" class="m-route">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+    Route
+  </a>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  const header = document.getElementById('siteHeader');
+  const onScroll = () => header.classList.toggle('scrolled', window.scrollY > 12);
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  const toggle = document.getElementById('menuToggle');
+  const mobNav = document.getElementById('mobNav');
+  toggle.addEventListener('click', () => {
+    const open = mobNav.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', open);
+    mobNav.setAttribute('aria-hidden', !open);
+    document.body.style.overflow = open ? 'hidden' : '';
+  });
+  document.querySelectorAll('[data-mob-link]').forEach(l => {
+    l.addEventListener('click', () => {
+      mobNav.classList.remove('open');
+      toggle.setAttribute('aria-expanded', false);
+      mobNav.setAttribute('aria-hidden', true);
+      document.body.style.overflow = '';
+    });
+  });
+
+  const orderModal = document.getElementById('orderModal');
+  const modalClose = document.getElementById('modalClose');
+  function openOrderModal() {
+    orderModal.classList.add('open');
+    orderModal.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeOrderModal() {
+    orderModal.classList.remove('open');
+    orderModal.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  document.querySelectorAll('[data-order]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.preventDefault();
+      openOrderModal();
+    });
+  });
+  modalClose.addEventListener('click', closeOrderModal);
+  orderModal.addEventListener('click', e => {
+    if (e.target === orderModal) closeOrderModal();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && orderModal.classList.contains('open')) closeOrderModal();
+  });
+
+  const menuTabs = document.querySelectorAll('.menu-tab');
+  const menuPanels = document.querySelectorAll('.menu-panel');
+  menuTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const cat = tab.dataset.cat;
+      menuTabs.forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
+      menuPanels.forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
+      const panel = document.querySelector('.menu-panel[data-cat="' + cat + '"]');
+      if (panel) panel.classList.add('active');
+    });
+  });
+
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('in');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+  }
+
+  const hours = {
+    0: { open: 10, close: 20 },
+    1: { open: 10, close: 20 },
+    2: { open: 10, close: 20 },
+    3: { open: 10, close: 20 },
+    4: { open: 10, close: 20 },
+    5: { open: 10, close: 20 },
+    6: { open: 10, close: 20 }
+  };
+
+  function updateOpen() {
+    const now = new Date();
+    const day = now.getDay();
+    const t = now.getHours() + now.getMinutes() / 60;
+    const today = hours[day];
+    const isOpen = t >= today.open && t < today.close;
+
+    const el = document.getElementById('openStatus');
+    const txt = document.getElementById('openStatusText');
+    if (isOpen) {
+      el.classList.remove('closed');
+      el.classList.add('open');
+      const closeH = Math.floor(today.close);
+      const closeM = (today.close % 1) * 60;
+      txt.textContent = 'Jetzt geöffnet · bis ' + String(closeH).padStart(2, '0') + ':' + String(closeM).padStart(2, '0');
+    } else {
+      el.classList.remove('open');
+      el.classList.add('closed');
+      if (t < today.open) {
+        const oH = Math.floor(today.open);
+        const oM = (today.open % 1) * 60;
+        txt.textContent = 'Geschlossen · öffnet heute ' + String(oH).padStart(2, '0') + ':' + String(oM).padStart(2, '0');
+      } else {
+        const nextDay = (day + 1) % 7;
+        const oH = Math.floor(hours[nextDay].open);
+        const oM = (hours[nextDay].open % 1) * 60;
+        const dayName = ['So','Mo','Di','Mi','Do','Fr','Sa'][nextDay];
+        txt.textContent = 'Geschlossen · öffnet ' + dayName + ' ' + String(oH).padStart(2, '0') + ':' + String(oM).padStart(2, '0');
+      }
+    }
+
+    document.querySelectorAll('#hoursTable tr').forEach(r => r.classList.remove('today'));
+    const row = document.querySelector('#hoursTable tr[data-day="' + day + '"]');
+    if (row) row.classList.add('today');
+  }
+
+  updateOpen();
+  setInterval(updateOpen, 60 * 1000);
+
+  const form = document.getElementById('contactForm');
+  const successEl = document.getElementById('formSuccess');
+
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const data = new FormData(form);
+    const name = (data.get('name') || '').toString().trim();
+    const phone = (data.get('phone') || '').toString().trim();
+    if (!name || !phone) {
+      if (!name) form.querySelector('#f-name').focus();
+      else form.querySelector('#f-phone').focus();
+      return;
+    }
+
+    const subject = encodeURIComponent('Anfrage von ' + name + ' (' + (data.get('type') || 'Kontakt') + ')');
+    const lines = [
+      'Name: ' + name,
+      'Telefon: ' + phone,
+      data.get('email') ? 'E-Mail: ' + data.get('email') : null,
+      data.get('date') ? 'Datum: ' + data.get('date') : null,
+      data.get('time') ? 'Uhrzeit: ' + data.get('time') : null,
+      'Personen: ' + (data.get('people') || '–'),
+      'Anliegen: ' + (data.get('type') || '–'),
+      '',
+      'Nachricht:',
+      (data.get('message') || '–')
+    ].filter(Boolean).join('\n');
+
+    const mailtoUrl = 'mailto:hallo@merdins-cheesy.de?subject=' + subject + '&body=' + encodeURIComponent(lines);
+    window.location.href = mailtoUrl;
+
+    setTimeout(() => {
+      Array.from(form.children).forEach(c => {
+        if (c !== successEl) c.style.display = 'none';
+      });
+      successEl.classList.add('show');
+    }, 350);
+  });
+
+})();
+</script>
+
+</body>
+</html>
