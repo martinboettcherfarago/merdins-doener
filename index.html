@@ -52,9 +52,7 @@
     "reviewCount": "245"
   },
   "openingHoursSpecification": [
-    {"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday"], "opens": "11:00", "closes": "22:00"},
-    {"@type": "OpeningHoursSpecification", "dayOfWeek": ["Friday","Saturday"], "opens": "11:00", "closes": "23:30"},
-    {"@type": "OpeningHoursSpecification", "dayOfWeek": "Sunday", "opens": "12:00", "closes": "22:00"}
+    {"@type": "OpeningHoursSpecification", "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"], "opens": "10:00", "closes": "20:00"}
   ]
 }
 </script>
@@ -178,7 +176,7 @@
   .section-title {
     font-family: var(--font-display);
     font-size: clamp(36px, 5vw, 64px);
-    line-height: 1.04;
+    line-height: 1.18;
     text-transform: uppercase;
     margin: 12px 0 16px;
   }
@@ -418,7 +416,7 @@
     font-family: var(--font-display);
     font-size: clamp(48px, 8vw, 104px);
     font-weight: 400;
-    line-height: 1.04;
+    line-height: 1.18;
     text-transform: uppercase;
     letter-spacing: 0.005em;
     margin: 0 0 24px;
@@ -793,7 +791,7 @@
   .menu-subhead {
     font-family: var(--font-display);
     font-size: 28px;
-    line-height: 1.04;
+    line-height: 1.18;
     text-transform: uppercase;
     letter-spacing: 0.02em;
     color: var(--color-brand-teal);
@@ -814,7 +812,7 @@
   .menu-info-title {
     font-family: var(--font-display);
     font-size: 20px;
-    line-height: 1.04;
+    line-height: 1.18;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--color-brand-teal);
@@ -1750,7 +1748,7 @@
   .modal-title {
     font-family: var(--font-display);
     font-size: 36px;
-    line-height: 1.04;
+    line-height: 1.18;
     text-transform: uppercase;
     letter-spacing: 0.005em;
     margin: 14px 0 14px;
@@ -2807,7 +2805,7 @@
               <tr data-day="4"><td>Donnerstag</td><td>10:00 – 20:00</td></tr>
               <tr data-day="5"><td>Freitag</td><td>10:00 – 20:00</td></tr>
               <tr data-day="6"><td>Samstag</td><td>10:00 – 20:00</td></tr>
-              <tr data-day="0"><td>Sonntag</td><td>10:00 – 20:00</td></tr>
+              <tr data-day="0"><td>Sonntag</td><td>Geschlossen</td></tr>
             </table>
             <div class="open-status open" id="openStatus">
               <span class="live-dot"></span>
@@ -2822,7 +2820,7 @@
           </div>
           <div class="text">
             <strong>Anreise</strong>
-            <p>Tram 1, 2, 4 oder S-Bahn bis Altmarkt — wir sind direkt im Erdgeschoss der Galerie. Parkhaus im Haus.</p>
+            <p>Tram bis Postplatz oder Prager Straße — wir sind im Untergeschoss der Altmarkt-Galerie. Parkhaus im Haus.</p>
           </div>
         </div>
 
@@ -3023,7 +3021,7 @@
             <span>Döner</span>
           </span>
         </div>
-        <p>Hausgemachtes Brot, eigene Soßen, Käse satt. Dresdens cheesyster Döner — seit Jahren am Standort Striesen.</p>
+        <p>Käsige Streetfood-Kreationen, eigene Soßen, ofenfrische Pide. Dresdens cheesyster Döner — mitten in der Altmarkt-Galerie.</p>
         <div class="footer-socials">
           <a href="https://www.google.com/maps/place/M%C3%AArd%C3%AEn%C2%B4s+Cheesy+D%C3%B6ner/@51.0494874,13.7330818,17z/data=!3m1!5s0x4709cf6736c6b5f3:0x7edf0a3af7efa76c!4m8!3m7!1s0x4709cf222feefa3b:0x278dcc84edb7f888!8m2!3d51.0494874!4d13.7356567!9m1!1b1!16s%2Fg%2F11yg1ddrp0?entry=ttu" target="_blank" rel="noopener" aria-label="Google Maps">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -3049,8 +3047,8 @@
       <div class="footer-col">
         <h5>Öffnungszeiten</h5>
         <ul>
-          <li><span style="color:var(--color-mute-2)">Täglich</span> &nbsp; 10:00 – 20:00</li>
-          <li><span style="color:var(--color-mute-2)">Mo – So</span> &nbsp; durchgehend warm</li>
+          <li><span style="color:var(--color-mute-2)">Mo – Sa</span> &nbsp; 10:00 – 20:00</li>
+          <li><span style="color:var(--color-mute-2)">Sonntag</span> &nbsp; Geschlossen</li>
         </ul>
       </div>
 
@@ -3170,7 +3168,7 @@
   }
 
   const hours = {
-    0: { open: 10, close: 20 },
+    0: null,
     1: { open: 10, close: 20 },
     2: { open: 10, close: 20 },
     3: { open: 10, close: 20 },
@@ -3178,35 +3176,47 @@
     5: { open: 10, close: 20 },
     6: { open: 10, close: 20 }
   };
+  const dayNames = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+
+  function fmt(h) {
+    const hh = Math.floor(h);
+    const mm = (h % 1) * 60;
+    return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+  }
+  function nextOpen(fromDay) {
+    for (let i = 1; i <= 7; i++) {
+      const d = (fromDay + i) % 7;
+      if (hours[d]) return { day: d, info: hours[d] };
+    }
+    return null;
+  }
 
   function updateOpen() {
     const now = new Date();
     const day = now.getDay();
     const t = now.getHours() + now.getMinutes() / 60;
     const today = hours[day];
-    const isOpen = t >= today.open && t < today.close;
 
     const el = document.getElementById('openStatus');
     const txt = document.getElementById('openStatusText');
+    const isOpen = today && t >= today.open && t < today.close;
+
     if (isOpen) {
       el.classList.remove('closed');
       el.classList.add('open');
-      const closeH = Math.floor(today.close);
-      const closeM = (today.close % 1) * 60;
-      txt.textContent = 'Jetzt geöffnet · bis ' + String(closeH).padStart(2, '0') + ':' + String(closeM).padStart(2, '0');
+      txt.textContent = 'Jetzt geöffnet · bis ' + fmt(today.close);
     } else {
       el.classList.remove('open');
       el.classList.add('closed');
-      if (t < today.open) {
-        const oH = Math.floor(today.open);
-        const oM = (today.open % 1) * 60;
-        txt.textContent = 'Geschlossen · öffnet heute ' + String(oH).padStart(2, '0') + ':' + String(oM).padStart(2, '0');
+      if (today && t < today.open) {
+        txt.textContent = 'Geschlossen · öffnet heute ' + fmt(today.open);
       } else {
-        const nextDay = (day + 1) % 7;
-        const oH = Math.floor(hours[nextDay].open);
-        const oM = (hours[nextDay].open % 1) * 60;
-        const dayName = ['So','Mo','Di','Mi','Do','Fr','Sa'][nextDay];
-        txt.textContent = 'Geschlossen · öffnet ' + dayName + ' ' + String(oH).padStart(2, '0') + ':' + String(oM).padStart(2, '0');
+        const next = nextOpen(day);
+        if (next) {
+          txt.textContent = 'Geschlossen · öffnet ' + dayNames[next.day] + ' ' + fmt(next.info.open);
+        } else {
+          txt.textContent = 'Geschlossen';
+        }
       }
     }
 
