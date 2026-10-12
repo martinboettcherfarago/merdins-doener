@@ -37,13 +37,14 @@ class FBuf {
 }
 
 export class Layer {
-  constructor(kind) {
+  constructor(kind, large = false) {
     this.kind = kind;
-    this.p = new FBuf(); // Position
-    this.n = new FBuf(); // Normale
-    this.u = new FBuf(); // UV
-    this.m = kind === 'solid' ? new FBuf(256) : null; // Atlas-Material
-    this.c = kind === 'paint' || kind === 'glow' || kind === 'tint' ? new FBuf(1024) : null; // Farbe RGBA
+    const big = large && (kind === 'solid' || kind === 'paint') ? 1 << 15 : large ? 4096 : 768;
+    this.p = new FBuf(big); // Position
+    this.n = new FBuf(big); // Normale
+    this.u = new FBuf(big); // UV
+    this.m = kind === 'solid' ? new FBuf(big / 3) : null; // Atlas-Material
+    this.c = kind === 'paint' || kind === 'glow' || kind === 'tint' ? new FBuf(big) : null; // Farbe RGBA
     this.s = kind === 'glow' ? new FBuf(1024) : null; // Signal/Leuchtart
     this.i = kind === 'light' ? new FBuf(256) : null; // Lichtstärke
   }

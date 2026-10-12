@@ -75,6 +75,9 @@ export class RoadView {
     ];
     this.buildViaduct();
     this.rebuild();
+    // Alleebäume zeichnet G8 im Mittelstreifen selbst → die des Geländes abschalten (falls unterstützt)
+    const ter = engine.terrain;
+    if (ter && typeof ter.avenueTrees === 'boolean' && ter.avenueTrees) { ter.avenueTrees = false; if (ter.refreshTrees) ter.refreshTrees(); }
   }
 
   // ------------------------------------------------------------ Öffentlich
@@ -296,7 +299,7 @@ export class RoadView {
   }
 
   newCtx() {
-    const L = { solid: new Layer('solid'), detail: new Layer('solid'), paint: new Layer('paint'), glow: new Layer('glow'), light: new Layer('light'), tint: new Layer('tint') };
+    const L = { solid: new Layer('solid', true), detail: new Layer('solid'), paint: new Layer('paint', true), glow: new Layer('glow', true), light: new Layer('light'), tint: new Layer('tint', true) };
     return { L, solid: new Brush(L.solid), detail: new Brush(L.detail), paint: new Brush(L.paint), glow: new Brush(L.glow), light: L.light, lamps: [], tintTiles: [], signals: [], inst: new InstanceList() };
   }
 
@@ -1427,7 +1430,7 @@ export class RoadView {
       S.tri(mC, ...c[0], ...c[1], ...c[2]); S.tri(mC, ...c[0], ...c[2], ...c[3]);
       if (k % 2 === 0) {
         const b = ctx.solid;
-        for (const q of [-0.24, 0.24]) b.at(D.cx, -6, D.cz + q, 0).m('concrete').cyl(0, 0, 0, 0.07, 0.06, 5.84, 10, 0);
+        for (const q of [-0.24, 0.24]) b.at(D.cx, -16, D.cz + q, 0).m('concrete').cyl(0, 0, 0, 0.09, 0.06, 15.84, 10, 0);
         b.at(D.cx, -0.17, D.cz, 0).m('concrete').box(0, 0, 0, 0.1, 0.06, 0.78);
       }
     }
