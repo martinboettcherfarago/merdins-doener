@@ -1584,7 +1584,7 @@ function assignHour(g, h) {
     nodes[d].alightToday += dl;
     if (chg) transfers += dl;
     feeder += dl * feedFrac[d];
-    for (const li of used) { const l = G.lines[li]; l.hourRiders += dl; if (l.mode === 'tram') tramR += dl; else busR += dl; }
+    for (const li of used) { const l = G.lines[li]; l.hourRiders += dl; l.faresToday = (l.faresToday || 0) + (dl * fare) / used.size; if (l.mode === 'tram') tramR += dl; else busR += dl; }
   }
   // Ergebnisse
   for (const l of T.lines) {
@@ -1661,7 +1661,8 @@ function computeFields(g) {
   const lv = T.lvField || (T.lvField = new Float32Array(N));
   const diesel = T.dieselField || (T.dieselField = new Uint8Array(N));
   const acc = T.accField || (T.accField = new Uint8Array(N));
-  cov.fill(0); crowd.fill(0); park.fill(0); lv.fill(0); diesel.fill(0); acc.fill(0);
+  const takt = T.taktField || (T.taktField = new Float32Array(N));
+  cov.fill(0); crowd.fill(0); park.fill(0); lv.fill(0); diesel.fill(0); acc.fill(0); takt.fill(999);
   const R0 = TP.stopRadius;
   for (const s of T.stops) {
     if (!s.active) continue;
@@ -1670,6 +1671,7 @@ function computeFields(g) {
       const v = (1 - 0.6 * (d / R0)) * q;
       if (v > cov[t]) cov[t] = v;
       if (s.crowd > crowd[t]) crowd[t] = s.crowd;
+      if (s.takt < takt[t]) takt[t] = s.takt;
     });
   }
   for (let i = 0; i < N; i++) lv[i] = cov[i] * 5;
@@ -1687,6 +1689,22 @@ function computeFields(g) {
   }
   for (const a of T.accidents) if (g.time < a.until + 360) forDisc(g, a.x + 0.5, a.y + 0.5, 2.6, (t) => { acc[t] = 1; });
   T.dirty.fields = false;
+}
+
+// Pendelzeit: Wer Bus oder Bahn nimmt, steht nicht im Stau. Gut angebundene Wohnungen pendeln im Mittel kürzer.
+function commuteEffect(g) {
+  const T = TS(g);
+  if (!T.covField || !T.taktField) return;
+  const strike = g.eff('busStrike') > 0;
+  if (strike) return;
+  for (const b of g.buildings.values()) {
+    if (b.zone !== Z.RES || b.abandoned || !b.occ) continue;
+    const i = b.y * g.W + b.x;
+    const c = T.covField[i];
+    if (c < 0.05) continue;
+    const tc = 6 + Math.min(30, T.taktField[i]) / 2 + 10; // Fußweg + halbe Wartezeit + Fahrt
+    if (tc < b.commute) b.commute -= (b.commute - tc) * c * 0.12;
+  }
 }
 
 // ---------------------------------------------------------------- Ampeln, Parkhäuser, Unfälle (nach der Stau-Berechnung des Kerns)
@@ -1744,6 +1762,26 @@ function accidentsHour(g, h) {
     }
   }
 }
+// Einzugsgebiet geplanter Haltestellen (für die Vorschau im Werkzeug): Bewohner, Arbeitsplätze, Sehenswürdigkeiten
+export function catchmentOf(g, tiles) {
+  const seen = new Set();
+  let res = 0, jobs = 0, lm = 0;
+  for (const tile of tiles) {
+    if (tile < 0) continue;
+    forDisc(g, (tile % g.W) + 0.5, ((tile / g.W) | 0) + 0.5, TP.stopRadius, (t) => {
+      const id = g.bld[t];
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      const b = g.buildings.get(id);
+      if (!b || b.abandoned) return;
+      if (b.zone === Z.RES) res += b.occ;
+      else if (b.zone) jobs += b.occ;
+      else if (BUILDINGS[b.key] && BUILDINGS[b.key].tourism) lm++;
+    });
+  }
+  return { res, jobs, lm };
+}
+
 // Für den Prüfstand: eine Unfallrunde auswürfeln
 export function debugAccidents(g, h = 12) { accidentsHour(g, h); }
 
@@ -1828,6 +1866,8 @@ function dailyReset(g, day) {
     l.rHist.push(l.riders);
     if (l.rHist.length > 21) l.rHist.shift();
     l.ridersToday = 0;
+    l.fares = l.faresToday || 0;
+    l.faresToday = 0;
   }
   for (const s of T.stops) { s.board = Math.round(s.boardToday); s.alight = Math.round(s.alightToday); s.rejected = Math.round(s.rejectedToday); s.boardToday = 0; s.alightToday = 0; s.rejectedToday = 0; }
   for (const f of T.ferries) { f.riders = f.ridersToday; f.ridersToday = 0; }
@@ -1837,6 +1877,13 @@ function dailyReset(g, day) {
   T.faresToday = 0;
   T.longToday = 0;
   // Warnungen
+  // Meilensteine der Fahrgastzahlen
+  const marks = [100, 500, 1000, 2500, 5000, 10000];
+  T.marks = T.marks || 0;
+  while (T.marks < marks.length && T.day.riders >= marks[T.marks]) {
+    const m = marks[T.marks++];
+    news(g, 'mark' + m, `Rekord: ${m.toLocaleString('de-DE')} Fahrgäste an einem Tag in Bus und Straßenbahn!`, 'good', null, 0);
+  }
   for (const l of T.lines) {
     if (l.load > 1.15 && l.riders > 20) news(g, 'full' + l.id, `${lineLabel(l)} ist rappelvoll – Fahrgäste bleiben an den Haltestellen stehen. Mehr Fahrzeuge oder größere einsetzen.`, 'bad', stopById(g, l.stops[0]), 1440 * 2);
   }
@@ -1890,6 +1937,7 @@ registerSystem({
     accidentsHour(g, h);
     adjustCongestion(g);
     computeFields(g);
+    commuteEffect(g);
     demandMods(g);
     shareAndTourism(g);
   },
@@ -1909,6 +1957,7 @@ registerSystem({
       hist: T.hist.slice(-120),
       totals: T.totals,
       accidentLog: T.accidentLog.slice(0, 8),
+      marks: T.marks || 0,
     };
   },
 
@@ -1936,6 +1985,7 @@ registerSystem({
     T.hist = d.hist || [];
     T.totals = { ...T.totals, ...(d.totals || {}) };
     T.accidentLog = d.accidentLog || [];
+    T.marks = d.marks || 0;
     changed(T);
     scanFacilities(g);
     rebuildAll(g);

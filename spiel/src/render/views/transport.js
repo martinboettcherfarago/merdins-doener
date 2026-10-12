@@ -171,6 +171,7 @@ registerView(class TransportView {
     ];
     // Materialien
     this.ribbonMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, toneMapped: false });
+    this.glowMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -3, toneMapped: false });
     this.railMat = new THREE.MeshStandardMaterial({ color: 0x5b6068, roughness: 0.35, metalness: 0.7, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     this.solidMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.05 });
     this.glassMat = new THREE.MeshStandardMaterial({ color: 0x9fc4d8, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.45, depthWrite: false });
@@ -226,13 +227,18 @@ registerView(class TransportView {
     this.clearGroup();
     const W2 = g.W / 2, H2 = g.H / 2;
     // Linienwege
-    const rp = [], rc = [];
+    // dünne Linie (immer sichtbar, dezent) und breites Band (nur hervorgehoben: Panel, Werkzeug, Infoansicht)
+    const rp = [], rc = [], gp = [], gc = [];
     T.lines.forEach((l, idx) => {
       if (!l.pts || l.pts.length < 4) return;
-      const off = ((idx % 3) - 1) * 0.075;
-      strip(rp, rc, g, l.pts, off, l.mode === 'tram' ? 0.08 : 0.07, 0.03, TPS.lineColor(l));
+      const off = ((idx % 3) - 1) * 0.1;
+      strip(rp, rc, g, l.pts, off, l.mode === 'tram' ? 0.07 : 0.06, 0.032, TPS.lineColor(l));
+      strip(gp, gc, g, l.pts, off, 0.2, 0.028, TPS.lineColor(l));
     });
-    if (rp.length) { const m = flatMesh(rp, rc, this.ribbonMat); m.renderOrder = 3; this.group.add(m); this.ribbons = m; } else this.ribbons = null;
+    if (rp.length) {
+      const m = flatMesh(rp, rc, this.ribbonMat); m.renderOrder = 4; this.group.add(m);
+      const w = flatMesh(gp, gc, this.glowMat); w.renderOrder = 3; this.group.add(w);
+    }
     // Straßenbahngleise und Oberleitung
     const rails = [], wires = [], poles = [];
     const seenPole = new Set();
@@ -343,11 +349,11 @@ registerView(class TransportView {
       const cx = s.x + 0.5 - g.W / 2, cz = s.y + 0.5 - g.H / 2;
       if (s.hasTram) {
         this.p.set(cx + w.nx * (half - 0.07), y0, cz + w.nz * (half - 0.07));
-        this.q.setFromAxisAngle(this.yAxis, Math.atan2(w.nx, w.nz) + Math.PI / 2);
+        this.q.setFromAxisAngle(this.yAxis, Math.atan2(w.nx, w.nz));
         this.m4.compose(this.p, this.q, new THREE.Vector3(0.9, 1, 1)); plat.setMatrixAt(np++, this.m4);
       } else {
         this.p.set(cx + w.nx * (half - 0.05), y0 + 0.006, cz + w.nz * (half - 0.05));
-        this.q.setFromAxisAngle(this.yAxis, Math.atan2(w.nx, w.nz) + Math.PI / 2);
+        this.q.setFromAxisAngle(this.yAxis, Math.atan2(w.nx, w.nz));
         this.m4.compose(this.p, this.q, new THREE.Vector3(0.75, 1, 1)); mark.setMatrixAt(i, this.m4);
       }
       if (shel) {
@@ -428,7 +434,7 @@ registerView(class TransportView {
     const g = this.g;
     const list = T.signals;
     if (!list.length) { this.sigMesh = null; return; }
-    const pg = merge([cyl(0.011, 0.013, 0.36, 0, 0.18, 0, 0x3c4048, 6), box(0.04, 0.1, 0.035, 0, 0.36, 0, 0x22262c)]);
+    const pg = merge([cyl(0.011, 0.013, 0.36, 0, 0.18, 0, 0x3c4048, 6), box(0.036, 0.11, 0.036, 0, 0.372, 0, 0x22262c)]);
     const pm = new THREE.InstancedMesh(pg, this.solidMat, list.length * 4);
     let n = 0;
     // Ecken: SO (Richtung Norden), NW (Richtung Süden), NO (Richtung Westen), SW (Richtung Osten)
@@ -440,7 +446,8 @@ registerView(class TransportView {
         const px = x + Math.sign(dx) * half, pz = z + Math.sign(dz) * half;
         this.m4.makeTranslation(px, 0.012, pz);
         pm.setMatrixAt(n++, this.m4);
-        this.sigPoles.push({ i, x: px, z: pz, ax, fx: -Math.sign(ax === 'ns' ? 0 : dx), fz: -Math.sign(ax === 'ns' ? dz : 0) });
+        // Lampe zeigt zum ankommenden Verkehr (rechts vor der Kreuzung)
+        this.sigPoles.push({ i, x: px, z: pz, ax, fx: ax === 'ew' ? Math.sign(dx) : 0, fz: ax === 'ns' ? Math.sign(dz) : 0 });
       }
     }
     pm.count = n;
@@ -456,7 +463,9 @@ registerView(class TransportView {
     if (T.version !== this.ver) this.rebuild();
     const hl = this.toolActive || performance.now() - this.panelSeen < 2500 || (this.e.overlay && this.e.overlay.mode === 'ptransport');
     this.highlight += ((hl ? 1 : 0) - this.highlight) * Math.min(1, dt * 6);
-    this.ribbonMat.opacity = 0.22 + 0.7 * this.highlight;
+    this.ribbonMat.opacity = 0.35 + 0.65 * this.highlight;
+    this.glowMat.opacity = 0.5 * this.highlight;
+    this.glowMat.visible = this.highlight > 0.02;
     if (this.ferryLines) this.ferryLines.material.opacity = 0.15 + 0.55 * this.highlight;
     this.signMat.emissive.setRGB(night * 0.35, night * 0.32, night * 0.22);
     this.updateSignals(g);
@@ -478,7 +487,7 @@ registerView(class TransportView {
       const ph = TPS.signalPhase(g, p.i);
       const green = p.ax === 'ns' ? ph === 0 : ph === 2;
       const yellow = p.ax === 'ns' ? ph === 1 : ph === 3;
-      this.m4.makeTranslation(p.x, 0.012 + 0.38 + (green ? -0.035 : yellow ? 0 : 0.035), p.z);
+      this.m4.makeTranslation(p.x + p.fx * 0.024, 0.012 + 0.372 + (green ? -0.032 : yellow ? 0 : 0.032), p.z + p.fz * 0.024);
       lamps.setMatrixAt(n, this.m4);
       lamps.setColorAt(n, this.c.setHex(green ? 0x3cff6a : yellow ? 0xffc21a : 0xff2a1a));
       n++;

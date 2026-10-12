@@ -6,6 +6,7 @@ import { BUILDINGS, MILESTONES, Z, ROADS, POLICIES } from '../../config.js';
 import { fmt, fmtMoney, clamp } from '../../util.js';
 import * as TPS from '../../sim/systems/transport.js';
 import { drawLineChart } from '../charts.js';
+import { LINE_COLORS } from '../../sim/transit.js';
 
 const BUS_SVG = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8 21v-3M16 21v-3"/><circle cx="8" cy="14.5" r="0.9" fill="currentColor"/><circle cx="16" cy="14.5" r="0.9" fill="currentColor"/><path d="M9 6.5h6"/></svg>';
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
@@ -25,6 +26,46 @@ function spark(vals, col) {
   const w = 92, h = 22;
   const pts = vals.map((v, i) => `${((i / (vals.length - 1)) * w).toFixed(1)},${(h - (v / max) * (h - 2) - 1).toFixed(1)}`).join(' ');
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
+}
+
+// Netzplan: Bus-, Tram- und Pulsbahnlinien schematisch (Haltestellen als Punkte, Umstiege größer)
+function netMap(g) {
+  const T = TPS.TS(g);
+  const tr = g.transit;
+  const pts = [];
+  for (const s of T.stops) if (s.lines.length) pts.push([s.x, s.y]);
+  for (const st of tr.stations.values()) pts.push([st.x, st.y]);
+  if (pts.length < 2) return '';
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const pad = 2;
+  x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;
+  const W = 340, H = Math.round(clamp(((y1 - y0) / Math.max(1, x1 - x0)) * W, 120, 230));
+  const sx = (x) => (((x + 0.5 - x0) / (x1 - x0)) * W).toFixed(1), sy = (y) => (((y + 0.5 - y0) / (y1 - y0)) * H).toFixed(1);
+  let svg = '';
+  for (const l of tr.lines) {
+    const ss = l.stops.map((id) => tr.stations.get(id)).filter(Boolean);
+    if (l.loop && ss.length) ss.push(ss[0]);
+    svg += `<polyline points="${ss.map((st) => sx(st.x) + ',' + sy(st.y)).join(' ')}" fill="none" stroke="${hex(LINE_COLORS[l.color])}" stroke-width="5" stroke-opacity="0.3" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }
+  T.lines.forEach((l, idx) => {
+    const ss = l.stops.map((id) => TPS.stopById(g, id)).filter(Boolean);
+    if (l.loop && ss.length) ss.push(ss[0]);
+    const o = ((idx % 3) - 1) * 1.6;
+    svg += `<polyline points="${ss.map((st) => (+sx(st.x) + o).toFixed(1) + ',' + (+sy(st.y) + o).toFixed(1)).join(' ')}" fill="none" stroke="${hex(TPS.lineColor(l))}" stroke-width="${l.mode === 'tram' ? 3.4 : 2.6}" stroke-linejoin="round" stroke-linecap="round"${l.broken ? ' stroke-dasharray="4 3"' : ''}/>`;
+  });
+  for (const st of tr.stations.values()) svg += `<rect x="${(+sx(st.x) - 3.5).toFixed(1)}" y="${(+sy(st.y) - 3.5).toFixed(1)}" width="7" height="7" rx="1.5" fill="#fff" stroke="#e8543f" stroke-width="1.6"/>`;
+  for (const s of T.stops) {
+    if (!s.lines.length) continue;
+    const big = s.lines.length > 1 || s.feeder;
+    svg += `<circle cx="${sx(s.x)}" cy="${sy(s.y)}" r="${big ? 3.6 : 2.4}" fill="#fff" stroke="${s.crowd > 0.15 ? '#d4433a' : '#1d2330'}" stroke-width="${big ? 1.6 : 1.2}"><title>${esc(s.name)}</title></circle>`;
+  }
+  for (const l of T.lines) {
+    const st = TPS.stopById(g, l.stops[0]);
+    if (!st) continue;
+    svg += `<g transform="translate(${(+sx(st.x) - 7).toFixed(1)},${(+sy(st.y) - 16).toFixed(1)})"><rect width="14" height="11" rx="${l.mode === 'tram' ? 2 : 5.5}" fill="${hex(TPS.lineColor(l))}"/><text x="7" y="8.6" font-size="8.5" font-weight="700" fill="#fff" text-anchor="middle" font-family="Barlow Condensed, sans-serif">${l.mode === 'tram' ? 'T' : ''}${l.num}</text></g>`;
+  }
+  return `<div class="sec"><h3>Netzplan</h3><svg viewBox="-8 -18 ${W + 16} ${H + 26}" style="width:100%;height:auto;display:block;background:var(--paper-2);border-radius:10px">${svg}</svg>${muted('Kreise: Haltestellen (groß = Umstieg) · Quadrate: Pulsbahn-Stationen · rot umrandet: überfüllt · gestrichelt: unterbrochen')}</div>`;
 }
 
 function focus(ui, x, y, dist = 22) {
@@ -124,7 +165,9 @@ function lineCard(ui, l) {
   const nextType = TPS.nextVehicleType(g, l);
   const loadCol = l.load > 1 ? 'var(--bad)' : l.load > 0.75 ? 'var(--warn)' : 'var(--good)';
   const open = S.open.has(l.id);
-  const stopList = stops.map((s) => `<span style="color:var(--ink)">${esc(s.name)}${s.crowd > 0.15 ? ' <b style="color:var(--bad)">●</b>' : s.feeder ? ' <b style="color:#e8543f" title="Umstieg zur Pulsbahn">⇄</b>' : ''}</span>`).join('');
+  const stopList = stops.map((s) => `<span style="color:var(--ink)">${esc(s.name)} <span style="color:var(--ink-3)">${fmt(s.board || 0)}</span>${s.crowd > 0.15 ? ' <b style="color:var(--bad)">●</b>' : s.feeder ? ' <b style="color:#e8543f" title="Umstieg zur Pulsbahn">⇄</b>' : ''}</span>`).join('');
+  const upkeep = TPS.lineUpkeep(g, l);
+  const cover = upkeep > 0 ? (l.fares || 0) / upkeep : 0;
   return `<div class="line-card">
   <div class="hd">${badge(l)}<div class="grow"><div class="ttl">${TPS.lineLabel(l)}${l.loop ? ' · Ring' : ''} <span style="font-weight:500;color:var(--ink-3)">· ${esc(stops[0] ? stops[0].name : '')} – ${esc(stops[stops.length - 1] ? stops[stops.length - 1].name : '')}</span></div>
   <div class="sub">${stops.length} Halte · ${l.len.toFixed(0)} Felder · Takt ${taktText(l.takt)} · gestern ${fmt(l.riders)} Fahrgäste</div></div>${spark(l.rHist.slice(-14), col)}</div>
@@ -136,7 +179,8 @@ function lineCard(ui, l) {
     <span class="grp"><button class="mini" data-act="veh-" data-l="${l.id}" ${l.nveh <= 1 ? 'disabled' : ''} title="Fahrzeug abziehen">−</button><button class="mini" data-act="veh+" data-l="${l.id}" ${fleet.used >= fleet.cap || l.nveh >= TPS.TP.maxVehicles ? 'disabled' : ''} title="${fleet.free ? 'Gratis aus dem Depot' : fmtMoney(vt.cost * g.costMul)}">+</button></span>
     <span>Fahrzeug: <b>${esc(vt.name)}</b> · ${vt.cap} Plätze</span>
     <span class="grp">${nextType !== l.vtype ? `<button class="btn small ghost" data-act="vtype" data-l="${l.id}" data-v="${nextType}" title="${esc(TPS.VEHICLE_TYPES[nextType].desc)}">→ ${esc(TPS.VEHICLE_TYPES[nextType].name)} (${fmtMoney(l.nveh * TPS.VEHICLE_TYPES[nextType].cost * 0.5 * g.costMul)})</button>` : ''}</span>
-    <span>Kosten</span><span class="grp"><b>${fmtMoney(TPS.lineUpkeep(g, l))}</b>&nbsp;/ Tag</span>
+    <span>Kosten / Fahrgeld gestern</span><span class="grp"><b>${fmtMoney(upkeep)}</b>&nbsp;/&nbsp;<b style="color:${cover >= 1 ? 'var(--good)' : 'var(--ink)'}">${fmtMoney(l.fares || 0)}</b></span>
+    <span>Kostendeckung</span><span class="grp"><b style="color:${cover >= 1 ? 'var(--good)' : cover < 0.5 ? 'var(--bad)' : 'var(--ink)'}">${pct(cover)}</b></span>
   </div>
   <div class="acts">
     <button class="btn small ghost" data-act="toggle" data-l="${l.id}">${open ? 'Halte ausblenden' : 'Halte zeigen'}</button>
@@ -169,6 +213,7 @@ ${!busOk ? muted(`Busse gibt es ab „${MILESTONES[BUILDINGS.bus_depot.unlock].n
   <div class="chart-tabs">${fares.map((f) => `<button data-act="fare" data-v="${f}" class="${T.fare === f ? 'on' : ''}">${f === 0 ? 'gratis' : fmtMoney(f).replace(' €', '') + ' €'}</button>`).join('')}</div>
   ${muted(`Fahrgäste ${fareMul >= 1 ? '+' : '−'}${Math.abs(Math.round((fareMul - 1) * 100))} % durch den Preis${T.fare === 0 ? ' · Wohnglück +2' : ''}. Umstiege sind kostenlos.`)}
 </div>
+${netMap(g)}
 ${lines.map((l) => lineCard(ui, l)).join('') || muted('Noch keine Linie. „Neue Buslinie" wählen und nacheinander Haltestellen an Straßen anklicken – erneuter Klick auf die letzte Haltestelle, Enter oder Rechtsklick beendet die Linie, ein Klick auf die erste schließt einen Ring.')}
 <div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3>${muted(`Jede Haltestelle sammelt Fahrgäste im Umkreis von ${TPS.TP.stopRadius} Feldern. Wohnen, Arbeit, Läden und Sehenswürdigkeiten an derselben Linie erzeugen Fahrten; Umstiege zwischen Linien und zur Pulsbahn (⇄) funktionieren von selbst. Je kürzer der Takt, desto mehr Menschen lassen das Auto stehen. Ist ein Abschnitt voll, bleiben Fahrgäste stehen (●) und die Nachbarschaft ärgert sich.`)}</div>`;
 }

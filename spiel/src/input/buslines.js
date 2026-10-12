@@ -142,6 +142,9 @@ function hoverDraw(input, t) {
       txt = input.tool.type === 'extend' ? `Verlängern bis ${name} · ${fmtMoney(cost)}` : n === 1 ? `${label}linie beginnen: ${name}` : `Halt ${n}: ${name} · Linie ≈ ${fmtMoney(cost)}`;
       if (S.tiles.length >= 1) txt += ' · Enter/Rechtsklick: fertig';
     }
+    // Einzugsgebiet der geplanten Linie
+    const c = TPS.catchmentOf(g, ok && !(S.tiles.length && i === S.tiles[S.tiles.length - 1]) ? [...chain(), i] : chain());
+    if (c.res + c.jobs > 0) txt += ` · erreicht ${c.res.toLocaleString('de-DE')} Bewohner, ${c.jobs.toLocaleString('de-DE')} Jobs${c.lm ? `, ${c.lm} Ausflugsziel${c.lm > 1 ? 'e' : ''}` : ''}`;
   }
   sendPreview(input, i, hp, ok);
   if (i >= 0) input.e.overlay.showRadius(t.x + 0.5 - g.W / 2, t.y + 0.5 - g.H / 2, TPS.TP.stopRadius, ok ? 0x9cf0b0 : 0xff8070);
