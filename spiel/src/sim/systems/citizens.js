@@ -226,6 +226,11 @@ function stepPeople(g, C, b, cz, rnd, ctx) {
   a[E4] += f3 * e3[0]; a[E4 + 1] += f3 * e3[1] * (1 - pg); a[E4 + 2] += f3 * (e3[1] * pg + e3[2]); a[E4 + 3] += f3 * e3[3];
   a[EA] += f4 * e4[0]; a[EA + 1] += f4 * e4[1]; a[EA + 2] += f4 * e4[2] * (1 - pu); a[EA + 3] += f4 * (e4[2] * pu + e4[3]);
   ctx.graduates[1] += f2 * ps; ctx.graduates[2] += f3 * e3[1] * pg; ctx.graduates[3] += f4 * e4[2] * pu;
+  // Abschlussquoten je Jahrgang
+  const R = ctx.rates;
+  R[0] += f2 * ps; R[1] += f2;
+  R[2] += f3 * (e3[1] * pg + e3[2] + e3[3]); R[3] += f3;
+  R[4] += f4 * (e4[2] * pu + e4[3]); R[5] += f4;
   for (let k = BINS - 1; k >= 1; k--) a[k] += f[k - 1];
   for (let k = 0; k < BINS - 1; k++) a[k] -= f[k];
   // Weiterbildung (Bibliotheken)
@@ -754,6 +759,7 @@ function computeStats(g, C, res, ctx) {
     ambulances: C.ambToday || 0,
     beds: C.beds || { beds: 0, severe: 0, q: 1 },
     centenarians: ctx.centenarians || 0,
+    rates: [0, 2, 4].map((k) => (ctx.rates[k + 1] > 1e-6 ? ctx.rates[k] / ctx.rates[k + 1] : 0)),
   };
   C.stats = S;
   C.hist.push({ d: g.day(), pop: Math.round(pop), b: ctx.births, dth: ctx.deaths, sick: Math.round(sick), age: +S.avgAge.toFixed(1), edu: Math.round(S.eduIndex * 100), dead: bodies, le: Math.round(S.lifeExp) });
@@ -857,7 +863,7 @@ registerSystem({
     C.beds = { beds, severe, q: severe > 0 ? Math.min(1, beds / severe) : 1 };
     const ctx = {
       dk: new Float32Array(BINS), flow: new Float32Array(BINS), deathsByBin: new Float32Array(BINS),
-      deaths: 0, births: 0, moveIn: 0, moveOut: 0, mmSum: 0, mmW: 0, graduates: [0, 0, 0, 0], centenarians: 0,
+      deaths: 0, births: 0, moveIn: 0, moveOut: 0, mmSum: 0, mmW: 0, graduates: [0, 0, 0, 0], centenarians: 0, rates: [0, 0, 0, 0, 0, 0],
       flu: Math.max(0, -g.eff('healthCov')) * 0.12,
       eduBoost: Math.sqrt(g.mods.edu || 1) * (g.policies.has('education') ? 1.15 : 1) * (g.policies.has('fullday') ? 1.15 : 1) * (1 + (g.stats.eduCity || 0)),
       study: g.mods.czStudy || 1,
@@ -921,7 +927,9 @@ registerSystem({
         } else {
           const o = v._o || (v._o = { kind: v.kind, x: 0, y: 0, z: 0, yaw: 0, lights: true });
           poseAt(g, v, s, o);
-          out.push(o);
+          // Straße abgerissen? Dann verschwindet das Fahrzeug
+          if (!g.road[v.path[Math.min(v.path.length - 1, Math.floor(s))]] && !g.road[v.path[v.path.length - 1]]) keep = false;
+          else out.push(o);
         }
       }
       if (keep) C.vehicles[w++] = v;

@@ -258,7 +258,7 @@ class DistrictView {
       const sp = L.sprite;
       // Konstante Bildschirmgröße (≈ 46 px hoch bei 720 px Bildhöhe), große Bezirke etwas größere Schilder
       const k = Math.hypot(cam.position.x - L.base.x, cam.position.y, cam.position.z - L.base.z);
-      const px = 46 * (1 + Math.min(0.25, L.size / 2500));
+      const px = 40 * (1 + Math.min(0.25, L.size / 2500));
       const hWorld = (px / Math.max(400, this.e.canvas.clientHeight || 720)) * 2 * k * Math.tan((cam.fov * Math.PI) / 360);
       sp.scale.set(hWorld * 4, hWorld, 1);
       sp.position.set(L.base.x, 1.2 + Math.min(6, dist * 0.04), L.base.z);
@@ -281,7 +281,7 @@ class WaterPollutionView {
   constructor(engine) {
     this.e = engine;
     this.g = engine.game;
-    this.mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
+    this.mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     this.mesh = new THREE.Mesh(new THREE.BufferGeometry(), this.mat);
     this.mesh.renderOrder = 2;
     this.mesh.frustumCulled = false;
@@ -310,11 +310,11 @@ class WaterPollutionView {
       const k = vy * VW + vx;
       if (vidx[k] >= 0) return vidx[k];
       const p = vN[k] ? vA[k] / vN[k] : 0;
-      const a = Math.min(0.78, p * 0.95);
-      // trübes Braungrün, stark verschmutzt fast schlammig
+      const a = Math.min(0.86, Math.sqrt(p) * 0.95);
+      // trübes Braun, stark verschmutzt fast schlammig
       const t = Math.min(1, p * 1.2);
       P.push(vx + ox, wy, vy + oz);
-      Cc.push(0.42 - t * 0.12, 0.38 - t * 0.12, 0.2 - t * 0.08, a);
+      Cc.push(0.5 - t * 0.14, 0.36 - t * 0.12, 0.13 - t * 0.05, a);
       vidx[k] = P.length / 3 - 1;
       return vidx[k];
     };

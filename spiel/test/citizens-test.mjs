@@ -306,6 +306,19 @@ if (results.outlet && results.full) {
   o.contam >= 0 ? ok(`Auslass: Trinkwasser-Verschmutzung ${pct(o.contam)}, Gewässer max ${(results.outlet.g.ext.citizens.waterPolMax || 0).toFixed(2)}`) : null;
 }
 
+// --- Fahrzeuge (Leichen- und Rettungswagen)
+if (results.full) {
+  const g = results.full.g;
+  let seen = { hearse: 0, ambulance: 0 }, badPos = 0;
+  for (let s = 0; s < 300; s++) {
+    g.update(0.1);
+    const r = g.renderables();
+    for (const v of r) { if (v.kind in seen) seen[v.kind]++; if (!Number.isFinite(v.x) || !Number.isFinite(v.z) || Math.abs(v.x) > g.W || Math.abs(v.z) > g.H) badPos++; }
+  }
+  seen.hearse + seen.ambulance > 0 ? ok(`Fahrzeuge unterwegs (Leichenwagen-Bilder ${seen.hearse}, Rettungswagen-Bilder ${seen.ambulance} an einem Tag)`) : fail('Keine Leichen- oder Rettungswagen unterwegs');
+  badPos === 0 ? ok('Fahrzeugpositionen gültig') : fail(`${badPos} ungültige Fahrzeugpositionen`);
+}
+
 // --- Speichern / Laden
 if (results.full) {
   const g = results.full.g;

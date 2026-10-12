@@ -21,7 +21,7 @@ function ensureStyles() {
 .cz-tabs button.on { background:var(--ink); color:var(--paper); }
 .cz-strip { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-bottom:12px; }
 .cz-strip div { background:var(--paper-2); border-radius:10px; padding:6px 9px; min-width:0; }
-.cz-strip .k { font-size:11px; color:var(--ink-3); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cz-strip .k { font-size:10.5px; color:var(--ink-3); font-weight:700; line-height:1.15; min-height:2.3em; display:flex; align-items:flex-end; }
 .cz-strip .v { font-family:var(--f-num); font-size:20px; font-weight:600; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cz-strip .v small { font-size:12px; color:var(--ink-3); font-weight:600; margin-left:2px; }
 .cz-strip .v.neg { color:var(--bad); } .cz-strip .v.pos { color:var(--good); }
@@ -39,6 +39,15 @@ function ensureStyles() {
 .cz-stage .t { font-weight:700; } .cz-stage .s { font-size:11.5px; color:var(--ink-3); }
 .cz-stage .v { font-family:var(--f-num); font-weight:600; text-align:right; }
 .cz-stage .meter { grid-column: 1 / 3; }
+.cz-flow { display:flex; align-items:stretch; gap:2px; }
+.cz-flow .st { flex:1; min-width:0; border-radius:10px; padding:6px 4px; text-align:center; background:var(--paper-2); display:flex; flex-direction:column; gap:1px; }
+.cz-flow .st b { font-family:var(--f-num); font-size:18px; }
+.cz-flow .st span { font-size:11.5px; font-weight:700; }
+.cz-flow .st em { font-style:normal; font-size:10.5px; color:var(--ink-3); }
+.cz-flow .st.over { background:#f6dcd8; } .cz-flow .st.over em { color:#9e2b23; }
+.cz-flow .st.none { background:var(--paper-3); opacity:.75; }
+.cz-flow .st.ok { background:#e6e0f3; }
+.cz-flow .ar { align-self:center; color:var(--ink-3); font-weight:800; font-size:18px; }
 .cz-note { font-size:12.5px; color:var(--ink-2); line-height:1.45; margin:6px 0 0; }
 .cz-note b { color:var(--ink); }
 .cz-warn { background:#f6dcd8; color:#7e2219; border-radius:10px; padding:8px 10px; font-size:12.5px; line-height:1.4; margin:0 0 10px; }
@@ -80,7 +89,7 @@ function overview(ui) {
   const nat = S.birthsToday - S.deathsToday;
   return `
 ${strip([['Einwohner', fmt(g.stats.pop)], ['Ø Alter', S.avgAge.toFixed(0), '', ' J.'], ['Lebenserwartung', S.lifeExp.toFixed(0), '', ' J.']])}
-${strip([['Geburten heute', fmt(S.birthsToday), 'pos'], ['Sterbefälle heute', fmt(S.deathsToday), S.deathsToday > S.birthsToday ? 'neg' : ''], ['Zuzug / Wegzug', `+${fmt(S.moveIn)} / −${fmt(S.moveOut)}`]])}
+${strip([['Geburten heute', fmt(S.birthsToday), 'pos'], ['Sterbefälle heute', fmt(S.deathsToday), S.deathsToday > S.birthsToday ? 'neg' : ''], ['Zuzug − Wegzug', `${S.moveIn - S.moveOut >= 0 ? '+' : '−'}${fmt(Math.abs(S.moveIn - S.moveOut))}`, S.moveIn >= S.moveOut ? 'pos' : 'neg']])}
 <div class="sec"><h3>Alterspyramide</h3><canvas class="cz-canvas" id="cz-pyr" style="height:250px"></canvas></div>
 <div class="sec"><h3>Altersgruppen</h3><div class="cz-grp">${grp}</div>
 <p class="cz-note">Natürliche Entwicklung heute: <b>${nat >= 0 ? '+' : '−'}${fmt(Math.abs(nat))}</b>. Ein Spieltag entspricht einem halben Lebensjahr.</p></div>
@@ -114,6 +123,14 @@ function education(ui) {
 ${strip([['Bildungsindex', pct(idx)], ['Abschlüsse heute', fmt(S.graduates[1] + S.graduates[2] + S.graduates[3])], ['Akademiker', pct(S.uniShare)]])}
 <div class="sec"><h3>Bildungsstand der Erwachsenen</h3><div class="cz-stack">${stack}</div><div class="cz-legend">${leg}</div>
 <p class="cz-note">Wohngebäude brauchen für Stufe 4 einen Bildungsindex von 25 %, für Stufe 5 von 45 %. Büros siedeln sich an, wo viele Gebildete leben.</p></div>
+<div class="sec"><h3>Bildungskette</h3><div class="cz-flow">${['kita', 'school', 'gym', 'uni'].map((id, k) => {
+    const st2 = S.stage[id] || { pupils: 0, seats: 0 };
+    const fill = st2.seats > 0 ? st2.pupils / st2.seats : st2.pupils > 0 ? 9 : 0;
+    const cls = !st2.seats ? 'none' : fill > 1.05 ? 'over' : 'ok';
+    const nm = ['Kita', 'Schule', 'Gymnasium', 'Uni'][k];
+    return `${k ? '<span class="ar">›</span>' : ''}<div class="st ${cls}"><b>${fmt(st2.pupils)}</b><span>${nm}</span><em>${st2.seats ? `${Math.round(fill * 100)} % belegt` : 'fehlt'}</em></div>`;
+  }).join('')}</div>
+<p class="cz-note">Von einem Jahrgang schaffen heute <b>${pct(S.rates[0])}</b> den Schulabschluss, <b>${pct(S.rates[1])}</b> das Abitur und <b>${pct(S.rates[2])}</b> einen Hochschulabschluss.</p></div>
 <div class="sec"><h3>Plätze in den Einrichtungen</h3>${stages}</div>
 <div class="sec"><h3>So läuft die Bildungskette</h3><p class="cz-note">Kita (0–4) → Schule (5–14, Schulabschluss) → Gymnasium (15–19, Abitur) → Universität (20–24, Hochschulabschluss). Kinder lernen dort, wo sie wohnen: Einrichtungen haben eine Reichweite und begrenzte Plätze. Bibliotheken bilden auch Erwachsene weiter.</p>
 ${tips.length ? `<div class="cz-warn" style="margin-top:8px">${tips.join('<br>')}</div>` : ''}</div>
@@ -258,9 +275,15 @@ function drawSeries(c, series, opts = {}) {
   const padL = 34, padR = 6, padT = 8, padB = 16;
   const n = Math.max(...series.map((s) => s.values.length));
   if (n < 2) { ctx.fillStyle = '#7a8294'; ctx.font = '12px Barlow, sans-serif'; ctx.fillText('Noch keine Daten – ein Spieltag dauert 30 Sekunden.', 6, h / 2); return; }
-  let max = 1;
+  let max = 0;
   for (const s of series) for (const v of s.values) max = Math.max(max, v);
-  max *= 1.1;
+  if (opts.pct) max = Math.max(0.05, max) * 1.15;
+  else {
+    // runde Achsenwerte: 4, 10, 20, 50 …
+    const m = Math.max(4, max * 1.1);
+    const p = Math.pow(10, Math.floor(Math.log10(m)));
+    max = [1, 2, 2.5, 5, 10].map((f) => f * p).find((v) => v >= m);
+  }
   const X = (i) => padL + (i / (n - 1)) * (w - padL - padR);
   const Y = (v) => padT + (1 - v / max) * (h - padT - padB);
   ctx.strokeStyle = 'rgba(29,35,48,0.08)'; ctx.lineWidth = 1;
