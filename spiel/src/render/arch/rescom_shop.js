@@ -60,7 +60,7 @@ export function curtain(g, f, u0, u1, y0, y1, o = {}) {
   const cols = Math.max(1, Math.round(len / colW));
   for (let k = 0; k <= cols; k++) g.wbox(frame, f, u0 + (k * len) / cols, y0, d + 0.04 * M, 0.08 * M, y1 - y0, 0.1 * M, { skip: F.BACK | F.BOTTOM | F.TOP });
   for (let k = 0; k <= floors; k++) g.wbox(frame, f, uc, y0 + k * fhh - 0.06 * M, d + 0.05 * M, len, 0.12 * M, 0.12 * M, { skip: F.BACK });
-  if (o.spandrel && g.detail >= 1) for (let k = 1; k < floors; k++) g.wquad(o.spandrel, f, uc, y0 + k * fhh - 0.45 * M, d + 0.01 * M, len - 0.04 * M, 0.5 * M);
+  if (o.spandrel) for (let k = 1; k < floors; k++) g.wquad(o.spandrel, f, uc, y0 + k * fhh - 0.55 * M, d + 0.01 * M, len - 0.04 * M, 0.75 * M);
 }
 
 // Glasbox (Pavillon) als Baukörper aus Vorhangfassaden auf allen Seiten

@@ -531,8 +531,8 @@ function geschaeftshaus(ctx, g, P, o = {}) {
   const { rng, level } = ctx;
   const { W: PW, D: PD } = P;
   const n = o.floors ?? (level >= 4 ? 6 + Math.floor(rng() * 2) : 4 + Math.floor(rng() * 2));
-  const front = 3.0 * M;
-  const w = PW - 0.3 * M, d = Math.min(PD - front - 1.2 * M, (PD > 1.5 ? 16 : 10.5) * M);
+  const front = n >= 10 && PD < 1.5 ? 2.2 * M : 3.0 * M;
+  const w = PW - 0.3 * M, d = Math.min(PD - front - (n >= 10 ? 0.5 : 1.2) * M, (PD > 1.5 ? 16 : 10.5) * M);
   const cz = PD / 2 - front - d / 2;
   const st = stack(0.15 * M, 4.4 * M, 3.4 * M, n);
   const wallM = o.wall || rpick(rng, ['stone_sandstone', 'concrete_panel', 'plaster_white', 'stone_grey', 'brick_dark', 'metal_panel_grey']);
@@ -583,8 +583,9 @@ function hotel(ctx, g, P, o = {}) {
   const { rng, level } = ctx;
   const { W: PW, D: PD } = P;
   const n = o.floors ?? (level >= 5 ? 14 : level >= 4 ? 8 + Math.floor(rng() * 2) : 5);
-  const front = 3.6 * M;
-  const w = PW - 0.6 * M, d = Math.min(PD - front - 1.5 * M, (PD > 1.5 ? 15 : 10.5) * M);
+  const tall = n >= 10;
+  const front = tall && PD < 1.5 ? 2.6 * M : 3.6 * M;
+  const w = PW - 0.6 * M, d = Math.min(PD - front - (tall ? 0.5 : 1.5) * M, (PD > 1.5 ? 15 : 10.5) * M);
   const cz = PD / 2 - front - d / 2;
   const st = stack(0.3 * M, 4.6 * M, 3.1 * M, n);
   const wallM = o.wall || rpick(rng, ['plaster_white', 'stone_sandstone', 'plaster_cream', 'brick_dark', 'concrete_panel', 'metal_panel_white']);
@@ -833,7 +834,8 @@ function einkaufszentrum(ctx, g, P) {
 function einkaufsturm(ctx, g, P, o = {}) {
   const { rng } = ctx;
   const { W: PW, D: PD } = P;
-  const front = 3.2 * M;
+  const small = PW < 1.5 && PD < 1.5;
+  const front = small ? 2.0 * M : 3.2 * M;
   const w = PW - 0.3 * M, d = PD - front - 0.4 * M;
   const cz = PD / 2 - front - d / 2;
   const pst = stack(0.15 * M, 5.0 * M, 4.4 * M, 3);
@@ -850,12 +852,12 @@ function einkaufsturm(ctx, g, P, o = {}) {
   // LED-Wand am Podium
   if (g.detail >= 1) { const sw = Math.min(w * 0.35, 8 * M); g.wbox('metal_dark', fF, -w / 2 + sw / 2 + 0.6 * M, pst.top - 0.2 * M, 0.2 * M, sw + 0.3 * M, 3.4 * M, 0.3 * M); g.wquad(g.neon(rpick(rng, ['neon_cyan', 'neon_pink', 'sign_white', 'neon_yellow'])), fF, -w / 2 + sw / 2 + 0.6 * M, pst.top, 0.36 * M, sw, 3.0 * M); }
   // Turm
-  const n = o.floors ?? 16 + Math.floor(rng() * 8);
-  const tw = Math.min(w * 0.55, 18 * M), td = Math.min(d * 0.6, 16 * M);
-  const tcx = w * 0.18, tcz = cz - d * 0.1;
+  const n = Math.min(small ? 17 : 99, o.floors ?? 16 + Math.floor(rng() * 8));
+  const tw = small ? w - 1.6 * M : Math.min(w * 0.55, 18 * M), td = small ? d - 1.2 * M : Math.min(d * 0.6, 16 * M);
+  const tcx = small ? 0 : w * 0.18, tcz = small ? cz - 0.4 * M : cz - d * 0.1;
   const tst = stack(pst.top, 4.0 * M, 3.6 * M, n);
   const glass = rpick(rng, ['glass_curtain_blue', 'glass_curtain_green', 'glass_curtain_dark', 'glass_curtain_gold']);
-  glassBox(g, { cx: tcx, cz: tcz, sx: tw, sz: td, y0: tst.y[0], y1: tst.top }, { glass, frame: rpick(rng, ['metal_dark', 'metal_light']), fh: 3.6 * M, colW: 1.5 * M, spandrel: chance(rng, 0.5) ? 'metal_panel_grey' : null });
+  glassBox(g, { cx: tcx, cz: tcz, sx: tw, sz: td, y0: tst.y[0], y1: tst.top }, { glass, frame: rpick(rng, ['metal_light', 'metal_light', 'metal_dark']), fh: 3.6 * M, colW: 1.5 * M, spandrel: rpick(rng, ['metal_panel_grey', 'metal_panel_white', 'stone_grey']) });
   // Krone
   const cH = 6 * M;
   if (g.detail >= 1) {
@@ -916,11 +918,12 @@ function kuppelmall(ctx, g, P) {
 function glasturm(ctx, g, P) {
   const { rng } = ctx;
   const { W: PW, D: PD } = P;
-  const front = 3.4 * M;
-  const s = Math.min(PW - 2.4 * M, PD - front - 2.0 * M, 20 * M);
+  const small = PW < 1.5 || PD < 1.5;
+  const front = small ? 2.2 * M : 3.4 * M;
+  const s = Math.min(PW - (small ? 1.6 : 2.4) * M, PD - front - (small ? 1.0 : 2.0) * M, 20 * M);
   const cz = PD / 2 - front - s / 2 - 0.4 * M;
   const glass = rpick(rng, ['glass_curtain_blue', 'glass_curtain_green', 'glass_curtain_dark', 'glass_curtain_gold']);
-  const frameM = rpick(rng, ['metal_dark', 'metal_light']);
+  const frameM = rpick(rng, ['metal_light', 'metal_light', 'metal_dark']);
   // Läden im Sockel (2 Geschosse)
   const pst = stack(0.15 * M, 5.0 * M, 4.0 * M, 2);
   glassBox(g, { cx: 0, cz, sx: s + 1.2 * M, sz: s + 1.2 * M, y0: 0, y1: pst.top }, { glass: 'glass_shop', frame: 'metal_dark', fh: 4.5 * M, colW: 2.2 * M });

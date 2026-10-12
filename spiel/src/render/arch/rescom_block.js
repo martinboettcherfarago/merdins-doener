@@ -700,7 +700,8 @@ function towerFloors(g, m, st, o) {
 function wohnturm(ctx, g, P) {
   const { rng } = ctx;
   const { W, D } = P;
-  const n = 14 + Math.floor(rng() * 6);
+  const small = W < 1.5 && D < 1.5;
+  const n = small ? 11 + Math.floor(rng() * 4) : 14 + Math.floor(rng() * 6);
   const fh = 2.95 * M;
   const wall = rpick(rng, ['plaster_white', 'concrete_panel', 'brick_white', 'plaster_grey', 'brick_red', 'metal_panel_white']);
   const accent = rpick(rng, ['metal_panel_grey', 'wood_planks', 'brick_dark', 'metal_panel_blue', 'concrete']);
@@ -761,7 +762,7 @@ function towerGround(g, W, D, front, rng) {
 function punkthaus(ctx, g, P, o = {}) {
   const { rng } = ctx;
   const { W, D } = P;
-  const n = o.floors ?? 18 + Math.floor(rng() * 6);
+  const n = o.floors ?? (W < 1.5 && D < 1.5 ? 13 + Math.floor(rng() * 5) : 18 + Math.floor(rng() * 6));
   const fh = 2.9 * M;
   const front = 2.0 * M;
   const s = Math.min(W - 1.0 * M, D - front - 1.2 * M, o.size ?? 15 * M);
@@ -838,14 +839,15 @@ function scheibe(ctx, g, P) {
 
 // 5d Plattenbau-Hochhaus (WHH GT 18)
 function platteHoch(ctx, g, P) {
-  platte(ctx, g, P, { floors: 17 + Math.floor(ctx.rng() * 4), frontBalconies: true });
+  const small = P.W < 1.5 && P.D < 1.5;
+  platte(ctx, g, P, { floors: (small ? 11 : 17) + Math.floor(ctx.rng() * (small ? 3 : 4)), frontBalconies: true });
 }
 
 // 5e Turm mit Pflanzbalkonen („vertikaler Wald“)
 function gruenTurm(ctx, g, P) {
   const { rng } = ctx;
   const { W, D } = P;
-  const n = 16 + Math.floor(rng() * 6);
+  const n = W < 1.5 && D < 1.5 ? 12 + Math.floor(rng() * 4) : 16 + Math.floor(rng() * 6);
   const fh = 3.1 * M;
   const front = 2.4 * M;
   const s = Math.min(W - 2.4 * M, D - front - 1.6 * M, 14 * M);
@@ -894,10 +896,10 @@ function rundturm(ctx, g, P) {
   const { rng } = ctx;
   const { W, D } = P;
   const n = 12;
-  const floors = 18 + Math.floor(rng() * 6);
-  const front = 2.2 * M;
-  const R = Math.min(W - 2.6 * M, D - front - 2.4 * M) / 2;
-  const cx = 0, cz = D / 2 - front - R - 1.0 * M;
+  const floors = 13 + Math.floor(rng() * 4);
+  const front = 1.2 * M, bd = 1.0 * M;
+  const R = Math.min(W - 2.4 * M, D - front - 2.4 * M, 9 * M) / 2 / Math.cos(Math.PI / n);
+  const cx = 0, cz = D / 2 - front - R - bd;
   const st = stack(0.3 * M, 4.2 * M, 2.95 * M, floors);
   const wallM = rpick(rng, ['plaster_white', 'concrete_panel', 'brick_white', 'metal_panel_white', 'plaster_cream']);
   const rail = rpick(rng, ['metal_light', 'paint_white', 'concrete', 'metal_panel_grey']);
@@ -915,13 +917,13 @@ function rundturm(ctx, g, P) {
   // Ringbalkone jedes zweite Geschoss, Sockelband, Dach
   const Rv = R; // Eckradius des Vielecks
   for (let fl = 1; fl < floors; fl += 2) {
-    ringSlab(g, 'concrete', cx, cz, n, Rv - 0.05 * M, Rv + 1.3 * M, st.y[fl], 0.18 * M);
+    ringSlab(g, 'concrete', cx, cz, n, Rv - 0.05 * M, Rv + bd, st.y[fl], 0.18 * M);
     if (g.detail >= 1) {
       // Brüstung als Ringwand
       const Pt = (k, r, yy) => { const a = (k / n) * Math.PI * 2; return [cx + Math.sin(a) * r, yy, cz + Math.cos(a) * r]; };
       for (let k = 0; k < n; k++) {
         const a = ((k + 0.5) / n) * Math.PI * 2;
-        const r = Rv + 1.25 * M;
+        const r = Rv + bd - 0.05 * M;
         g.quad(rail, Pt(k, r, st.y[fl]), Pt(k + 1, r, st.y[fl]), Pt(k + 1, r, st.y[fl] + 1.0 * M), Pt(k, r, st.y[fl] + 1.0 * M), 0, [Math.sin(a), 0, Math.cos(a)]);
         g.quad(rail, Pt(k + 1, r - 0.04 * M, st.y[fl]), Pt(k, r - 0.04 * M, st.y[fl]), Pt(k, r - 0.04 * M, st.y[fl] + 1.0 * M), Pt(k + 1, r - 0.04 * M, st.y[fl] + 1.0 * M), 0, [-Math.sin(a), 0, -Math.cos(a)]);
       }
