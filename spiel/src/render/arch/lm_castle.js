@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { obox, beam, lathe, archWindow, pediment, column, fountain, tree, lamp, bench, face, torus, path } from './lm_parts.js';
+import { obox, beam, lathe, archWindow, pediment, column, fountain, tree, lamp, bench, face, torus, path, crowd } from './lm_parts.js';
 
 const WALL = 'plaster_yellow', TRIM = 'plaster_white', ROOF = 'roof_slate', CU = 'roof_copper', GOLD = 'paint_yellow';
 
@@ -212,6 +212,10 @@ registerArch('castle', {
       // Baumreihen an den Rändern
       for (let z = 3.0 * M; z <= 13.5 * M; z += 2.6 * M) tree(kit, s * 13.8 * M, z, 0.8, 'topiary', { leaf: 'leaves_dark' });
     }
+    crowd(kit, 0, 11.0 * M, 2.4 * M, 6.0 * M, 7);
+    crowd(kit, -6.6 * M, FZ, 5.0 * M, 1.2 * M, 4);
+    crowd(kit, 6.6 * M, FZ, 5.0 * M, 1.2 * M, 4);
+    crowd(kit, 0, -0.6 * M, 10.0 * M, 3.0 * M, 6);
     // --- Tor und Zaun zur Straße
     const GZ = 14.6 * M;
     for (const x of [-14.6, -9, -3.4, 3.4, 9, 14.6]) {

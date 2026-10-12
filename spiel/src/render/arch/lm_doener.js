@@ -2,7 +2,7 @@
 // und ein riesiger Chili-Cheese-Dönerspieß auf dem Dach, der sich dreht (res.anim). Besitzer: G6.
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { obox, beam, lathe, archWindow, railing, lamp, tree, addAnim, flat, face } from './lm_parts.js';
+import { obox, beam, lathe, archWindow, railing, lamp, tree, addAnim, flat, face, person } from './lm_parts.js';
 import { text } from './lm_text.js';
 import * as THREE from 'three';
 
@@ -161,6 +161,10 @@ registerArch('doener', {
       }
       railing(kit, [[-4.2 * M, ZF + 4.9 * M], [-1.5 * M, ZF + 4.9 * M]], 0, 0.9 * M, { mat: FRAME, spacing: 1.0 * M });
       railing(kit, [[1.5 * M, ZF + 4.9 * M], [4.2 * M, ZF + 4.9 * M]], 0, 0.9 * M, { mat: FRAME, spacing: 1.0 * M });
+    }
+    if (detail === 2) {
+      for (const [x, z] of [[-2.6, 2.4], [0.4, 2.6], [3.0, 2.4]]) for (const a of [0.4, 3.5]) person(kit, (x + Math.cos(a) * 0.75) * M, ZF + (z + Math.sin(a) * 0.75) * M, { sit: true, y0: 0.05 * M });
+      for (let k = 0; k < 4; k++) person(kit, (2.9 - k * 0.15) * M, ZF + (0.9 + k * 0.6) * M, { ry: Math.PI });
     }
     if (detail === 2) { tree(kit, -4.4 * M, -4.2 * M, 0.7, 'round'); lamp(kit, 4.6 * M, ZF + 4.6 * M, 3.8 * M, { style: 'old', head: NEON }); }
     const res = kit.build();

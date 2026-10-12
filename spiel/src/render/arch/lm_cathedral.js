@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { obox, beam, slab, archOutline, archRing, archWindow, roseWindow, face, tube, lamp, bench, tree, flat } from './lm_parts.js';
+import { obox, beam, slab, archOutline, archRing, archWindow, roseWindow, face, tube, lamp, bench, tree, flat, crowd } from './lm_parts.js';
 
 const STONE = 'stone_sandstone', DARKSTONE = 'stone_dark', ROOF = 'roof_slate';
 
@@ -298,7 +298,8 @@ registerArch('cathedral', {
     }
     kit.add('roof_copper', flat(new THREE.ConeGeometry(1.5 * M, 9.0 * M, 8, 1, false, Math.PI / 8)), { x: 0, y: vy + 4.0 * M + 4.5 * M, z: vz });
     kit.sphere('paint_yellow', 0, vy + 13.2 * M, vz, 0.3 * M, { seg: 6 });
-    // --- Platz: Laternen, Bänke, Bäume
+    // --- Platz: Laternen, Bänke, Bäume, Besucher
+    crowd(kit, 0, ZF + 2.0 * M, 17 * M, 2.6 * M, 14);
     if (detail > 0) {
       for (const s of [-1, 1]) {
         lamp(kit, s * 3.2 * M, ZF + 2.6 * M, 4.2 * M, { style: 'old' });

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, lamp, bench, tree, flag, face, path, glassRail } from './lm_parts.js';
+import { beam, lamp, bench, tree, flag, face, path, glassRail, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 // Messehalle mit Tonnendach (First entlang z), Glasband und Hallennummer an der Front
@@ -106,6 +106,8 @@ registerArch('fairground', {
       // Zufahrt / Taxistand an der Seite
       for (let k = 0; k < 5; k++) kit.box('paint_white', 13.4 * M, 0.08 * M, (-12 + k * 2.6) * M, 2.0 * M, 0.02 * M, 0.12 * M);
     }
+    crowd(kit, 0, 11.0 * M, 8.0 * M, 7.0 * M, 18);
+    crowd(kit, 0, 3.6 * M + 5.0 * M, 7.0 * M, 2.0 * M, 8);
     void beam; void glassRail;
     return kit.build();
   },

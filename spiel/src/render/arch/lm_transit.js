@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
 import { TRANSIT } from '../../config.js';
-import { beam, rod, lathe, glassRail, lamp, bench, face, tube } from './lm_parts.js';
+import { beam, rod, lathe, glassRail, lamp, bench, face, tube, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 const H = TRANSIT.trackHeight;
@@ -98,6 +98,7 @@ registerArch('station', {
       kit.box('paint_blue', 3.6 * M, H, 2.4 * M, 0.5 * M, 1.6 * M, 0.4 * M);
       kit.box('glass_curtain_blue', 3.6 * M, H + 1.0 * M, 2.62 * M, 0.35 * M, 0.4 * M, 0.02 * M, { lit: 1 });
     }
+    crowd(kit, 0, 0, 7.0 * M, 7.0 * M, 5, { y0: H });
     // Bodenebene: Eingang am Aufzug und Fahrkartenautomat
     if (detail > 0) {
       kit.box('paint_blue', C - 0.2 * M, 2.4 * M, C + 0.52 * M, 1.3 * M, 0.5 * M, 0.06 * M);
@@ -172,6 +173,8 @@ registerArch('metro_hub', {
       kit.light(5 * M, H + 2 * M, 0, 0xdcefff, 0.8);
       if (detail === 2) for (const x of [-6, -2, 2, 6]) bench(kit, x * M, -3.8 * M, 0);
     }
+    crowd(kit, 0, -2.6 * M, 16 * M, 1.6 * M, 8, { y0: H });
+    crowd(kit, 0, 4.0 * M, 12 * M, 1.4 * M, 6);
     // Vorplatz
     if (detail > 0) {
       for (const s of [-1, 1]) { lamp(kit, s * 7.6 * M, 4.2 * M, 4.0 * M, { head: 'emissive_cool', color: 0xdcefff }); kit.box('metal_dark', s * 4.6 * M, 0, 4.4 * M, 1.8 * M, 0.5 * M, 0.5 * M); }

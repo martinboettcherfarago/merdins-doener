@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, rod, torus, railing, lamp, bench, tree, flag, hut, addAnim, face } from './lm_parts.js';
+import { beam, rod, torus, railing, lamp, bench, tree, flag, hut, addAnim, face, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 const CAB_COLORS = ['paint_red', 'paint_blue', 'paint_yellow', 'paint_green', 'paint_orange', 'paint_white'];
@@ -142,6 +142,9 @@ registerArch('ferris', {
       for (const s of [-1, 1]) { flag(kit, s * 9.0 * M, 8.8 * M, 6.5 * M, s > 0 ? 'paint_yellow' : 'paint_blue'); lamp(kit, s * 9.2 * M, 2.0 * M, 4.0 * M, { style: 'globe' }); bench(kit, s * 6.6 * M, 2.6 * M, s * Math.PI / 2); }
       for (const [x, z] of [[-8.6, -8.6], [8.6, -8.6], [-8.8, -4.6], [8.8, -4.6]]) tree(kit, x * M, z * M, 0.8, 'round');
     }
+    crowd(kit, 0, 4.1 * M, 6.6 * M, 1.0 * M, 9);
+    crowd(kit, 0, PZ + 1.0 * M, 5.0 * M, 0.8 * M, 4, { y0: PY });
+    crowd(kit, 0, 7.4 * M, 12.0 * M, 2.0 * M, 7);
     const res = kit.build();
     addAnim(ctx, res, [0, HUB, ZW], 'z', 0.12, (k) => ferrisWheel(k, R));
     return res;

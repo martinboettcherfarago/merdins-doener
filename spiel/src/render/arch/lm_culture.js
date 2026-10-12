@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, lathe, slab, column, pediment, archWindow, stairs, lamp, bench, tree, flag, addAnim, face, torus, glassRail, railing } from './lm_parts.js';
+import { beam, lathe, slab, column, pediment, archWindow, stairs, lamp, bench, tree, flag, addAnim, face, torus, glassRail, railing, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 // Schalendach (wie ein Segel): vorn hoch und offen, nach hinten zum Boden auslaufend, mit spitzem First.
@@ -85,6 +85,8 @@ registerArch('opera', {
     kit.box('stone_sandstone', 4.6 * M, Y, -2.6 * M, 4.8 * M, 2.4 * M, 6.0 * M);
     // Schriftzug am Podium
     text(kit, 'trim_dark', 'OPER', 3.4 * M, Y, 4.9 * M, 0, 1.1 * M, { depth: 0.25 * M, weight: 1.1 });
+    crowd(kit, 0, 7.4 * M, 14 * M, 3.4 * M, 12);
+    crowd(kit, 0, 9.2 * M, 16 * M, 1.0 * M, 6);
     // Uferpromenade-Möblierung
     if (detail > 0) {
       const rail = [[-9.4 * M, -9.8 * M], [9.4 * M, -9.8 * M]];
@@ -173,6 +175,8 @@ registerArch('museum', {
     // Moderner Glaswürfel-Anbau hinten rechts
     kit.box('glass_curtain_blue', 6.2 * M, 0, -8.4 * M, 6.0 * M, 7.2 * M, 2.6 * M, { lit: 0.85 });
     kit.box('metal_panel_white', 6.2 * M, 7.2 * M, -8.4 * M, 6.4 * M, 0.4 * M, 3.0 * M);
+    crowd(kit, 0, PZ1 + 1.6 * M, PW - 2 * M, 2.0 * M, 7);
+    crowd(kit, 2.0 * M, 8.6 * M, 10 * M, 1.6 * M, 6);
     // Skulptur auf dem Vorplatz
     if (detail > 0) {
       kit.box('stone_dark', -7.0 * M, 0, 7.4 * M, 2.0 * M, 0.6 * M, 2.0 * M);

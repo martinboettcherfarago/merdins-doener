@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, rod, lathe, torus, tube, railing, lamp, bench, tree, flag, hut, fountain, path, face, flat, addAnim } from './lm_parts.js';
+import { beam, rod, lathe, torus, tube, railing, lamp, bench, tree, flag, hut, fountain, path, face, flat, addAnim, crowd } from './lm_parts.js';
 import { ferrisStand, ferrisWheel } from './lm_ferris.js';
 import { text } from './lm_text.js';
 
@@ -206,6 +206,12 @@ registerArch('themepark', {
       for (const [x, z] of [[-2.4, 16], [2.4, 16], [-2.4, 9], [2.4, 9], [-7, 1.5], [7, 1.5], [-15, 1.5], [15, 1.5]]) lamp(kit, x * M, z * M, 4.0 * M, { style: 'globe' });
       for (const x of [-12, -9, 9, 12]) flag(kit, x * M, 19.3 * M, 6.0 * M, Math.abs(x) > 10 ? 'paint_yellow' : 'paint_blue');
     }
+    crowd(kit, 0, 11.0 * M, 3.4 * M, 14.0 * M, 16);
+    crowd(kit, 0, 2.0 * M, 11.0 * M, 11.0 * M, 14);
+    crowd(kit, 0, 1.5 * M, 36.0 * M, 2.2 * M, 14);
+    crowd(kit, -11.0 * M, -1.0 * M, 7.0 * M, 1.2 * M, 6);
+    crowd(kit, 5.6 * M, -11.2 * M, 6.0 * M, 1.6 * M, 6);
+    crowd(kit, -12.0 * M, 4.6 * M, 3.0 * M, 1.6 * M, 4);
     const res = kit.build();
     // --- Animierte Fahrgeschäfte
     addAnim(ctx, res, [FX, FH, FZ], 'z', 0.18, (k) => ferrisWheel(k, FR, { width: 1.8 * M, cabins: 12, cabR: 0.7 * M }));

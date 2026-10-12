@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, archWindow, archRing, slab, railing, lamp, bench, tree, flag, face, tram, railcar, torus, dormer } from './lm_parts.js';
+import { beam, archWindow, archRing, slab, railing, lamp, bench, tree, flag, face, tram, railcar, torus, dormer, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 // Gleis entlang x (Schotter, Schwellen, Schienen) von x0 bis x1 bei z
@@ -119,6 +119,9 @@ registerArch('train_station', {
       kit.box('glass_window', x * M, PH + 3.0 * M, -4.6 * M, 0.12 * M, 0.7 * M, 2.4 * M, { lit: 1 });
       if (detail === 2) { bench(kit, (x + 3) * M, -4.6 * M + 0.0001, 0); kit.box('paint_blue', (x + 1.5) * M, PH, 0.6 * M, 0.08 * M, 2.4 * M, 1.2 * M); }
     }
+    crowd(kit, 0, -4.6 * M, 34 * M, 1.0 * M, 12, { y0: PH });
+    crowd(kit, 0, 0.8 * M, 34 * M, 2.4 * M, 12, { y0: PH });
+    crowd(kit, 0, 12.0 * M - 2.4 * M, 30 * M, 1.4 * M, 10);
     // Zug auf dem hinteren Gleis (Triebkopf + Wagen)
     const ZY = 0.28 * M;
     railcar(kit, -12.0 * M, ZY, T1, Math.PI / 2, 9.0 * M, { body: 'paint_white', stripe: 'paint_red' });

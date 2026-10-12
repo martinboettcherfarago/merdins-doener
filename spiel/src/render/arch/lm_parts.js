@@ -459,6 +459,28 @@ export function addAnim(ctx, res, pivot, axis, speed, draw) {
   for (const l of r.lights) res.lights.push({ ...l, x: l.x + pivot[0], y: l.y + pivot[1], z: l.z + pivot[2] });
 }
 
+// Menschen als kleine Figuren (nur Nahsicht): Körper + Kopf, Kleidung in bunten Farben. 1,75 m groß.
+const SHIRTS = ['paint_red', 'paint_blue', 'paint_yellow', 'paint_green', 'paint_white', 'paint_orange', 'metal_dark', 'plaster_pink', 'siding_blue'];
+export function person(kit, x, z, o = {}) {
+  if (kit.detail < 2) return;
+  const y0 = o.y0 || 0, s = o.s || 1, ry = o.ry || 0;
+  const shirt = o.shirt || SHIRTS[Math.floor(kit.rng() * SHIRTS.length)];
+  const skin = kit.rng() < 0.8 ? 'plaster_cream' : 'wood_planks';
+  if (o.sit) {
+    kit.box(shirt, x, y0 + 0.35 * M * s, z, 0.42 * M * s, 0.7 * M * s, 0.32 * M * s, { ry });
+    kit.box(skin, x, y0 + 1.05 * M * s, z, 0.22 * M * s, 0.24 * M * s, 0.22 * M * s, { ry });
+    return;
+  }
+  kit.box(kit.rng() < 0.5 ? 'metal_dark' : 'siding_blue', x, y0, z, 0.34 * M * s, 0.85 * M * s, 0.22 * M * s, { ry });
+  kit.box(shirt, x, y0 + 0.85 * M * s, z, 0.44 * M * s, 0.62 * M * s, 0.26 * M * s, { ry });
+  kit.box(skin, x, y0 + 1.5 * M * s, z, 0.22 * M * s, 0.25 * M * s, 0.22 * M * s, { ry });
+}
+// Menschengruppe zufällig in einem Rechteck (Mitte x/z, Größe w × d)
+export function crowd(kit, x, z, w, d, n, o = {}) {
+  if (kit.detail < 2) return;
+  for (let i = 0; i < n; i++) person(kit, x + (kit.rng() - 0.5) * w, z + (kit.rng() - 0.5) * d, { ...o, ry: kit.rng() * 6.28 });
+}
+
 // Kleine Fahrzeuge als Dekoration (geparkt). Länge entlang +z vor Drehung ry.
 export function car(kit, x, z, ry, color, o = {}) {
   const L = (o.len ?? 4.4) * M, W = 1.8 * M, y0 = o.y0 || 0;

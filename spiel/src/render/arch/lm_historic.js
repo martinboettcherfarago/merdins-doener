@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, lathe, slab, archOutline, archRing, archSpandrel, archWindow, railing, lamp, bench, tree, addAnim, face, flat, hut } from './lm_parts.js';
+import { beam, lathe, slab, archOutline, archRing, archSpandrel, archWindow, railing, lamp, bench, tree, addAnim, face, flat, hut, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 const BRICK = 'brick_red', GLAZE = 'brick_dark', WHITE = 'plaster_white';
@@ -92,6 +92,8 @@ registerArch('citygate', {
       kit.box(BRICK, (x0 + x1) / 2, 0, -1.2 * M, Math.abs(x1 - x0), 6.0 * M, 1.6 * M);
       if (detail > 0) for (let x = Math.min(x0, x1) + 0.3 * M; x < Math.max(x0, x1) - 0.2 * M; x += 0.9 * M) kit.box(BRICK, x, 6.0 * M, -1.2 * M, 0.5 * M, 0.7 * M, 1.6 * M);
     }
+    crowd(kit, 0, 0, 3.2 * M, 9.0 * M, 6);
+    crowd(kit, 0, 4.2 * M, 12 * M, 1.2 * M, 4);
     // Laternen und Bänke vor dem Tor
     if (detail > 0) {
       for (const s of [-1, 1]) { lamp(kit, s * 2.6 * M, 4.4 * M, 3.8 * M, { style: 'old' }); bench(kit, s * 6.2 * M, 4.2 * M, Math.PI); }

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, rod, lathe, torus, tube, railing, glassRail, lamp, bench, tree, flag, hut, face, flat, fountain, path } from './lm_parts.js';
+import { beam, rod, lathe, torus, tube, railing, glassRail, lamp, bench, tree, flag, hut, face, flat, fountain, path, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 // Glaskuppel mit weißen Eisenrippen
@@ -58,7 +58,6 @@ registerArch('botanical', {
     }
     // Palmen, die durch die Dachfenster lugen, und Pflanzen am Haus
     if (detail > 0) {
-      for (const [x, z, s] of [[-2.2, -5.0, 1.5], [2.0, -4.0, 1.7], [0.4, -6.4, 1.4]]) tree(kit, x * M, PZ + (z + 4.8) * M, s, 'palm', { y0: 0.6 * M });
       for (const x of [-10.5, -6.8, 6.8, 10.5]) tree(kit, x * M, PZ + 3.9 * M, 0.5, 'topiary', { leaf: 'leaves_light' });
     }
     // --- Garten: Wege, Beete, Seerosenteich, Eingangstor
@@ -99,6 +98,8 @@ registerArch('botanical', {
       for (const [x, z, k, s] of [[-14, -9.2, 'conifer', 0.9], [14, -9.2, 'conifer', 0.9], [-14.2, 7.8, 'round', 0.8], [14.2, 7.6, 'round', 0.8], [-4.6, 8.8, 'palm', 0.8], [4.6, 8.8, 'palm', 0.8], [-12.6, 2.0, 'poplar', 0.8], [12.6, 2.0, 'poplar', 0.8]]) tree(kit, x * M, z * M, s, k);
       for (const s of [-1, 1]) { lamp(kit, s * 1.8 * M, 7.0 * M, 3.6 * M, { style: 'old' }); bench(kit, s * 4.0 * M, 2.1 * M, 0); }
     }
+    crowd(kit, 0, 4.0 * M, 2.0 * M, 9.0 * M, 7);
+    crowd(kit, 0, 3.4 * M, 26 * M, 1.4 * M, 8);
     // Eingangstor mit Schriftzug
     for (const s of [-1, 1]) {
       kit.box('stone_grey', s * 2.2 * M, 0, 9.4 * M, 0.7 * M, 3.4 * M, 0.7 * M);
@@ -234,8 +235,15 @@ registerArch('zoo', {
     const VX = 8.6 * M, VZ = 6.2 * M;
     tree(kit, VX - 1.0 * M, VZ - 1.0 * M, 1.0, 'round');
     tree(kit, VX + 1.6 * M, VZ + 0.6 * M, 0.8, 'palm');
-    kit.dome('chain_fence', VX, 0, VZ, 4.4 * M, { seg: detail === 2 ? 16 : 10, sy: 1.15 });
-    if (detail > 0) for (let k = 0; k < 6; k++) torus(kit, 'metal_dark', VX, 0, VZ, 4.42 * M, 0.06 * M, { arc: Math.PI, ry: (k / 6) * Math.PI, tubular: 12, radial: 3 });
+    // Netzkuppel als Gitter aus Meridianen und Ringen
+    const nm = detail === 2 ? 12 : detail === 1 ? 8 : 4;
+    for (let k = 0; k < nm; k++) kit.add('metal_dark', new THREE.TorusGeometry(4.4 * M, 0.05 * M, 3, detail === 0 ? 8 : 16, Math.PI), { x: VX, y: 0, z: VZ, ry: (k / nm) * Math.PI, sy: 1.15 });
+    for (const t of detail === 0 ? [0.5] : [0.25, 0.5, 0.72, 0.9]) {
+      const a = t * Math.PI / 2;
+      kit.add('metal_dark', new THREE.TorusGeometry(4.4 * M * Math.cos(a), 0.05 * M, 3, detail === 2 ? 24 : 12), { x: VX, y: 4.4 * M * 1.15 * Math.sin(a), z: VZ, rx: Math.PI / 2 });
+    }
+    if (detail > 0) kit.box('chain_fence', VX, 0, VZ, 8.8 * M, 1.0 * M, 8.8 * M);
+    if (detail === 2) for (let k = 0; k < 8; k++) { const a = k * 0.8; kit.sphere(k % 2 ? 'paint_red' : 'paint_yellow', VX + Math.cos(a) * 1.6 * M, (2.4 + (k % 3)) * M, VZ + Math.sin(a) * 1.6 * M, 0.14 * M, { seg: 4 }); }
     kit.cyl('water_pool', VX - 1.0 * M, 0.05 * M, 12.4 * M, 2.0 * M, 0.12 * M, { seg: 14, sx: 1.5 });
     for (let k = 0; k < (detail === 0 ? 2 : 6); k++) flamingo(kit, VX - 3.0 * M + k * 0.75 * M, 12.0 * M + (k % 2) * 0.7 * M, 1.4 + k * 0.4, 1.0);
     // --- Mitte: Affeninsel im Wassergraben
@@ -252,6 +260,9 @@ registerArch('zoo', {
     kit.box('wood_dark', 0, 4.0 * M, 14.0 * M, 5.4 * M, 1.2 * M, 0.4 * M);
     text(kit, 'paint_yellow', 'ZOO', 0, 4.2 * M, 14.22 * M, 0, 0.8 * M, { depth: 0.08 * M });
     if (detail > 0) kit.prism('roof_tiles_brown', [[-3.2 * M, 0], [3.2 * M, 0], [0, 1.2 * M]], 1.2 * M, { x: 0, y: 5.2 * M, z: 14.0 * M });
+    crowd(kit, 0, 7.0 * M, 2.6 * M, 13 * M, 10);
+    crowd(kit, 0, -0.5 * M, 26 * M, 2.0 * M, 10);
+    crowd(kit, -3.4 * M, 4.6 * M, 1.2 * M, 4.0 * M, 4);
     // Kiosk, Spielplatz, Bänke, Bäume, Laternen
     hut(kit, 4.4 * M, 2.2 * M, -Math.PI / 2, 2.6 * M, 2.0 * M, 2.6 * M, { wall: 'plaster_pink', roof: 'roof_tiles_red', counter: true, awning: 'awning_striped' });
     if (detail > 0) {

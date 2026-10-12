@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, lamp, tree, flag, face, plane, car, bus, glassRail } from './lm_parts.js';
+import { beam, lamp, tree, flag, face, plane, car, bus, glassRail, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 const CAR_COLORS = ['paint_red', 'paint_blue', 'paint_white', 'metal_dark', 'metal_light', 'paint_yellow', 'siding_blue'];
@@ -118,6 +118,7 @@ registerArch('airport', {
       for (const [x, z] of [[24, 16], [28, 12], [27.6, 18.6], [-28.6, 6], [17, 18]]) tree(kit, x * M, z * M, 0.9, 'round');
       for (const x of [-2.0, 0.0, 2.0]) flag(kit, (x + 16) * M, 13.0 * M, 7.0 * M, x === 0 ? 'paint_blue' : 'paint_white');
     }
+    crowd(kit, -6.5 * M, 12.6 * M, 36 * M, 1.4 * M, 14);
     // Windsack
     if (d > 0) {
       kit.cyl('metal_light', 27.0 * M, 0, -13.4 * M, 0.06 * M, 4.0 * M, { seg: 4 });

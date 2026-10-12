@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { lathe, beam, railing, glassRail, lamp, bench, tree, addAnim, flat, torus, face, hut } from './lm_parts.js';
+import { lathe, beam, railing, glassRail, lamp, bench, tree, addAnim, flat, torus, face, hut, crowd, person } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 // ---------------------------------------------------------------- Fernsehturm
@@ -163,6 +163,7 @@ registerArch('skytower', {
     kit.light(0, CR + CH * 0.4, 0, 0x3fe8ff, 1.4);
     void top;
     // --- Platzgestaltung
+    crowd(kit, 2.0 * M, 8.4 * M, 14 * M, 2.4 * M, 10);
     if (detail > 0) {
       for (const x of [-8.6, -2.8, 2.8, 8.6]) tree(kit, x * M, 9.0 * M, 0.75, 'round');
       for (const s of [-1, 1]) { lamp(kit, s * 5.8 * M, 9.2 * M, 4.4 * M, { head: 'neon_cyan', color: 0x9fefff }); bench(kit, s * 1.6 * M, 9.4 * M, Math.PI); }

@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { beam, torus, lamp, bench, tree, flag, hut, face, flat, glassRail, path } from './lm_parts.js';
+import { beam, torus, lamp, bench, tree, flag, hut, face, flat, glassRail, path, person, crowd } from './lm_parts.js';
 import { text } from './lm_text.js';
 
 // Elliptischer Drehkörper: pts = [[r (0..1), y], …]; Halbachsen ax (x) und az (z)
@@ -98,6 +98,19 @@ registerArch('stadium', {
       kit.box('metal_dark', -AX * 0.84, 6.4 * M, 0, 0.4 * M, 2.6 * M, 4.6 * M);
       kit.box('glass_curtain_dark', -AX * 0.84 + 0.22 * M, 6.6 * M, 0, 0.05 * M, 2.2 * M, 4.2 * M, { lit: 0.95 });
     }
+    if (detail === 2) {
+      const FAN = ['paint_red', 'paint_red', 'paint_white', 'paint_red', 'metal_dark', 'paint_yellow'];
+      for (const [r0, y0, r1, y1, n] of [[0.62, 0.7 * M, 0.78, 3.8 * M, 70], [0.78, 4.6 * M, 0.97, 8.4 * M, 90]]) {
+        for (let i = 0; i < n; i++) {
+          const k = Math.floor(kit.rng() * nStep), phi = kit.rng() * Math.PI * 2;
+          const r = r0 + ((r1 - r0) * (k + 0.55)) / nStep, y = y0 + ((y1 - y0) * (k + 1)) / nStep;
+          person(kit, Math.sin(phi) * AX * r, Math.cos(phi) * AZ * r, { sit: true, y0: y, shirt: FAN[i % FAN.length] });
+        }
+      }
+      for (let i = 0; i < 22; i++) person(kit, (i < 11 ? -1 : 1) * (0.6 + kit.rng() * 6.4) * M, (kit.rng() - 0.5) * 8.6 * M, { y0: 0.15 * M, shirt: i < 11 ? 'paint_red' : 'paint_blue' });
+      kit.sphere('paint_white', 0.6 * M, 0.3 * M, 0.4 * M, 0.12 * M, { seg: 5 });
+      crowd(kit, 0, 13.4 * M, 18 * M, 2.4 * M, 16);
+    }
     // --- Eingänge, Kassen, Fahnen
     for (const s of [-1, 1]) {
       const [ex, ez] = [s * 5.0 * M, AZ * 0.97];
@@ -177,6 +190,7 @@ registerArch('arena', {
       kit.box('metal_corrugated', 1.2 * M, 0.2 * M, CZ - AZ * 1.02 - 1.21 * M, 1.8 * M, 2.8 * M, 0.05 * M);
     }
     // Vorplatz
+    crowd(kit, 0, 8.8 * M, 12 * M, 1.6 * M, 10);
     if (detail > 0) {
       for (const s of [-1, 1]) {
         lamp(kit, s * 8.6 * M, 8.8 * M, 4.6 * M);
