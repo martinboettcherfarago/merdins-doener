@@ -85,6 +85,17 @@ export function setExportPrice(g, k, mul) {
   if (st && st.prices[k] !== undefined) st.prices[k] = clamp(Math.round(mul * 20) / 20, 0.7, 1.5);
 }
 export function setBuyRaw(g, on) { if (g.ext.industry) g.ext.industry.buyRaw = !!on; }
+// Handelskammer: passt die Exportpreise täglich an – billiger, wenn Ware liegen bleibt, teurer, wenn der Weltmarkt mehr will
+export function setAutoPrice(g, on) { if (g.ext.industry) g.ext.industry.autoPrice = !!on; }
+function autoPrices(g, st) {
+  for (const k of GOOD_KEYS) {
+    const f = st.flow[k];
+    if (f.prod < 2) continue;
+    const p = st.prices[k];
+    if (f.unsold > f.prod * 0.05 && p > 0.7) setExportPrice(g, k, p - 0.05);
+    else if (f.unsold < 0.5 && f.exp > 2 && marketDemand(g, k) > f.exp * 1.3 && p < 1.5) setExportPrice(g, k, p + 0.05);
+  }
+}
 export const WH_MODES = { balance: 'Ausgleich', fill: 'Füllen', empty: 'Leeren' };
 export function setWarehouseMode(g, id, mode) {
   const s = whState(g.ext.industry, id);
@@ -143,7 +154,7 @@ function freshState(g) {
   return {
     v: 1,
     seed: (((g.opts.seed || 1) * 2654435761) ^ 0x5eed) >>> 0 || 1,
-    market, prices, buyRaw: true,
+    market, prices, buyRaw: true, autoPrice: false,
     cycle: { phase: 0.2, period: 48, noise: 0, shock: 0, value: 0.14, label: 'Stabil', since: 0 },
     dens: { 1: [0, 0], 2: [0, 0], 3: [0, 0], 4: [0, 0] },
     densAvg: { 1: 0, 2: 0, 3: 0, 4: 0 },
@@ -743,6 +754,7 @@ function daily(g, st) {
     m.trend = m.trend * 0.6 + (m.idx - old) * 0.4;
     if (m.shockDays > 0) { m.shockDays--; if (m.shockDays === 0) m.shock = 0; }
   }
+  if (st.autoPrice) autoPrices(g, st);
   // Zufällige Marktereignisse
   if (day >= st.nextShock && g.stats.pop > 200) {
     st.nextShock = day + 10 + Math.floor(rnd(st) * 14);
@@ -1096,7 +1108,7 @@ registerSystem({
     for (const [id, r] of st.rec) recs.push([id, r.kind, +(r.sales ?? 1).toFixed(3), +(r.supply ?? 1).toFixed(3), +(r.local || 0).toFixed(3), +(r.imp || 0).toFixed(3), r.shortDays | 0, r.lowDays | 0]);
     const round = (o) => JSON.parse(JSON.stringify(o, (k, v) => (typeof v === 'number' ? +v.toFixed(4) : v)));
     return round({
-      v: 1, seed: st.seed, market: st.market, prices: st.prices, buyRaw: st.buyRaw, cycle: st.cycle, dens: st.dens,
+      v: 1, seed: st.seed, market: st.market, prices: st.prices, buyRaw: st.buyRaw, autoPrice: st.autoPrice, cycle: st.cycle, dens: st.dens,
       applied: st.applied, perm: st.perm, wh: st.wh, flow: st.flow, tot: st.tot, acc: st.acc, lines: st.lines,
       hist: st.hist, news: st.news, nextShock: st.nextShock, first: st.first, jobs: st.jobs, densAvg: st.densAvg, links: st.links, recs,
     });
@@ -1104,7 +1116,7 @@ registerSystem({
   load(g, d) {
     if (!d || d.v !== 1) return;
     const st = freshState(g);
-    for (const k of ['seed', 'buyRaw', 'cycle', 'dens', 'applied', 'perm', 'wh', 'tot', 'acc', 'lines', 'hist', 'news', 'nextShock', 'first', 'jobs', 'densAvg', 'links']) if (d[k] !== undefined) st[k] = d[k];
+    for (const k of ['seed', 'buyRaw', 'autoPrice', 'cycle', 'dens', 'applied', 'perm', 'wh', 'tot', 'acc', 'lines', 'hist', 'news', 'nextShock', 'first', 'jobs', 'densAvg', 'links']) if (d[k] !== undefined) st[k] = d[k];
     for (const k of GOOD_KEYS) {
       if (d.market && d.market[k]) Object.assign(st.market[k], d.market[k]);
       if (d.prices && d.prices[k] !== undefined) st.prices[k] = d.prices[k];

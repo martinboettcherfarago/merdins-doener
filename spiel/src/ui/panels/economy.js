@@ -9,7 +9,7 @@ import { fmt, fmtMoney, clamp } from '../../util.js';
 import { drawLineChart } from '../charts.js';
 import { GOODS, GOOD_KEYS, RAW_KEYS, SPEC_PLURAL, SPEC_DATIVE, SPEC_HOWTO, ECON } from '../../content/industry.js';
 import {
-  BUDGET_CATS, budgetOf, categoryUpkeep, setServiceBudget, setExportPrice, setBuyRaw, setWarehouseMode, cycleWarehouseGood,
+  BUDGET_CATS, budgetOf, categoryUpkeep, setServiceBudget, setExportPrice, setBuyRaw, setAutoPrice, setWarehouseMode, cycleWarehouseGood,
   WH_MODES, setDensityTax, worldPrice, marketDemand, goodsColor, buildingEconomy, cycleForecast, cycleLabel,
 } from '../../sim/systems/industry.js';
 
@@ -259,11 +259,12 @@ function tabGoods(g, S) {
     return `<div class="eco-good">
   <div class="hd"><span class="zdot" style="background:${G.color}"></span><b>${esc(G.name)}</b><span class="tier">${TIER[G.tier]}</span>${px}</div>
   <div class="nums">${shock}<span>erzeugt <b>${T(f.prod)}</b></span><span>Stadt <b>${T(f.local)}</b></span><span>Export <b>${T(f.exp)}</b></span>${f.imp > 0.5 ? `<span>Import <b>${T(f.imp)}</b></span>` : ''}${f.unsold > 0.5 ? `<span style="color:var(--bad)">liegt <b style="color:var(--bad)">${T(f.unsold)}</b></span>` : ''}</div>
-  <div class="eco-price"><span>Preis</span><input type="range" min="70" max="150" step="5" value="${Math.round(p * 100)}" data-eco-price="${k}" aria-label="Exportpreis ${esc(G.name)}"><span class="val">${Math.round(p * 100)} %</span></div>
+  <div class="eco-price"><span>Preis</span><input type="range" min="70" max="150" step="5" value="${Math.round(p * 100)}" data-eco-price="${k}" aria-label="Exportpreis ${esc(G.name)}"${S.autoPrice ? ' disabled title="Die Handelskammer stellt den Preis ein"' : ''}><span class="val">${Math.round(p * 100)} %</span></div>
   <div class="eco-note" data-eco-pricenote="${k}">Weltmarkt nimmt bis ${T(D)} am Tag · ${realized.toFixed(2).replace('.', ',')} € je t${f.exp > 0.5 ? ` · <span style="white-space:nowrap">Erlös ${fmtMoney(f.exp * realized)}/Tag</span>` : ''}</div>
 </div>`;
   }).join('') + (later.length ? `<div class="sec" style="margin:12px 0 0"><h3>Noch nicht in deiner Stadt</h3>${later.join('')}</div>` : '');
   return `<p style="margin:0 0 6px;font-size:12.5px;color:var(--ink-2);line-height:1.45">Der Preis gilt für den Export. <b>Höher</b> bringt mehr pro Tonne, aber der Weltmarkt nimmt weniger ab – bleibt Ware liegen, drückt das auf die Stimmung in der Industrie. <b>Niedriger</b> verkauft mehr.</p>
+<div class="toggle"><button class="switch${S.autoPrice ? ' on' : ''}" data-act="eco-autoprice" aria-label="Preise automatisch"></button><div class="grow"><div class="t">Handelskammer passt Preise an</div><div class="s">Jeden Tag 5 % billiger, wenn Ware liegen bleibt, 5 % teurer, wenn der Weltmarkt mehr will. Die Regler zeigen dann ihre Wahl.</div></div></div>
 <div class="toggle"><button class="switch${S.buyRaw ? ' on' : ''}" data-act="eco-buyraw" aria-label="Rohstoffe zukaufen"></button><div class="grow"><div class="t">Rohstoffe zukaufen</div><div class="s">Verarbeitungsbetriebe kaufen fehlende Rohstoffe am Weltmarkt (${fmtMoney(S.lines.rawbuy)} gestern). Das kostet Geld und Frachtkapazität.</div></div></div>
 ${cards}
 <div class="acts" style="margin-top:10px"><button class="btn small ghost" data-act="eco-price-reset">Alle Preise auf 100 %</button></div>`;
@@ -524,6 +525,7 @@ registerPanel({
       case 'eco-tab': view.tab = ds.k; break;
       case 'eco-chart': view.chart = ds.k; break;
       case 'eco-buyraw': setBuyRaw(g, !S.buyRaw); break;
+      case 'eco-autoprice': setAutoPrice(g, !S.autoPrice); ui.toast(S.autoPrice ? 'Die Handelskammer kümmert sich jetzt um die Exportpreise.' : 'Exportpreise wieder selbst steuern.'); break;
       case 'eco-whmode': setWarehouseMode(g, +ds.id, ds.m); break;
       case 'eco-whgood': cycleWarehouseGood(g, +ds.id); break;
       case 'eco-dens': setDensityTax(g, +ds.z, +ds.k, S.dens[+ds.z][+ds.k] + +ds.d); break;

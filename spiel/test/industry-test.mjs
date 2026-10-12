@@ -5,7 +5,7 @@
 import { Game } from '../src/sim/game.js';
 import { R, Z, RES, T, BUILDINGS } from '../src/config.js';
 import { GOODS, GOOD_KEYS } from '../src/content/industry.js';
-import { setServiceBudget, setExportPrice, setDensityTax, setWarehouseMode, marketDemand, worldPrice, budgetOf } from '../src/sim/systems/industry.js';
+import { setServiceBudget, setExportPrice, setDensityTax, setWarehouseMode, setAutoPrice, marketDemand, worldPrice, budgetOf } from '../src/sim/systems/industry.js';
 import { happinessFactors } from '../src/sim/services.js';
 
 const days = +(process.argv.find((a) => /^\d+$/.test(a)) || 70);
@@ -107,17 +107,11 @@ const advisor = []; // Was der „Spieler" an den Exportpreisen gedreht hat
 for (let d = 1; d <= days; d++) {
   for (let s = 0; s < 300; s++) g.update(0.1);
   const S = st(), t = S.tot, L = S.lines;
-  // Ab Tag 35 reagiert der Spieler wie im Wirtschaftsfenster empfohlen: bleibt Ware liegen, wird sie
-  // billiger angeboten; reißt sich der Weltmarkt darum, wird sie teurer.
-  if (d >= 35 && d % 3 === 0) {
-    for (const k of GOOD_KEYS) {
-      const f = S.flow[k];
-      if (f.prod < 5) continue;
-      const p = S.prices[k];
-      if (f.unsold > f.prod * 0.08 && p > 0.7) { setExportPrice(g, k, p - 0.05); advisor.push(`Tag ${d}: ${GOODS[k].name} billiger (${Math.round((p - 0.05) * 100)} %)`); }
-      else if (f.unsold < 1 && f.exp > 5 && marketDemand(g, k) > f.exp * 1.4 && p < 1.5) { setExportPrice(g, k, p + 0.05); advisor.push(`Tag ${d}: ${GOODS[k].name} teurer (${Math.round((p + 0.05) * 100)} %)`); }
-    }
-  }
+  // Ab Tag 35 schaltet der Spieler die Handelskammer ein (Reiter „Waren & Preise"): bleibt Ware liegen,
+  // wird sie billiger angeboten; reißt sich der Weltmarkt darum, wird sie teurer.
+  if (d === 35) { setAutoPrice(g, true); advisor.prices0 = { ...S.prices }; }
+  if (d > 35) for (const k of GOOD_KEYS) if (S.prices[k] !== (advisor.last || advisor.prices0)[k]) advisor.push(`Tag ${d}: ${GOODS[k].name} ${Math.round(S.prices[k] * 100)} %`);
+  if (d >= 35) advisor.last = { ...S.prices };
   if (!nanAt) nanAt = anyNaN({ tot: t, lines: L, flow: S.flow, market: S.market, cycle: S.cycle });
   for (const [id, w] of Object.entries(S.wh)) {
     const b = g.buildings.get(+id);
@@ -146,7 +140,7 @@ console.log(`  Fracht: Lkw ${Math.round(t.truckUsed)}/${Math.round(t.truckCap)} 
 console.log(`  Vorprodukte für Fabriken: ${Math.round(t.boost * 100)} % · städtische Jobs ${S.jobs} (besetzt ${Math.round(t.staff * 100)} %) · Lager ${Math.round(t.stock)}/${Math.round(t.stockCap)} t`);
 const procs = [food, saw, steel, refi].filter(Boolean).map((b) => { const r = S.rec.get(b.id); return `${BUILDINGS[b.key].name} ${Math.round(r.in)}/${Math.round(r.cap)} t → ${Math.round(r.out)} t (${r.profit >= 0 ? '+' : ''}${Math.round(r.profit)} €/Tag)`; });
 console.log('  Verarbeitung:', procs.join(' · '));
-console.log(`  Preisanpassungen des Spielers: ${advisor.length}${advisor.length ? ' – zuletzt ' + advisor.slice(-3).join(', ') : ''}`);
+console.log(`  Preisanpassungen der Handelskammer (ab Tag 35): ${advisor.length}${advisor.length ? ' – zuletzt ' + advisor.slice(-3).join(', ') : ''}`);
 const b = g.lastBudget;
 console.log('  Haushalt (€/Tag):', Object.entries({ ...b.inc, ...Object.fromEntries(Object.entries(b.exp).map(([k, v]) => ['−' + k, v])) }).filter(([, v]) => Math.abs(v) >= 1).map(([k, v]) => `${k} ${Math.round(v)}`).join(', '));
 const lv = {};
@@ -196,7 +190,7 @@ check(avg(last, 'net') > 0 && avg(last, 'net') < g.lastBudget.income, `Haushalt 
 check(Math.min(...series.map((e) => e.cyc)) < 0 && Math.max(...series.map((e) => e.cyc)) > 0.3, `Konjunktur schwankt (${Math.min(...series.map((e) => e.cyc)).toFixed(2)} … ${Math.max(...series.map((e) => e.cyc)).toFixed(2)})`);
 check(t.trucksDay > 20 && trucks > 0, `Lieferverkehr fährt (${trucks} Lkw unterwegs)`);
 check(ships > 0, 'Frachtschiffe am Hafen');
-check(S.tot.stock > 1, `Lagerhallen puffern (${Math.round(S.tot.stock)} t)`);
+{ const mx = Math.max(...series.map((e) => e.stock)); check(mx > 50, `Lagerhallen puffern (höchster Bestand ${Math.round(mx)} t, zuletzt ${Math.round(S.tot.stock)} t)`); }
 check(g.stats.pop > 1500, `Stadt wächst (${g.stats.pop} Einwohner)`);
 
 // Bedienung: Dienstbudgets
