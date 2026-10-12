@@ -61,6 +61,9 @@ export class RoadView {
     this.cornerY = new Float32Array((g.W + 1) * (g.H + 1)).fill(Y_ROAD);
     this.lampPositions = [];
     this.signalList = [];
+    // Haltestellen-Häuschen und Ampeln zeichnet dieses Modul selbst; die Verkehrsansicht (S3) lässt ihre Platzhalter dann weg.
+    this.drawsBusStops = true;
+    this.drawsSignals = true;
     this.tintOn = false;
     this.detailOn = true;
     this.night = 0;
@@ -160,6 +163,8 @@ export class RoadView {
       const st = g.ext && g.ext.transport && g.ext.transport.stops;
       const ss = Array.isArray(st) ? st.length + ':' + st.map((s) => `${s.tile}/${s.side}`).join(',') : '';
       if (ss !== this.stopSig) { this.stopSig = ss; this.softDirty = true; }
+      const sk = g.ext && g.ext.transport && g.ext.transport._sigKey;
+      if (sk !== undefined && sk !== this.sigKey) { this.sigKey = sk; this.softDirty = true; }
       if (this.softDirty) { this.softDirty = false; this.rebuild(); }
     }
     this.signalGlow();
@@ -234,7 +239,10 @@ export class RoadView {
       if (t < minT) minT = t;
     }
     if (maxT <= R.LANE) return J_RVL;
-    if (deg === 4 || maxT >= R.AVENUE) return J_SIGNAL;
+    // Hat das Verkehrssystem (S3) eine Ampelliste, gilt sie (Spieler kann Ampeln an/aus schalten).
+    const T = g.ext && g.ext.transport;
+    if (T && T.signalSet) { if (T.signalSet.has(i)) return J_SIGNAL; }
+    else if (deg === 4 || maxT >= R.AVENUE) return J_SIGNAL;
     // T-Kreuzung von Straßen: Durchgangsachse hat Vorfahrt
     if ((m & 5) === 5) return J_YIELD_NS;
     return J_YIELD_EW;
