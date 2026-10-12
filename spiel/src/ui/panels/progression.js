@@ -11,7 +11,7 @@ import { icon } from '../icons.js';
 import {
   ACHIEVEMENTS, ACH_CATS, TIERS, RANKS, SCENARIOS, METRO_MAPS, METRO_STARS, ADVISORS,
   achievementState, achievementPoints, rankFor, achievementById, scenarioById, scenarioStatus, scenarioOptions,
-  adviceFor, metroScore, continueFreePlay, isMetro,
+  adviceFor, metroScore, continueFreePlay, isMetro, bannedNames, questStatus, ADVISORS as ADV,
 } from '../../sim/systems/progression.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -188,6 +188,7 @@ const stars = (n, max = 3) => `<span class="s5-stars">${'★'.repeat(n)}<span cl
 const meter = (p, col) => `<div class="meter"><i style="width:${clamp(p, 0, 1) * 100}%;background:${col}"></i></div>`;
 const levelColor = (lvl) => ({ leicht: 'var(--good)', mittel: 'var(--warn)', schwer: 'var(--bad)' }[lvl] || 'var(--l-red)');
 const daysLabel = (d) => (d === 1 ? '1 Tag' : `${d} Tage`);
+const daysDat = (d) => (d === 1 ? '1 Tag' : `${d} Tagen`); // „nach/in … Tagen"
 
 // ---------------------------------------------------------------------------------------------
 // Panel
@@ -212,13 +213,16 @@ ${m.worst > 0.05 && !m.ended ? `<div class="sec"><h3>Höchste Gefahr</h3><div cl
     const status = st.status === 'won' ? `Geschafft ${stars(st.stars)}` : st.status === 'lost' ? 'Gescheitert' : st.free ? 'Freies Spiel' : null;
     html += `<div class="s5-scen-hd" style="background:${sc.color}"><div class="ey">Szenario · ${esc(sc.level)}</div><div class="nm">${esc(sc.name)}</div><div class="kk">${esc(sc.kicker)}</div>${status ? '' : `<div class="days">${ss.left}<small>Tage übrig</small></div>`}${sc.days ? `<div class="s5-timebar"><i style="width:${clamp(ss.elapsed / sc.days, 0, 1) * 100}%"></i></div>` : ''}</div>
 ${status ? `<div class="chips"><span class="chip ${st.status === 'won' ? 'ok' : st.status === 'lost' ? 'no' : ''}">${status}</span>${st.reason ? `<span class="chip">${esc(st.reason)}</span>` : ''}</div>` : ''}
-<div class="sec"><h3>Ziele</h3>${ss.goals.map((r) => `<div class="s5-goal${r.done ? ' done' : ''}"><span class="ck"></span><span class="lb">${esc(r.goal.label)}${r.goal.hold ? ` <span style="color:var(--ink-3);font-weight:500">(${r.held}/${r.goal.hold} Tage)</span>` : ''}</span><span class="vl">${esc(r.text)}</span>${meter(r.progress, r.done ? 'var(--good)' : sc.color)}</div>`).join('')}</div>
-<div class="sec"><h3>Auftrag</h3><p style="margin:0;font-size:13px;color:var(--ink-2);line-height:1.5">${esc(sc.desc)}</p></div>
+<div class="sec"><h3>Ziele</h3>${ss.goals.map((r) => `<div class="s5-goal${r.done ? ' done' : ''}"><span class="ck"></span><span class="lb">${esc(r.goal.label)}${r.goal.hold ? ` <span style="color:var(--ink-3);font-weight:500">(${Math.min(r.held, r.goal.hold)}/${r.goal.hold} Tage)</span>` : ''}</span><span class="vl">${esc(r.text)}</span>${meter(r.progress, r.done ? 'var(--good)' : sc.color)}</div>`).join('')}</div>
+<div class="sec"><h3>Auftrag</h3><p style="margin:0;font-size:13px;color:var(--ink-2);line-height:1.5">${esc(sc.desc)}</p>${bannedNames(sc).length ? `<p style="margin:8px 0 0;font-size:13px;color:var(--bad);font-weight:600">Verboten: ${esc(bannedNames(sc).join(', '))}</p>` : ''}</div>
 <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small ghost" data-act="s5-brief">Briefing anzeigen</button><button class="btn small ghost" data-act="s5-restart">Neu starten</button></div>`;
   } else {
     const ms = MILESTONES[g.milestone], next = MILESTONES[g.milestone + 1];
     html += `<div class="s5-scen-hd" style="background:var(--ink)"><div class="ey">Freies Spiel</div><div class="nm">${esc(g.name)}</div><div class="kk">${esc(ms.name)}${next ? ` · nächster Meilenstein „${esc(next.name)}" bei ${fmt(next.pop)} Einwohnern` : ''}</div>${next ? `<div class="s5-timebar"><i style="width:${clamp((g.stats.pop - ms.pop) / (next.pop - ms.pop), 0, 1) * 100}%"></i></div>` : ''}</div>`;
-    if (g.sandbox) html += '<p style="color:var(--ink-3);font-size:13px">Im Sandkasten werden keine Erfolge vergeben.</p>';
+    const qs = questStatus(g);
+    if (qs.length) html += `<div class="sec"><h3>Bürgeraufträge</h3>${qs.map(questRow).join('')}</div>`;
+    else if (!g.sandbox) html += '<div class="sec"><h3>Bürgeraufträge</h3><p style="margin:0;font-size:13px;color:var(--ink-3)">Gerade kein Auftrag – dein Stab meldet sich bald mit neuen Wünschen der Bürger.</p></div>';
+    if (g.sandbox) html += '<p style="color:var(--ink-3);font-size:13px">Im Sandkasten werden keine Erfolge und Aufträge vergeben.</p>';
     else {
       const near = achievementState(g).filter((x) => !x.unlocked && x.avail && !x.a.secret && x.progress > 0).sort((a, b) => b.progress - a.progress).slice(0, 4);
       if (near.length) html += `<div class="sec"><h3>Fast geschafft</h3>${near.map((x) => achRow(x)).join('')}</div>`;
@@ -234,7 +238,11 @@ function achRow(x) {
   const a = x.a, t = TIERS[a.tier];
   const hidden = a.secret && !x.unlocked;
   const valTxt = x.unlocked ? `Tag ${x.day}` : x.goal > 1 ? `${a.fmt ? a.fmt(x.value) : fmt(x.value)} / ${a.fmt ? a.fmt(x.goal) : fmt(x.goal)}` : x.hint || `${Math.round(x.progress * 100)} %`;
-  return `<div class="s5-ach${x.unlocked ? ' done' : ''}${!x.avail ? ' locked' : ''}" style="--tier:${t.color}">${medal(a, x.unlocked)}<div><div class="nm">${hidden ? 'Geheimer Erfolg' : esc(a.name)}<span class="t">${t.name}</span></div><div class="ds">${hidden ? 'Wird verraten, sobald du ihn freischaltest.' : !x.avail ? `${esc(a.desc)} (braucht ein Spielsystem, das hier fehlt)` : esc(a.desc)}</div>${hidden ? '' : `<div class="pg">${meter(x.progress, x.unlocked ? t.color : 'var(--ink-3)')}<span>${esc(valTxt)}</span></div>`}</div></div>`;
+  return `<div class="s5-ach${x.unlocked ? ' done' : ''}${!x.avail ? ' locked' : ''}" style="--tier:${t.color}">${medal(a, x.unlocked)}<div><div class="nm">${hidden ? 'Geheimer Erfolg' : esc(a.name)}<span class="t">${t.name}</span></div><div class="ds">${hidden ? 'Wird verraten, sobald du ihn freischaltest.' : !x.avail ? `${esc(a.desc)} (${x.skipped ? 'war beim Start des Szenarios schon erfüllt' : 'braucht ein Spielsystem, das hier fehlt'})` : esc(a.desc)}</div>${hidden ? '' : `<div class="pg">${meter(x.progress, x.unlocked ? t.color : 'var(--ink-3)')}<span>${esc(valTxt)}</span></div>`}</div></div>`;
+}
+function questRow(r) {
+  const a = ADV[r.t.who] || ADV.bau;
+  return `<div class="s5-goal${r.ok ? ' done' : ''}" style="grid-template-columns:20px 1fr auto"><span class="ck"></span><span class="lb">${esc(r.title)}<br><span style="font-weight:500;color:var(--ink-2);font-size:12.5px">${esc(r.desc)}</span><br><span style="font-weight:600;color:var(--ink-3);font-size:11.5px">${esc(a.role)} ${esc(a.name)} · Belohnung: ${esc(r.reward)}</span></span><span class="vl">${esc(r.text)}<br><span style="font-size:11.5px;color:${r.left <= 2 ? 'var(--bad)' : 'var(--ink-3)'}">noch ${daysLabel(r.left)}</span></span>${meter(r.progress, r.ok ? 'var(--good)' : a.color)}</div>`;
 }
 function tipRow(t) {
   const a = ADVISORS[t.who] || ADVISORS.bau;
@@ -321,7 +329,7 @@ function showIntro(ui, start = true) {
   const html = `<div class="modal s5-modal"><div class="hero" style="background:${sc.color}"><div class="eyebrow">${metro ? 'Herausforderung' : `Szenario · ${esc(sc.level)}`}</div><h2>${esc(sc.name)}</h2><p>${esc(sc.kicker)}</p></div>
 <p>${esc(sc.desc)}</p>
 ${metro ? `<ul class="s5-goallist"><li>Verbinde die Stationen mit Linien – neue Viertel kommen von selbst.</li><li>Setze Züge und Waggons ein, bevor eine Station überläuft.</li><li>Jede Woche wählst du Nachschub. Punkte = beförderte Fahrgäste.</li></ul>${best ? `<p style="margin:6px 0 0">Dein Rekord auf dieser Karte: <b>${fmt(best)}</b></p>` : ''}`
-    : `<div class="eyebrow" style="margin-top:12px">Ziele${sc.days ? ` – in ${sc.days} Tagen` : ''}</div><ul class="s5-goallist">${ss.goals.map((r) => `<li class="${r.done ? 'ok' : ''}">${esc(r.goal.label)}${r.goal.hold ? ` (${r.goal.hold} Tage halten)` : ''}</li>`).join('')}</ul>${prof ? `<p style="margin:6px 0 0">Bisher bestes Ergebnis: ${stars(prof.stars)} in ${daysLabel(prof.best)}</p>` : ''}`}
+    : `<div class="eyebrow" style="margin-top:12px">Ziele${sc.days ? ` – in ${sc.days} Tagen` : ''}</div><ul class="s5-goallist">${ss.goals.map((r) => `<li class="${r.done ? 'ok' : ''}">${esc(r.goal.label)}${r.goal.hold ? ` (${r.goal.hold} Tage halten)` : ''}</li>`).join('')}</ul>${bannedNames(sc).length ? `<p style="margin:4px 0 0;color:var(--bad);font-weight:600">Verboten: ${esc(bannedNames(sc).join(', '))}</p>` : ''}${prof ? `<p style="margin:6px 0 0">Bisher bestes Ergebnis: ${stars(prof.stars)} in ${daysDat(prof.best)}</p>` : ''}`}
 <div class="acts">${start ? '<button class="btn ghost" data-act="menu">Zurück zum Menü</button>' : ''}<button class="btn" data-act="go">${start ? 'Los geht’s!' : 'Weiter'}</button></div></div>`;
   openModal(ui, html, (e, close) => {
     const b = e.target.closest('[data-act]');
@@ -351,7 +359,7 @@ function showEnd(ui, msg) {
     profileScenario(sc.id, st.stars, st.endDay - st.startDay);
     const idx = SCENARIOS.findIndex((x) => x.id === sc.id);
     const nextSc = SCENARIOS.slice(idx + 1).find((x) => !x.metro) || null;
-    html = `<div class="modal s5-modal"><div class="hero" style="background:${sc.color}"><div class="eyebrow">Szenario geschafft</div><h2>${esc(sc.name)}</h2><p>${esc(g.name)} hat es geschafft – nach ${daysLabel(st.endDay - st.startDay)}.</p></div>
+    html = `<div class="modal s5-modal"><div class="hero" style="background:${sc.color}"><div class="eyebrow">Szenario geschafft</div><h2>${esc(sc.name)}</h2><p>${esc(g.name)} hat es geschafft – nach ${daysDat(st.endDay - st.startDay)}.</p></div>
 <div class="bigstars">${'★'.repeat(st.stars)}<span class="off">${'★'.repeat(3 - st.stars)}</span></div>
 <p style="text-align:center;margin:0 0 6px">${st.stars === 3 ? 'Meisterhaft! Schneller geht es kaum.' : st.stars === 2 ? 'Stark! Mit etwas mehr Tempo gibt es den dritten Stern.' : 'Geschafft! Für mehr Sterne musst du schneller sein.'}</p>
 <ul class="s5-goallist">${ss.goals.map((r) => `<li class="ok">${esc(r.goal.label)} – ${esc(r.text)}</li>`).join('')}</ul>
@@ -393,7 +401,7 @@ function nextBanner() {
   const d = document.createElement('div');
   d.className = 's5-banner';
   d.style.setProperty('--tier', t.color);
-  d.innerHTML = `${medal(a, true, 46)}<div><div class="ey">Erfolg · ${t.name} · +${t.pts}</div><div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.desc)}</div></div>`;
+  d.innerHTML = `${medal(a, true, 46)}<div><div class="ey">${a.eyebrow ? esc(a.eyebrow) : `Erfolg · ${t.name} · +${t.pts}`}</div><div class="nm">${esc(a.name)}</div><div class="ds">${esc(a.desc)}</div></div>`;
   host.appendChild(d);
   setTimeout(() => { d.classList.add('out'); setTimeout(() => { d.remove(); nextBanner(); }, 520); }, 4200);
 }
@@ -408,7 +416,8 @@ function renderHud(ui) {
   if (!hud || hud.hidden) return;
   const ss = scenarioStatus(g);
   const active = ss && (ss.st.status === 'running' || (isMetro(g) && !g.ext.progression.metro?.ended)) && !ss.st.free;
-  if (!active) { if (hudEl) { hudEl.remove(); hudEl = null; } return; }
+  const quests = active ? [] : questStatus(g);
+  if (!active && !quests.length) { if (hudEl) { hudEl.remove(); hudEl = null; } return; }
   if (!hudEl || !hudEl.isConnected || hudGame !== g) {
     if (hudEl) hudEl.remove();
     ensureCss();
@@ -425,14 +434,17 @@ function renderHud(ui) {
   const insp = ui.el?.insp && !ui.el.insp.hidden;
   hudEl.style.display = ui.panel ? 'none' : '';
   hudEl.classList.toggle('mini', hudMini || !!insp);
-  const sc = ss.sc;
+  const sc = ss?.sc;
   let html;
-  if (isMetro(g)) {
+  if (!active) {
+    html = `<div class="hd"><div style="min-width:0"><div class="ey">Bürgeraufträge</div><div class="nm">${quests.length === 1 ? '1 offener Auftrag' : `${quests.length} offene Aufträge`}</div></div><span class="pill">${quests.filter((r) => r.ok).length}/${quests.length}</span></div>
+<div class="gl">${quests.map((r) => { const a = ADV[r.t.who] || ADV.bau; return `<span class="ck${r.ok ? ' ok' : ''}"></span><span class="lb" title="${esc(r.desc)}">${esc(r.title)}</span><span class="vl">${esc(r.text)} · ${r.left} T.</span><span class="bar"><i style="width:${clamp(r.progress, 0, 1) * 100}%;background:${r.ok ? 'var(--good)' : a.color}"></i></span>`; }).join('')}</div>`;
+  } else if (isMetro(g)) {
     const m = g.ext.progression.metro;
     const weeks = Math.floor((g.day() - m.startDay) / 7) + 1;
     const nextIn = Math.max(0, m.next - g.day());
     html = `<div class="hd"><div style="min-width:0"><div class="ey" style="color:${sc.color}">Metro · Woche ${weeks}</div><div class="nm">${m.districts.length} Viertel · ${g.transit.stations.size} Stationen</div></div><span class="pill">${fmt(metroScore(g))}</span></div>
-<div class="gl"><span class="ck${nextIn > 1 ? ' ok' : ''}"></span><span class="lb">Neues Viertel</span><span class="vl">${nextIn ? `in ${daysLabel(nextIn)}` : 'heute'}</span>
+<div class="gl"><span class="ck${nextIn > 1 ? ' ok' : ''}"></span><span class="lb">Neues Viertel</span><span class="vl">${nextIn ? `in ${daysDat(nextIn)}` : 'heute'}</span>
 <span class="ck${g.transit.freeTrains + g.transit.freeWagons > 0 ? '' : ' ok'}"></span><span class="lb">Im Depot</span><span class="vl">${g.transit.freeTrains} Züge · ${g.transit.freeWagons} Wagg.</span>
 <span class="ck ok"></span><span class="lb">Linien</span><span class="vl">${g.transit.lines.length} / ${g.transit.linesMax}</span></div>
 ${m.worst > 0.15 ? `<div class="warn">⚠ ${esc(m.worstName)} läuft über: ${Math.round(m.worst * 100)} %</div>` : ''}
@@ -463,6 +475,9 @@ function tick() {
     if (msg.type === 'achievement') {
       const a = achievementById(msg.id);
       if (a) { profileAch(a.id); showBanner(a); try { app.audio?.play?.('card'); } catch (e) { /* egal */ } }
+    } else if (msg.type === 'quest' && msg.ok) {
+      showBanner({ tier: 2, cat: 'challenge', name: msg.title, desc: `Belohnung: ${msg.reward}`, eyebrow: 'Auftrag erfüllt' });
+      try { app.audio?.play?.('money'); } catch (e) { /* egal */ }
     } else if (msg.type === 'scenarioIntro') queue(ui, () => showIntro(ui, true));
     else if (msg.type === 'scenarioEnd') queue(ui, () => showEnd(ui, msg));
   }
@@ -489,7 +504,7 @@ MENU_SECTIONS.push({
       const row = `<button class="s5-sc${on ? ' on' : ''}" data-act="s5-sel" data-id="${sc.id}"><span class="sw" style="background:${sc.color}"></span><span><span class="t">${esc(sc.name)}</span><br><span class="s">${esc(sc.kicker)}</span></span><span class="r"><span style="color:${levelColor(sc.level)};font-weight:700">${esc(sc.level)}</span> · ${sc.days} T.<br>${p ? stars(p.stars) : '<span class="s5-stars"><span class="off">★★★</span></span>'}</span></button>`;
       if (!on) return row;
       const map = { river: 'Flusstal', coast: 'Küste', lakes: 'Seenplatte', islands: 'Inselreich', mountains: 'Bergland' }[sc.map] || sc.map;
-      return row + `<div class="s5-detail"><b>${esc(sc.city)}</b> · ${esc(map)} · ${sc.size}² Felder<br>${esc(sc.desc)}<div class="eyebrow" style="margin-top:8px">Ziele in ${sc.days} Tagen</div><ul>${sc.goals.map((goal) => `<li>${esc(goal.label)}${goal.hold ? ` (${goal.hold} Tage halten)` : ''}</li>`).join('')}</ul>${p ? `<div>Bestes Ergebnis: ${stars(p.stars)} in ${daysLabel(p.best)} · ${p.wins}× geschafft</div>` : ''}<div class="acts"><button class="btn go" data-act="s5-start" data-id="${sc.id}">Szenario starten</button></div></div>`;
+      return row + `<div class="s5-detail"><b>${esc(sc.city)}</b> · ${esc(map)} · ${sc.size}² Felder<br>${esc(sc.desc)}<div class="eyebrow" style="margin-top:8px">Ziele in ${sc.days} Tagen</div><ul>${sc.goals.map((goal) => `<li>${esc(goal.label)}${goal.hold ? ` (${goal.hold} Tage halten)` : ''}</li>`).join('')}</ul>${p ? `<div>Bestes Ergebnis: ${stars(p.stars)} in ${daysDat(p.best)} · ${p.wins}× geschafft</div>` : ''}<div class="acts"><button class="btn go" data-act="s5-start" data-id="${sc.id}">Szenario starten</button></div></div>`;
     }).join('');
     const best = prof.metro[s5.map] || 0;
     return `<div class="card s5-menu"><h3>Szenarien</h3><p class="seg-hint" style="margin:-6px 0 10px">Feste Karten, klare Ziele, knappe Zeit. Je schneller, desto mehr Sterne.</p>${rows}</div>

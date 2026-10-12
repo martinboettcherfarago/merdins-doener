@@ -196,6 +196,8 @@ export const ACHIEVEMENTS = [
   { id: 'scenario3', cat: 'challenge', tier: 3, metro: true, name: 'Drei Sterne', desc: 'Ein Szenario mit drei Sternen abgeschlossen.', goal: 3, v: (g, F, C) => C.bestStars },
   { id: 'metro1k', cat: 'challenge', tier: 2, metro: true, name: 'Netzplaner', desc: '1.000 Punkte im Metro-Modus.', goal: 1000, v: (g) => metroScore(g) },
   { id: 'metro5k', cat: 'challenge', tier: 3, metro: true, name: 'Netzplan-Meister', desc: '3.000 Punkte im Metro-Modus.', goal: 3000, v: (g) => metroScore(g) },
+  { id: 'quests3', cat: 'challenge', tier: 1, name: 'Hilfsbereit', desc: 'Drei Bürgeraufträge erfüllt.', goal: 3, v: (g, F, C) => C.questsDone },
+  { id: 'quests12', cat: 'challenge', tier: 2, name: 'Auftragnehmer', desc: 'Zwölf Bürgeraufträge erfüllt.', goal: 12, v: (g, F, C) => C.questsDone },
   { id: 'metroweeks', cat: 'challenge', tier: 2, metro: true, name: 'Pünktlich wie die Uhr', desc: 'Im Metro-Modus 5 Wochen ohne Überlauf.', goal: 5, v: (g) => (isMetro(g) && S(g).metro ? Math.floor((g.day() - S(g).metro.startDay) / 7) : 0) },
   // --- Geheim
   { id: 'demolish', cat: 'secret', tier: 1, secret: true, name: 'Abrissbirne', desc: '50 Gebäude eigenhändig abgerissen.', goal: 50, v: (g, F, C) => C.demolished },
@@ -214,7 +216,7 @@ function freshCounters() {
     maxPop: 0, maxMoney: 0, minMoney: 0, maxNet: 0, maxTourism: 0, maxRiders: 0, maxAbandoned: 0,
     happyStreak: 0, lowTaxStreak: 0, loansRepaid: 0, lastLoans: 0, deepDebt: false, comeback: false,
     fires: 0, demolished: 0, events: 0, disasters: 0, policies: [], seasons: [], trees: 0,
-    dayFlow: 1, worstFlow: 1, scenarioWins: 0, bestStars: 0, pixel: false, nightowl: false,
+    dayFlow: 1, worstFlow: 1, scenarioWins: 0, bestStars: 0, pixel: false, nightowl: false, questsDone: 0, questsFailed: 0,
   };
 }
 
@@ -225,7 +227,8 @@ export function achievementState(g) {
   const F = st.facts || cityFacts(g);
   const C = st.counters;
   return ACHIEVEMENTS.map((a) => {
-    const avail = !a.req || a.req(g);
+    const skipped = st.skip.includes(a.id);
+    const avail = (!a.req || a.req(g)) && !skipped;
     const goal = goalOf(a) || 1;
     let value = 0;
     try { value = a.v(g, F, C) || 0; } catch (e) { value = 0; }
@@ -233,7 +236,7 @@ export function achievementState(g) {
     const progress = unlocked ? 1 : clamp(value / goal, 0, 0.999);
     let hint = '';
     try { hint = a.hint ? a.hint(g, F, C) : ''; } catch (e) { hint = ''; }
-    return { a, avail, goal, value, unlocked, day: st.ach[a.id], progress, hint };
+    return { a, avail, skipped, goal, value, unlocked, day: st.ach[a.id], progress, hint };
   });
 }
 export function achievementPoints(g) {
@@ -270,6 +273,7 @@ function checkAchievements(g) {
   for (const a of ACHIEVEMENTS) {
     if (st.ach[a.id] !== undefined) continue;
     if (metro && !a.metro) continue; // im Metro-Modus zählt nur, was der Spieler selbst geleistet hat
+    if (st.skip.includes(a.id)) continue;
     if (a.req && !a.req(g)) continue;
     let v = 0;
     try { v = a.v(g, F, C) || 0; } catch (e) { continue; }
@@ -608,12 +612,12 @@ export const SCENARIOS = [
     setup(g) { g.money = 52000; },
   },
   {
-    id: 'erz', name: 'Erzrausch', city: 'Glückauf', level: 'schwer', map: 'mountains', size: 96, seed: 4711, difficulty: 'hard', days: 55,
+    id: 'erz', name: 'Erzrausch', city: 'Glückauf', level: 'schwer', map: 'mountains', size: 96, seed: 4711, difficulty: 'normal', days: 60,
     color: '#8a6a55', kicker: 'Reich werden im Bergland',
     desc: 'In den Tälern wurde Erz gefunden. Die Kasse ist knapp, das Land ist schroff – aber wer Industrie und Bergbau geschickt aufzieht, wird reich.',
-    goals: [G.jobs(3, 600, 'in der Industrie'), G.money(100000), G.pop(2000)],
+    goals: [G.jobs(3, 500, 'in der Industrie'), G.money(60000), G.pop(1500)],
     fails: ['bankrupt'],
-    setup(g) { g.addEffect('indDemand', 30, 10, 'Erzfund'); },
+    setup(g) { g.money = 30000; g.addEffect('indDemand', 30, 10, 'Erzfund'); },
   },
   {
     id: 'ferien', name: 'Ferienparadies', city: 'Seebad Sonnenstrand', level: 'mittel', map: 'coast', size: 96, seed: 909, difficulty: 'normal', days: 60,
@@ -640,8 +644,8 @@ export const SCENARIOS = [
       ensureUtilities(g, { margin: 1.35 });
       ensureServices(g, ['fire', 'police', 'clinic', 'school', 'landfill'], 3);
       settle(g, 3);
-      g.money = -12000;
-      g.loans.push({ amount: 60000, weeks: 30, weeksLeft: 26, rate: 0.015, weekly: 60000 * 0.015 });
+      g.money = -8000;
+      g.loans.push({ amount: 60000, weeks: 30, weeksLeft: 22, rate: 0.015, weekly: 60000 * 0.015 });
       g.loans.push({ amount: 25000, weeks: 20, weeksLeft: 16, rate: 0.012, weekly: 25000 * 0.012 });
       for (const id of ['smoke', 'bikes', 'freetransit', 'recycling']) if (POLICIES.find((p) => p.id === id)) g.policies.add(id);
     },
@@ -676,8 +680,8 @@ export const SCENARIOS = [
   {
     id: 'wissen', name: 'Wissenschaftsstadt', city: 'Neu-Gelehrtenheim', level: 'schwer', map: 'lakes', size: 96, seed: 333, difficulty: 'relaxed', days: 90,
     color: '#8f5ad8', kicker: 'Bildung als Standortfaktor',
-    desc: 'Die Landesregierung sucht einen Standort für ein Wissenschaftszentrum. Gewinne den Zuschlag mit einer gebildeten Bevölkerung, Universität, Forschungszentrum und vielen Büros.',
-    goals: [G.pop(4500), G.edu(60), G.built('university'), G.built('research'), G.jobs(4, 700, 'in Büros')],
+    desc: 'Die Landesregierung sucht einen Standort für ein Wissenschaftszentrum. Gewinne den Zuschlag mit einer gebildeten Bevölkerung, Gymnasium, Universität und vielen Büros.',
+    goals: [G.pop(4500), G.edu(60), G.built('highschool'), G.built('university'), G.jobs(4, 700, 'in Büros')],
     fails: ['bankrupt'],
     setup(g) { g.money = 90000; },
   },
@@ -762,9 +766,25 @@ function setupScenario(g) {
   g.debtDays = 0;
   st.counters.lastLoans = g.loans.length;
   st.scen = { id: sc.id, startDay: g.day(), status: 'running', hold: {}, done: {}, endDay: null, stars: 0, reason: '', unhappyDays: 0 };
+  // Erfolge, die die Startstadt schon erfüllt, gibt es in diesem Spiel nicht geschenkt
+  st.facts = cityFacts(g);
+  updateCounters(g);
+  for (const a of ACHIEVEMENTS) {
+    let v = 0;
+    try { v = a.v(g, st.facts, st.counters) || 0; } catch (e) { v = 0; }
+    if (v >= (goalOf(a) || 1)) st.skip.push(a.id);
+  }
   pushInbox(g, { type: 'scenarioIntro' });
   g.speed = 0; // Start nach dem Briefing
 }
+
+// Ist ein Gebäude im laufenden Szenario verboten? (für Werkzeugleiste/Oberfläche)
+export function isBanned(g, key) {
+  const st = S(g);
+  const sc = st?.scen && st.scen.status === 'running' ? scenarioById(st.scen.id) : null;
+  return !!(sc && sc.banned && sc.banned.includes(key));
+}
+export function bannedNames(sc) { return (sc?.banned || []).map((k) => BUILDINGS[k]?.name).filter(Boolean); }
 
 function goalOk(goal, v) { return goal.cmp === '<=' ? v <= goal.target : v >= goal.target; }
 export function goalProgress(goal, v) {
@@ -1159,6 +1179,147 @@ function metroCards(g, ids) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Bürgeraufträge (freies Spiel): kleine Ziele mit Frist und Belohnung gegen die Mid-Game-Leere
+// ---------------------------------------------------------------------------------------------
+const roundTo = (v, step) => Math.max(step, Math.round(v / step) * step);
+const cashReward = (g, base) => ({ type: 'money', amount: roundTo(base + g.stats.pop * 1.2, 500) });
+// make(g, F) → { target, days, hold?, reward } | null; cur(g, F) → Zahl; cmp '<=' für Obergrenzen
+export const QUESTS = [
+  { id: 'grow', who: 'bau', title: 'Wachstumsschub', text: (q) => `Bring die Stadt auf ${fmt(q.target)} Einwohner.`, cond: (g) => g.stats.pop >= 80,
+    make: (g) => ({ target: roundTo(g.stats.pop * 1.22 + 80, 50), days: 9, reward: cashReward(g, 2500) }), cur: (g) => g.stats.pop },
+  { id: 'happy', who: 'buerger', title: 'Gute Laune', text: (q) => `Halte das Glück zwei Tage lang bei mindestens ${q.target} %.`, cond: (g) => g.stats.pop >= 200 && g.stats.happiness < 80,
+    make: (g) => ({ target: Math.min(85, Math.round(g.stats.happiness + 7)), days: 8, hold: 2, reward: { type: 'happy', amount: 4, days: 7 } }), cur: (g) => g.stats.happiness, fmt: (v) => `${Math.round(v)} %` },
+  { id: 'jobs', who: 'bau', title: 'Arbeit für alle', text: () => 'Drück die Arbeitslosigkeit unter 4 %.', cond: (g) => g.stats.pop > 300 && g.stats.unemployment > 0.07,
+    make: (g) => ({ target: 4, days: 7, reward: cashReward(g, 3000) }), cur: (g) => g.stats.unemployment * 100, cmp: '<=', fmt: (v) => `${Math.round(v)} %` },
+  { id: 'parks', who: 'umwelt', title: 'Mehr Grün', text: (q) => `Baue Parks, bis es ${q.target} Grünanlagen gibt.`, cond: (g) => g.stats.pop > 150,
+    make: (g, F) => ({ target: (F.parks || 0) + 3, days: 7, reward: cashReward(g, 1500) }), cur: (g, F) => F.parks || 0 },
+  { id: 'riders', who: 'verkehr', title: 'Steig ein!', text: (q) => `${fmt(q.target)} Pulsbahn-Fahrgäste an einem Tag.`, cond: (g) => g.transit.lines.length >= 1,
+    make: (g) => ({ target: roundTo(Math.max(60, (g.stats.ridersToday || 0) * 1.4 + 20), 10), days: 8, reward: { type: 'trains', amount: 2 } }), cur: (g) => g.stats.ridersToday || 0 },
+  { id: 'supply', who: 'umwelt', title: 'Licht und Wasser für alle', text: () => 'Zwei Tage lang kein Gebäude ohne Strom oder Wasser.', cond: (g) => g.stats.unpowered + g.stats.unwatered > 2,
+    make: (g) => ({ target: 0, days: 6, hold: 2, reward: cashReward(g, 2000) }), cur: (g) => g.stats.unpowered + g.stats.unwatered, cmp: '<=', fmt: (v) => (v ? `${fmt(v)} ohne` : 'alle') },
+  { id: 'edu', who: 'buerger', title: 'Schlaue Köpfe', text: (q) => `Hebe die Bildung auf ${q.target} %.`, cond: (g) => g.stats.pop > 500 && g.countBuilt('education') > 0 && g.stats.edu < 0.8,
+    make: (g) => ({ target: Math.min(90, Math.round(g.stats.edu * 100 + 10)), days: 10, reward: { type: 'edu', amount: 1.1 } }), cur: (g) => g.stats.edu * 100, fmt: (v) => `${Math.round(v)} %` },
+  { id: 'tourism', who: 'geld', title: 'Besuchermagnet', text: (q) => `Locke ${fmt(q.target)} Touristen am Tag an.`, cond: (g, F) => (F.landmarks || 0) > 0 || (g.stats.tourism || 0) > 50,
+    make: (g) => ({ target: roundTo((g.stats.tourism || 0) * 1.4 + 80, 10), days: 9, reward: cashReward(g, 4000) }), cur: (g) => g.stats.tourism || 0 },
+  { id: 'savings', who: 'geld', title: 'Rücklage bilden', text: (q) => `Spare ${fmtMoney(q.target)} an.`, cond: (g) => (g.lastBudget?.net || 0) > 200 && g.money > 0,
+    make: (g) => ({ target: roundTo(g.money + Math.max(8000, (g.lastBudget?.net || 0) * 5), 1000), days: 8, reward: { type: 'upkeep', amount: 0.2, days: 10 } }), cur: (g) => g.money, fmt: fmtMoney },
+  { id: 'landmark', who: 'buerger', title: 'Ein neues Wahrzeichen', text: () => 'Baue ein weiteres Wahrzeichen.', cond: (g) => LANDMARK_KEYS().some((k) => g.isUnlocked(k) && !g.hasBuilt(k)),
+    make: (g, F) => ({ target: (F.landmarks || 0) + 1, days: 12, reward: { type: 'tourism', amount: 150, days: 10 } }), cur: (g, F) => F.landmarks || 0 },
+  { id: 'flow', who: 'verkehr', title: 'Freie Fahrt', text: (q) => `Ø Verkehrsfluss zwei Tage lang über ${q.target} %.`, cond: (g) => (S(g).counters.dayFlow || 1) < 0.85 && g.stats.pop > 500,
+    make: () => ({ target: 90, days: 8, hold: 2, reward: { type: 'roads', amount: 0.6, days: 6 } }), cur: (g) => (S(g).counters.dayFlow || 0) * 100, fmt: (v) => `${Math.round(v)} %` },
+  { id: 'crime', who: 'buerger', title: 'Sichere Viertel', text: () => 'Senke die Kriminalität unter 12 %.', cond: (g) => g.stats.crimeAvg > 0.2 && g.stats.pop > 400,
+    make: (g) => ({ target: 12, days: 8, reward: cashReward(g, 2500) }), cur: (g) => g.stats.crimeAvg * 100, cmp: '<=', fmt: (v) => `${Math.round(v)} %` },
+  { id: 'health', who: 'buerger', title: 'Ärzte für alle', text: () => 'Bring die Gesundheitsversorgung auf 60 %.', cond: (g) => g.stats.pop > 300 && g.stats.healthAvg < 0.45,
+    make: (g) => ({ target: 60, days: 8, reward: cashReward(g, 2500) }), cur: (g) => g.stats.healthAvg * 100, fmt: (v) => `${Math.round(v)} %` },
+  { id: 'tall', who: 'bau', title: 'Hoch hinaus', text: (q) => `${q.target} Gebäude auf Stufe 4 oder höher.`, cond: (g) => g.milestone >= 3,
+    make: (g, F) => ({ target: (F.level4 || 0) + 5, days: 10, reward: cashReward(g, 4000) }), cur: (g, F) => F.level4 || 0 },
+  { id: 'clean', who: 'umwelt', title: 'Durchatmen', text: (q) => `Senke die Verschmutzung auf ${q.target} %.`, cond: (g) => g.stats.pollutionAvg > 0.1,
+    make: (g) => ({ target: Math.max(2, Math.round(g.stats.pollutionAvg * 60)), days: 9, reward: { type: 'happy', amount: 3, days: 7 } }), cur: (g) => g.stats.pollutionAvg * 100, cmp: '<=', fmt: (v) => `${Math.round(v)} %` },
+  { id: 'vacancy', who: 'bau', title: 'Leerstand beseitigen', text: () => 'Zwei Tage lang kein verlassenes Gebäude.', cond: (g) => g.stats.abandoned > 3,
+    make: (g) => ({ target: 0, days: 7, hold: 2, reward: cashReward(g, 2000) }), cur: (g) => g.stats.abandoned, cmp: '<=', fmt: (v) => (v ? `${fmt(v)} leer` : 'keins') },
+  { id: 'garbage', who: 'umwelt', title: 'Saubere Straßen', text: () => 'Zwei Tage lang keine Müllberge.', cond: (g) => g.stats.garbageProb > 3,
+    make: (g) => ({ target: 0, days: 7, hold: 2, reward: cashReward(g, 1500) }), cur: (g) => g.stats.garbageProb, cmp: '<=', fmt: (v) => (v ? `${fmt(v)} Häuser` : 'sauber') },
+  { id: 'avenue', who: 'verkehr', title: 'Prachtstraße', text: (q) => `Baue Alleen auf insgesamt ${q.target} Feldern.`, cond: (g) => g.isUnlocked('avenue') && g.stats.pop > 600,
+    make: (g, F) => ({ target: (F.avenue || 0) + 15, days: 7, reward: { type: 'lv', amount: 4, days: 10 } }), cur: (g, F) => F.avenue || 0 },
+  { id: 'line', who: 'verkehr', title: 'Neue Verbindung', text: (q) => `Betreibe ${q.target} Pulsbahn-Linien.`, cond: (g) => g.isUnlocked('transit') && g.transit.lines.length < g.transit.linesMax,
+    make: (g) => ({ target: g.transit.lines.length + 1, days: 8, reward: { type: 'wagons', amount: 3 } }), cur: (g) => g.transit.lines.length },
+];
+const QUEST_BY_ID = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
+export const questById = (id) => QUEST_BY_ID[id] || null;
+
+export function rewardText(r) {
+  if (!r) return '';
+  switch (r.type) {
+    case 'money': return fmtMoney(r.amount);
+    case 'happy': return `Glück +${r.amount} für ${r.days} Tage`;
+    case 'trains': return `${r.amount} Züge`;
+    case 'wagons': return `${r.amount} Waggons`;
+    case 'edu': return 'Bildung dauerhaft 10 % schneller';
+    case 'upkeep': return `${Math.round(r.amount * 100)} % Unterhalt zurück für ${r.days} Tage`;
+    case 'tourism': return `+${r.amount} Touristen für ${r.days} Tage`;
+    case 'roads': return `Straßen ${r.days} Tage lang 60 % billiger`;
+    case 'lv': return `Bodenwert +${r.amount} für ${r.days} Tage`;
+    default: return '';
+  }
+}
+function giveReward(g, r) {
+  switch (r.type) {
+    case 'money': if (!g.sandbox) g.money += r.amount; break;
+    case 'happy': g.addEffect('happy', r.amount, r.days, 'Bürgerauftrag'); break;
+    case 'trains': g.transit.freeTrains += r.amount; break;
+    case 'wagons': g.transit.freeWagons += r.amount; break;
+    case 'edu': g.mods.edu *= r.amount; break;
+    case 'upkeep': g.addEffect('upkeepRebate', r.amount, r.days, 'Bürgerauftrag'); break;
+    case 'tourism': g.addEffect('tourismAdd', r.amount, r.days, 'Bürgerauftrag'); break;
+    case 'roads': g.addEffect('roadCost', -r.amount, r.days, 'Bürgerauftrag'); break;
+    case 'lv': g.addEffect('lvAdd', r.amount, r.days, 'Bürgerauftrag'); break;
+    default: break;
+  }
+}
+const questsAllowed = (g) => achievementsEnabled(g) && !isMetro(g) && !(S(g).scen && S(g).scen.status === 'running');
+
+// Stand der Aufträge für Oberfläche und Tests
+export function questStatus(g) {
+  const st = S(g);
+  if (!st?.quests) return [];
+  const F = st.facts || cityFacts(g);
+  return st.quests.active.map((q) => {
+    const t = questById(q.tid);
+    if (!t) return null;
+    let v = 0;
+    try { v = t.cur(g, F) || 0; } catch (e) { v = 0; }
+    const goal = { target: q.target, cmp: t.cmp, hold: q.hold };
+    const ok = goalOk(goal, v);
+    return { q, t, value: v, ok, text: t.fmt ? t.fmt(v) : fmt(v), progress: q.hold && ok ? Math.min(1, 0.6 + 0.4 * ((q.held || 0) / q.hold)) : goalProgress(goal, v), left: Math.max(0, q.until - g.day()), title: t.title, desc: t.text(q), reward: rewardText(q.reward) };
+  }).filter(Boolean);
+}
+
+function dailyQuests(g) {
+  const st = S(g);
+  const Q = st.quests;
+  if (!questsAllowed(g)) return;
+  const F = st.facts;
+  // Fortschritt prüfen
+  for (const q of [...Q.active]) {
+    const t = questById(q.tid);
+    if (!t) { Q.active.splice(Q.active.indexOf(q), 1); continue; }
+    let v = 0;
+    try { v = t.cur(g, F) || 0; } catch (e) { v = 0; }
+    const ok = goalOk({ target: q.target, cmp: t.cmp }, v);
+    q.held = ok ? (q.held || 0) + 1 : 0;
+    if (ok && (!q.hold || q.held >= q.hold)) {
+      Q.active.splice(Q.active.indexOf(q), 1);
+      giveReward(g, q.reward);
+      st.counters.questsDone++;
+      const a = ADVISORS[t.who] || ADVISORS.bau;
+      g.pushNews({ kind: 'report', author: `${a.role} ${a.name}`, text: `Auftrag erfüllt: ${t.title}! Belohnung: ${rewardText(q.reward)}.`, mood: 'good' });
+      pushInbox(g, { type: 'quest', ok: true, title: t.title, reward: rewardText(q.reward) });
+      Q.next = Math.min(Q.next, g.day() + 2);
+    } else if (g.day() >= q.until) {
+      Q.active.splice(Q.active.indexOf(q), 1);
+      st.counters.questsFailed++;
+      g.pushNews({ kind: 'report', author: 'Stadtfunk', text: `Auftrag verpasst: ${t.title}. Vielleicht beim nächsten Mal.`, mood: 'info' });
+      Q.next = Math.min(Q.next, g.day() + 3);
+    }
+  }
+  // Neue Aufträge (höchstens zwei gleichzeitig)
+  if (Q.active.length >= 2 || g.day() < Q.next || g.stats.pop < 60) return;
+  const pool = QUESTS.filter((t) => !Q.active.some((q) => q.tid === t.id) && !Q.recent.includes(t.id) && (!t.cond || t.cond(g, F)));
+  if (!pool.length) { Q.recent = Q.recent.slice(-2); return; }
+  const t = pool[Math.floor(g.rng() * pool.length)];
+  const made = t.make(g, F);
+  if (!made) return;
+  const q = { tid: t.id, target: made.target, hold: made.hold || 0, held: 0, start: g.day(), until: g.day() + made.days, reward: made.reward };
+  Q.active.push(q);
+  Q.recent.push(t.id);
+  if (Q.recent.length > 6) Q.recent.shift();
+  Q.next = g.day() + (Q.active.length >= 2 ? 4 : 2);
+  const a = ADVISORS[t.who] || ADVISORS.bau;
+  g.pushNews({ kind: 'quest', author: `${a.role} ${a.name}`, text: `Neuer Auftrag: ${t.title} – ${t.text(q)} Frist: ${made.days} Tage. Belohnung: ${rewardText(q.reward)}.`, mood: 'info' });
+  pushInbox(g, { type: 'quest', ok: false, title: t.title });
+}
+
+// ---------------------------------------------------------------------------------------------
 // Ratgeber
 // ---------------------------------------------------------------------------------------------
 export const ADVISORS = {
@@ -1283,7 +1444,7 @@ function runFollowUps(g) {
 function freshState() {
   return {
     v: 1, ach: {}, counters: freshCounters(), scen: null, metro: null, advisor: { seen: {}, next: 3 },
-    fu: [], vouchers: {}, once: {}, inbox: [], pendingBan: [], day: { flowSum: 0, flowN: 0 }, facts: null,
+    fu: [], vouchers: {}, once: {}, skip: [], quests: { active: [], recent: [], next: 4 }, inbox: [], pendingBan: [], day: { flowSum: 0, flowN: 0 }, facts: null,
     burning: new Set(), disSeen: disasterSeq, setupRunning: false, removing: false, calm: 0, auto: 0,
   };
 }
@@ -1348,6 +1509,7 @@ registerSystem({
     runFollowUps(g);
     dailyScenario(g);
     if (isMetro(g)) metroDaily(g);
+    dailyQuests(g);
     checkAchievements(g);
     advisorDaily(g);
   },
@@ -1355,7 +1517,7 @@ registerSystem({
     const st = S(g);
     if (!st) return null;
     return {
-      v: st.v, ach: st.ach, counters: st.counters, scen: st.scen, advisor: st.advisor, fu: st.fu, vouchers: st.vouchers, once: st.once, calm: st.calm,
+      v: st.v, ach: st.ach, counters: st.counters, scen: st.scen, advisor: st.advisor, fu: st.fu, vouchers: st.vouchers, once: st.once, skip: st.skip, quests: st.quests, calm: st.calm,
       metro: st.metro ? { ...st.metro, sites: undefined } : null,
     };
   },
@@ -1369,6 +1531,8 @@ registerSystem({
     st.fu = d.fu || [];
     st.vouchers = d.vouchers || {};
     st.once = d.once || {};
+    st.skip = d.skip || [];
+    st.quests = d.quests || { active: [], recent: [], next: g.day() + 2 };
     st.calm = d.calm || 0;
     st.metro = d.metro || null;
     st.facts = cityFacts(g);
