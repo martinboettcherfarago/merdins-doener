@@ -571,13 +571,14 @@ class Boats {
     this.wake.begin();
     for (const b of this.list) {
       const roll = Math.sin(time * 1.3 + b.seed * 9) * 0.04, pitch = Math.sin(time * 1.1 + b.seed * 5) * 0.025;
-      const y = -0.14 + Math.sin(time * 1.7 + b.seed * 3) * 0.006;
+      const wl = this.e.terrain && this.e.terrain.waterLevel !== undefined ? this.e.terrain.waterLevel : -0.14;
+      const y = wl + Math.sin(time * 1.7 + b.seed * 3) * 0.006;
       const d2 = fleet.add(b.kind, b.x, y, b.z, b.yaw, pitch, roll, b.color, b.seed, 0, 0, 1);
       if (d2 >= 0 && b.moving > 0.05) {
         const len = { boat: 0.27, sailboat: 0.34, rowboat: 0.2 }[b.kind];
         const sx = Math.sin(b.yaw), sz = Math.cos(b.yaw);
         const strength = Math.min(1, b.moving / 0.5);
-        this.wake.push(b.x - sx * len, -0.135, b.z - sz * len, b.yaw, 0, 0, b.kind === 'rowboat' ? 0.5 : 1, 1, 0.6 + strength, strength, 1, 1, 0, 0);
+        this.wake.push(b.x - sx * len, wl + 0.005, b.z - sz * len, b.yaw, 0, 0, b.kind === 'rowboat' ? 0.5 : 1, 1, 0.6 + strength, strength, 1, 1, 0, 0);
       }
       if (d2 >= 0 && ctx.night > 0.3) {
         ctx.glow.add(b.x + Math.cos(b.yaw) * 0.09, -0.08, b.z - Math.sin(b.yaw) * 0.09, 0.05, 1, 0.15, 0.1, 0.5 * ctx.night);
