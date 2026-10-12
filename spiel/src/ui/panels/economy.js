@@ -10,7 +10,7 @@ import { drawLineChart } from '../charts.js';
 import { GOODS, GOOD_KEYS, RAW_KEYS, SPEC_PLURAL, SPEC_DATIVE, SPEC_HOWTO, ECON } from '../../content/industry.js';
 import {
   BUDGET_CATS, budgetOf, categoryUpkeep, setServiceBudget, setExportPrice, setBuyRaw, setWarehouseMode, cycleWarehouseGood,
-  WH_MODES, setDensityTax, worldPrice, marketDemand, goodsColor, buildingEconomy,
+  WH_MODES, setDensityTax, worldPrice, marketDemand, goodsColor, buildingEconomy, cycleForecast, cycleLabel,
 } from '../../sim/systems/industry.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -118,7 +118,7 @@ const CHARTS = [
   ['sal', 'Absatz', '#e3a925', (e) => e.sal, (v) => Math.round(v) + ' %'],
   ['cyc', 'Konjunktur', '#22a866', (e) => e.cyc * 100, (v) => Math.round(v)],
   ['fr', 'Fracht', '#8f5ad8', (e) => e.fr, (v) => Math.round(v) + ' %'],
-  ['expT', 'Export t', '#2f8fe0', (e) => e.expT, (v) => fmt(v)],
+  ['trade_t', 'Export/Import', '#10a9a3', null, (v) => fmt(v) + ' t', [['Export', '#10a9a3', (e) => e.expT], ['Import', '#9aa3b2', (e) => e.impT]]],
 ];
 
 // ---------------------------------------------------------------- Ratgeber
@@ -159,13 +159,15 @@ function hints(g, S) {
 }
 
 // ---------------------------------------------------------------- Teile
-function cycleBox(S) {
+function cycleBox(g, S) {
   const c = S.cycle, v = c.value;
+  const fc = cycleForecast(g, 7);
+  const fl = cycleLabel(fc);
   const arrow = S.hist.length > 1 ? (v > S.hist[S.hist.length - 2].cyc + 0.01 ? '↗' : v < S.hist[S.hist.length - 2].cyc - 0.01 ? '↘' : '→') : '→';
   const sg = (x, unit = ' %') => `${x > 0 ? '+' : x < 0 ? '−' : '±'}${Math.abs(x)}${unit}`;
   const desc = { Boom: 'Der Weltmarkt reißt sich um Waren.', Aufschwung: 'Die Wirtschaft zieht an.', Stabil: 'Ruhige Wirtschaftslage.', Abschwung: 'Die Nachfrage lässt nach.', Rezession: 'Flaute: weniger Exporte und Steuern.' }[c.label] || '';
   return `<div class="eco-cycle"><div class="hd"><span class="lab">Konjunktur: ${esc(c.label)} ${arrow}</span><span class="sub">${esc(desc)}</span></div>
-<div class="trk"><i style="left:${((clamp(v, -1, 1) + 1) / 2) * 100}%"></i></div><div class="ends"><span>Rezession</span><span>Stabil</span><span>Boom</span></div>
+<div class="trk"><i style="left:${((clamp(v, -1, 1) + 1) / 2) * 100}%"></i><i style="left:${((fc + 1) / 2) * 100}%;opacity:.35;width:4px" title="Prognose in 7 Tagen"></i></div><div class="ends"><span>Rezession</span><span>Prognose 7 Tage: ${esc(fl)}</span><span>Boom</span></div>
 <div class="sub" style="margin-top:5px;font-size:11.5px;color:var(--ink-2)">Preise ${sg(Math.round(18 * v))} · Menge ${sg(Math.round(35 * v))} · Steuern G/I/B ${sg(Math.round(10 * v))} · Nachfrage ${sg(Math.round(10 * v), '')}</div></div>`;
 }
 function kpis(g, S) {
@@ -200,11 +202,36 @@ function balanceRows(S) {
   return rows.join('') + '<div class="eco-legend"><span style="--c:#22a866">in der Stadt</span><span style="--c:#10a9a3">Export</span><span style="--c:#8f5ad8">ins Lager</span><span style="--c:#e5483c">unverkauft</span><span style="--c:#9aa3b2">Import</span></div>';
 }
 
+// Laufende Wirtschaftseffekte (Karten, Ereignisse) und Marktereignisse als Chips
+function activeBox(g, S) {
+  const chips = [];
+  const seen = new Set();
+  for (const e of g.effects) {
+    if (!e.key.startsWith('eco') || seen.has(e.label)) continue;
+    seen.add(e.label);
+    const days = Math.max(1, Math.ceil((e.until - g.time) / 1440));
+    chips.push(`<span class="chip ${e.value < 0 && !/Happy|Local/.test(e.key) ? 'no' : e.key === 'ecoHappy' && e.value < 0 ? 'no' : 'ok'}">${esc(e.label)} · ${days} T.</span>`);
+  }
+  for (const k of GOOD_KEYS) {
+    const m = S.market[k];
+    if (m.shock) chips.push(`<span class="chip ${m.shock > 0 ? 'ok' : 'no'}">${esc(GOODS[k].name)} ${m.shock > 0 ? '+' : '−'}${Math.round(Math.abs(m.shock) * 100)} % · ${m.shockDays} T.</span>`);
+  }
+  const p = S.perm;
+  const perm = [];
+  if (p.market > 1.001) perm.push(`Weltmarkt +${Math.round((p.market - 1) * 100)} %`);
+  if (p.proc > 1.001) perm.push(`Betriebe +${Math.round((p.proc - 1) * 100)} %`);
+  if (p.storage > 1.001) perm.push(`Lager +${Math.round((p.storage - 1) * 100)} %`);
+  if (p.harbor > 1.001) perm.push(`Hafen +${Math.round((p.harbor - 1) * 100)} %`);
+  for (const x of perm) chips.push(`<span class="chip">${x} · dauerhaft</span>`);
+  return chips.length ? `<div class="sec"><h3>Laufende Effekte</h3><div class="chips" style="margin:0">${chips.join('')}</div></div>` : '';
+}
+
 function tabOverview(g, S) {
   const h = hints(g, S);
   const dotCol = { bad: 'var(--bad)', info: 'var(--l-blue)', good: 'var(--good)' };
   return `${kpis(g, S)}
 <div class="sec" style="margin-top:12px"><h3>Ratgeber</h3>${h.map(([m, tx]) => `<div class="eco-hint"><span class="dot" style="background:${dotCol[m]}"></span><span>${esc(tx)}</span></div>`).join('')}</div>
+${activeBox(g, S)}
 <div class="sec"><h3>Warenstrom (t/Tag)</h3><canvas class="eco-sankey" id="eco-sankey"></canvas></div>
 <div class="sec"><h3>Verlauf</h3><div class="chart-tabs">${CHARTS.map(([k, n]) => `<button data-act="eco-chart" data-k="${k}" class="${view.chart === k ? 'on' : ''}">${n}</button>`).join('')}</div><canvas class="chart" id="eco-chart"></canvas></div>
 <div class="sec"><h3>Warenbilanz</h3>${balanceRows(S)}</div>
@@ -416,6 +443,44 @@ function drawSankey(canvas, L) {
     }
   }
 }
+// Mehrere Linien in einem Diagramm (gleiche Optik wie ui/charts.js), mit kleiner Legende oben rechts
+function drawMulti(canvas, series, opts = {}) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = canvas.clientWidth || 300, h = canvas.clientHeight || 120;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  const ink = '#7a8294';
+  const padL = 44, padR = 8, padT = 16, padB = 18;
+  const n = Math.max(...series.map((s) => s.values.length));
+  ctx.font = '600 11px "Barlow Condensed", Barlow, sans-serif';
+  if (n < 1) { ctx.fillStyle = ink; ctx.fillText('Noch keine Daten – ein Spieltag vergeht in 30 Sekunden.', 8, h / 2); return; }
+  let max = 1;
+  for (const s of series) for (const v of s.values) max = Math.max(max, v);
+  const X = (i) => padL + (n === 1 ? 0 : (i / (n - 1)) * (w - padL - padR));
+  const Y = (v) => padT + (1 - v / max) * (h - padT - padB);
+  ctx.strokeStyle = 'rgba(29,35,48,0.08)'; ctx.lineWidth = 1; ctx.fillStyle = ink; ctx.textAlign = 'right';
+  for (let k = 0; k <= 3; k++) {
+    const v = (max * k) / 3, y = Y(v);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    ctx.fillText(opts.fmt ? opts.fmt(v) : Math.round(v), padL - 6, y + 4);
+  }
+  ctx.textAlign = 'left'; ctx.fillText(opts.startLabel || '', padL, h - 4);
+  ctx.textAlign = 'right'; ctx.fillText(opts.endLabel || '', w - padR, h - 4);
+  let lx = w - padR;
+  for (const s of [...series].reverse()) {
+    ctx.textAlign = 'right'; ctx.fillStyle = s.col; ctx.fillText(s.name, lx, 10);
+    lx -= ctx.measureText(s.name).width + 6;
+    ctx.fillRect(lx - 8, 4, 8, 5); lx -= 16;
+  }
+  for (const s of series) {
+    if (!s.values.length) continue;
+    ctx.beginPath();
+    s.values.forEach((v, i) => (i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))));
+    ctx.strokeStyle = s.col; ctx.lineWidth = 2.2; ctx.lineJoin = 'round'; ctx.stroke();
+  }
+}
 function drawSpark(canvas, values, color) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const w = canvas.clientWidth || 70, h = canvas.clientHeight || 22;
@@ -450,7 +515,7 @@ registerPanel({
     if (!S) return '<p>Die Wirtschaft startet mit dem ersten Spieltag.</p>';
     const tabs = [['overview', 'Übersicht'], ['goods', 'Waren & Preise'], ['logistics', 'Logistik'], ['budgets', 'Budgets'], ['taxes', 'Steuern']];
     const body = view.tab === 'goods' ? tabGoods(g, S) : view.tab === 'logistics' ? tabLogistics(g, S) : view.tab === 'budgets' ? tabBudgets(g) : view.tab === 'taxes' ? tabTaxes(g, S) : tabOverview(g, S);
-    return `${cycleBox(S)}<div class="eco-tabs">${tabs.map(([k, n]) => `<button data-act="eco-tab" data-k="${k}" class="${view.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}`;
+    return `${cycleBox(g, S)}<div class="eco-tabs">${tabs.map(([k, n]) => `<button data-act="eco-tab" data-k="${k}" class="${view.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}`;
   },
   click(ui, act, el) {
     const g = ui.g, S = g.ext.industry;
@@ -487,7 +552,9 @@ registerPanel({
     if (ch) {
       const def = CHARTS.find((c) => c[0] === view.chart) || CHARTS[0];
       const h = S.hist;
-      drawLineChart(ch, h.map(def[3]), { color: def[2], zero: def[0] === 'trade' || def[0] === 'cyc', startLabel: h.length ? `Tag ${h[0].d}` : '', endLabel: h.length ? `Tag ${h[h.length - 1].d}` : '', fmt: def[4] });
+      const labels = { startLabel: h.length ? `Tag ${h[0].d}` : '', endLabel: h.length ? `Tag ${h[h.length - 1].d}` : '' };
+      if (def[5]) drawMulti(ch, def[5].map(([name, col, fn]) => ({ name, col, values: h.map(fn) })), { ...labels, fmt: def[4] });
+      else drawLineChart(ch, h.map(def[3]), { color: def[2], zero: def[0] === 'trade' || def[0] === 'cyc', ...labels, fmt: def[4] });
     }
     for (const c of root.querySelectorAll('canvas[data-spark]')) {
       const gi = +c.dataset.spark;

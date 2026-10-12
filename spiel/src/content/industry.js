@@ -61,7 +61,7 @@ Object.assign(BUILDINGS, {
   refinery: { name: 'Raffinerie', cat: 'industry', size: [3, 2], cost: 26000, upkeep: 180, unlock: 4, process: 'oil', input: 'oil', output: 'plastics', throughput: 340, yield: 0.55, jobs: 110, power_use: 30, water_use: 24, pollution: 3.5, noise: 1, desc: 'Verarbeitet Rohöl zu Kunststoff und Treibstoff – das wertvollste Exportgut.' },
   cargo_rail: { name: 'Güterbahnhof', cat: 'industry', size: [3, 2], cost: 20000, upkeep: 120, unlock: 3, cargo: 900, priceBonus: 0.06, reach: 0.6, jobs: 40, power_use: 10, noise: 1.3, desc: 'Bis zu 900 t Fracht am Tag per Zug: entlastet die Autobahn, erschließt neue Märkte und bringt +6 % Exportpreis.' },
   cargo_harbor: { name: 'Frachthafen', cat: 'industry', size: [3, 3], cost: 36000, upkeep: 200, unlock: 4, cargo: 2000, priceBonus: 0.12, reach: 1.2, jobs: 80, needsWater: true, power_use: 16, noise: 1.4, desc: 'Containerhafen am Wasser: 2.000 t Fracht am Tag, Zugang zum Weltmarkt und +12 % Exportpreis.' },
-  market_hall: { name: 'Markthalle', cat: 'industry', size: [2, 1], cost: 5000, upkeep: 30, unlock: 2, comBoost: 8, lvRadius: 6, goodsDemand: 40, jobs: 15, desc: 'Verkauft bis zu 40 t regionale Ernte und Lebensmittel am Tag (Standgebühren) und belebt das Gewerbe im Umkreis.' },
+  market_hall: { name: 'Markthalle', cat: 'industry', size: [2, 1], cost: 5000, upkeep: 30, unlock: 2, comBoost: 8, lvRadius: 6, goodsDemand: 40, jobs: 15, tourism: 20, desc: 'Verkauft bis zu 40 t regionale Ernte und Lebensmittel am Tag (Standgebühren), lockt Besucher an und belebt das Gewerbe im Umkreis.' },
 });
 
 // ---------------------------------------------------------------- Hilfen für Karten und Ereignisse

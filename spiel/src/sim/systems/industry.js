@@ -119,6 +119,11 @@ export function effectiveTax(g, b) { return g.taxes[b.zone] + densityDelta(g, b)
 
 // ---------------------------------------------------------------- Konjunktur
 export function cycleLabel(v) { return v > 0.5 ? 'Boom' : v > 0.15 ? 'Aufschwung' : v > -0.15 ? 'Stabil' : v > -0.5 ? 'Abschwung' : 'Rezession'; }
+// Prognose der Wirtschaftsforscher: Grundwelle in n Tagen (ohne Zufall und Schocks)
+export function cycleForecast(g, days = 7) {
+  const c = g.ext.industry.cycle;
+  return clamp(0.7 * Math.sin(c.phase + (TAU / c.period) * days) + c.noise * Math.pow(0.85, days) + c.shock * Math.pow(0.92, days), -1, 1);
+}
 const CYCLE_NEWS = {
   Boom: ['Konjunktur: Boom! Der Weltmarkt reißt sich um Waren, die Exportpreise steigen.', 'good'],
   Aufschwung: ['Konjunktur: Die Wirtschaft zieht an. Mehr Nachfrage nach Gewerbe, Industrie und Büros.', 'good'],
@@ -139,7 +144,7 @@ function freshState(g) {
     v: 1,
     seed: (((g.opts.seed || 1) * 2654435761) ^ 0x5eed) >>> 0 || 1,
     market, prices, buyRaw: true,
-    cycle: { phase: 0.45, period: 48, noise: 0, shock: 0, value: 0.3, label: 'Aufschwung', since: 0 },
+    cycle: { phase: 0.2, period: 48, noise: 0, shock: 0, value: 0.14, label: 'Stabil', since: 0 },
     dens: { 1: [0, 0], 2: [0, 0], 3: [0, 0], 4: [0, 0] },
     densAvg: { 1: 0, 2: 0, 3: 0, 4: 0 },
     applied: { power: 1, water: 1, edu: 1 },
@@ -1021,6 +1026,8 @@ DEMAND_MODIFIERS.push((g, d) => {
   d[2] -= clamp(t.shortCom * 50, 0, 25);
   // Konjunktur
   d[2] += cyc * 8; d[3] += cyc * 10; d[4] += cyc * 6;
+  // Viel Handel braucht Verwaltung: Speditionen, Makler und Handelskontore ziehen Büros an
+  d[4] += clamp((t.exportT || 0) / 150, 0, 8);
   // Dichte-Steuern
   for (const z of [1, 2, 3, 4]) d[z] -= (st.densAvg[z] || 0) * 4;
   // Arbeitsplätze in städtischen Betrieben ziehen Menschen an (gleiche Formel wie im Kern)
@@ -1055,10 +1062,14 @@ registerSystem({
     // Sichtbare Lkw im gleichen Verhältnis wie Autos (ein Fahrzeug = mehrere echte Fahrten)
     plan.scale = Math.max(1, (g.traffic.weight || 1) * 0.4);
     st.truckAcc += (plan.total * minutes) / 1440 / plan.scale;
+    // Höchstens ein Drittel der sichtbaren Fahrzeuge ist Lieferverkehr
+    const cars = g.traffic.cars;
+    let freight = 0;
+    if (st.truckAcc >= 1) for (const c of cars) if (c.freight) freight++;
     let n = 0;
     while (st.truckAcc >= 1 && n++ < 4) {
       st.truckAcc -= 1;
-      if (g.traffic.cars.length < g.traffic.maxCars - 20 && spawnTruck(g, st)) st.trucksToday++;
+      if (cars.length < g.traffic.maxCars - 20 && freight < Math.max(6, cars.length * 0.33) && spawnTruck(g, st)) { st.trucksToday++; freight++; }
     }
     if (st.truckAcc > 4) st.truckAcc = 4;
   },

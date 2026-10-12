@@ -17,8 +17,9 @@ const inb = (x, y) => x >= 0 && y >= 0 && x < W && y < H;
 const st = () => g.ext.industry;
 let fails = 0;
 const check = (ok, text) => { console.log(`${ok ? '  ok ' : '  FEHLER'}  ${text}`); if (!ok) fails++; };
-g.on('cards', (ids) => g.chooseCard(ids[0]));
-g.on('event', () => g.resolveEvent(0));
+const offered = [], events = [];
+g.on('cards', (ids) => { offered.push(...ids); const own = ids.find((id) => id.startsWith('ind_')); g.chooseCard(own || ids[0]); });
+g.on('event', (ev) => { events.push(ev.id); g.resolveEvent(0); });
 g.on('bankrupt', () => console.log('BANKROTT'));
 const newsSeen = [];
 g.on('news', (n) => { if (n.kind === 'economy') newsSeen.push(`Tag ${g.day()}: ${n.text}`); });
@@ -170,6 +171,8 @@ console.log(`  Fahrzeuge: ${g.traffic.cars.length}, davon Lieferverkehr ${trucks
 const ships = g.renderables().filter((r) => r.kind === 'ship_cargo').length;
 const trains = g.renderables().filter((r) => r.kind === 'cargo_wagon' || r.kind === 'train_loco').length;
 console.log(`  Renderables: ${ships} Frachtschiffe, ${trains} Zugteile`);
+console.log(`  Wochenkarten angeboten: ${offered.length} (Wirtschaft: ${offered.filter((id) => id.startsWith('ind_')).join(', ') || '–'}) · gewählt: ${g.cardsTaken.map((c) => c.id).join(', ')}`);
+console.log(`  Ereignisse: ${events.join(', ') || '–'}`);
 console.log('  Wirtschaftsmeldungen:', newsSeen.length);
 for (const n of newsSeen.slice(-8)) console.log('    ' + n);
 console.log(`  Laufzeit ${secs.toFixed(1)} s`);
@@ -265,6 +268,21 @@ if (wh1) {
     }
   }
   check(ok, `Panel „Wirtschaft" rendert alle Reiter ohne Fehler${err}`);
+  // Frisches Spiel ohne Daten
+  {
+    const fresh = new Game({ size: 64, seed: 3, mapType: 'coast', difficulty: 'hard' });
+    const fu = { g: fresh, el: { insp: { addEventListener() {} } }, view: 'none' };
+    let ok2 = true, err2 = '';
+    for (const tab of ['overview', 'goods', 'logistics', 'budgets', 'taxes']) {
+      try {
+        panel.click(fu, 'eco-tab', { dataset: { k: tab } });
+        const html = panel.render(fu);
+        if (/NaN|undefined/.test(html)) { ok2 = false; err2 += ' ' + tab; }
+      } catch (e) { ok2 = false; err2 += ` ${tab}:${e.message}`; }
+    }
+    check(ok2, `Panel rendert auch im frischen Spiel ohne Daten${err2}`);
+    panel.click(fu, 'eco-tab', { dataset: { k: 'overview' } });
+  }
   let insp = 0, inspErr = '';
   for (const b of g.buildings.values()) {
     for (const fn of INSPECTORS) {
