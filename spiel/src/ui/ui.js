@@ -1,49 +1,69 @@
-// Spieloberfläche: Kopfzeile, Werkzeugleiste (als Bahnlinie), Infoansichten, Panels, Inspektor, Modale.
-import { BUILDINGS, CATEGORIES, ZONE_INFO, ROADS, R, Z, MILESTONES, POLICIES, LOANS, TRANSIT, TAX_RATE, LEVELS, T, RES, SPEEDS } from '../config.js';
+// Spieloberfläche im Netzplan-Stil: Kopfzeile, Werkzeugleiste als Liniennetz mit Baukatalog (3D-Vorschaubilder),
+// Infoansichten (links), Panels (rechts), Inspektor, Minikarte, Meldungen, Ratgeberin, Fotomodus, Modale.
+// Öffentliche Schnittstelle für andere Module (Panels, Werkzeuge, Inspektoren):
+//   ui.g, ui.app, ui.toast(text, 'good'|'bad'|'', { where, icon }), ui.renderPanel(), ui.openPanel(id), ui.closePanels(),
+//   ui.inspect(sel), ui.setView(id), ui.tooltip(text, mouse, ok), ui.refreshHUD(), ui.openModal(html, onClick), ui.queueModal(fn),
+//   ui.focusTile(x, y, dist?), ui.notify({ title, text, mood, where, icon }), ui.openTray(cat), ui.closeTray()
+// Panels (registerPanel) dürfen zusätzlich input(ui, el, e), change(ui, el, e), badge(ui) → Zahl|Text, group, color haben.
+import { BUILDINGS, ZONE_INFO, ROADS, MILESTONES } from '../config.js';
 import { fmt, fmtMoney, fmtShort, clamp } from '../util.js';
-import { icon, logo } from './icons.js';
-import { allOverlays } from '../render/overlay.js';
-import { PANELS, TRAY_ITEMS, INSPECTORS } from '../registry.js';
-import { LINE_COLORS, LINE_COLOR_NAMES } from '../sim/transit.js';
-import { cardById, EVENTS } from '../sim/progress.js';
-import { happinessFactors } from '../sim/services.js';
-import { drawLineChart } from './charts.js';
+import { PANELS, TOOLS } from '../registry.js';
+import { cardById } from '../sim/progress.js';
+import { icon, iconAny, logo } from './icons.js';
+import { toolbarCategories, lineById, viewList, VIEW_GROUPS, dockPanels, PANEL_GROUPS, catMeta } from './meta.js';
+import { CORE_PANELS } from './corepanels.js';
+import { inspectorHTML, inspectorClick } from './inspector.js';
+import { catalogItems, searchCatalog, cardHTML, detailHTML, isActive, bindThumbSwap } from './catalog.js';
+import { pumpThumbs, thumbsPending } from './thumbs.js';
+import { Notifier, problems } from './notify.js';
+import { Advisor, tutorialSteps, adviceLevel } from './advisor.js';
+import { Minimap } from './minimap.js';
+import { PhotoMode } from './photo.js';
+import { keysHTML, KEY_HINT } from './keys.js';
+import { settingsHTML, settingsClick, settingsInput, settingsChange, ensureSettings, applyUiScale, gfxSnapshot } from './settings.js';
+import { bindTips, hideTip, setTipsEnabled } from './tips.js';
+import { showLoader, hideLoader, loaderVisible, setLoader, painted } from './loading.js';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const SEASON = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' };
 
-const CAT_ICON = { roads: 'roads', zones: 'zones', power: 'power', water: 'water', garbage: 'garbage', services: 'services', education: 'education', parks: 'parks', transit: 'transit', landmarks: 'landmarks' };
-const CAT_COLOR = { roads: '#5d6470', zones: '#4fae67', power: '#f2b01e', water: '#2f8fe0', garbage: '#a07a4a', services: '#e8543f', education: '#8f5ad8', parks: '#22a866', transit: '#e8543f', landmarks: '#c06a2b' };
-const VIEW_ICON = { none: 'eye', power: 'power', water: 'water', garbage: 'garbage', health: 'cross', police: 'shield', fire: 'flame', edu: 'book', landValue: 'coin', pollution: 'smoke', noise: 'sound', crime: 'mask', happiness: 'heart', traffic: 'car', transit: 'line', resources: 'map' };
-const VIEW_TEXT = {
-  power: 'Grün: versorgt. Rot: kein Strom. Strom fließt durch die Leitungen unter den Straßen – jedes zusammenhängende Straßennetz ist ein eigenes Stromnetz.',
-  water: 'Blau: versorgt. Rot: kein Wasser. Pumpwerke brauchen Strom und müssen am Ufer stehen.',
-  garbage: 'Wie gut die Müllabfuhr die Gegend erreicht. Jede Anlage hat eine begrenzte Kapazität.',
-  health: 'Abdeckung durch Arztpraxen und Krankenhäuser.',
-  police: 'Abdeckung durch Polizeiwachen.',
-  fire: 'Abdeckung durch die Feuerwehr. Ohne Feuerwehr brennen Gebäude ab.',
-  edu: 'Bildungsniveau, das hier erreichbar ist. Hohe Stufen brauchen gebildete Bewohner.',
-  landValue: 'Bodenwert lässt Gebäude wachsen: Parks, Wasser, Dienste und die Pulsbahn heben ihn, Lärm und Abgase senken ihn.',
-  pollution: 'Abgase von Industrie, Kraftwerken und Verkehr. Senkt Glück und Bodenwert.',
-  noise: 'Lärm von Straßen, Industrie und Stadien.',
-  crime: 'Kriminalität steigt mit Arbeitslosigkeit und Unzufriedenheit.',
-  happiness: 'Grün: glücklich. Rot: unglücklich. Klicke ein Gebäude an, um die Gründe zu sehen.',
-  traffic: 'Grün: freie Fahrt. Rot: Stau. Alleen haben die doppelte Kapazität, die Pulsbahn nimmt Autos von der Straße.',
-  transit: 'Einzugsgebiet der Pulsbahn-Stationen mit Zugverkehr.',
-  resources: 'Grün: fruchtbarer Boden (Bauernhöfe). Braun: Erz (Bergwerke). Industrie dort spezialisiert sich.',
-};
-const ZONE_LEVEL_NAMES = {
-  1: ['', 'Häuschen', 'Einfamilienhaus', 'Stadthaus', 'Wohnblock', 'Wohnturm'],
-  2: ['', 'Kiosk', 'Ladenzeile', 'Kaufhaus', 'Geschäftshaus', 'Einkaufsturm'],
-  3: ['', 'Werkstatt', 'Fabrik', 'Werk', 'Großwerk', 'Hightech-Werk'],
-  4: ['', 'Kanzlei', 'Bürohaus', 'Bürokomplex', 'Büroturm', 'Wolkenkratzer'],
-};
-const AV_COLORS = ['#e8543f', '#2f8fe0', '#f2b01e', '#22a866', '#8f5ad8', '#f06fae', '#10a9a3', '#ff8a1f'];
+// Zustand, der einen Neustart der Ansicht überlebt (Grafik-Einstellungen übernehmen)
+let restore = null;
+
+// System-Panels (über die Kopfzeile erreichbar, nicht im Panel-Dock)
+const SYS_PANELS = [
+  { id: 'advisor', title: 'Ratgeberin', icon: 'advisor', hidden: true, color: '#e8543f', render: (ui) => ui.advisor.html(), click: (ui, act, el) => ui.advisor.click(act, el) },
+  { id: 'notes', title: 'Meldungen', icon: 'bell', hidden: true, color: '#1d2330', render: (ui) => ui.notes.html(), click: (ui, act, el) => ui.notes.click(act, el), opened: (ui) => ui.notes.markRead() },
+  {
+    id: 'settings', title: 'Optionen', icon: 'settings', hidden: true, color: '#5d6470',
+    render: (ui) => settingsHTML(ui.setCtx()),
+    click: (ui, act, el) => {
+      const ctx = ui.setCtx();
+      if (settingsClick(ctx, act, el)) { ui.setTab = ctx.tab; return true; }
+      const app = ui.app;
+      switch (act) {
+        case 'applygfx': ui.restartView(); return false;
+        case 'keys': ui.showKeys(); return false;
+        case 'save': app.save(+el.dataset.k); ui.toast(`Gespeichert in Platz ${el.dataset.k}.`, 'good'); return true;
+        case 'load': ui.withLoader('Spielstand wird geladen', () => app.loadSlot(+el.dataset.k)); return false;
+        case 'export': app.exportSave(); return true;
+        case 'copy': app.copySave(); return true;
+        case 'tomenu': app.toMenu(); return false;
+      }
+      return true;
+    },
+    input: (ui, el) => settingsInput(ui.setCtx(), el),
+    change: (ui, el) => settingsChange(ui.setCtx(), el),
+  },
+];
 
 export class UI {
   constructor(app) {
     this.app = app;
     this.g = app.game;
+    ensureSettings(app.settings);
+    applyUiScale(app.settings);
     this.root = document.getElementById('hud');
     this.tip = document.getElementById('tooltip');
     this.toasts = document.getElementById('toasts');
@@ -54,149 +74,179 @@ export class UI {
     this.view = 'none';
     this.timer = 0;
     this.panelTimer = 0;
-    this.newsSeen = this.g.newsLog.length;
     this.chartKey = 'pop';
     this.tutorialHidden = !!app.settings.tutorialDone;
     this.modalQueue = [];
+    this.cache = { roads: 0 };
+    this.search = '';
+    this.hoverItem = null;
+    this.setTab = 'grafik';
+    this.gfxSnap = gfxSnapshot(app.settings);
+    this.hudHidden = false;
+    this.frames = 0;
+    this.notes = new Notifier(this);
+    this.advisor = new Advisor(this);
+    this.photo = new PhotoMode(this);
+    this.advisor.compute();
     this.mount();
     this.bindGame();
+    bindTips();
+    setTipsEnabled(app.settings.tooltips !== false);
+    this.refreshBadges();
+    if (restore) this.applyRestore();
   }
 
   // ---------- Aufbau
   mount() {
     const r = this.root;
     r.hidden = false;
+    const zoneCol = (z) => hex(ZONE_INFO[z].color);
     r.innerHTML = `
 <div class="topbar">
-  <div class="sign cityplate">
+  <div class="sign cityplate" data-tip="Stadtrang" data-tip-desc="Der Balken zeigt den Weg zum nächsten Meilenstein.">
     <div class="logo">${logo(24)}</div>
-    <div style="min-width:0">
+    <div class="cp-txt">
       <div class="name" id="u-name"></div>
       <div class="rank" id="u-rank"></div>
       <div class="rankbar"><i id="u-rankbar"></i></div>
     </div>
   </div>
   <div class="sign stats">
-    <div class="stat"><span class="k">Einwohner</span><span class="v" id="u-pop">0</span><span class="d" id="u-popd"></span></div>
-    <div class="stat"><span class="k">Kasse</span><span class="v" id="u-money"></span><span class="d" id="u-net"></span></div>
-    <div class="stat opt"><span class="k">Glück</span><span class="v" id="u-happy"></span><span class="d" id="u-happyd"></span></div>
-    <div class="stat opt opt-wide"><span class="k">Arbeitslos</span><span class="v" id="u-unemp"></span><span class="d" id="u-jobs"></span></div>
-    <div class="stat opt opt-wide"><span class="k">Pulsbahn</span><span class="v" id="u-riders"></span><span class="d" id="u-flow"></span></div>
+    <button class="stat" data-stat="pop" data-tip="Einwohner" data-tip-desc="Veränderung seit gestern. Klick: Statistik"><span class="k">Einwohner</span><span class="v" id="u-pop">0</span><span class="d" id="u-popd"></span></button>
+    <button class="stat" data-stat="money" data-tip="Stadtkasse" data-tip-desc="Saldo pro Tag. Klick: Haushalt"><span class="k">Kasse</span><span class="v" id="u-money"></span><span class="d" id="u-net"></span></button>
+    <button class="stat opt" data-stat="happy" data-tip="Glück" data-tip-desc="Durchschnitt aller Bewohner. Klick: Infoansicht Glück"><span class="k">Glück</span><span class="v" id="u-happy"></span><span class="d" id="u-happyd"></span></button>
+    <button class="stat opt opt-wide" data-stat="jobs" data-tip="Arbeitsmarkt" data-tip-desc="Arbeitslosenquote und Arbeitsplätze"><span class="k">Arbeitslos</span><span class="v" id="u-unemp"></span><span class="d" id="u-jobs"></span></button>
+    <button class="stat opt opt-wide" data-stat="transit" data-tip="Pulsbahn" data-tip-desc="Fahrgäste heute und Verkehrsfluss"><span class="k">Pulsbahn</span><span class="v" id="u-riders"></span><span class="d" id="u-flow"></span></button>
   </div>
-  <div class="sign demand" title="Nachfrage: Wohnen, Gewerbe, Industrie, Büro">
-    ${[1, 2, 3, 4].map((z) => `<div class="col"><div class="bar"><i id="u-dem${z}" style="background:${hex(ZONE_INFO[z].color)}"></i></div><div class="lbl" style="color:${hex(ZONE_INFO[z].color)}">${ZONE_INFO[z].short}</div></div>`).join('')}
+  <div class="sign demand" data-tip="Nachfrage" data-tip-desc="Wohnen, Gewerbe, Industrie, Büro – über der Linie wird gebaut.">
+    ${[1, 2, 3, 4].map((z) => `<div class="col"><div class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></div><div class="lbl" style="color:${zoneCol(z)}">${ZONE_INFO[z].short}</div></div>`).join('')}
   </div>
   <div class="spacer"></div>
   <div class="sign clock">
+    <button class="wx" id="u-weather" hidden></button>
     <div class="when"><span class="time num" id="u-time"></span><span class="date" id="u-date"></span></div>
     <div class="speed" id="u-speed">
-      <button data-speed="0" title="Pause (Leertaste)">${icon('pause', 16, 2.4)}</button>
-      <button data-speed="1" title="Normal (1)">${icon('play', 15, 2.2)}</button>
-      <button data-speed="2" title="Schnell (2)">${icon('fast', 17, 2)}</button>
-      <button data-speed="3" title="Sehr schnell (3)">${icon('faster', 19, 1.8)}</button>
+      <button data-speed="0" data-tip="Pause" data-key="Leertaste" data-tip-pos="bottom" aria-label="Pause">${icon('pause', 16, 2.4)}</button>
+      <button data-speed="1" data-tip="Normal" data-key="1" data-tip-pos="bottom" aria-label="Normal">${icon('play', 15, 2.2)}</button>
+      <button data-speed="2" data-tip="Schnell" data-key="2" data-tip-pos="bottom" aria-label="Schnell">${icon('fast', 17, 2)}</button>
+      <button data-speed="3" data-tip="Sehr schnell" data-key="3" data-tip-pos="bottom" aria-label="Sehr schnell">${icon('faster', 19, 1.8)}</button>
     </div>
   </div>
-  <div class="sign menubtns" id="u-menu">
-    <button data-panel="budget" title="Haushalt">${icon('budget')}</button>
-    <button data-panel="stats" title="Statistik">${icon('stats')}</button>
-    <button data-panel="policies" title="Verordnungen">${icon('policies')}</button>
-    <button data-panel="transit" title="Pulsbahn">${icon('transit')}</button>
-    <button data-panel="news" title="Stadtfunk">${icon('news')}<span class="dot" id="u-newsdot" hidden></span></button>
-    ${[...PANELS].sort((a, b) => (a.order || 50) - (b.order || 50)).map((p) => `<button data-panel="${p.id}" title="${esc(p.title)}">${p.icon && p.icon.startsWith('<') ? p.icon : icon(p.icon || 'layers')}</button>`).join('')}
-    <button data-panel="settings" title="Optionen, Hilfe, Speichern">${icon('settings')}</button>
+  <div class="sign sysbtns" id="u-sys">
+    <button data-sys="advisor" data-tip="Ratgeberin" data-tip-desc="Hinweise und Lagebericht" data-key="H" data-tip-pos="bottom" aria-label="Ratgeberin">${icon('advisor')}<span class="dot" id="u-advdot" hidden></span></button>
+    <button data-sys="notes" data-tip="Meldungen" data-tip-desc="Wichtiges mit Ort und Zeit" data-key="N" data-tip-pos="bottom" aria-label="Meldungen">${icon('bell')}<span class="count" id="u-notecount" hidden></span></button>
+    <button data-sys="photo" class="dk" data-tip="Fotomodus" data-key="P" data-tip-pos="bottom" aria-label="Fotomodus">${icon('camera')}</button>
+    <button data-sys="keys" class="dk" data-tip="Tastenkürzel" data-key="?" data-tip-pos="bottom" aria-label="Tastenkürzel">${icon('keyboard')}</button>
+    <button data-sys="settings" data-tip="Optionen" data-tip-desc="Grafik, Klang, Spielstand" data-tip-pos="bottom" aria-label="Optionen">${icon('settings')}</button>
+    <button data-sys="more" class="mb" aria-label="Übersicht">${icon('grid')}</button>
   </div>
 </div>
 <div class="ticker" id="u-ticker" hidden><span class="pip" id="u-tickpip"></span><span class="who" id="u-tickwho"></span><span class="txt" id="u-ticktxt"></span></div>
-<div class="sign views" id="u-views">
-  ${allOverlays().map((o, i) => `${i === 1 || i === 13 ? '<div class="sep"></div>' : ''}<button data-view="${o.id}" title="${o.name}">${o.icon && o.icon.startsWith('<') ? o.icon : icon(VIEW_ICON[o.id] || o.icon || 'eye', 19)}</button>`).join('')}
-</div>
+<div class="toolhint" id="u-toolhint" hidden></div>
+<div class="probs-hud" id="u-probs"></div>
+<div class="sign dock views" id="u-views"></div>
 <div class="sign legend" id="u-legend" hidden></div>
-<div class="sign tutorial" id="u-tutorial" hidden></div>
+<div class="sign dock panels" id="u-dock"></div>
+<div class="leftstack" id="u-leftstack"><div class="sign bubble" id="u-bubble" hidden></div><div class="sign tutorial" id="u-tutorial" hidden></div></div>
+<div class="sign minimap" id="u-mini"></div>
+<button class="sign mm-open" id="u-mmopen" data-tip="Minikarte zeigen" data-key="K" hidden>${icon('minimap', 20)}</button>
 <div class="sign tray" id="u-tray" hidden></div>
-<div class="sign toolbar">
-  <div class="track" id="u-cats">
-    <div class="rail"></div>
-    <button class="cat" data-tool="select" title="Auswählen (Esc)"><span class="stop">${icon('select', 20)}</span><span class="lbl">Info</span></button>
-    ${CATEGORIES.map((c) => `<button class="cat" data-cat="${c.id}"><span class="stop">${icon(CAT_ICON[c.id], 21)}</span><span class="lbl">${c.name}</span></button>`).join('')}
-    <button class="cat danger" data-tool="bulldoze" title="Abreißen (B)"><span class="stop">${icon('bulldoze', 21)}</span><span class="lbl">Abriss</span></button>
-  </div>
-</div>
+<div class="sign toolbar" id="u-toolbar"><button class="tb-nav l" data-nav="-1" aria-label="Zurück">${icon('chevronL', 18, 2.4)}</button><div class="track" id="u-cats"></div><button class="tb-nav r" data-nav="1" aria-label="Weiter">${icon('chevronR', 18, 2.4)}</button></div>
 <div class="sign panel" id="u-panel" hidden></div>
 <div class="sign inspector" id="u-insp" hidden></div>
+<div class="sheet" id="u-sheet" hidden></div>
 `;
     const $ = (id) => document.getElementById(id);
     this.el = {};
-    for (const id of ['name', 'rank', 'rankbar', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'unemp', 'jobs', 'riders', 'flow', 'date', 'time', 'speed', 'menu', 'ticker', 'tickpip', 'tickwho', 'ticktxt', 'views', 'legend', 'tutorial', 'tray', 'cats', 'panel', 'insp', 'newsdot', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
+    for (const id of ['name', 'rank', 'rankbar', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'unemp', 'jobs', 'riders', 'flow', 'date', 'time', 'speed', 'weather', 'sys', 'advdot', 'notecount', 'ticker', 'tickpip', 'tickwho', 'ticktxt', 'toolhint', 'probs', 'views', 'legend', 'dock', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'toolbar', 'cats', 'panel', 'insp', 'sheet', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
     this.el.name.textContent = this.g.name;
+    this.renderToolbar();
+    this.renderViews();
+    this.renderDock();
+    this.minimap = new Minimap(this, this.el.mini);
+    this.toggleMinimap(this.app.settings.minimap !== false && !this.mobile(), true);
+    this.unswap = bindThumbSwap(this.root);
 
-    this.el.speed.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-speed]');
-      if (!b) return;
-      this.setSpeed(+b.dataset.speed);
-    });
-    this.el.menu.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-panel]');
-      if (!b) return;
-      this.app.audio.play('click');
-      this.togglePanel(b.dataset.panel);
-    });
-    this.el.views.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-view]');
+    const on = (el, ev, fn) => el.addEventListener(ev, fn);
+    on(this.el.speed, 'click', (e) => { const b = e.target.closest('button[data-speed]'); if (b) { this.app.audio.play('click'); this.setSpeed(+b.dataset.speed); } });
+    on(this.el.sys, 'click', (e) => { const b = e.target.closest('button[data-sys]'); if (b) { this.app.audio.play('click'); this.sysAction(b.dataset.sys); } });
+    on(this.root.querySelector('.stats'), 'click', (e) => { const b = e.target.closest('[data-stat]'); if (b) { this.app.audio.play('click'); this.statAction(b.dataset.stat); } });
+    on(this.el.weather, 'click', () => { if (PANELS.find((p) => p.id === 'weather')) this.togglePanel('weather'); });
+    on(this.el.dock, 'click', (e) => { const b = e.target.closest('button[data-panel]'); if (b) { this.app.audio.play('click'); this.togglePanel(b.dataset.panel); } });
+    on(this.el.views, 'click', (e) => { const b = e.target.closest('button[data-view]'); if (b) { this.app.audio.play('click'); this.setView(this.view === b.dataset.view ? 'none' : b.dataset.view); } });
+    on(this.el.cats, 'click', (e) => {
+      const b = e.target.closest('button.cat');
       if (!b) return;
       this.app.audio.play('click');
-      this.setView(this.view === b.dataset.view ? 'none' : b.dataset.view);
+      if (b.dataset.tool) { this.closeTray(); this.app.input.setTool({ kind: b.dataset.tool }); }
+      else if (b.dataset.cat) { if (this.cat === b.dataset.cat) this.closeTray(); else this.openTray(b.dataset.cat); }
     });
-    this.el.cats.addEventListener('click', (e) => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      this.app.audio.play('click');
-      if (b.dataset.tool) {
-        this.closeTray();
-        this.app.input.setTool({ kind: b.dataset.tool });
-      } else if (b.dataset.cat) {
-        if (this.cat === b.dataset.cat) this.closeTray();
-        else this.openTray(b.dataset.cat);
-      }
+    on(this.el.toolbar, 'click', (e) => { const b = e.target.closest('[data-nav]'); if (b) this.el.cats.scrollBy({ left: +b.dataset.nav * 240, behavior: 'smooth' }); });
+    on(this.el.cats, 'scroll', () => this.updateTrackNav());
+    on(this.el.tray, 'click', (e) => this.trayClick(e));
+    on(this.el.tray, 'input', (e) => { if (e.target.id === 'u-search') { this.search = e.target.value; this.renderTrayBody(); } });
+    on(this.el.tray, 'keydown', (e) => {
+      if (e.target.id !== 'u-search') return;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (this.search) { this.search = ''; e.target.value = ''; this.renderTrayBody(); } else { e.target.blur(); this.closeTray(); } }
+      if (e.key === 'Enter') { const first = this.el.tray.querySelector('.strip button.item:not(.locked)'); if (first) { first.click(); e.target.blur(); } }
     });
-    this.el.tray.addEventListener('click', (e) => {
+    on(this.el.tray, 'pointerover', (e) => {
       const b = e.target.closest('button.item');
-      if (!b) return;
-      this.app.audio.play('click');
-      this.pickItem(b.dataset);
+      if (!b || !this.trayList) return;
+      const it = this.trayList[+b.dataset.i];
+      if (it && it !== this.hoverItem) { this.hoverItem = it; const d = this.el.tray.querySelector('.detail'); if (d) d.innerHTML = detailHTML(it); }
     });
-    this.el.ticker.addEventListener('click', () => this.openPanel('news'));
-    this.el.panel.addEventListener('pointerdown', () => { this.panelBusy = true; });
-    window.addEventListener('pointerup', () => { this.panelBusy = false; });
-    this.el.panel.addEventListener('click', (e) => this.panelClick(e));
-    this.el.panel.addEventListener('input', (e) => this.panelInput(e));
-    this.el.panel.addEventListener('change', (e) => this.panelChange(e));
-    this.el.insp.addEventListener('click', (e) => this.inspClick(e));
-    this.el.tutorial.addEventListener('click', (e) => {
-      if (e.target.closest('[data-act=hidetut]')) { this.tutorialHidden = true; this.app.settings.tutorialDone = true; this.app.saveSettings(); this.el.tutorial.hidden = true; }
+    on(this.el.tray, 'wheel', (e) => {
+      const strip = e.target.closest('.strip');
+      if (!strip || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      strip.scrollLeft += e.deltaY;
     });
-    // Tastatur
-    this.onKey = (e) => {
-      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
-      if (this.modalOpen()) return;
-      if (e.code === 'Space') { e.preventDefault(); this.setSpeed(this.g.speed === 0 ? (this.lastSpeed || 1) : 0); }
-      else if (e.code === 'Digit1') this.setSpeed(1);
-      else if (e.code === 'Digit2') this.setSpeed(2);
-      else if (e.code === 'Digit3') this.setSpeed(3);
-      else if (e.code === 'KeyM') { this.app.settings.muted = !this.app.settings.muted; this.app.audio.applyVolumes(); this.app.saveSettings(); this.toast(this.app.settings.muted ? 'Ton aus' : 'Ton an'); }
-      else if (e.code === 'KeyI') this.app.engine.effects.showIcons = !this.app.engine.effects.showIcons;
-      else if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') { e.preventDefault(); this.app.save(1); this.toast('Gespeichert in Platz 1.', 'good'); }
-    };
+    on(this.el.ticker, 'click', () => this.openPanel('news'));
+    on(this.el.toolhint, 'click', (e) => this.toolHintClick(e));
+    on(this.el.probs, 'click', (e) => { const b = e.target.closest('[data-prob]'); if (b) { const p = problems(this.g).find((x) => x.id === b.dataset.prob); if (p) { this.app.audio.play('click'); this.runAction(p); } } });
+    on(this.el.panel, 'pointerdown', () => { this.panelBusy = true; });
+    this.onUp = () => { this.panelBusy = false; };
+    window.addEventListener('pointerup', this.onUp);
+    on(this.el.panel, 'click', (e) => this.panelClick(e));
+    on(this.el.panel, 'input', (e) => this.panelEvent(e, 'input'));
+    on(this.el.panel, 'change', (e) => this.panelEvent(e, 'change'));
+    on(this.el.insp, 'click', (e) => inspectorClick(this, e));
+    on(this.el.bubble, 'click', (e) => this.advisor.bubbleClick(e));
+    on(this.el.tutorial, 'click', (e) => {
+      if (e.target.closest('[data-act=hidetut]')) { this.tutorialHidden = true; this.app.settings.tutorialDone = true; this.app.saveSettings(); this.el.tutorial.hidden = true; return; }
+      const li = e.target.closest('[data-step]');
+      if (li) { const st = tutorialSteps(this.g, this)[+li.dataset.step]; if (st && st[2]) this.runAction(st[2]); }
+    });
+    on(this.el.mmopen, 'click', () => this.toggleMinimap(true));
+    on(this.el.sheet, 'click', (e) => this.sheetClick(e));
+    on(this.el.panel, 'animationend', () => this.el.panel.classList.remove('enter'));
+    on(this.el.tray, 'animationend', () => this.el.tray.classList.remove('enter'));
+    on(this.el.insp, 'animationend', () => this.el.insp.classList.remove('enter'));
+    this.onKey = (e) => this.key(e);
     window.addEventListener('keydown', this.onKey);
+    this.onResize = () => { this.updateTrackNav(); if (this.minimap) this.minimap.resize(); };
+    window.addEventListener('resize', this.onResize);
     this.refreshSpeed();
     this.refreshHUD();
     this.refreshTutorial();
+    requestAnimationFrame(() => this.updateTrackNav());
   }
 
   dispose() {
     window.removeEventListener('keydown', this.onKey);
+    window.removeEventListener('pointerup', this.onUp);
+    window.removeEventListener('resize', this.onResize);
+    if (this.photo.active) this.photo.exit();
     for (const u of this.unbind || []) u();
+    this.notes.dispose();
+    this.advisor.dispose();
+    if (this.minimap) this.minimap.dispose();
+    if (this.unswap) this.unswap();
+    hideTip();
     this.root.innerHTML = '';
     this.root.hidden = true;
+    this.root.className = '';
     this.modalRoot.innerHTML = '';
     this.tooltip(null);
   }
@@ -205,130 +255,42 @@ export class UI {
     const g = this.g;
     this.unbind = [
       g.on('news', (n) => this.onNews(n)),
-      g.on('milestone', (i) => this.queueModal(() => this.showMilestone(i))),
+      g.on('milestone', (i) => { this.notes.push({ title: 'Meilenstein', text: `${MILESTONES[i].name} erreicht!`, mood: 'good', icon: 'trophy', kind: 'milestone' }); this.queueModal(() => this.showMilestone(i)); if (this.cat) this.renderTray(); }),
       g.on('cards', (ids) => this.queueModal(() => this.showCards(ids))),
       g.on('event', (ev) => this.queueModal(() => this.showEvent(ev))),
       g.on('bankrupt', () => this.queueModal(() => this.showBankrupt())),
       g.on('day', () => { if (this.panel) this.renderPanel(); }),
+      g.on('transitChanged', () => { if (this.cat === 'transit') this.renderTray(); }),
     ];
   }
 
-  // ---------- Geschwindigkeit
+  mobile() { return window.innerWidth <= 760; }
+
+  // ---------- Kopfzeile, Werkzeuge der Kopfzeile
   setSpeed(s) {
+    if (this.photo.active && s > 0 && !this.photo.opts.run) return;
     if (s > 0) this.lastSpeed = s;
     this.g.speed = s;
     this.refreshSpeed();
   }
   refreshSpeed() {
     for (const b of this.el.speed.querySelectorAll('button')) b.classList.toggle('on', +b.dataset.speed === this.g.speed);
+    this.root.classList.toggle('paused', this.g.speed === 0);
+  }
+  sysAction(a) {
+    if (a === 'photo') { this.photo.toggle(); return; }
+    if (a === 'keys') { this.showKeys(); return; }
+    if (a === 'more') { this.toggleSheet(); return; }
+    this.togglePanel(a);
+  }
+  statAction(s) {
+    if (s === 'pop') this.togglePanel(PANELS.find((p) => p.id === 'citizens') ? 'citizens' : 'stats');
+    else if (s === 'money') this.togglePanel('budget');
+    else if (s === 'happy') this.setView(this.view === 'happiness' ? 'none' : 'happiness');
+    else if (s === 'jobs') this.togglePanel(PANELS.find((p) => p.id === 'economy') ? 'economy' : 'stats');
+    else if (s === 'transit') this.togglePanel('transit');
   }
 
-  // ---------- Werkzeugleiste
-  openTray(cat) {
-    this.cat = cat;
-    for (const b of this.el.cats.querySelectorAll('.cat')) b.classList.toggle('on', b.dataset.cat === cat);
-    this.renderTray();
-    this.el.tray.hidden = false;
-    this.el.tutorial.hidden = true;
-  }
-  closeTray() {
-    this.cat = null;
-    this.el.tray.hidden = true;
-    for (const b of this.el.cats.querySelectorAll('.cat')) b.classList.toggle('on', false);
-    this.markToolButtons();
-  }
-  trayItems(cat) {
-    const g = this.g;
-    const items = [];
-    if (cat === 'roads') {
-      for (const t of [R.LANE, R.STREET, R.AVENUE]) {
-        const d = ROADS[t];
-        const locked = t === R.AVENUE && !g.isUnlocked('avenue') ? g.lockReason('zone4') : null;
-        items.push({ kind: 'road', type: t, name: d.name, cost: `${fmtMoney(d.cost * g.costMul)} / Feld`, desc: d.desc, color: '#5d6470', locked });
-      }
-    } else if (cat === 'zones') {
-      for (const z of [1, 2, 3, 4]) {
-        const locked = z === 4 && !g.isUnlocked('zone4') ? g.lockReason('zone4') : null;
-        const desc = { 1: 'Hier ziehen Menschen ein. Braucht Strom, Wasser und Jobs in der Nähe.', 2: 'Läden und Kaufhäuser. Leben von Kundschaft und Waren.', 3: 'Fabriken schaffen Jobs, machen aber Abgase. Auf Erz oder fruchtbarem Boden entstehen Bergwerke und Höfe.', 4: 'Saubere Büros für gebildete Arbeitskräfte.' }[z];
-        items.push({ kind: 'zone', zone: z, name: ZONE_INFO[z].name, cost: `${fmtMoney(2 * g.costMul)} / Feld`, desc, color: hex(ZONE_INFO[z].color), locked });
-      }
-      items.push({ kind: 'dezone', name: 'Zonen entfernen', cost: 'kostenlos', desc: 'Entfernt Zonen von unbebauten Feldern.', color: '#9a9a9a' });
-    } else if (cat === 'transit') {
-      const locked = g.isUnlocked('transit') ? null : g.lockReason('station');
-      items.push({ kind: 'line', name: 'Linie zeichnen', cost: `ab ${fmtMoney(TRANSIT.lineCost * g.costMul)}`, desc: 'Stationen nacheinander anklicken – leere Felder bekommen automatisch eine Station. Rechtsklick oder Enter beendet.', color: '#e8543f', locked });
-      items.push({ kind: 'place', key: 'station', name: BUILDINGS.station.name, cost: fmtMoney(g.buildingCost('station')), desc: BUILDINGS.station.desc, color: '#e8543f', locked });
-      items.push({ kind: 'panel', panel: 'transit', name: 'Linien verwalten', cost: `${g.transit.lines.length} / ${g.transit.linesMax} Linien`, desc: 'Züge und Waggons einsetzen, Linien verlängern.', color: '#2f8fe0', locked });
-    } else {
-      for (const [key, d] of Object.entries(BUILDINGS)) {
-        if (d.cat !== cat || key === 'station') continue;
-        const locked = g.isUnlocked(key) ? (d.unique && g.hasBuilt(key) ? 'Schon gebaut' : null) : g.lockReason(key);
-        let desc = d.desc;
-        const facts = [];
-        if (d.power) facts.push(`${d.power} MW`);
-        if (d.water) facts.push(`${d.water} m³`);
-        if (d.service) facts.push(`Radius ${d.service.radius}`);
-        if (d.upkeep) facts.push(`${fmtMoney(d.upkeep * g.upkeepMul())}/Tag`);
-        items.push({ kind: 'place', key, name: d.name, cost: fmtMoney(g.buildingCost(key)), desc, facts: facts.join(' · '), color: CAT_COLOR[cat] || '#7a8294', locked, tag: d.landmark && g.landmarkVouchers.has(key) ? '−50 %' : '' });
-      }
-    }
-    for (const t of TRAY_ITEMS) if (t.cat === cat) { const it = t.item(g); if (it) items.push(it); }
-    return items;
-  }
-  renderTray() {
-    const items = this.trayItems(this.cat);
-    const t = this.app.input.tool;
-    this.el.tray.innerHTML = items.map((it, i) => {
-      const on = (it.kind === t.kind) && ((it.kind === 'road' && t.type === it.type) || (it.kind === 'zone' && t.zone === it.zone) || (it.kind === 'place' && t.key === it.key) || it.kind === 'dezone' || it.kind === 'line');
-      return `<button class="item${on ? ' on' : ''}${it.locked ? ' locked' : ''}" data-i="${i}" data-kind="${it.kind}" data-type="${it.type || ''}" data-zone="${it.zone || ''}" data-key="${it.key || ''}" data-panel="${it.panel || ''}" ${it.locked ? 'data-locked="1"' : ''} title="${esc(it.desc)}">
-        ${it.tag ? `<span class="tag">${it.tag}</span>` : ''}
-        <span class="sw" style="background:${it.color}"></span>
-        <span class="n">${esc(it.name)}</span>
-        <span class="c">${it.cost}</span>
-        ${it.locked ? `<span class="lock">${esc(it.locked)}</span>` : `<span class="x">${esc(it.facts || it.desc).slice(0, 90)}</span>`}
-      </button>`;
-    }).join('');
-  }
-  pickItem(ds) {
-    if (ds.locked) { this.toast('Noch nicht freigeschaltet.', 'bad'); return; }
-    const input = this.app.input;
-    if (ds.kind === 'road') input.setTool({ kind: 'road', type: +ds.type });
-    else if (ds.kind === 'zone') input.setTool({ kind: 'zone', zone: +ds.zone });
-    else if (ds.kind === 'dezone') input.setTool({ kind: 'dezone' });
-    else if (ds.kind === 'place') input.setTool({ kind: 'place', key: ds.key });
-    else if (ds.kind === 'line') input.setTool({ kind: 'line' });
-    else if (ds.kind === 'panel') this.openPanel(ds.panel);
-    else if (ds.kind === 'tool') input.setTool({ kind: ds.key, ...(ds.type ? { type: ds.type } : {}) });
-    this.renderTray();
-  }
-  toolChanged(tool) {
-    if (tool.kind === 'select' && this.cat) this.closeTray();
-    if (this.cat) this.renderTray();
-    this.markToolButtons();
-    if (tool.kind === 'line' && this.view === 'none') this.setView('transit', true);
-    if (tool.kind !== 'line' && tool.kind !== 'extend' && this.autoTransitView) this.setView('none');
-  }
-  markToolButtons() {
-    const k = this.app.input ? this.app.input.tool.kind : 'select';
-    for (const b of this.el.cats.querySelectorAll('.cat[data-tool]')) b.classList.toggle('on', b.dataset.tool === k && !this.cat);
-  }
-
-  // ---------- Infoansichten
-  setView(id, auto = false) {
-    this.view = id;
-    this.autoTransitView = auto;
-    this.app.engine.overlay.setMode(id);
-    for (const b of this.el.views.querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === id);
-    const def = allOverlays().find((o) => o.id === id);
-    if (id === 'none' || !def) { this.el.legend.hidden = true; return; }
-    const bad = def.bad;
-    const ramp = id === 'resources' ? 'linear-gradient(90deg,#78be46,#966e5a)' : `linear-gradient(90deg, ${bad ? '#45c46b, #f2c230, #e5483c' : '#e5483c, #f2c230, #45c46b'})`;
-    const ends = id === 'resources' ? ['fruchtbar', 'Erz'] : bad ? ['gering', 'hoch'] : id === 'traffic' ? ['frei', 'Stau'] : ['schlecht', 'gut'];
-    const r2 = id === 'traffic' ? 'linear-gradient(90deg,#45c46b,#f2c230,#e5483c)' : ramp;
-    this.el.legend.innerHTML = `<h4>${def.name}</h4><div class="ramp" style="background:${r2}"></div><div class="ends"><span>${ends[0]}</span><span>${ends[1]}</span></div><p>${VIEW_TEXT[id] || ''}</p>`;
-    this.el.legend.hidden = false;
-  }
-
-  // ---------- Kopfzeile
   refreshHUD() {
     const g = this.g, s = g.stats;
     const ms = MILESTONES[g.milestone], next = MILESTONES[g.milestone + 1];
@@ -338,7 +300,7 @@ export class UI {
     const hist = g.history;
     const prev = hist.length >= 2 ? hist[hist.length - 2].pop : 0;
     const dp = hist.length ? hist[hist.length - 1].pop - prev : 0;
-    this.el.popd.textContent = hist.length >= 2 ? `${dp >= 0 ? '+' : '−'}${fmt(Math.abs(dp))} / Tag` : '';
+    this.el.popd.textContent = hist.length >= 2 ? `${dp >= 0 ? '+' : '−'}${fmt(Math.abs(dp))} / Tag` : 'Neugründung';
     this.el.popd.className = 'd ' + (dp >= 0 ? 'pos' : 'neg');
     this.el.money.textContent = g.sandbox ? '∞' : (Math.abs(g.money) >= 1e6 ? fmtShort(g.money) : fmt(g.money)) + ' €';
     this.el.money.className = 'v' + (g.money < 0 ? ' neg' : '');
@@ -363,31 +325,286 @@ export class UI {
       el.style.bottom = v >= 0 ? '50%' : `${50 - hgt}%`;
       el.style.opacity = v >= 0 ? 1 : 0.45;
     }
+    // Wetter (falls ein Wetter-System läuft)
+    const w = g.ext && g.ext.weather;
+    if (w && typeof w.temp === 'number') {
+      const night = this.app.engine && this.app.engine.night > 0.5;
+      const ic = w.storm || w.lightning > 0 ? 'storm' : w.snow > 0.15 ? 'snow' : w.rain > 0.15 ? 'rain' : w.fog > 0.5 ? 'cloud' : w.cloud > 0.6 ? 'cloud' : night ? 'moon' : 'sun';
+      const html = `${icon(ic, 18)}<span class="num">${Math.round(w.temp)}°</span>`;
+      if (this._wx !== html) { this._wx = html; this.el.weather.innerHTML = html; }
+      this.el.weather.dataset.tip = SEASON[w.season] || 'Wetter';
+      this.el.weather.dataset.tipDesc = `${Math.round(w.temp)} °C${w.rain > 0.15 ? ' · Regen' : ''}${w.snow > 0.15 ? ' · Schnee' : ''}${w.wind > 0.6 ? ' · windig' : ''}`;
+      this.el.weather.hidden = false;
+    } else this.el.weather.hidden = true;
   }
 
+  refreshBadges() {
+    const n = this.notes.unread;
+    this.el.notecount.hidden = !n;
+    this.el.notecount.textContent = n > 99 ? '99+' : String(n);
+    const lvl = adviceLevel(this.advisor);
+    this.el.advdot.hidden = lvl < 2;
+    this.el.advdot.className = 'dot' + (lvl >= 3 ? '' : ' warn');
+    // Lage-Chips
+    const probs = problems(this.g).slice(0, 5);
+    const key = probs.map((p) => p.id + p.count + p.sev).join('|');
+    if (key !== this._probKey) {
+      this._probKey = key;
+      this.el.probs.innerHTML = probs.map((p) => `<button class="pchip ${p.sev}" data-prob="${p.id}" data-tip="${esc(p.text)}" data-tip-desc="${p.view ? 'Klick: Infoansicht' : p.panel ? 'Klick: Fenster öffnen' : 'Klick: Bauen'}" data-tip-pos="bottom">${icon(p.icon, 15, 2.3)}<span class="num">${p.count > 1 ? fmt(p.count) : '!'}</span></button>`).join('');
+    }
+    // Badges im Panel-Dock
+    for (const b of this.el.dock.querySelectorAll('button[data-panel]')) {
+      const p = PANELS.find((x) => x.id === b.dataset.panel);
+      if (!p || !p.badge) continue;
+      let v = null;
+      try { v = p.badge(this); } catch (e) { v = null; }
+      let el = b.querySelector('.count');
+      if (v === null || v === undefined || v === 0 || v === '') { if (el) el.remove(); continue; }
+      if (!el) { el = document.createElement('span'); el.className = 'count'; b.appendChild(el); }
+      el.textContent = String(v);
+    }
+  }
+
+  // ---------- Werkzeugleiste (Liniennetz)
+  renderToolbar() {
+    const cats = toolbarCategories();
+    const groups = [];
+    for (const c of cats) { let gr = groups.find((x) => x.line === c.line); if (!gr) groups.push(gr = { line: c.line, cats: [] }); gr.cats.push(c); }
+    const stop = (c) => `<button class="cat" data-cat="${c.id}" data-tip="${esc(c.name)}" data-tip-desc="Linie ${esc(lineById(c.line).name)}" ${c.key ? `data-key="${c.key.toUpperCase()}"` : ''} aria-label="${esc(c.name)}"><span class="stop">${iconAny(c.icon, 'layers', 21)}</span><span class="lbl">${esc(c.name)}</span></button>`;
+    this.el.cats.innerHTML = `<div class="lg term"><button class="cat" data-tool="select" data-tip="Auswählen" data-tip-desc="Gebäude und Felder anklicken" data-key="Esc" aria-label="Auswählen"><span class="stop">${icon('select', 20)}</span><span class="lbl">Info</span></button></div>
+${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" style="--lc:${L.color}" data-line="${gr.line}"><i class="rail"></i>${gr.cats.map(stop).join('')}</div>`; }).join('')}
+<div class="lg term"><button class="cat danger" data-tool="bulldoze" data-tip="Abriss" data-tip-desc="Fläche aufziehen zum Abreißen" data-key="B" aria-label="Abriss"><span class="stop">${icon('bulldoze', 21)}</span><span class="lbl">Abriss</span></button></div>`;
+    this.markToolButtons();
+  }
+  updateTrackNav() {
+    const t = this.el.cats;
+    if (!t) return;
+    const over = t.scrollWidth > t.clientWidth + 4;
+    this.el.toolbar.classList.toggle('scrolls', over);
+    this.el.toolbar.classList.toggle('at-start', t.scrollLeft <= 2);
+    this.el.toolbar.classList.toggle('at-end', t.scrollLeft + t.clientWidth >= t.scrollWidth - 2);
+  }
+
+  openTray(cat) {
+    this.cat = cat;
+    if (cat !== '__search') this.search = '';
+    this.hoverItem = null;
+    for (const b of this.el.cats.querySelectorAll('.cat')) b.classList.toggle('on', b.dataset.cat === cat);
+    const wasHidden = this.el.tray.hidden;
+    this.renderTray();
+    this.el.tray.hidden = false;
+    if (wasHidden) this.el.tray.classList.add('enter');
+    this.root.classList.add('tray-open');
+    this.el.tutorial.hidden = true;
+    if (!this.el.insp.hidden && this.mobile()) this.closeInspector();
+    const btn = this.el.cats.querySelector(`.cat[data-cat="${cat}"]`);
+    if (btn) btn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  }
+  openSearch() {
+    this.openTray('__search');
+    const inp = document.getElementById('u-search');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+  closeTray() {
+    this.cat = null;
+    this.el.tray.hidden = true;
+    this.root.classList.remove('tray-open');
+    for (const b of this.el.cats.querySelectorAll('.cat')) b.classList.toggle('on', false);
+    this.markToolButtons();
+    this.refreshTutorial();
+  }
+  trayItems(cat) { return catalogItems(this, cat); }
+  renderTray() {
+    const cat = this.cat;
+    if (!cat) return;
+    const isSearch = cat === '__search';
+    const cm = isSearch ? { name: 'Baukatalog', color: '#1d2330', icon: 'search', line: 'bau' } : catMeta(cat);
+    const L = lineById(cm.line);
+    this.el.tray.style.setProperty('--lc', isSearch ? '#1d2330' : cm.color);
+    this.el.tray.innerHTML = `<div class="tr-head"><span class="tr-badge" style="background:${isSearch ? '#1d2330' : cm.color}">${iconAny(cm.icon, 'layers', 16, 2.2)}</span><span class="tr-name">${esc(cm.name)}</span><span class="tr-line">${isSearch ? 'Alle Kategorien' : 'Linie ' + esc(L.name)}</span><span class="tr-count" id="u-traycount"></span><span class="grow"></span>
+<label class="tr-search">${icon('search', 15)}<input id="u-search" type="search" placeholder="Gebäude suchen …" value="${esc(this.search)}" autocomplete="off" spellcheck="false"><kbd>F</kbd></label>
+<button class="close" data-act="closetray" aria-label="Schließen">${icon('close', 16)}</button></div>
+<div class="tr-body"><div class="detail"></div><div class="strip" id="u-strip"></div></div>`;
+    this.renderTrayBody();
+  }
+  renderTrayBody() {
+    const strip = document.getElementById('u-strip');
+    if (!strip) return;
+    const q = this.search.trim();
+    const isSearch = this.cat === '__search' || !!q;
+    const list = q ? searchCatalog(this, q) : this.cat === '__search' ? [] : this.trayItems(this.cat);
+    this.trayList = list;
+    const t = this.app.input ? this.app.input.tool : { kind: 'select' };
+    const sl = strip.scrollLeft;
+    strip.innerHTML = list.length ? list.map((it, i) => cardHTML(it, i, isActive(it, t), isSearch)).join('') : `<div class="empty strip-empty">${q ? `Nichts gefunden für „${esc(q)}".` : 'Tippe einen Namen, z. B. „Schule", „Park" oder „Strom".'}</div>`;
+    strip.scrollLeft = sl;
+    const cnt = document.getElementById('u-traycount');
+    if (cnt) cnt.textContent = list.length ? `${list.length} ${list.length === 1 ? 'Eintrag' : 'Einträge'}` : '';
+    const active = list.find((it) => isActive(it, t));
+    if (!this.hoverItem || !list.includes(this.hoverItem)) this.hoverItem = active || list.find((it) => !it.locked) || list[0] || null;
+    const d = this.el.tray.querySelector('.detail');
+    if (d) d.innerHTML = detailHTML(this.hoverItem);
+  }
+  trayClick(e) {
+    const c = e.target.closest('[data-act=closetray]');
+    if (c) { this.closeTray(); return; }
+    const b = e.target.closest('button.item');
+    if (!b || !this.trayList) return;
+    const it = this.trayList[+b.dataset.i];
+    if (!it) return;
+    this.app.audio.play('click');
+    this.pickItem(it);
+  }
+  pickItem(it) {
+    if (it.locked) { this.toast(it.built ? 'Gibt es schon in deiner Stadt.' : it.locked, 'bad'); this.app.audio.play('error'); return; }
+    const input = this.app.input;
+    if (it.kind === 'road') input.setTool({ kind: 'road', type: +it.type });
+    else if (it.kind === 'zone') input.setTool({ kind: 'zone', zone: +it.zone });
+    else if (it.kind === 'dezone') input.setTool({ kind: 'dezone' });
+    else if (it.kind === 'place') input.setTool({ kind: 'place', key: it.key });
+    else if (it.kind === 'line') input.setTool({ kind: 'line' });
+    else if (it.kind === 'panel') { this.closeTray(); this.openPanel(it.panel); return; }
+    else if (it.kind === 'tool') input.setTool({ kind: it.key, ...(it.type !== undefined && it.type !== '' ? { type: it.type } : {}), ...(it.tool || {}) });
+    if (this.mobile()) this.closeTray();
+    else this.renderTrayBody();
+  }
+  toolChanged(tool) {
+    if (tool.kind === 'select' && this.cat && !this.search) this.closeTray();
+    if (this.cat) this.renderTrayBody();
+    this.markToolButtons();
+    if (tool.kind === 'line' && this.view === 'none') this.setView('transit', true);
+    if (tool.kind !== 'line' && tool.kind !== 'extend' && this.autoTransitView) this.setView('none');
+    this.renderToolHint();
+  }
+  markToolButtons() {
+    const k = this.app.input ? this.app.input.tool.kind : 'select';
+    for (const b of this.el.cats.querySelectorAll('.cat[data-tool]')) b.classList.toggle('on', b.dataset.tool === k && !this.cat);
+  }
+
+  // Hinweisleiste zum aktiven Werkzeug (auf dem Handy mit Knöpfen statt Rechtsklick)
+  renderToolHint() {
+    const input = this.app.input;
+    const t = input ? input.tool : { kind: 'select' };
+    const el = this.el.toolhint;
+    if (!t || t.kind === 'select' || this.photo.active) { el.hidden = true; this.root.classList.remove('tool-on'); return; }
+    let name = '', hint = '', ic = 'select', col = '#1d2330';
+    const extra = [];
+    if (t.kind === 'road') { name = ROADS[t.type].name; hint = 'Ziehen zum Bauen'; ic = 'roads'; col = '#5d6470'; }
+    else if (t.kind === 'zone') { name = ZONE_INFO[t.zone].name; hint = 'Fläche aufziehen'; ic = 'zones'; col = hex(ZONE_INFO[t.zone].color); }
+    else if (t.kind === 'dezone') { name = 'Zonen entfernen'; hint = 'Fläche aufziehen'; ic = 'dezone'; }
+    else if (t.kind === 'bulldoze') { name = 'Abriss'; hint = 'Fläche aufziehen'; ic = 'bulldoze'; col = '#d4433a'; }
+    else if (t.kind === 'place') {
+      const d = BUILDINGS[t.key]; name = d ? d.name : t.key; ic = d ? catMeta(d.cat).icon : 'layers'; col = d ? catMeta(d.cat).color : col;
+      hint = `${d ? fmtMoney(this.g.buildingCost(t.key)) : ''}${d && d.size[0] !== d.size[1] ? ' · R dreht' : ''}`;
+      if (d && d.size[0] !== d.size[1]) extra.push(['rotate', 'Drehen', 'rotate']);
+    } else if (t.kind === 'line' || t.kind === 'extend') {
+      name = t.kind === 'line' ? 'Linie zeichnen' : 'Linie verlängern'; ic = 'line'; col = '#e8543f';
+      hint = `${input.lineStops.length} ${input.lineStops.length === 1 ? 'Station' : 'Stationen'} · Rechtsklick oder Enter beendet`;
+      extra.push(['finish', 'Fertig', 'check']);
+    } else {
+      const T2 = TOOLS[t.kind] || {};
+      name = T2.name || (this.trayList && (this.trayList.find((x) => x.kind === 'tool' && x.key === t.kind) || {}).name) || t.kind;
+      try { hint = T2.hint ? T2.hint(input) || '' : ''; } catch (e) { hint = ''; }
+      ic = T2.icon || 'brush';
+    }
+    const html = `<span class="th-i" style="background:${col}">${iconAny(ic, 'select', 15, 2.3)}</span><b>${esc(name)}</b>${hint ? `<span class="th-h">${esc(hint)}</span>` : ''}${extra.map(([a, n, ii]) => `<button class="th-b" data-th="${a}">${icon(ii, 14, 2.4)}${n}</button>`).join('')}<button class="th-x" data-th="cancel" data-tip="Abbrechen" data-key="Esc" data-tip-fast="1" aria-label="Werkzeug abbrechen">${icon('close', 14, 2.4)}</button>`;
+    if (html !== this._thHtml) { this._thHtml = html; el.innerHTML = html; }
+    el.style.setProperty('--tc', col);
+    el.hidden = false;
+    this.root.classList.add('tool-on');
+  }
+  toolHintClick(e) {
+    const b = e.target.closest('[data-th]');
+    if (!b) return;
+    const input = this.app.input;
+    this.app.audio.play('click');
+    if (b.dataset.th === 'cancel') input.setTool({ kind: 'select' });
+    else if (b.dataset.th === 'finish') input.finishLine();
+    else if (b.dataset.th === 'rotate') { input.rot = (input.rot + 1) % 4; if (input.lastMove) input.pointerMove(input.lastMove); }
+  }
+
+  // ---------- Infoansichten
+  renderViews() {
+    const list = viewList();
+    let last = null, html = '';
+    for (const o of list) {
+      if (o.group !== last && o.id !== 'none' && last !== null) html += '<div class="sep"></div>';
+      last = o.group;
+      html += `<button data-view="${o.id}" data-tip="${esc(o.id === 'none' ? 'Normale Ansicht' : o.name)}" data-tip-desc="${esc(o.id === 'none' ? 'Infoansicht ausschalten' : (VIEW_GROUPS.find((g) => g.id === o.group) || {}).name || '')}" ${o.id === 'none' ? 'data-key="V"' : ''} data-tip-pos="right" aria-label="${esc(o.name)}">${iconAny(o.icon, 'layers', 19)}</button>`;
+    }
+    this.el.views.innerHTML = html;
+    const two = list.length > 11;
+    this.el.views.classList.toggle('two', two);
+    this.root.style.setProperty('--legend-x', two ? '104px' : '66px');
+    for (const b of this.el.views.querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === this.view);
+  }
+  setView(id, auto = false) {
+    this.view = id;
+    this.autoTransitView = auto;
+    this.app.engine.overlay.setMode(id);
+    for (const b of this.el.views.querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === id);
+    if (this.el.sheet && !this.el.sheet.hidden) this.renderSheet();
+    const def = viewList().find((o) => o.id === id);
+    if (id === 'none' || !def) { this.el.legend.hidden = true; return; }
+    const bad = def.bad;
+    let ramp = id === 'resources' ? 'linear-gradient(90deg,#78be46,#966e5a)' : `linear-gradient(90deg, ${bad ? '#45c46b, #f2c230, #e5483c' : '#e5483c, #f2c230, #45c46b'})`;
+    let ends = id === 'resources' ? ['fruchtbar', 'Erz'] : bad ? ['gering', 'hoch'] : id === 'traffic' ? ['frei', 'Stau'] : ['schlecht', 'gut'];
+    if (id === 'traffic') ramp = 'linear-gradient(90deg,#45c46b,#f2c230,#e5483c)';
+    let leg = `<div class="ramp" style="background:${ramp}"></div><div class="ends"><span>${ends[0]}</span><span>${ends[1]}</span></div>`;
+    if (def.legend && def.legend.items) leg = `<div class="litems">${def.legend.items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
+    else if (def.legend && def.legend.gradient) { leg = `<div class="ramp" style="background:${def.legend.gradient}"></div><div class="ends"><span>${esc((def.legend.ends || [])[0] || '')}</span><span>${esc((def.legend.ends || [])[1] || '')}</span></div>`; }
+    else if (id === 'power' || id === 'water') leg = `<div class="litems"><span><i style="background:${id === 'power' ? '#45c46b' : '#3fa0e0'}"></i>versorgt</span><span><i style="background:#e5483c"></i>fehlt</span></div>`;
+    this.el.legend.innerHTML = `<h4>${iconAny(def.icon, 'layers', 16)}<span>${esc(def.name)}</span><button class="close" data-act="offview" aria-label="Ansicht schließen">${icon('close', 14)}</button></h4>${leg}<p>${esc(def.text || '')}</p>`;
+    this.el.legend.hidden = false;
+    this.el.legend.onclick = (e) => { if (e.target.closest('[data-act=offview]')) this.setView('none'); };
+  }
+
+  // ---------- Panel-Dock
+  panelDef(id) { return PANELS.find((p) => p.id === id) || CORE_PANELS.find((p) => p.id === id) || SYS_PANELS.find((p) => p.id === id) || null; }
+  renderDock() {
+    const list = dockPanels(CORE_PANELS);
+    let last = null, html = '';
+    for (const { p, m } of list) {
+      if (last !== null && m.group !== last) html += '<div class="sep"></div>';
+      last = m.group;
+      html += `<button data-panel="${p.id}" style="--pc:${m.color}" data-tip="${esc(p.title)}" data-tip-desc="${esc((PANEL_GROUPS.find((g) => g.id === m.group) || {}).name || '')}" data-tip-pos="left" aria-label="${esc(p.title)}">${iconAny(p.icon, 'layers', 20)}${p.id === 'news' ? '<span class="dot" id="u-newsdot" hidden></span>' : ''}</button>`;
+    }
+    this.el.dock.innerHTML = html;
+    this.el.newsdot = document.getElementById('u-newsdot');
+  }
+
+  // ---------- Erste Schritte
   refreshTutorial() {
     const g = this.g;
-    if (this.tutorialHidden || g.sandbox || this.cat || this.panel) { this.el.tutorial.hidden = true; return; }
-    let roads = 0;
-    for (let i = 0; i < g.N; i++) if (g.road[i] && g.road[i] !== R.HIGHWAY) roads++;
-    let res = 0, other = 0;
-    for (let i = 0; i < g.N; i++) { if (g.zone[i] === 1) res++; else if (g.zone[i] === 2 || g.zone[i] === 3) other++; }
-    const has = (cat) => g.countBuilt(cat) > 0;
-    const steps = [
-      [roads > 0, 'Ziehe eine Straße vom Ende der Autobahn ins Land (Straßen → Straße).'],
-      [res > 0 || g.stats.countByZone[1] > 0, 'Weise entlang der Straße Wohngebiet aus (Zonen → Wohnen).'],
-      [other > 0 || g.stats.countByZone[2] + g.stats.countByZone[3] > 0, 'Gewerbe und Industrie schaffen Jobs – mit etwas Abstand zum Wohnen.'],
-      [has('power'), 'Baue ein Kraftwerk an einer Straße. Strom fließt durchs Straßennetz.'],
-      [has('water'), 'Sorge für Wasser: Wasserturm oder Pumpwerk am Ufer.'],
-      [has('garbage'), 'Eine Deponie hält die Straßen sauber.'],
-      [g.milestone >= 1, `Erreiche ${MILESTONES[1].pop} Einwohner. Danach gibt es jede Woche eine Wochenkarte.`],
-      [g.transit.lines.length > 0, 'Ab „Kleinstadt": Zeichne die erste Pulsbahn-Linie zwischen Wohnen und Arbeit.'],
-    ];
+    if (this.tutorialHidden || g.sandbox || this.cat || this.panel || this.photo.active || this.mobile()) { this.el.tutorial.hidden = true; return; }
+    const steps = tutorialSteps(g, this);
     const firstOpen = steps.findIndex((s) => !s[0]);
     if (firstOpen < 0) { this.el.tutorial.hidden = true; return; }
+    const done = steps.filter((s) => s[0]).length;
+    const html = `<h4><span>Erste Schritte</span><span class="tprog num">${done} / ${steps.length}</span><button class="close" data-act="hidetut" data-tip="Ausblenden" data-tip-fast="1" aria-label="Ausblenden">${icon('close', 15)}</button></h4><ol>${steps.map((s, i) => `<li class="${s[0] ? 'done' : i === firstOpen ? 'now' : ''}" ${s[2] && !s[0] ? `data-step="${i}"` : ''}>${esc(s[1])}</li>`).join('')}</ol>`;
+    if (html !== this._tutHtml) { this._tutHtml = html; this.el.tutorial.innerHTML = html; }
     this.el.tutorial.hidden = false;
-    this.el.tutorial.innerHTML = `<h4><span>Erste Schritte</span><button class="close" data-act="hidetut" title="Ausblenden">${icon('close', 16)}</button></h4><ol>${steps.map((s, i) => `<li class="${s[0] ? 'done' : i === firstOpen ? 'now' : ''}">${s[1]}</li>`).join('')}</ol>`;
   }
+
+  // ---------- Aktionen (Ratgeber, Lage, Tutorial)
+  runAction(a) {
+    if (!a) return;
+    if (a.where) this.focusTile(a.where.x, a.where.y, 22);
+    if (a.view) this.setView(a.view);
+    if (a.panel) this.openPanel(a.panel);
+    else if (a.cat && !a.tool) { this.closePanels(); this.openTray(a.cat); }
+    if (a.tool) {
+      if (a.cat) { this.closePanels(); this.openTray(a.cat); }
+      const t = a.tool;
+      if (t.kind === 'line' && !this.g.isUnlocked('transit')) return;
+      this.app.input.setTool({ ...t });
+    }
+  }
+  focusTile(x, y, dist) {
+    const g = this.g, rig = this.app.engine.rig;
+    rig.focus(x + 0.5 - g.W / 2, y + 0.5 - g.H / 2, dist ? Math.min(rig.goal.dist, dist) : Math.min(rig.goal.dist, 28));
+  }
+  notify(n) { return this.notes.push(n); }
 
   // ---------- Nachrichten
   onNews(n) {
@@ -395,32 +612,38 @@ export class UI {
     this.el.tickwho.textContent = n.author;
     this.el.ticktxt.textContent = n.text;
     this.el.tickpip.style.background = n.mood === 'bad' ? 'var(--bad)' : n.mood === 'good' ? 'var(--good)' : 'var(--l-blue)';
-    if (this.panel !== 'news') this.el.newsdot.hidden = false;
-    else this.renderPanel();
+    this.el.ticker.classList.remove('flash'); void this.el.ticker.offsetWidth; this.el.ticker.classList.add('flash');
+    if (this.panel !== 'news') { if (this.el.newsdot) this.el.newsdot.hidden = false; } else this.renderPanel();
+    if (n.kind !== 'chatter') this.notes.fromNews(n);
     if (n.kind !== 'chatter' && n.kind !== 'report' && n.kind !== 'card') {
-      this.toast(n.text, n.mood === 'bad' ? 'bad' : n.mood === 'good' ? 'good' : '');
+      const where = n.x !== undefined && n.y !== undefined ? { x: n.x, y: n.y } : null;
+      this.toast(n.text, n.mood === 'bad' ? 'bad' : n.mood === 'good' ? 'good' : '', { where });
       if (n.mood === 'bad') this.app.audio.play('bad');
     }
   }
 
-  // ---------- Tooltip, Toasts
+  // ---------- Tooltip am Zeiger, Toasts
   tooltip(text, mouse, ok = true) {
     if (!text || !mouse) { this.tip.hidden = true; return; }
     this.tip.hidden = false;
-    this.tip.textContent = text;
+    if (this.tip.textContent !== text) this.tip.textContent = text;
     this.tip.className = ok ? '' : 'bad';
     const w = this.tip.offsetWidth;
     const x = Math.min(mouse.x, window.innerWidth - w - 24);
     this.tip.style.left = x + 'px';
-    this.tip.style.top = mouse.y + 'px';
+    this.tip.style.top = Math.min(mouse.y, window.innerHeight - 60) + 'px';
   }
-  toast(msg, type = '') {
+  toast(msg, type = '', opts = {}) {
+    if (this._muteToast && / geladen\.$/.test(msg)) { this._muteToast = false; return; }
     const d = document.createElement('div');
-    d.className = 'toast ' + type;
-    d.textContent = msg;
+    d.className = 'toast ' + type + (opts.where ? ' link' : '');
+    const ic = opts.icon || (type === 'bad' ? 'warn' : type === 'good' ? 'check' : 'info');
+    d.innerHTML = `<span class="ti">${icon(ic, 15, 2.4)}</span><span class="tt"></span>${opts.where ? `<span class="tg">${icon('pin', 14, 2.2)}</span>` : ''}`;
+    d.querySelector('.tt').textContent = msg;
+    if (opts.where) d.addEventListener('click', () => { this.focusTile(opts.where.x, opts.where.y, 20); d.remove(); });
     this.toasts.appendChild(d);
     while (this.toasts.children.length > 4) this.toasts.firstChild.remove();
-    setTimeout(() => { d.style.transition = 'opacity 0.4s'; d.style.opacity = '0'; setTimeout(() => d.remove(), 400); }, 3200);
+    setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 400); }, opts.where ? 5200 : 3400);
   }
   floatMoney(amount, mouse) {
     if (!mouse || !amount || this.g.sandbox) return;
@@ -436,271 +659,85 @@ export class UI {
   // ---------- Panels
   togglePanel(name) { if (this.panel === name) this.closePanels(); else this.openPanel(name); }
   openPanel(name) {
+    const def = this.panelDef(name);
+    if (!def) return;
+    const changed = this.panel !== name;
     this.panel = name;
-    for (const b of this.el.menu.querySelectorAll('button')) b.classList.toggle('on', b.dataset.panel === name);
-    if (name === 'news') this.el.newsdot.hidden = true;
+    this.markPanelButtons();
+    if (name === 'news' && this.el.newsdot) this.el.newsdot.hidden = true;
     this.el.panel.hidden = false;
     this.el.insp.hidden = true;
     this.sel = null;
     this.app.engine.overlay.select(null);
-    this.renderPanel();
+    this.closeSheet();
+    if (this.mobile()) this.closeTray();
+    if (changed) { this.el.panel.classList.remove('enter'); void this.el.panel.offsetWidth; this.el.panel.classList.add('enter'); this.panelScroll = 0; }
+    if (def.opened) def.opened(this);
+    this.renderPanel(changed);
+    this.refreshTutorial();
   }
   closePanels() {
     this.panel = null;
     this.el.panel.hidden = true;
-    for (const b of this.el.menu.querySelectorAll('button')) b.classList.remove('on');
+    this.markPanelButtons();
     this.closeInspector();
+    this.refreshTutorial();
+  }
+  markPanelButtons() {
+    for (const b of this.root.querySelectorAll('#u-dock button[data-panel], #u-sys button[data-sys]')) b.classList.toggle('on', (b.dataset.panel || b.dataset.sys) === this.panel);
+  }
+  setCtx() {
+    if (!this._setCtx) this._setCtx = { app: this.app, inGame: true, ui: this, tab: this.setTab, snap: this.gfxSnap, onTips: (v) => setTipsEnabled(v) };
+    this._setCtx.tab = this.setTab;
+    return this._setCtx;
   }
 
-  renderPanel() {
+  renderPanel(fresh = false) {
     if (!this.panel) return;
-    const ext = PANELS.find((p) => p.id === this.panel);
-    const fn = ext ? () => ext.render(this) : { budget: this.pBudget, stats: this.pStats, policies: this.pPolicies, transit: this.pTransit, news: this.pNews, settings: this.pSettings }[this.panel];
-    const titles = { budget: 'Haushalt', stats: 'Statistik', policies: 'Verordnungen', transit: 'Pulsbahn', news: 'Stadtfunk', settings: 'Optionen & Hilfe' };
+    const def = this.panelDef(this.panel);
+    if (!def) { this.closePanels(); return; }
     let body = '';
-    try { body = fn.call(this); } catch (e) { console.error('Panel', this.panel, e); body = `<p>Fehler im Panel: ${esc(e.message)}</p>`; }
-    const scroll = this.el.panel.querySelector('.body')?.scrollTop || 0;
-    this.el.panel.innerHTML = `<header><h2>${esc(ext ? ext.title : titles[this.panel])}</h2><button class="close" data-act="close">${icon('close', 18)}</button></header><div class="body">${body}</div>`;
-    this.el.panel.querySelector('.body').scrollTop = scroll;
-    if (this.panel === 'stats') this.drawCharts();
-    if (ext && ext.afterRender) ext.afterRender(this);
+    try { body = def.render(this); } catch (e) { console.error('Panel', this.panel, e); body = `<p class="empty">Fehler im Panel: ${esc(e.message)}</p>`; }
+    const old = this.el.panel.querySelector('.body');
+    const scroll = fresh ? 0 : old ? old.scrollTop : 0;
+    const m = def.color || (dockPanels(CORE_PANELS).find((x) => x.p.id === def.id) || { m: {} }).m.color || '#1d2330';
+    const headHtml = `<header style="--pc:${m}"><span class="ph-badge">${iconAny(def.icon, 'layers', 17, 2.2)}</span><h2>${esc(def.title)}</h2><button class="close" data-act="close" aria-label="Schließen">${icon('close', 18)}</button></header>`;
+    if (!old || this._panelHead !== headHtml) {
+      this._panelHead = headHtml;
+      this.el.panel.innerHTML = `${headHtml}<div class="body">${body}</div>`;
+    } else if (this._panelBody !== body) old.innerHTML = body;
+    this._panelBody = body;
+    const nb = this.el.panel.querySelector('.body');
+    if (nb) nb.scrollTop = scroll;
+    if (def.afterRender) { try { def.afterRender(this); } catch (e) { console.error(e); } }
   }
-
-  pBudget() {
-    const g = this.g, b = g.budget();
-    const line = (k, v, neg) => `<div class="row"><span class="grow">${k}</span><span class="val ${neg ? 'neg' : ''}">${neg ? '−' : ''}${fmtMoney(v)}</span></div>`;
-    const taxes = [1, 2, 3, 4].map((z) => `<div class="slider"><label><span class="zdot" style="background:${hex(ZONE_INFO[z].color)}"></span> ${ZONE_INFO[z].name}</label><input type="range" min="0" max="25" step="1" value="${g.taxes[z]}" data-tax="${z}" id="tax-${z}"><span class="val num">${g.taxes[z]} %</span></div>`).join('');
-    const loans = g.loans.map((l, i) => `<div class="row"><span class="grow">${fmtMoney(l.amount)} · noch ${l.weeksLeft} Wochen<br><span style="font-size:12px;color:var(--ink-3)">Tilgung ${fmtMoney(l.amount / l.weeks)} + Zinsen ${fmtMoney(l.weekly)} pro Woche</span></span><button class="btn small ghost" data-act="repay" data-i="${i}">Ablösen</button></div>`).join('');
-    const offers = LOANS.map((l, i) => `<div class="row"><span class="grow">${fmtMoney(l.amount)} über ${l.weeks} Wochen · ${(l.rate * 100).toFixed(1).replace('.', ',')} % Zins/Woche</span><button class="btn small" data-act="loan" data-i="${i}" ${g.loans.length >= 3 || !g.isUnlocked('loans') ? 'disabled' : ''}>Aufnehmen</button></div>`).join('');
-    return `
-<div class="sec"><h3>Bilanz pro Tag</h3>
-  <div class="row"><span class="grow" style="font-weight:700">Saldo</span><span class="val ${b.net < 0 ? 'neg' : 'pos'}" style="font-size:20px">${b.net >= 0 ? '+' : '−'}${fmtMoney(Math.abs(b.net))}</span></div>
-</div>
-<div class="sec"><h3>Einnahmen · ${fmtMoney(b.income)}</h3>
-  ${line('Steuern Wohnen', b.inc.res)}${line('Steuern Gewerbe', b.inc.com)}${line('Steuern Industrie', b.inc.ind)}${line('Steuern Büro', b.inc.off)}${line('Tourismus', b.inc.tourism)}${line('Pulsbahn-Tickets', b.inc.fares)}
-</div>
-<div class="sec"><h3>Ausgaben · ${fmtMoney(b.expense)}</h3>
-  ${line('Dienste & Versorgung', b.exp.services, true)}${line('Straßenunterhalt', b.exp.roads, true)}${line('Pulsbahn', b.exp.transit, true)}${line('Verordnungen', b.exp.policies, true)}${line('Kreditzinsen', b.exp.loans, true)}
-</div>
-<div class="sec"><h3>Steuersätze</h3>${taxes}<p style="font-size:12.5px;color:var(--ink-3);margin:6px 0 0">Über 10 % sinken Nachfrage und Glück spürbar.</p></div>
-<div class="sec"><h3>Kredite</h3>${loans || '<p style="color:var(--ink-3);margin:0 0 6px">Keine laufenden Kredite.</p>'}<div class="rule"></div>${g.isUnlocked('loans') ? offers : `<p style="color:var(--ink-3);margin:0">${g.lockReason('zone4')}</p>`}</div>`;
-  }
-
-  pStats() {
-    const g = this.g, s = g.stats, u = g.util;
-    const tabs = [['pop', 'Einwohner'], ['money', 'Kasse'], ['net', 'Saldo'], ['happy', 'Glück'], ['riders', 'Fahrgäste'], ['flow', 'Verkehrsfluss']];
-    const meter = (v, max, col) => `<div class="meter"><i style="width:${clamp(v / Math.max(1, max), 0, 1) * 100}%;background:${col}"></i></div>`;
-    const counts = s.countByZone;
-    return `
-<div class="sec"><h3>Verlauf</h3>
-  <div class="chart-tabs">${tabs.map(([k, n]) => `<button data-act="chart" data-k="${k}" class="${this.chartKey === k ? 'on' : ''}">${n}</button>`).join('')}</div>
-  <canvas class="chart" id="chart-main"></canvas>
-</div>
-<div class="sec"><h3>Versorgung</h3>
-  <div class="kv"><span>Strom ${fmt(u.powerDemand)} / ${fmt(u.powerSupply)} MW</span><span class="v ${u.powerDemand > u.powerSupply ? 'neg' : ''}">${u.powerSupply ? Math.round((u.powerDemand / u.powerSupply) * 100) : 0} %</span></div>
-  ${meter(u.powerDemand, u.powerSupply, u.powerDemand > u.powerSupply ? 'var(--bad)' : 'var(--l-yellow)')}
-  <div class="kv" style="margin-top:8px"><span>Wasser ${fmt(u.waterDemand)} / ${fmt(u.waterSupply)} m³</span><span class="v ${u.waterDemand > u.waterSupply ? 'neg' : ''}">${u.waterSupply ? Math.round((u.waterDemand / u.waterSupply) * 100) : 0} %</span></div>
-  ${meter(u.waterDemand, u.waterSupply, u.waterDemand > u.waterSupply ? 'var(--bad)' : 'var(--l-blue)')}
-</div>
-<div class="sec"><h3>Bevölkerung & Arbeit</h3>
-  <div class="kv">
-    <span>Einwohner</span><span class="v">${fmt(s.pop)}</span>
-    <span>Arbeitskräfte</span><span class="v">${fmt(s.workers)}</span>
-    <span>Arbeitsplätze (G / I / B)</span><span class="v">${fmt(s.jobsByZone[2])} / ${fmt(s.jobsByZone[3])} / ${fmt(s.jobsByZone[4])}</span>
-    <span>Arbeitslosigkeit</span><span class="v">${Math.round(s.unemployment * 100)} %</span>
-    <span>Bildung (Ø)</span><span class="v">${Math.round(s.edu * 100)} %</span>
-    <span>Touristen pro Tag</span><span class="v">${fmt(s.tourism)}</span>
-  </div>
-</div>
-<div class="sec"><h3>Gebäude</h3>
-  <div class="kv">
-    ${[1, 2, 3, 4].map((z) => `<span><span class="zdot" style="background:${hex(ZONE_INFO[z].color)}"></span> ${ZONE_INFO[z].name}</span><span class="v">${fmt(counts[z])}</span>`).join('')}
-    <span>Verlassen</span><span class="v ${s.abandoned ? 'neg' : ''}">${fmt(s.abandoned)}</span>
-    <span>Ohne Strom / Wasser</span><span class="v ${s.unpowered + s.unwatered ? 'neg' : ''}">${fmt(s.unpowered)} / ${fmt(s.unwatered)}</span>
-  </div>
-</div>
-<div class="sec"><h3>Aktive Effekte</h3>${g.effects.length ? g.effects.map((e) => `<div class="row"><span class="grow">${esc(e.label)}</span><span class="val">noch ${Math.max(1, Math.ceil((e.until - g.time) / 1440))} T.</span></div>`).join('') : '<p style="color:var(--ink-3);margin:0">Keine.</p>'}</div>`;
-  }
-
-  drawCharts() {
-    const c = document.getElementById('chart-main');
-    if (!c) return;
-    const h = this.g.history;
-    const k = this.chartKey;
-    const vals = h.map((e) => e[k] ?? 0);
-    const col = { pop: '#4fae67', money: '#c98a0c', net: '#2f8fe0', happy: '#f06fae', riders: '#e8543f', flow: '#5d6470' }[k];
-    drawLineChart(c, vals, { color: col, zero: k === 'net' || k === 'money', startLabel: h.length ? `Tag ${h[0].d}` : '', endLabel: h.length ? `Tag ${h[h.length - 1].d}` : '', fmt: (v) => (Math.abs(v) >= 10000 ? fmtShort(v) : Math.round(v).toLocaleString('de-DE')) + (k === 'happy' || k === 'flow' ? ' %' : '') });
-  }
-
-  pPolicies() {
-    const g = this.g;
-    return `<p style="margin:0 0 10px;color:var(--ink-2);line-height:1.45">Verordnungen gelten für die ganze Stadt. Die Kosten steigen mit der Einwohnerzahl.</p>` + POLICIES.map((p) => {
-      const locked = !g.sandbox && g.milestone < p.unlock;
-      const on = g.policies.has(p.id);
-      const cost = p.cost * (g.stats.pop / 100);
-      return `<div class="toggle${locked ? ' locked' : ''}"><button class="switch${on ? ' on' : ''}" data-act="policy" data-id="${p.id}" ${locked ? 'disabled' : ''} aria-label="${esc(p.name)}"></button><div class="grow"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.desc)} ${p.cost ? `· ${fmtMoney(cost)}/Tag` : '· kostenlos'}${locked ? ` · ab „${MILESTONES[p.unlock].name}"` : ''}</div></div></div>`;
-    }).join('');
-  }
-
-  pTransit() {
-    const g = this.g, tr = g.transit;
-    if (!g.isUnlocked('transit')) {
-      return `<p style="line-height:1.5;color:var(--ink-2)">Die <b>Pulsbahn</b> ist eine Hochbahn, die über den Dächern fährt. Sie wird ab „${MILESTONES[2].name}" (${fmt(MILESTONES[2].pop)} Einwohner) freigeschaltet.</p>
-<p style="line-height:1.5;color:var(--ink-2)">Fahrgäste warten an den Stationen. Ihre Form zeigt das Ziel: <b>●</b> nach Hause, <b>▲</b> zum Einkaufen, <b>■</b> in die Industrie, <b>◆</b> ins Büro. Ist eine Station zu lange überfüllt, geben die Leute auf und die Gegend wird unzufrieden.</p>`;
-    }
-    const linesHtml = tr.lines.map((l) => {
-      const ts = tr.trains.filter((t) => t.line === l.id);
-      const wag = ts.reduce((a, t) => a + t.wagons, 0);
-      const pax = ts.reduce((a, t) => a + t.pax.length, 0);
-      const cap = ts.reduce((a, t) => a + tr.trainCapacity(t), 0);
-      const col = hex(LINE_COLORS[l.color]);
-      const stops = l.stops.map((id) => tr.stations.get(id)).filter(Boolean);
-      return `<div class="line-card">
-  <div class="hd"><span class="badge" style="background:${col}">${l.id}</span><div class="grow"><div class="ttl">Linie ${LINE_COLOR_NAMES[l.color]}${l.loop ? ' · Ring' : ''}</div><div class="sub">${stops.length} Stationen · ${l.length.toFixed(0)} Felder · gestern ${fmt(l.riders)} Fahrgäste</div></div></div>
-  <div class="stops" style="color:${col}">${stops.map((s) => `<span style="color:var(--ink)">${esc(s.name)}${s.waiting.length > 10 ? ` <b style="color:var(--bad)">(${s.waiting.length})</b>` : ''}</span>`).join('')}</div>
-  <div class="ctrl">
-    <span>Züge: <b>${ts.length}</b> · Auslastung ${cap ? Math.round((pax / cap) * 100) : 0} %</span>
-    <span class="grp"><button class="mini" data-act="train-" data-l="${l.id}" ${ts.length <= 1 ? 'disabled' : ''}>${icon('minus', 14, 2.6)}</button><button class="mini" data-act="train+" data-l="${l.id}" title="${tr.freeTrains > 0 ? 'Aus dem Depot' : fmtMoney(TRANSIT.trainCost * g.costMul)}">${icon('plus', 14, 2.6)}</button></span>
-    <span>Waggons: <b>${wag}</b> (+${TRANSIT.wagonCapacity} Plätze je Waggon)</span>
-    <span class="grp"><button class="mini" data-act="wagon+" data-l="${l.id}" title="${tr.freeWagons > 0 ? 'Aus dem Depot' : fmtMoney(TRANSIT.wagonCost * g.costMul)}">${icon('plus', 14, 2.6)}</button></span>
-  </div>
-  <div class="acts">
-    ${l.loop ? '' : `<button class="btn small ghost" data-act="extend" data-l="${l.id}" data-start="1">Anfang verlängern</button><button class="btn small ghost" data-act="extend" data-l="${l.id}" data-start="0">Ende verlängern</button>`}
-    <button class="btn small ghost" data-act="delline" data-l="${l.id}" style="color:var(--bad)">${this.confirmDel === l.id ? 'Wirklich löschen?' : 'Löschen'}</button>
-  </div>
-</div>`;
-    }).join('');
-    return `
-<div class="res-strip"><div><div class="k">Linien</div><div class="v">${tr.lines.length} / ${tr.linesMax}</div></div><div><div class="k">Züge im Depot</div><div class="v">${tr.freeTrains}</div></div><div><div class="k">Waggons</div><div class="v">${tr.freeWagons}</div></div></div>
-<div class="acts" style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap"><button class="btn" data-act="newline" ${tr.lines.length >= tr.linesMax ? 'disabled' : ''}>${icon('line', 16)} Neue Linie zeichnen</button><button class="btn ghost" data-act="station">${icon('station', 16)} Station setzen</button></div>
-${linesHtml || '<p style="color:var(--ink-2);line-height:1.5">Noch keine Linie. Klicke auf „Neue Linie zeichnen" und dann nacheinander auf Felder in Wohn- und Arbeitsvierteln. Ein Klick auf die erste Station schließt einen Ring.</p>'}
-<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3><p style="font-size:13px;line-height:1.5;color:var(--ink-2);margin:0">Jede Station sammelt Fahrgäste im Umkreis von ${TRANSIT.catchment} Feldern. Symbole über den Stationen zeigen das Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro. Wird eine Station zu voll, läuft ein roter Ring – mehr Züge oder Waggons helfen. Unter der Trasse wachsen Gebäude höchstens bis Stufe ${TRANSIT.maxLevelUnderTrack}.</p></div>`;
-  }
-
-  pNews() {
-    const g = this.g;
-    const list = [...g.newsLog].reverse();
-    if (!list.length) return '<p style="color:var(--ink-3)">Noch ist es ruhig in der Stadt.</p>';
-    return list.map((n, i) => {
-      const off = n.author === 'Stadtfunk';
-      const ini = off ? 'SF' : n.author.split(' ').map((p) => p[0]).join('');
-      const col = off ? (n.mood === 'bad' ? '#d4433a' : n.mood === 'good' ? '#2b9a57' : '#1d2330') : AV_COLORS[(n.author.length + i) % AV_COLORS.length];
-      const day = Math.floor(n.time / 1440);
-      const hh = String(Math.floor((n.time % 1440) / 60)).padStart(2, '0');
-      return `<div class="post"><span class="av" style="background:${col}">${esc(ini)}</span><div><div class="who">${esc(n.author)}<span class="when">Tag ${day}, ${hh} Uhr</span></div><div class="txt">${esc(n.text)}</div></div></div>`;
-    }).join('');
-  }
-
-  pSettings() {
-    const s = this.app.settings;
-    const slots = [1, 2, 3].map((k) => {
-      const meta = this.app.slotMeta(k);
-      return `<div class="slot"><div class="grow"><div class="t">Platz ${k}${meta ? ': ' + esc(meta.name) : ''}</div><div class="s">${meta ? `${fmt(meta.pop)} Einwohner · ${new Date(meta.savedAt).toLocaleString('de-DE')}` : 'leer'}</div></div><button class="btn small" data-act="save" data-k="${k}">Speichern</button>${meta ? `<button class="btn small ghost" data-act="load" data-k="${k}">Laden</button>` : ''}</div>`;
-    }).join('');
-    return `
-<div class="sec"><h3>Spielstand</h3>${slots}
-  <div class="acts" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">${window.STADTPULS_EMBED ? '' : '<button class="btn small ghost" data-act="export">Als Datei exportieren</button>'}<button class="btn small ghost" data-act="copy">In Zwischenablage</button><button class="btn small ghost" data-act="tomenu">Hauptmenü</button></div>
-  <p style="font-size:12px;color:var(--ink-3);margin:8px 0 0">Automatisch gespeichert wird jeden Spieltag.</p>
-</div>
-<div class="sec"><h3>Klang</h3>
-  <div class="slider"><label>Gesamt</label><input type="range" min="0" max="1" step="0.05" value="${s.volume}" data-set="volume" id="set-volume"><span class="val num">${Math.round(s.volume * 100)}</span></div>
-  <div class="slider"><label>Musik</label><input type="range" min="0" max="1" step="0.05" value="${s.music}" data-set="music" id="set-music"><span class="val num">${Math.round(s.music * 100)}</span></div>
-  <div class="slider"><label>Effekte</label><input type="range" min="0" max="1" step="0.05" value="${s.sfx}" data-set="sfx" id="set-sfx"><span class="val num">${Math.round(s.sfx * 100)}</span></div>
-  <div class="toggle"><button class="switch${s.muted ? '' : ' on'}" data-act="mute" aria-label="Ton"></button><div class="grow"><div class="t">Ton an</div><div class="s">Taste M schaltet stumm.</div></div></div>
-</div>
-<div class="sec"><h3>Darstellung</h3>
-  <div class="toggle"><button class="switch${s.alwaysDay ? ' on' : ''}" data-act="alwaysDay" aria-label="Immer Tag"></button><div class="grow"><div class="t">Immer Tag</div><div class="s">Schaltet den Tag-Nacht-Wechsel ab.</div></div></div>
-  <div class="toggle"><button class="switch${this.app.engine.effects.showIcons ? ' on' : ''}" data-act="icons" aria-label="Symbole"></button><div class="grow"><div class="t">Problem-Symbole</div><div class="s">Blitz, Tropfen, Müll und Co. über Gebäuden (Taste I).</div></div></div>
-  <div class="field" style="margin-top:8px"><label for="set-quality">Grafikqualität (ab nächster Stadt)</label><select id="set-quality" data-set="quality"><option value="high" ${s.quality === 'high' ? 'selected' : ''}>Hoch – feine Schatten</option><option value="medium" ${s.quality === 'medium' ? 'selected' : ''}>Mittel</option><option value="low" ${s.quality === 'low' ? 'selected' : ''}>Niedrig – ohne Schatten</option></select></div>
-</div>
-<div class="sec help"><h3>Steuerung</h3>
-  <div class="keys">
-    <kbd>Rechte Maus</kbd><span>Karte verschieben</span>
-    <kbd>Mittlere Maus / Alt+Links</kbd><span>Drehen und neigen</span>
-    <kbd>Mausrad</kbd><span>Zoomen</span>
-    <kbd>W A S D</kbd><span>Kamera bewegen</span>
-    <kbd>Q / E</kbd><span>Kamera drehen</span>
-    <kbd>Leertaste</kbd><span>Pause</span>
-    <kbd>1 2 3</kbd><span>Geschwindigkeit</span>
-    <kbd>R</kbd><span>Gebäude drehen</span>
-    <kbd>B</kbd><span>Abriss</span>
-    <kbd>Esc</kbd><span>Werkzeug abbrechen</span>
-    <kbd>Strg+S</kbd><span>Schnellspeichern</span>
-  </div>
-  <h4>So wächst deine Stadt</h4>
-  <ul>
-    <li>Zonen brauchen eine Straße höchstens zwei Felder entfernt, die mit der Autobahn verbunden ist.</li>
-    <li>Strom und Wasser fließen durch das Straßennetz. Ein getrenntes Straßennetz braucht eigene Kraftwerke.</li>
-    <li>Gebäude steigen auf, wenn Bodenwert, Bildung und Glück stimmen. Höhere Stufen werden mit Meilensteinen frei.</li>
-    <li>Die Nachfrage-Balken (W G I B) zeigen, was die Stadt gerade braucht.</li>
-    <li>Jeden Montag wählst du eine von drei Wochenkarten. Gelegentlich musst du über Ereignisse entscheiden.</li>
-  </ul>
-</div>`;
-  }
-
   panelClick(e) {
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    const g = this.g, act = b.dataset.act;
+    const act = b.dataset.act;
     this.app.audio.play('click');
-    const res = (r) => { if (r && r.ok === false && r.msg) this.toast(r.msg, 'bad'); };
-    const ext = PANELS.find((p) => p.id === this.panel);
-    if (ext && act !== 'close') {
-      if (ext.click) ext.click(this, act, b);
-      this.renderPanel();
-      this.refreshHUD();
-      return;
-    }
-    switch (act) {
-      case 'close': this.closePanels(); return;
-      case 'loan': if (g.takeLoan(+b.dataset.i)) { this.toast('Kredit aufgenommen.', 'good'); this.app.audio.play('money'); } break;
-      case 'repay': if (!g.repayLoan(+b.dataset.i)) this.toast('Nicht genug Geld zum Ablösen.', 'bad'); break;
-      case 'chart': this.chartKey = b.dataset.k; break;
-      case 'policy': g.togglePolicy(b.dataset.id); break;
-      case 'newline': this.app.input.setTool({ kind: 'line' }); this.closePanels(); this.toast('Klicke nacheinander auf Stationen oder freie Felder. Rechtsklick beendet die Linie.'); return;
-      case 'station': this.app.input.setTool({ kind: 'place', key: 'station' }); this.closePanels(); return;
-      case 'train+': res(g.addTrain(+b.dataset.l)); break;
-      case 'train-': res(g.removeTrain(+b.dataset.l)); break;
-      case 'wagon+': res(g.addWagon(+b.dataset.l)); break;
-      case 'extend': this.app.input.setTool({ kind: 'extend', line: +b.dataset.l, atStart: b.dataset.start === '1' }); this.closePanels(); this.toast('Klicke auf Stationen oder freie Felder, um die Linie zu verlängern. Rechtsklick beendet.'); return;
-      case 'delline': if (this.confirmDel === +b.dataset.l) { g.removeLine(+b.dataset.l); this.confirmDel = null; } else { this.confirmDel = +b.dataset.l; setTimeout(() => { this.confirmDel = null; }, 4000); } break;
-      case 'save': this.app.save(+b.dataset.k); this.toast(`Gespeichert in Platz ${b.dataset.k}.`, 'good'); break;
-      case 'load': this.app.loadSlot(+b.dataset.k); return;
-      case 'export': this.app.exportSave(); break;
-      case 'copy': this.app.copySave(); break;
-      case 'tomenu': this.app.toMenu(); return;
-      case 'mute': this.app.settings.muted = !this.app.settings.muted; this.app.audio.applyVolumes(); this.app.saveSettings(); break;
-      case 'alwaysDay': this.app.settings.alwaysDay = !this.app.settings.alwaysDay; this.app.saveSettings(); break;
-      case 'icons': this.app.engine.effects.showIcons = !this.app.engine.effects.showIcons; break;
-    }
-    this.renderPanel();
+    if (act === 'close') { this.closePanels(); return; }
+    const def = this.panelDef(this.panel);
+    if (!def) return;
+    let again = true;
+    if (def.click) { try { again = def.click(this, act, b) !== false; } catch (err) { console.error(err); } }
+    if (again && this.panel) { this._panelBody = null; this.renderPanel(); }
     this.refreshHUD();
   }
-  panelInput(e) {
-    const t = e.target;
-    if (t.dataset.tax) {
-      this.g.setTax(+t.dataset.tax, +t.value);
-      t.nextElementSibling.textContent = `${t.value} %`;
-    } else if (t.dataset.set && t.type === 'range') {
-      this.app.settings[t.dataset.set] = +t.value;
-      t.nextElementSibling.textContent = Math.round(t.value * 100);
-      this.app.audio.applyVolumes();
-    }
-  }
-  panelChange(e) {
-    const t = e.target;
-    if (t.dataset.tax) this.renderPanel();
-    else if (t.dataset.set) {
-      if (t.dataset.set === 'quality') { this.app.settings.quality = t.value; this.toast('Gilt ab der nächsten geladenen Stadt.'); }
-      this.app.saveSettings();
-    }
+  panelEvent(e, kind) {
+    const def = this.panelDef(this.panel);
+    if (def && def[kind]) { try { def[kind](this, e.target, e); } catch (err) { console.error(err); } }
   }
 
   // ---------- Inspektor
   inspect(sel) {
     if (!sel) { this.closeInspector(); return; }
+    const fresh = !this.sel || this.sel.type !== sel.type || this.sel.id !== sel.id || this.sel.i !== sel.i;
     this.sel = sel;
+    if (this.mobile()) { this.closeTray(); if (this.panel) this.closePanels(); this.sel = sel; }
+    this._inspHead = null;
     this.renderInspector();
+    if (fresh) { this.el.insp.classList.remove('enter'); void this.el.insp.offsetWidth; this.el.insp.classList.add('enter'); }
   }
   selectedBox() {
     const s = this.sel, g = this.g;
@@ -713,6 +750,7 @@ ${linesHtml || '<p style="color:var(--ink-2);line-height:1.5">Noch keine Linie. 
       const st = g.transit.stations.get(s.id);
       return st ? { x: st.x, y: st.y, w: 1, h: 1, station: true } : null;
     }
+    if (s.type === 'road' || s.type === 'tile') return { x: s.i % g.W, y: Math.floor(s.i / g.W), w: 1, h: 1, flat: true };
     return null;
   }
   closeInspector() {
@@ -720,144 +758,89 @@ ${linesHtml || '<p style="color:var(--ink-2);line-height:1.5">Noch keine Linie. 
     this.el.insp.hidden = true;
     this.app.engine.overlay.select(null);
   }
-
   renderInspector() {
-    const s = this.sel, g = this.g;
-    if (!s) return;
-    let html = '';
-    if (s.type === 'building') {
-      const b = g.buildings.get(s.id);
-      if (!b) { this.closeInspector(); return; }
-      html = b.zone ? this.inspZone(b) : this.inspService(b);
-    } else if (s.type === 'station') {
-      const st = g.transit.stations.get(s.id);
-      if (!st) { this.closeInspector(); return; }
-      html = this.inspStation(st);
-    } else if (s.type === 'road') {
-      const i = s.i, r = g.road[i];
-      if (!r) { this.closeInspector(); return; }
-      const d = ROADS[r];
-      const cong = g.congestion[i];
-      html = `<div class="stripe" style="background:#5d6470"></div><header><div class="grow"><h2>${d.name}</h2><div class="sub">${g.world.terrain[i] === T.WATER ? 'Brücke · ' : ''}Feld ${i % g.W}, ${Math.floor(i / g.W)}</div></div><button class="close" data-act="close">${icon('close', 16)}</button></header>
-<div class="body"><div class="kv"><span>Verkehr pro Stunde</span><span class="v">${fmt(g.trafficLoad[i])}</span><span>Kapazität</span><span class="v">${fmt(d.capacity)}</span><span>Auslastung</span><span class="v ${cong > 0.9 ? 'neg' : ''}">${Math.round(cong * 100)} %</span></div>
-<p style="font-size:12.5px;color:var(--ink-2);line-height:1.45;margin:8px 0 0">${esc(d.desc)}</p></div>`;
-    } else if (s.type === 'tile') {
-      const i = s.i;
-      const ter = ['Wiese', 'Wasser', 'Strand', 'Fels'][g.world.terrain[i]];
-      const res = g.world.resource[i] === RES.FERTILE ? 'fruchtbarer Boden' : g.world.resource[i] === RES.ORE ? 'Erzvorkommen' : '';
-      html = `<div class="stripe" style="background:#9bc887"></div><header><div class="grow"><h2>${ter}${res ? ' · ' + res : ''}</h2><div class="sub">Feld ${i % g.W}, ${Math.floor(i / g.W)}${g.zone[i] ? ' · Zone ' + ZONE_INFO[g.zone[i]].name : ''}</div></div><button class="close" data-act="close">${icon('close', 16)}</button></header>
-<div class="body"><div class="kv"><span>Bodenwert</span><span class="v">${Math.round(g.fields.landValue[i])}</span><span>Verschmutzung</span><span class="v">${Math.round(g.fields.pollution[i] * 100)} %</span><span>Lärm</span><span class="v">${Math.round(g.fields.noise[i] * 100)} %</span>${g.world.trees[i] ? '<span>Wald</span><span class="v">ja</span>' : ''}</div>
-${g.zone[i] && !g.bld[i] ? `<p style="font-size:12.5px;color:var(--ink-2);margin:8px 0 0">${g.access[i] < 0 ? 'Keine Straße in Reichweite (max. 2 Felder).' : g.roadComp[g.access[i]] !== g.outsideComp ? 'Die Straße ist nicht mit der Autobahn verbunden.' : g.demand[g.zone[i]] <= 4 ? 'Wartet auf Nachfrage.' : 'Bereit zum Bebauen.'}</p>` : ''}</div>`;
-    }
-    for (const fn of INSPECTORS) {
-      try { const extra = fn(this, s); if (extra) html = html.replace(/<\/div>\s*$/, extra + '</div>'); } catch (e) { console.error(e); }
-    }
-    this.el.insp.innerHTML = html;
+    if (!this.sel) return;
+    const html = inspectorHTML(this);
+    if (html === null) { this.closeInspector(); return; }
+    const k = html.indexOf('<div class="body">');
+    const headH = k >= 0 ? html.slice(0, k) : html;
+    const bodyH = k >= 0 ? html.slice(k + 18, html.lastIndexOf('</div>')) : '';
+    const body = this.el.insp.querySelector('.body');
+    if (this._inspHead === headH && body) { if (this._inspBody !== bodyH) body.innerHTML = bodyH; }
+    else { this.el.insp.innerHTML = html; }
+    this._inspHead = headH; this._inspBody = bodyH;
     this.el.insp.hidden = false;
-    this.app.engine.overlay.select(this.selectedBox());
+    const box = this.selectedBox();
+    this.app.engine.overlay.select(box && !box.flat ? box : null);
   }
 
-  inspZone(b) {
-    const g = this.g, i = b.y * g.W + b.x;
-    const col = hex(ZONE_INFO[b.zone].color);
-    let title = ZONE_LEVEL_NAMES[b.zone][b.level];
-    if (b.spec === 'farm') title = 'Bauernhof'; else if (b.spec === 'mine') title = 'Bergwerk';
-    const factors = [];
-    const target = happinessFactors(g, b, factors);
-    factors.sort((a, c) => Math.abs(c[1]) - Math.abs(a[1]));
-    const chip = (ok, txt) => `<span class="chip ${ok ? 'ok' : 'no'}">${txt}</span>`;
-    const L = LEVELS[b.zone];
-    const ml = g.maxLevelAt(b.x, b.y);
-    let next = '';
-    if (b.abandoned) next = '<span class="chip no">Verlassen – wird bald abgerissen</span>';
-    else if (b.construct < 1) next = `<span class="chip warn">Im Bau · ${Math.round(b.construct * 100)} %</span>`;
-    else if (b.level >= 5) next = 'Höchste Stufe erreicht.';
-    else if (b.level >= ml) next = g.trackCount[i] > 0 && ml === TRANSIT.maxLevelUnderTrack ? 'Unter der Hochbahn ist keine höhere Stufe möglich.' : g.policies.has('lowrise') && ml === 3 ? 'Hochhausverbot begrenzt die Höhe.' : `Höhere Stufen ab Meilenstein „${MILESTONES[[0, 0, 2, 3, 4, 4][b.level + 1] ?? 4].name}".`;
-    else {
-      const need = L.need[b.level + 1];
-      const score = b.zone === Z.IND ? null : g.fields.landValue[i];
-      const parts = [];
-      if (score !== null) parts.push(`Bodenwert ${Math.round(score)} / ${need}`);
-      else parts.push(`Infrastruktur ${need}+ (Dienste, Müll)`);
-      if (L.edu[b.level + 1] > 0) parts.push(`Bildung ${Math.round((b.zone === Z.RES ? b.edu : g.stats.edu) * 100)} / ${Math.round(L.edu[b.level + 1] * 100)} %`);
-      if (b.happy < 45) parts.push(`Glück ${Math.round(b.happy)} / 45`);
-      next = `Für Stufe ${b.level + 1}: ${parts.join(' · ')}`;
-    }
-    const occLabel = b.zone === Z.RES ? 'Bewohner' : 'Beschäftigte';
-    return `<div class="stripe" style="background:${col}"></div>
-<header><div class="grow"><h2>${title}</h2><div class="sub">${ZONE_INFO[b.zone].name} · Stufe ${b.level} · Feld ${b.x}, ${b.y}</div></div><button class="close" data-act="close">${icon('close', 16)}</button></header>
-<div class="body">
-  <div class="chips">${chip(b.connected, 'Straße')}${chip(b.powered, 'Strom')}${chip(b.watered, 'Wasser')}${chip(g.cov.garbage[i] > 0.3, 'Müllabfuhr')}${b.burning ? '<span class="chip no">Brennt!</span>' : ''}${g.cov.transit[i] > 0 ? '<span class="chip ok">Pulsbahn</span>' : ''}</div>
-  <div class="kv"><span>${occLabel}</span><span class="v">${fmt(b.occ)} / ${fmt(b.cap)}</span>
-  <span>Glück</span><span class="v ${b.happy < 40 ? 'neg' : ''}">${Math.round(b.happy)} % → ${Math.round(target)} %</span>
-  <span>Bodenwert</span><span class="v">${Math.round(g.fields.landValue[i])}</span>
-  ${b.zone === Z.RES ? `<span>Bildung</span><span class="v">${Math.round(b.edu * 100)} %</span><span>Pendelzeit</span><span class="v">${Math.round(b.commute)} Min.</span>` : ''}
-  </div>
-  <div class="sec" style="margin:12px 0 8px"><h3>Was das Glück beeinflusst</h3><div class="factors">${factors.slice(0, 9).map(([l, v]) => `<span>${esc(l)}</span><span class="v ${v < 0 ? 'neg' : 'pos'}">${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(0)}</span>`).join('') || '<span>Alles im Lot.</span><span></span>'}</div></div>
-  <p style="font-size:12.5px;color:var(--ink-2);line-height:1.45;margin:6px 0 10px">${next}</p>
-  <button class="btn small ghost" data-act="demolish" style="color:var(--bad)">Abreißen</button>
-</div>`;
+  // ---------- Minikarte, Übersicht (Handy), Oberfläche ausblenden
+  toggleMinimap(v, silent = false) {
+    if (v === undefined) v = this.el.mini.hidden;
+    this.minimap.setVisible(v);
+    this.el.mmopen.hidden = v || this.mobile();
+    this.root.classList.toggle('mm-off', !v);
+    if (!silent) { this.app.settings.minimap = v; this.app.saveSettings(); }
+  }
+  toggleHud(v) {
+    this.hudHidden = v === undefined ? !this.hudHidden : v;
+    this.root.classList.toggle('hud-hidden', this.hudHidden);
+    if (this.hudHidden) this.toast('Oberfläche ausgeblendet · U zeigt sie wieder');
+  }
+  toggleSheet() { if (this.el.sheet.hidden) this.openSheet(); else this.closeSheet(); }
+  openSheet() { this.renderSheet(); this.el.sheet.hidden = false; this.el.sheet.classList.remove('enter'); void this.el.sheet.offsetWidth; this.el.sheet.classList.add('enter'); }
+  closeSheet() { if (this.el.sheet) this.el.sheet.hidden = true; }
+  renderSheet() {
+    const panels = dockPanels(CORE_PANELS);
+    const views = viewList();
+    this.el.sheet.innerHTML = `<div class="sh-card"><div class="sh-grab"></div>
+<div class="sh-head"><b>Übersicht</b><button class="close" data-sh="close" aria-label="Schließen">${icon('close', 18)}</button></div>
+<h3>Fenster</h3><div class="sh-grid">${panels.map(({ p, m }) => `<button data-sh="panel" data-v="${p.id}" style="--pc:${m.color}" class="${this.panel === p.id ? 'on' : ''}">${iconAny(p.icon, 'layers', 22)}<span>${esc(p.title)}</span></button>`).join('')}
+<button data-sh="photo">${icon('camera', 22)}<span>Fotomodus</span></button><button data-sh="keys">${icon('keyboard', 22)}<span>Tasten</span></button><button data-sh="mini">${icon('minimap', 22)}<span>Minikarte</span></button></div>
+<h3>Infoansichten</h3><div class="sh-grid views">${views.map((o) => `<button data-sh="view" data-v="${o.id}" class="${this.view === o.id ? 'on' : ''}">${iconAny(o.icon, 'layers', 20)}<span>${esc(o.id === 'none' ? 'Normal' : o.name)}</span></button>`).join('')}</div></div>`;
+  }
+  sheetClick(e) {
+    const b = e.target.closest('[data-sh]');
+    if (!b) { if (e.target === this.el.sheet) this.closeSheet(); return; }
+    this.app.audio.play('click');
+    const a = b.dataset.sh, v = b.dataset.v;
+    if (a === 'close') this.closeSheet();
+    else if (a === 'panel') { this.closeSheet(); this.openPanel(v); }
+    else if (a === 'view') { this.setView(v); this.closeSheet(); }
+    else if (a === 'photo') { this.closeSheet(); this.photo.enter(); }
+    else if (a === 'keys') { this.closeSheet(); this.showKeys(); }
+    else if (a === 'mini') { this.closeSheet(); this.toggleMinimap(); }
   }
 
-  inspService(b) {
-    const g = this.g, d = BUILDINGS[b.key];
-    const facts = [];
-    if (d.power) facts.push(['Stromerzeugung', `${fmt(d.power * g.mods.power)} MW`]);
-    if (d.water) facts.push(['Wasserförderung', `${fmt(d.water * g.mods.water)} m³${b.powered ? '' : ' (ohne Strom: 0)'}`]);
-    if (d.service) facts.push(['Reichweite', `${d.service.radius} Felder`], ['Auslastung', `${Math.round((b.load || 0) * 100)} %`]);
-    if (d.tourism) facts.push(['Touristen', `${d.tourism} / Tag`]);
-    if (d.park) facts.push(['Erholung', `Radius ${d.parkRadius}`]);
-    facts.push(['Unterhalt', `${fmtMoney(d.upkeep * g.upkeepMul())} / Tag`]);
-    const col = CAT_COLOR[d.cat] || '#999';
-    return `<div class="stripe" style="background:${col}"></div>
-<header><div class="grow"><h2>${esc(d.name)}</h2><div class="sub">Feld ${b.x}, ${b.y}</div></div><button class="close" data-act="close">${icon('close', 16)}</button></header>
-<div class="body">
-  <div class="chips"><span class="chip ${b.connected || b.comp >= 0 ? 'ok' : 'no'}">Straße</span><span class="chip ${b.powered ? 'ok' : d.power ? 'ok' : 'no'}">${d.power ? 'Kraftwerk' : 'Strom'}</span>${b.construct < 1 ? `<span class="chip warn">Im Bau · ${Math.round(b.construct * 100)} %</span>` : ''}</div>
-  <div class="kv">${facts.map(([k, v]) => `<span>${k}</span><span class="v">${v}</span>`).join('')}</div>
-  <p style="font-size:12.5px;color:var(--ink-2);line-height:1.45;margin:8px 0 10px">${esc(d.desc)}</p>
-  <button class="btn small ghost" data-act="demolish" style="color:var(--bad)">Abreißen (+${fmtMoney(d.cost * g.costMul * 0.4)})</button>
-</div>`;
-  }
-
-  inspStation(st) {
-    const g = this.g, tr = g.transit;
-    const lines = tr.lines.filter((l) => l.stops.includes(st.id));
-    const byShape = [0, 0, 0, 0, 0];
-    for (const p of st.waiting) byShape[p.shape]++;
-    const sym = ['', '●', '▲', '■', '◆'];
-    const over = st.over > 0.02 ? `<span class="chip no">Überfüllt · ${Math.round(st.over * 100)} %</span>` : '';
-    return `<div class="stripe" style="background:${lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999'}"></div>
-<header><div class="grow"><h2>${esc(st.name)}</h2><div class="sub">Pulsbahn-Station · Feld ${st.x}, ${st.y}</div></div><button class="close" data-act="close">${icon('close', 16)}</button></header>
-<div class="body">
-  <div class="chips">${lines.map((l) => `<span class="chip" style="background:${hex(LINE_COLORS[l.color])};color:#fff">Linie ${LINE_COLOR_NAMES[l.color]}</span>`).join('') || '<span class="chip no">Keine Linie</span>'}${over}</div>
-  <div class="kv"><span>Wartende Fahrgäste</span><span class="v ${st.waiting.length > TRANSIT.stationCapacity ? 'neg' : ''}">${st.waiting.length} / ${TRANSIT.stationCapacity}</span>
-  <span>Ziele</span><span class="v">${[1, 2, 3, 4].map((z) => `${sym[z]} ${byShape[z]}`).join('  ')}</span>
-  <span>Einzugsgebiet</span><span class="v">${fmt(st.w[1])} Bew. · ${fmt(st.w[2] + st.w[3] + st.w[4])} Jobs</span>
-  <span>Fahrgäste angekommen</span><span class="v">${fmt(st.served)}</span></div>
-  <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"><button class="btn small" data-act="linefrom">Linie von hier</button><button class="btn small ghost" data-act="demolish" style="color:var(--bad)">Abreißen</button></div>
-</div>`;
-  }
-
-  inspClick(e) {
-    const b = e.target.closest('[data-act]');
-    if (!b) return;
-    const g = this.g, s = this.sel;
-    const act = b.dataset.act;
-    if (act === 'close') { this.closeInspector(); return; }
-    if (act === 'demolish' && s) {
-      let tiles = [];
-      if (s.type === 'building') { const bd = g.buildings.get(s.id); if (bd) for (let y = bd.y; y < bd.y + bd.h; y++) for (let x = bd.x; x < bd.x + bd.w; x++) tiles.push(y * g.W + x); }
-      else if (s.type === 'station') { const st = g.transit.stations.get(s.id); if (st) { g.transit.removeStation(st.id); g.afterTransitChange(); this.closeInspector(); this.app.audio.play('demolish'); return; } }
-      const r = g.bulldoze(tiles);
-      if (r.ok) this.app.audio.play('demolish');
-      this.closeInspector();
-      return;
-    }
-    if (act === 'linefrom' && s && s.type === 'station') {
-      this.app.input.setTool({ kind: 'line' });
-      this.app.input.lineStops = [s.id];
-      this.closeInspector();
-    }
+  // ---------- Tastatur
+  key(e) {
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (this.photo.active) { if (this.photo.key(e)) { e.preventDefault(); e.stopImmediatePropagation(); } return; }
+    if (this.modalOpen()) { if (e.code === 'Escape' && this.modalRoot.querySelector('.keysheet')) this.closeTopModal(); return; }
+    const k = (e.key || '').toLowerCase();
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (e.code === 'Space') { e.preventDefault(); this.setSpeed(this.g.speed === 0 ? (this.lastSpeed || 1) : 0); }
+    else if (e.code === 'Digit1' || e.code === 'Numpad1') this.setSpeed(1);
+    else if (e.code === 'Digit2' || e.code === 'Numpad2') this.setSpeed(2);
+    else if (e.code === 'Digit3' || e.code === 'Numpad3') this.setSpeed(3);
+    else if (ctrl && e.code === 'KeyS') { e.preventDefault(); this.app.save(1); this.toast('Gespeichert in Platz 1.', 'good'); }
+    else if (ctrl) return;
+    else if (e.key === '?' || e.code === 'F1') { e.preventDefault(); this.showKeys(); }
+    else if (k === 'm') { this.app.settings.muted = !this.app.settings.muted; this.app.audio.applyVolumes(); this.app.saveSettings(); this.toast(this.app.settings.muted ? 'Ton aus' : 'Ton an'); }
+    else if (k === 'i') { this.app.engine.effects.showIcons = !this.app.engine.effects.showIcons; this.toast(this.app.engine.effects.showIcons ? 'Problem-Symbole an' : 'Problem-Symbole aus'); }
+    else if (k === 'p') this.photo.enter();
+    else if (k === 'u') this.toggleHud();
+    else if (k === 'n') this.togglePanel('notes');
+    else if (k === 'h') this.togglePanel('advisor');
+    else if (k === 'k') this.toggleMinimap();
+    else if (k === 'v') this.setView('none');
+    else if (k === 'f') { e.preventDefault(); this.openSearch(); }
+    else if (k === 'g') { if (this.cat === 'roads') this.closeTray(); else this.openTray('roads'); }
+    else if (k === 'z') { if (this.cat === 'zones') this.closeTray(); else this.openTray('zones'); }
+    else if (k === 'l') { if (this.g.isUnlocked('transit')) this.app.input.setTool({ kind: 'line' }); else this.toast(this.g.lockReason('station') || 'Noch nicht freigeschaltet.', 'bad'); }
+    else if (e.code === 'Escape' && this.hudHidden) this.toggleHud(false);
+    else if (e.code === 'Escape' && !this.el.sheet.hidden) this.closeSheet();
   }
 
   // ---------- Modale
@@ -871,26 +854,35 @@ ${g.zone[i] && !g.bld[i] ? `<p style="font-size:12.5px;color:var(--ink-2);margin
     if (fn) fn();
   }
   openModal(html, onClick) {
+    hideTip();
     const wrap = document.createElement('div');
-    wrap.className = 'backdrop';
+    wrap.className = 'backdrop enter';
     wrap.innerHTML = html;
     this.modalRoot.appendChild(wrap);
-    wrap.addEventListener('click', (e) => onClick(e, () => { wrap.remove(); this.nextModal(); }));
+    const close = () => { wrap.classList.add('out'); setTimeout(() => { wrap.remove(); this.nextModal(); }, 180); };
+    wrap.addEventListener('click', (e) => onClick(e, close));
+    wrap._close = close;
     return wrap;
+  }
+  closeTopModal() { const w = this.modalRoot.lastElementChild; if (w && w._close) w._close(); }
+  showKeys() {
+    if (this.modalRoot.querySelector('.keysheet')) return;
+    this.openModal(keysHTML(), (e, close) => { if (e.target.closest('[data-act=ok]') || e.target.classList.contains('backdrop')) close(); });
   }
 
   showMilestone(i) {
     const m = MILESTONES[i];
     this.app.audio.play('milestone');
     const unlocks = [];
-    for (const [k, d] of Object.entries(BUILDINGS)) if (!d.landmark && d.unlock === i) unlocks.push(d.name);
-    if (i === 2) unlocks.unshift('Büro-Zone', 'Alleen', 'Pulsbahn (2 Linien)', 'Kredite');
-    if (i >= 3 && i <= 5) unlocks.push('+1 Pulsbahn-Linie');
+    for (const [, d] of Object.entries(BUILDINGS)) if (!d.landmark && d.unlock === i) unlocks.push([catMeta(d.cat).icon, d.name, catMeta(d.cat).color]);
+    if (i === 2) unlocks.unshift(['zones', 'Büro-Zone', '#9466d2'], ['roads', 'Alleen', '#5d6470'], ['transit', 'Pulsbahn (2 Linien)', '#e8543f'], ['budget', 'Kredite', '#c98a0c']);
+    if (i >= 3 && i <= 5) unlocks.push(['line', '+1 Pulsbahn-Linie', '#e8543f']);
     const lvl = [0, 0, 3, 4, 5][i];
-    if (lvl) unlocks.push(`Gebäude bis Stufe ${lvl}`);
-    for (const [k, d] of Object.entries(BUILDINGS)) if (d.landmark && d.unlock + 1 === i) unlocks.push(`Wahrzeichen: ${d.name}`);
+    if (lvl) unlocks.push(['house', `Gebäude bis Stufe ${lvl}`, '#4fae67']);
+    for (const [, d] of Object.entries(BUILDINGS)) if (d.landmark && d.unlock + 1 === i) unlocks.push(['landmarks', `Wahrzeichen: ${d.name}`, '#c06a2b']);
     this.refreshTutorial();
-    this.openModal(`<div class="modal milestone"><div class="eyebrow">Meilenstein erreicht</div><div class="big">${m.name}</div><p>${fmt(m.pop)} Menschen nennen ${esc(this.g.name)} jetzt ihr Zuhause.${m.reward && !this.g.sandbox ? ` Das Land gratuliert mit <b>${fmtMoney(m.reward)}</b>.` : ''}</p>${unlocks.length ? `<ul>${unlocks.map((u) => `<li>${esc(u)}</li>`).join('')}</ul>` : ''}<div class="acts" style="justify-content:center"><button class="btn" data-act="ok">Weiter bauen</button></div></div>`, (e, close) => { if (e.target.closest('[data-act=ok]')) close(); });
+    const prevName = MILESTONES[i - 1] ? MILESTONES[i - 1].name : '';
+    this.openModal(`<div class="modal milestone"><div class="ms-line">${MILESTONES.map((x, k) => `<i class="${k < i ? 'past' : k === i ? 'now' : ''}" data-tip="${esc(x.name)}"></i>`).join('')}</div><div class="eyebrow">Meilenstein erreicht${prevName ? ' · nach ' + esc(prevName) : ''}</div><div class="big">${esc(m.name)}</div><p>${fmt(m.pop)} Menschen nennen ${esc(this.g.name)} jetzt ihr Zuhause.${m.reward && !this.g.sandbox ? ` Das Land gratuliert mit <b>${fmtMoney(m.reward)}</b>.` : ''}</p>${unlocks.length ? `<div class="unlocks"><div class="eyebrow">Neu freigeschaltet</div><div class="ul">${unlocks.map(([ic, n, c]) => `<span style="--c:${c}">${icon(ic, 15, 2.2)}${esc(n)}</span>`).join('')}</div></div>` : ''}<div class="acts" style="justify-content:center"><button class="btn big" data-act="ok">Weiter bauen</button></div></div>`, (e, close) => { if (e.target.closest('[data-act=ok]')) close(); });
   }
 
   showCards(ids) {
@@ -898,7 +890,7 @@ ${g.zone[i] && !g.bld[i] ? `<p style="font-size:12.5px;color:var(--ink-2);margin
     this.app.audio.play('card');
     const cards = ids.map((id) => cardById(g, id)).filter(Boolean);
     const html = `<div class="cards-wrap"><div class="head"><div class="eyebrow" style="color:#c9cdd8">Woche ${g.week()}</div><h2>Wähle deine Wochenkarte</h2><p>Eine von drei – die anderen verfallen.</p></div>
-<div class="cards">${cards.map((c, k) => `<button class="ticket" data-card="${c.id}"><div class="band" style="background:${c.color}"><span class="tag">${esc(c.tag)}</span><span class="no">Nr. ${String(g.week()).padStart(3, '0')}-${k + 1}</span></div><div class="perf"></div><div class="bd"><div class="nm">${esc(c.name)}</div><div class="ds">${esc(c.text(g))}</div><div class="go">Diese nehmen →</div></div><span class="stamp" style="color:${c.color}">STADT<br>PULS</span></button>`).join('')}</div></div>`;
+<div class="cards">${cards.map((c, k) => `<button class="ticket" data-card="${esc(c.id)}" style="--d:${k * 70}ms"><div class="band" style="background:${c.color}"><span class="tag">${esc(c.tag)}</span><span class="no">Nr. ${String(g.week()).padStart(3, '0')}-${k + 1}</span></div><div class="perf"></div><div class="bd"><div class="nm">${esc(c.name)}</div><div class="ds">${esc(c.text(g))}</div><div class="go">Diese nehmen ${icon('arrowR', 15, 2.4)}</div></div><span class="stamp" style="color:${c.color}">STADT<br>PULS</span></button>`).join('')}</div></div>`;
     this.openModal(html, (e, close) => {
       const t = e.target.closest('[data-card]');
       if (!t) return;
@@ -939,23 +931,66 @@ ${g.zone[i] && !g.bld[i] ? `<p style="font-size:12.5px;color:var(--ink-2);margin
     });
   }
 
-  // ---------- pro Frame
+  // ---------- Neustart der Ansicht (Grafik-Einstellungen) und Laden mit Ladebildschirm
+  withLoader(title, fn) {
+    showLoader(title, 'Einen Moment …');
+    painted().then(() => { try { fn(); } catch (e) { console.error(e); hideLoader(); } });
+  }
+  restartView() {
+    const app = this.app, g = this.g, rig = app.engine.rig;
+    if (this.photo.active) this.photo.exit();
+    restore = { goal: { ...rig.goal }, panel: this.panel, view: this.view, setTab: this.setTab, speed: g.speed };
+    const data = g.serialize();
+    this.withLoader('Ansicht wird neu gestartet', () => app.loadData(data));
+  }
+  applyRestore() {
+    const r = restore;
+    restore = null;
+    this._muteToast = true;
+    setTimeout(() => { this._muteToast = false; }, 100);
+    const rig = this.app.engine.rig;
+    Object.assign(rig.goal, r.goal);
+    rig.cur = { ...rig.goal };
+    this.g.speed = r.speed;
+    this.refreshSpeed();
+    this.setTab = r.setTab || 'grafik';
+    requestAnimationFrame(() => {
+      if (r.view && r.view !== 'none') this.setView(r.view);
+      if (r.panel) this.openPanel(r.panel);
+      this.toast('Grafik-Einstellungen übernommen.', 'good');
+    });
+  }
+
+  // ---------- pro Bild
   update(dt) {
+    this.frames++;
+    // Langsame Geräte (und der Software-Renderer der Prüfwerkzeuge): Übergänge abschalten, damit nichts hinterherhängt
+    this.dtAvg = this.dtAvg === undefined ? dt : this.dtAvg * 0.85 + dt * 0.15;
+    const slow = this.dtAvg > 0.07 || dt >= 0.1;
+    if (slow !== this.slowFx && (slow || this.dtAvg < 0.045)) { this.slowFx = slow; document.documentElement.classList.toggle('lowfps', slow); }
+    if (this.frames === 1 && loaderVisible()) { setLoader(1, 'Fertig'); hideLoader(dt >= 0.09); }
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = 0.25;
-      this.refreshHUD();
+      if (!this.hudHidden && !this.photo.active) this.refreshHUD();
       if (this.sel && !this.el.insp.hidden) this.renderInspector();
+      if (this.app.input && this.app.input.tool.kind === 'line') this.renderToolHint();
     }
     this.panelTimer -= dt;
     if (this.panelTimer <= 0) {
       this.panelTimer = 1.2;
-      if (this.panel && !this.panelBusy && this.panel !== 'settings' && this.panel !== 'budget') this.renderPanel();
-      else if (this.panel === 'budget' && !this.panelBusy && !this.el.panel.matches(':hover')) this.renderPanel();
+      const p = this.panel;
+      if (p && !this.panelBusy && p !== 'settings' && !(p === 'budget' && this.el.panel.matches(':hover'))) {
+        const def = this.panelDef(p);
+        if (def && def.live !== false) this.renderPanel();
+      }
       this.refreshTutorial();
     }
+    this.advisor.update(dt);
+    this.photo.update(dt);
+    if (this.minimap && !this.photo.active && !this.hudHidden) this.minimap.update(dt);
+    if (thumbsPending()) pumpThumbs(this.app.engine);
   }
 }
 
 export { esc, hex };
-void SPEEDS; void TAX_RATE; void EVENTS;

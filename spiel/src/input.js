@@ -1,4 +1,6 @@
 // Werkzeuge: Auswählen, Straßen ziehen, Zonen malen, Gebäude setzen, Abreißen, Pulsbahn-Linien zeichnen.
+// Registrierte Werkzeuge (TOOLS[kind]) dürfen zusätzlich name, icon, hint(input) → Text und cursor (CSS) angeben.
+// Im Fotomodus ruhen alle Werkzeuge. Auf Touch-Geräten setzt das Gebäude-Werkzeug erst beim zweiten Tippen.
 import { BUILDINGS, ROADS, ZONE_INFO, TRANSIT, T } from './config.js';
 import { fmtMoney } from './util.js';
 import { LINE_COLORS } from './sim/transit.js';
@@ -47,6 +49,10 @@ export class Input {
     const ov = this.e.overlay;
     ov.hideGhost(); ov.hideRadius(); ov.clearTiles(); ov.showLinePreview(null);
     ov.setZoneStrong(this.tool.kind === 'zone');
+    this.pendingPlace = null;
+    const k = this.tool.kind;
+    const reg = TOOLS[k];
+    this.e.canvas.style.cursor = reg && reg.cursor ? reg.cursor : k === 'select' ? '' : k === 'bulldoze' ? 'crosshair' : k === 'place' ? 'copy' : 'crosshair';
     this.ui.toolChanged(this.tool);
     this.ui.tooltip(null);
     if (this.lastMove) this.pointerMove(this.lastMove);
@@ -75,8 +81,10 @@ export class Input {
     }
   }
 
+  photoActive() { return !!(this.ui.photo && this.ui.photo.active); }
+
   pointerDown(e) {
-    if (this.e.rig.pinching) return;
+    if (this.e.rig.pinching || this.photoActive()) return;
     if (e.button === 2) {
       this.rightDown = { x: e.clientX, y: e.clientY };
       return;
@@ -98,6 +106,7 @@ export class Input {
   }
 
   pointerMove(e) {
+    if (this.photoActive()) return;
     if (this.touchPan && e.pointerId === this.touchPan.id) {
       const dx = e.clientX - this.touchPan.x, dy = e.clientY - this.touchPan.y;
       this.touchPan.x = e.clientX; this.touchPan.y = e.clientY;
@@ -123,6 +132,7 @@ export class Input {
   }
 
   pointerUp(e) {
+    if (this.photoActive()) return;
     if (e.button === 2) {
       const rd = this.rightDown;
       this.rightDown = null;
@@ -151,6 +161,11 @@ export class Input {
     }
     if (!t || t.i < 0) return;
     if (k === 'select') this.selectAt(t);
+    else if (k === 'place' && e.pointerType === 'touch') {
+      const pp = this.pendingPlace;
+      if (pp && pp.x === t.x && pp.y === t.y) { this.pendingPlace = null; this.placeAt(t); }
+      else { this.pendingPlace = { x: t.x, y: t.y }; this.hover = t; this.mouse = { x: e.clientX, y: e.clientY - 40 }; this.updateHover(); this.ui.tooltip(null); this.ui.toast('Nochmal tippen zum Bauen'); }
+    }
     else if (k === 'place') this.placeAt(t);
     else if (k === 'line' || k === 'extend') this.lineClick(t);
   }
@@ -216,13 +231,14 @@ export class Input {
 
   updateHover() {
     const t = this.hover, g = this.g, ov = this.e.overlay, k = this.tool.kind;
-    if (!t || t.i < 0) { ov.hideGhost(); ov.hideRadius(); this.ui.tooltip(null); if (k === 'select') ov.select(this.ui.selectedBox()); return; }
+    if (!t || t.i < 0) { ov.hideGhost(); ov.hideRadius(); this.ui.tooltip(null); if (k === 'select') { const sb = this.ui.selectedBox(); ov.select(sb && !sb.flat ? sb : null); } return; }
     if (k === 'select') {
       const b = g.buildings.get(g.bld[t.i]);
       const st = g.transit.stations.get(g.stationAt[t.i]);
       if (b) ov.select({ x: b.x, y: b.y, w: b.w, h: b.h, height: this.buildingHeight(b) });
       else if (st) ov.select({ x: st.x, y: st.y, w: 1, h: 1, station: true });
-      else ov.select(this.ui.selectedBox());
+      else { const sb = this.ui.selectedBox(); ov.select(sb && !sb.flat ? sb : null); }
+      this.e.canvas.style.cursor = b || st ? 'pointer' : '';
       this.ui.tooltip(null);
     } else if (k === 'place') {
       const key = this.tool.key;
@@ -270,6 +286,8 @@ export class Input {
   }
 
   buildingHeight(b) {
+    const bv = this.e.buildings;
+    if (bv && bv.heightOf) { const h = bv.heightOf(b); if (h) return h; }
     if (b.zone) {
       const base = [0, 0.7, 1.0, 1.4, 2.4, 5][b.level];
       return base;
