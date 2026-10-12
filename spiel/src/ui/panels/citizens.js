@@ -19,10 +19,10 @@ function ensureStyles() {
 .cz-tabs { display:flex; gap:4px; flex-wrap:wrap; margin:0 0 12px; }
 .cz-tabs button { padding:5px 10px; border-radius:999px; background:var(--paper-2); font-size:12.5px; font-weight:600; }
 .cz-tabs button.on { background:var(--ink); color:var(--paper); }
-.cz-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
-.cz-strip div { background:var(--paper-2); border-radius:10px; padding:7px 10px; }
-.cz-strip .k { font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:700; }
-.cz-strip .v { font-family:var(--f-num); font-size:21px; font-weight:600; line-height:1.1; }
+.cz-strip { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-bottom:12px; }
+.cz-strip div { background:var(--paper-2); border-radius:10px; padding:6px 9px; min-width:0; }
+.cz-strip .k { font-size:11px; color:var(--ink-3); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cz-strip .v { font-family:var(--f-num); font-size:20px; font-weight:600; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cz-strip .v small { font-size:12px; color:var(--ink-3); font-weight:600; margin-left:2px; }
 .cz-strip .v.neg { color:var(--bad); } .cz-strip .v.pos { color:var(--good); }
 .cz-canvas { width:100%; display:block; }

@@ -34,7 +34,7 @@ function ensureStyles() {
 .dt-card .pol span { font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; background:rgba(0,0,0,.06); color:var(--ink-2); }
 .dt-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:8px 0 12px; }
 .dt-grid div { background:var(--paper-2); border-radius:9px; padding:6px 8px; }
-.dt-grid .k { font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-3); font-weight:700; }
+.dt-grid .k { font-size:11px; color:var(--ink-3); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .dt-grid .v { font-family:var(--f-num); font-size:18px; font-weight:600; }
 .dt-grid .v.neg { color:var(--bad); }
 .dt-ages { display:flex; height:12px; border-radius:5px; overflow:hidden; background:var(--paper-3); margin:4px 0 2px; }
@@ -43,6 +43,13 @@ function ensureStyles() {
 .dt-tax .val { font-family:var(--f-num); font-weight:700; font-size:16px; text-align:right; }
 .dt-group { font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin:10px 0 0; }
 .dt-note { font-size:12.5px; color:var(--ink-2); line-height:1.45; margin:6px 0 0; }
+.dt-cmp { display:grid; grid-template-columns: minmax(0,1fr) auto auto auto auto; gap:3px 10px; font-size:12.5px; align-items:center; }
+.dt-cmp span { font-family:var(--f-num); font-weight:600; text-align:right; }
+.dt-cmp span.h { font-family:var(--f-ui); font-size:10.5px; color:var(--ink-3); font-weight:700; text-align:right; }
+.dt-cmp span.h:first-child { text-align:left; }
+.dt-cmp span.n { font-family:var(--f-ui); text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:6px; }
+.dt-cmp span.n i { width:9px; height:9px; border-radius:50%; flex:none; }
+.dt-cmp span.neg { color:var(--bad); }
 .dt-chip { display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; padding:3px 9px 3px 6px; border-radius:999px; background:var(--paper-2); }
 .dt-chip i { width:10px; height:10px; border-radius:50%; display:inline-block; }
 `;
@@ -104,6 +111,7 @@ function card(ui, d) {
   <div class="hd"><button class="sw" style="background:${css(d.color)}" data-act="color" data-id="${d.id}" title="Farbe wechseln"></button>
     <div style="flex:1;min-width:0"><div class="nm">${esc(d.name)}${active ? ' <span style="font-size:10.5px;color:var(--ink-3);font-weight:700">· AKTIV</span>' : ''}</div>
     <div class="sub">${fmt(s.residents || 0)} Einw. · ${fmt(s.jobs || 0)} Jobs · Glück ${Math.round(s.happiness || 0)} % · ${fmt(s.tiles || 0)} Felder</div></div></div>
+  ${(() => { const w = []; if (s.dead) w.push(`${fmt(s.dead)} Verstorbene warten`); if (s.unsewered) w.push(`${fmt(s.unsewered)} ohne Kanal`); if (s.abandoned) w.push(`${fmt(s.abandoned)} verlassen`); if ((s.sickShare || 0) > 0.1) w.push(`${pct(s.sickShare)} krank`); if ((s.crime || 0) > 0.4) w.push('hohe Kriminalität'); return w.length ? `<div class="pol">${w.map((x) => `<span style="background:#f6dcd8;color:#9e2b23">${x}</span>`).join('')}</div>` : ''; })()}
   ${pols.length || d.tax ? `<div class="pol">${d.tax ? `<span>Steuern ${d.tax > 0 ? '+' : '−'}${Math.abs(d.tax)} %</span>` : ''}${pols.map((p) => `<span>${esc(p.name)}</span>`).join('')}</div>` : ''}
   <div class="acts"><button class="btn small ${sel ? '' : 'ghost'}" data-act="sel" data-id="${d.id}">${sel ? 'Ausgewählt' : 'Details'}</button><button class="btn small ghost" data-act="paintin" data-id="${d.id}">Malen</button><button class="btn small ghost" data-act="show" data-id="${d.id}">Zeigen</button><button class="btn small ghost" data-act="rename" data-id="${d.id}">Umbenennen</button></div>
 </div>`;
@@ -164,7 +172,12 @@ registerPanel({
     for (const d of D.list) { const s = districtStats(g, d.id); if (s) { tot += s.residents; totTax += s.taxDelta; totCost += s.policyCost; } }
     const summary = D.list.length ? `<p class="dt-note" style="margin:0 0 10px">${D.list.length} von ${MAX_DISTRICTS} Bezirken · ${fmt(tot)} Einwohner in Bezirken · Steuerzuschläge ${totTax >= 0 ? '+' : '−'}${fmtMoney(Math.abs(totTax))}/Tag · Verordnungen ${fmtMoney(totCost)}/Tag</p>` : '';
     const sel = D.byId[view.sel];
-    return `${toolRow(ui)}${intro}${summary}${D.list.map((d) => card(ui, d)).join('')}${sel ? details(ui, sel) : ''}`;
+    let cmp = '';
+    if (D.list.length >= 2) {
+      const rows = [...D.list].map((d) => [d, districtStats(g, d.id) || {}]).sort((a, b) => (b[1].residents + b[1].jobs) - (a[1].residents + a[1].jobs));
+      cmp = `<div class="sec"><h3>Vergleich</h3><div class="dt-cmp"><span class="h">Bezirk</span><span class="h">Einw.</span><span class="h">Glück</span><span class="h">Boden</span><span class="h">Bildung</span>${rows.map(([d, x]) => `<span class="n"><i style="background:${css(d.color)}"></i>${esc(d.name)}</span><span>${fmt(x.residents || 0)}</span><span class="${(x.happiness || 0) < 40 ? 'neg' : ''}">${Math.round(x.happiness || 0)}</span><span>${Math.round(x.lv || 0)}</span><span>${pct(x.edu || 0)}</span>`).join('')}</div></div>`;
+    }
+    return `${toolRow(ui)}${intro}${summary}${D.list.map((d) => card(ui, d)).join('')}${cmp}${sel ? details(ui, sel) : ''}`;
   },
   click(ui, act, el) {
     const g = ui.g, D = districtsOf(g);

@@ -460,9 +460,33 @@ registerSystem({
     levelCaps(g);
     oldtownTourism(g);
   },
+  // Wochenbericht der Bezirke im Stadtfunk: wer wächst, wo brennt es?
+  weekly(g) {
+    const st = D(g);
+    if (!st.list.length) return;
+    const S = computeDistrictStats(g);
+    let grow = null, gv = 0, sad = null, sv = 101;
+    for (const d of st.list) {
+      const s = S[d.id];
+      if (!s) continue;
+      const before = d.popWeek ?? s.residents;
+      const delta = s.residents - before;
+      d.popWeek = s.residents;
+      if (delta > gv) { gv = delta; grow = d; }
+      if (s.residents + s.jobs > 40 && s.happiness < sv) { sv = s.happiness; sad = d; }
+    }
+    const parts = [];
+    if (grow && gv >= 10) parts.push(`${grow.name} wächst am stärksten (+${Math.round(gv).toLocaleString('de-DE')} Einwohner)`);
+    if (sad && sv < 45) {
+      const s = S[sad.id];
+      const why = s.dead ? `${s.dead} Verstorbene warten auf ihre Bestattung` : s.unsewered ? `${s.unsewered} Gebäude ohne Kanal` : s.crime > 0.35 ? 'die Kriminalität ist hoch' : s.pollution > 0.3 ? 'die Luft ist schlecht' : s.noise > 0.45 ? 'es ist zu laut' : 'die Stimmung ist gedrückt';
+      parts.push(`in ${sad.name} ist die Laune im Keller (${Math.round(sv)} %) – ${why}`);
+    }
+    if (parts.length) g.news('report', `Bezirke: ${parts.join(', ')}.`, sad && sv < 45 ? 'bad' : 'good');
+  },
   serialize(g) {
     const st = D(g);
-    return { map: typedToB64(st.map), list: st.list.map((d) => ({ id: d.id, name: d.name, color: d.color, policies: [...d.policies], tax: d.tax, auto: d.auto, named: d.named, created: d.created, hadTiles: !!d.hadTiles })) };
+    return { map: typedToB64(st.map), list: st.list.map((d) => ({ id: d.id, name: d.name, color: d.color, policies: [...d.policies], tax: d.tax, auto: d.auto, named: d.named, created: d.created, hadTiles: !!d.hadTiles, popWeek: d.popWeek })) };
   },
   load(g, data) {
     const st = D(g);

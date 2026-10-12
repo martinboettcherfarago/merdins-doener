@@ -66,35 +66,37 @@ function labelSpots(g, D) {
 function drawLabel(ctx, w, h, name, sub, color) {
   ctx.clearRect(0, 0, w, h);
   const css = '#' + color.toString(16).padStart(6, '0');
-  ctx.font = '700 46px "Barlow Condensed", "Barlow", "Arial Narrow", sans-serif';
   const label = name.toUpperCase();
-  const spacing = 3;
-  let tw = 0;
-  for (const ch of label) tw += ctx.measureText(ch).width + spacing;
-  tw -= spacing;
-  const pw = Math.min(w - 8, Math.max(tw + 78, 160));
-  const x0 = (w - pw) / 2, y0 = 8, ph = h - 16;
-  // Schild: dunkle Pille mit Farbkante
-  ctx.fillStyle = 'rgba(18,22,32,0.78)';
+  const spacing = 4;
+  // Schrift so wählen, dass der Name auf das Schild passt
+  let fs = 62;
+  const maxText = w - 130;
+  const measure = () => { let t = 0; for (const ch of label) t += ctx.measureText(ch).width + spacing; return t - spacing; };
+  ctx.font = `700 ${fs}px "Barlow Condensed", "Barlow", "Arial Narrow", sans-serif`;
+  let tw = measure();
+  if (tw > maxText) { fs = Math.max(30, Math.floor((fs * maxText) / tw)); ctx.font = `700 ${fs}px "Barlow Condensed", "Barlow", "Arial Narrow", sans-serif`; tw = measure(); }
+  const pw = Math.min(w - 8, Math.max(tw + 100, 220));
+  const x0 = (w - pw) / 2, y0 = 10, ph = h - 20;
+  // Schild: dunkle Pille mit Farbkante und weichem Schatten
   const r = ph / 2;
-  ctx.beginPath();
-  ctx.moveTo(x0 + r, y0); ctx.lineTo(x0 + pw - r, y0); ctx.arc(x0 + pw - r, y0 + r, r, -Math.PI / 2, Math.PI / 2); ctx.lineTo(x0 + r, y0 + ph); ctx.arc(x0 + r, y0 + r, r, Math.PI / 2, Math.PI * 1.5); ctx.closePath();
-  ctx.fill();
-  ctx.lineWidth = 5; ctx.strokeStyle = css; ctx.stroke();
+  const pill = () => { ctx.beginPath(); ctx.moveTo(x0 + r, y0); ctx.lineTo(x0 + pw - r, y0); ctx.arc(x0 + pw - r, y0 + r, r, -Math.PI / 2, Math.PI / 2); ctx.lineTo(x0 + r, y0 + ph); ctx.arc(x0 + r, y0 + r, r, Math.PI / 2, Math.PI * 1.5); ctx.closePath(); };
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+  ctx.fillStyle = 'rgba(20,24,34,0.86)'; pill(); ctx.fill(); ctx.restore();
+  ctx.lineWidth = 6; ctx.strokeStyle = css; pill(); ctx.stroke();
   // Farbpunkt
   ctx.fillStyle = css;
-  ctx.beginPath(); ctx.arc(x0 + 34, y0 + ph / 2 - (sub ? 9 : 0), 11, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x0 + 42, y0 + ph / 2 - (sub ? 12 : 0), 13, 0, Math.PI * 2); ctx.fill();
   // Name mit Sperrung
   ctx.fillStyle = '#f6f2ea';
   ctx.textBaseline = 'middle';
-  let x = x0 + 56 + Math.max(0, (pw - 78 - tw) / 2);
-  const ty = y0 + ph / 2 - (sub ? 11 : 0);
+  let x = x0 + 68 + Math.max(0, (pw - 100 - tw) / 2);
+  const ty = y0 + ph / 2 - (sub ? 15 : 0);
   for (const ch of label) { ctx.fillText(ch, x, ty); x += ctx.measureText(ch).width + spacing; }
   if (sub) {
-    ctx.font = '600 25px "Barlow", "Arial", sans-serif';
-    ctx.fillStyle = 'rgba(246,242,234,0.78)';
+    ctx.font = '600 31px "Barlow", "Arial", sans-serif';
+    ctx.fillStyle = 'rgba(246,242,234,0.8)';
     ctx.textAlign = 'center';
-    ctx.fillText(sub, w / 2 + 12, y0 + ph / 2 + 22);
+    ctx.fillText(sub, w / 2 + 14, y0 + ph / 2 + 27);
     ctx.textAlign = 'left';
   }
 }
@@ -138,7 +140,7 @@ class DistrictView {
       C.push(...ca, ...cb, ...cc, ...cd);
       I.push(v, v + 1, v + 2, v, v + 2, v + 3);
     };
-    const W1 = 0.07, W2 = 0.36;
+    const W1 = 0.09, W2 = 0.42;
     for (let i = 0; i < g.N; i++) {
       const id = map[i];
       if (!id) continue;
@@ -161,7 +163,7 @@ class DistrictView {
       for (const [on, A, B, n] of edges) {
         if (!on) continue;
         const in1 = (P, k) => [P[0] + n[0] * k, P[1], P[2] + n[2] * k];
-        const solid = [r, gg, b, 0.95], mid = [r, gg, b, 0.5], clear = [r, gg, b, 0];
+        const solid = [r, gg, b, 1], mid = [r, gg, b, 0.62], clear = [r, gg, b, 0];
         const white = [Math.min(1, r * 0.5 + 0.55), Math.min(1, gg * 0.5 + 0.55), Math.min(1, b * 0.5 + 0.55), 0.95];
         quad(bp, bc, bi, A, B, in1(B, W1), in1(A, W1), white, white, solid, solid);
         quad(bp, bc, bi, in1(A, W1), in1(B, W1), in1(B, W2), in1(A, W2), mid, mid, clear, clear);
@@ -189,7 +191,7 @@ class DistrictView {
       let L = this.labels.get(d.id);
       if (!L) {
         const canvas = document.createElement('canvas');
-        canvas.width = 512; canvas.height = 128;
+        canvas.width = 640; canvas.height = 160;
         const tex = new THREE.CanvasTexture(canvas);
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = 4;
@@ -244,7 +246,7 @@ class DistrictView {
     this.fade += ((active ? 1 : 0) - this.fade) * Math.min(1, dt * 6);
     this.fill.visible = this.fade > 0.02 && D.list.length > 0;
     this.fillMat.opacity = this.fade;
-    this.borderMat.opacity = 0.62 + 0.38 * this.fade;
+    this.borderMat.opacity = 0.8 + 0.2 * this.fade;
     this.border.visible = D.list.length > 0;
     this.labelTimer -= dt;
     if (this.labelTimer <= 0) { this.labelTimer = 2; this.updateLabelTexts(false); }
@@ -254,10 +256,11 @@ class DistrictView {
     for (const L of this.labels.values()) {
       if (!L.base) continue;
       const sp = L.sprite;
-      // Konstante Bildschirmgröße, große Bezirke etwas größere Schilder
+      // Konstante Bildschirmgröße (≈ 46 px hoch bei 720 px Bildhöhe), große Bezirke etwas größere Schilder
       const k = Math.hypot(cam.position.x - L.base.x, cam.position.y, cam.position.z - L.base.z);
-      const wsc = k * (0.085 + Math.min(0.03, L.size / 6000));
-      sp.scale.set(wsc, wsc / 4, 1);
+      const px = 46 * (1 + Math.min(0.25, L.size / 2500));
+      const hWorld = (px / Math.max(400, this.e.canvas.clientHeight || 720)) * 2 * k * Math.tan((cam.fov * Math.PI) / 360);
+      sp.scale.set(hWorld * 4, hWorld, 1);
       sp.position.set(L.base.x, 1.2 + Math.min(6, dist * 0.04), L.base.z);
       sp.material.opacity = show;
       sp.visible = show > 0.03;
