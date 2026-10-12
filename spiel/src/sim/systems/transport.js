@@ -352,7 +352,7 @@ function depotCapacity(g, mode) {
   let cap = 0;
   const comps = new Set();
   for (const b of g.buildings.values()) {
-    if (b.key !== key || b.construct < 1) continue;
+    if (b.key !== key) continue; // auch Depots im Bau zählen – Linien dürfen schon geplant werden
     cap += per;
     if (b.access >= 0) comps.add(g.roadComp[b.access]);
     // Tram-Depot: auch über angrenzende Straßen anbinden
@@ -1365,7 +1365,8 @@ function timings(g) {
     l.oneWayMin = l.loop ? l.cycleMin : tot + (n - 1) * TP.dwellMin;
     l.takt = l.nveh > 0 ? l.cycleMin / l.nveh : Infinity;
     const vt = VEHICLE_TYPES[l.vtype] || VEHICLE_TYPES.bus;
-    l.capH = l.nveh * (60 / Math.max(1, l.cycleMin)) * vt.cap;
+    // Effektive Kapazität: Fahrgäste verteilen sich nicht gleichmäßig über die Stunde (Faktor 0,7)
+    l.capH = l.nveh * (60 / Math.max(1, l.cycleMin)) * vt.cap * 0.7;
   }
 }
 
@@ -1465,10 +1466,10 @@ function purposeRates(g, h) {
   const night = h < 5 || h >= 23;
   const nm = night ? (g.policies.has('tp_nightbus') ? 0.7 : 0.2) : 1;
   return {
-    work: (0.045 * gauss(h, 7.8, 1.4) + 0.001) * nm,
-    home: (0.035 * gauss(h, 17.3, 1.7) + 0.001) * nm,
-    shop: (h >= 8 && h < 21 ? 0.0048 * (0.25 + gauss(h, 13, 3)) : 0.0004) * nm,
-    misc: 0.002 * nm,
+    work: (0.07 * gauss(h, 7.8, 1.4) + 0.0015) * nm,
+    home: (0.055 * gauss(h, 17.3, 1.7) + 0.0015) * nm,
+    shop: (h >= 8 && h < 21 ? 0.008 * (0.25 + gauss(h, 13, 3)) : 0.0006) * nm,
+    misc: 0.003 * nm,
     tour: (h >= 7 && h < 22 ? 1 : 0.15),
   };
 }
@@ -1533,7 +1534,7 @@ function assignHour(g, h) {
       let sum = 0;
       for (let d = 0; d < S; d++) if (decay[d]) sum += wt[d] * decay[d];
       if (sum <= 0) continue;
-      const u = Math.min(1, (2.2 * sum) / tot);
+      const u = Math.min(1, (3 * sum) / tot);
       const trips = G0 * attract * u;
       if (trips <= 1e-4) continue;
       for (let d = 0; d < S; d++) if (decay[d]) Td[d] += (trips * wt[d] * decay[d]) / sum;
@@ -1715,7 +1716,7 @@ function accidentsHour(g, h) {
   const w = g.ext.weather;
   const wMul = w ? 1 + (w.rain || 0) * 0.6 + (w.snowCover || 0) * 1.2 + (w.fog || 0) * 0.6 + (w.storm ? 0.5 : 0) : 1;
   const night = h < 5 || h >= 22 ? 0.7 : 1;
-  const tempo = g.policies.has('tempo30') ? 0.6 : 1;
+  const tempo = (g.policies.has('tempo30') ? 0.6 : 1) * (g.eff('safeRoads') > 0 ? 0.6 : 1);
   const { W, road } = g;
   for (let i = 0; i < g.N; i++) {
     const r = road[i];

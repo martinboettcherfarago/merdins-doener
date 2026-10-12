@@ -381,5 +381,72 @@ if (L1.ok) {
   ok(perFrame < 2 && perHour < 40, 'Rechenzeit im Rahmen');
 }
 console.log('Laufzeit Teil B', ((Date.now() - t1) / 1000).toFixed(1), 's');
+
+// ======================================================================= Teil C
+console.log('\n=== Teil C: Panel, Inspektor und Werkzeug ohne Browser ===');
+{
+  const { PANELS, INSPECTORS, TOOLS, TRAY_ITEMS } = await import('../src/registry.js');
+  await import('../src/ui/panels/transport.js');
+  await import('../src/input/buslines.js');
+  const g3 = s;
+  const toasts = [];
+  const ui = {
+    g: g3, view: 'none', el: { insp: { addEventListener() {} } },
+    toast: (m, k) => toasts.push([m, k]), closePanels() {}, openPanel() {}, setView(v) { this.view = v; }, inspect() {}, renderInspector() {}, tooltip() {}, floatMoney() {},
+    app: { audio: { play() {} }, engine: { rig: { focus() {} } } },
+  };
+  const input = {
+    g: g3, ui, audio: ui.app.audio, mouse: { x: 0, y: 0 }, tool: { kind: 'select' }, hover: null,
+    e: { canvas: { addEventListener() {} }, overlay: { showRadius() {}, hideRadius() {}, showTiles() {} } },
+    setTool(t) { const old = TOOLS[this.tool.kind]; if (old && old.cancel) old.cancel(this); this.tool = t || { kind: 'select' }; },
+  };
+  ui.app.input = input;
+  const panel = PANELS.find((p) => p.id === 'transport');
+  ok(!!panel, 'Panel „Verkehr & ÖPNV" registriert');
+  let htmlOk = true;
+  for (const tab of ['overview', 'lines', 'long', 'roads']) {
+    try { panel.click(ui, 'tab', { dataset: { k: tab } }); const html = panel.render(ui); if (!html || html.length < 200 || /undefined|NaN/.test(html)) { htmlOk = false; console.log('    Reiter', tab, 'verdächtig:', (html.match(/.{0,40}(undefined|NaN).{0,40}/) || [''])[0]); } } catch (e) { htmlOk = false; console.log('    Reiter', tab, e.message); }
+  }
+  ok(htmlOk, 'alle Reiter rendern ohne Fehler, ohne „undefined"/„NaN"');
+  const l0 = g3.ext.transport.lines[0];
+  const n0 = l0.nveh;
+  panel.click(ui, 'veh+', { dataset: { l: String(l0.id) } });
+  ok(l0.nveh === n0 + 1, 'Panel: Fahrzeug hinzugefügt');
+  panel.click(ui, 'fare', { dataset: { v: '0' } });
+  ok(g3.ext.transport.fare === 0, 'Panel: Fahrpreis auf gratis');
+  panel.click(ui, 'fare', { dataset: { v: '2' } });
+  // Inspektor
+  let inspOk = true;
+  for (const st of g3.ext.transport.stops.slice(0, 3)) {
+    for (const fn of INSPECTORS) { try { const h = fn(ui, { type: 'road', i: st.tile }); if (h && /undefined|NaN/.test(h)) inspOk = false; } catch (e) { inspOk = false; console.log('    Inspektor', e.message); } }
+  }
+  for (const b of [...g3.buildings.values()].filter((b) => !b.zone).slice(0, 40)) for (const fn of INSPECTORS) { try { const h = fn(ui, { type: 'building', id: b.id }); if (h && /undefined|NaN/.test(h)) { inspOk = false; console.log('    Inspektor', b.key, (h.match(/.{0,40}(undefined|NaN).{0,40}/) || [''])[0]); } } catch (e) { inspOk = false; console.log('    Inspektor', b.key, e.message); } }
+  ok(inspOk, 'Inspektor-Zusätze ohne Fehler');
+  // Werkzeugleiste
+  const items = TRAY_ITEMS.filter((t) => t.cat === 'transport').map((t) => t.item(g3));
+  ok(items.length >= 4 && items.every((it) => it && it.name), `Werkzeugleiste: ${items.map((it) => it.name).join(', ')}`);
+  // Werkzeug: Linie mit drei Klicks und Enter
+  const tool = TOOLS.buslines;
+  input.setTool({ kind: 'buslines', type: 'bus' });
+  const sy3 = g3.world.highwayY, x03 = g3.world.highwayEnd % g3.W + 1;
+  const tiles = [[x03 + 6, sy3 + 11], [x03 + 16, sy3 + 11], [x03 + 26, sy3 + 11]].map(([x, y]) => HB.stopTile(x, y)).filter((t) => t >= 0);
+  const nl = g3.ext.transport.lines.length;
+  for (const t of tiles) { const tt = { x: t % g3.W, y: (t / g3.W) | 0, i: t }; tool.hover(input, tt); tool.up(input, tt); }
+  tool.key(input, { code: 'Enter' });
+  ok(g3.ext.transport.lines.length === nl + 1, `Werkzeug: Linie per Klick und Enter gebaut (${tiles.length} Halte)${toasts.length ? ' · ' + toasts[toasts.length - 1][0] : ''}`);
+  // Ampel-Werkzeug
+  input.setTool({ kind: 'buslines', type: 'signal' });
+  let inter = -1;
+  for (let i = 0; i < g3.N && inter < 0; i++) if (TPS.isIntersection(g3, i)) inter = i;
+  const before = TPS.signalState(g3, inter).mode;
+  tool.up(input, { x: inter % g3.W, y: (inter / g3.W) | 0, i: inter });
+  ok(TPS.signalState(g3, inter).mode !== before, 'Werkzeug: Ampel umgeschaltet');
+  // Haltestellen-Werkzeug: entfernen
+  input.setTool({ kind: 'buslines', type: 'stop' });
+  const st0 = g3.ext.transport.stops[g3.ext.transport.stops.length - 1];
+  tool.up(input, { x: st0.x, y: st0.y, i: st0.tile });
+  ok(!TPS.stopAtTile(g3, st0.tile), 'Werkzeug: Haltestelle entfernt');
+  input.setTool({ kind: 'select' });
+}
 console.log(`\n${checks - fails}/${checks} Prüfungen bestanden${fails ? ` – ${fails} FEHLER` : ''}.`);
 process.exit(fails ? 1 : 0);
