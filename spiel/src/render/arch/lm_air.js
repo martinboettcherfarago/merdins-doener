@@ -76,10 +76,11 @@ registerArch('airport', {
       kit.box('sign_white', tcx, TH + 0.05 * M, TZ1 + 0.6 * M, tw - 2 * M, 0.06 * M, 0.25 * M);
     }
     // Schriftzug zur Straße und zum Vorfeld
-    for (const [z, ry] of [[TZ1 + 0.12 * M, 0], [TZ0 - 0.12 * M, Math.PI]]) {
-      kit.box('metal_dark', -1.0 * M, TH - 2.0 * M, z, 12.0 * M, 1.3 * M, 0.2 * M);
+    for (const [z, ry, y] of [[TZ1 + 0.9 * M, 0, TH + 1.2 * M], [TZ0 - 0.12 * M, Math.PI, TH - 2.0 * M]]) {
+      kit.box('metal_dark', -1.0 * M, y, z, 12.0 * M, 1.3 * M, 0.2 * M);
+      if (ry === 0) for (const s of [-1, 1]) kit.box('metal_dark', -1.0 * M + s * 5.0 * M, TH + 0.6 * M, z, 0.2 * M, 0.7 * M, 0.2 * M);
       const [tx, tz] = face(-1.0 * M, z, ry).at(0, 0.11 * M);
-      text(kit, 'sign_white', 'FLUGHAFEN', tx, TH - 1.82 * M, tz, ry, 0.9 * M, { depth: 0.05 * M, lod: true });
+      text(kit, 'sign_white', 'FLUGHAFEN', tx, y + 0.18 * M, tz, ry, 0.9 * M, { depth: 0.05 * M, lod: true });
     }
     // Fluggastbrücken zu den Parkpositionen
     for (const sx of STANDS) {

@@ -95,7 +95,7 @@ registerArch('station', {
       if (detail > 0) {
         const xg = s * (PX - 0.1 * M);
         const z0 = s > 0 ? -L + 0.2 * M : -L + 2.2 * M, z1 = s > 0 ? L - 2.2 * M : L - 0.2 * M;
-        kit.box('glass_curtain_blue', xg, PT, (z0 + z1) / 2, 0.05 * M, 2.4 * M, z1 - z0, { lit: 0.2 });
+        kit.box('glass_skylight', xg, PT, (z0 + z1) / 2, 0.05 * M, 2.4 * M, z1 - z0, { lit: 0.2 });
         for (let k = 0; k <= 4; k++) kit.box('metal_dark', xg, PT, z0 + ((z1 - z0) * k) / 4, 0.1 * M, 2.5 * M, 0.1 * M);
       }
     }
