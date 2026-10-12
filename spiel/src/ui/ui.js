@@ -1088,7 +1088,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.advisor.update(dt);
     this.photo.update(dt);
     if (this.minimap && !this.photo.active && !this.hudHidden) this.minimap.update(dt);
-    if (thumbsPending()) pumpThumbs(this.app.engine);
+    // Vorschaubilder nur bei flüssiger Bildrate (Shader-Übersetzung kann auf schwachen Geräten und im Software-Renderer lange blockieren)
+    if (thumbsPending() && (!this.slowFx || window.__stadtpulsThumbsForce)) pumpThumbs(this.app.engine);
   }
 }
 
