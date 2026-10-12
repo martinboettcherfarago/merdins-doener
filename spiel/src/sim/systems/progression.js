@@ -14,10 +14,10 @@
 // Ereignisse g.emit('achievement', a) / g.emit('scenario', zustand) sowie emit('achievement', { g, a }) im Register.
 import { registerSystem, SYSTEMS, BUDGET_LINES, emit as busEmit, on as busOn } from '../../registry.js';
 import { BUILDINGS, MILESTONES, R, Z, T, TRANSIT, POLICIES, DAY } from '../../config.js';
-import { clamp, fmt, fmtMoney, hash2, MinHeap, mulberry32 } from '../../util.js';
+import { clamp, fmt, fmtMoney, hash2, MinHeap, mulberry32, cityName, hashStr } from '../../util.js';
 import { isBuildableZoneTile, chooseFootprint } from '../city.js';
 import { computeUtilities, computeCoverage, computeFields, computeHappiness } from '../services.js';
-import { CARDS } from '../progress.js';
+import { CARDS, EVENTS } from '../progress.js';
 import { FOLLOWUPS } from '../../content/events.js';
 
 const S = (g) => g.ext.progression;
@@ -573,6 +573,13 @@ export const SCENARIOS = [
     id: 'flusstal', name: 'Flusstal-Rettung', city: 'Altmühlbrück', level: 'mittel', map: 'river', size: 96, seed: 2024, difficulty: 'normal', days: 50,
     color: '#2f8fe0', kicker: 'Eine Stadt am Boden wieder aufrichten',
     desc: 'Die alte Flussstadt ist heruntergewirtschaftet: Die Kasse ist fast leer, ein Kredit drückt, die Wasserversorgung ist marode und viele Häuser stehen leer. Bring Altmühlbrück zurück auf Kurs.',
+    script: [
+      { day: 0, who: 'umwelt', text: 'Erst das Wasser, dann alles andere! Pumpwerke am Ufer liefern viel mehr als Wassertürme.' },
+      { day: 3, who: 'geld', text: 'Die Steuern sind mit 12 % zu hoch für eine Stadt in der Krise. Etwas weniger bringt Zuzug und Glück.' },
+      { day: 9, who: 'buerger', text: 'Die Leute fassen wieder Mut. Parks und eine Arztpraxis würden jetzt Wunder wirken.' },
+      { day: 20, event: 'floodwarn' },
+      { day: 25, who: 'bau', text: 'Halbzeit! Die Nachbarstadt hat schon Wetten gegen uns abgeschlossen. Zeigen wir es ihnen.' },
+    ],
     goals: [G.pop(3000), G.happy(60), G.net(500, 2), G.watered(3)],
     fails: ['bankrupt'],
     setup(g) {
@@ -595,6 +602,11 @@ export const SCENARIOS = [
     id: 'inseln', name: 'Inselbrücken', city: 'Siebeninseln', level: 'mittel', map: 'islands', size: 96, seed: 89, difficulty: 'normal', days: 70,
     color: '#10a9a3', kicker: 'Brücken schlagen, Inseln verbinden',
     desc: 'Die Autobahn endet auf einer kleinen Insel. Drüben locken die große Hauptinsel und ein paar Eilande. Brücken sind teuer – plane klug und verbinde mindestens drei Inseln zu einer Stadt.',
+    script: [
+      { day: 0, who: 'bau', text: 'Unsere Insel ist klein. Eine Brücke zur Hauptinsel ist teuer – aber erst dahinter ist Platz für eine echte Stadt.' },
+      { day: 6, who: 'verkehr', text: 'Die Pulsbahn fährt über das Wasser, ohne dass wir eine Brücke für Autos brauchen.' },
+      { day: 30, who: 'bau', text: 'Die kleinen Eilande im Norden warten noch auf Siedler.' },
+    ],
     goals: [G.pop(2500), G.islands(3), G.riders(100)],
     fails: ['bankrupt'],
     setup(g) {
@@ -606,6 +618,11 @@ export const SCENARIOS = [
     id: 'gruen', name: 'Grüne Stadt', city: 'Lindenhain', level: 'mittel', map: 'lakes', size: 96, seed: 1312, difficulty: 'normal', days: 75,
     color: '#22a866', kicker: 'Wachsen ohne Abgase',
     desc: 'Lindenhain will Modellstadt für Klimaschutz werden. Kohle, Gas, Müllverbrennung und Raffinerien sind tabu – sie werden sofort wieder abgerissen. Schaffe eine große, saubere und grüne Stadt.',
+    script: [
+      { day: 0, who: 'umwelt', text: 'Windräder sind der Anfang. Ab „Stadt" kommen Solarparks und Wasserkraft dazu.' },
+      { day: 10, who: 'umwelt', text: 'Industrie macht Abgase – halte sie fern von den Wohngebieten oder setz auf Büros.' },
+      { day: 35, event: 'bees' },
+    ],
     goals: [G.pop(3500), G.pollution(4, 3), G.parks(12)],
     banned: ['coal', 'gas', 'incinerator', 'refinery', 'district_heating'],
     fails: ['bankrupt'],
@@ -615,6 +632,11 @@ export const SCENARIOS = [
     id: 'erz', name: 'Erzrausch', city: 'Glückauf', level: 'schwer', map: 'mountains', size: 96, seed: 4711, difficulty: 'normal', days: 60,
     color: '#8a6a55', kicker: 'Reich werden im Bergland',
     desc: 'In den Tälern wurde Erz gefunden. Die Kasse ist knapp, das Land ist schroff – aber wer Industrie und Bergbau geschickt aufzieht, wird reich.',
+    script: [
+      { day: 0, who: 'bau', text: 'Industrie auf Erzfeldern wird zum Bergwerk. Die Rohstoffansicht zeigt dir die Vorkommen.' },
+      { day: 12, who: 'geld', text: 'Jeder Euro zählt im Bergland. Prüfe den Haushalt, bevor du baust.' },
+      { day: 30, event: 'plantclose' },
+    ],
     goals: [G.jobs(3, 500, 'in der Industrie'), G.money(60000), G.pop(1500)],
     fails: ['bankrupt'],
     setup(g) { g.money = 30000; g.addEffect('indDemand', 30, 10, 'Erzfund'); },
@@ -623,6 +645,11 @@ export const SCENARIOS = [
     id: 'ferien', name: 'Ferienparadies', city: 'Seebad Sonnenstrand', level: 'mittel', map: 'coast', size: 96, seed: 909, difficulty: 'normal', days: 60,
     color: '#ff8a1f', kicker: 'Strand, Sehenswürdigkeiten, Touristen',
     desc: 'Die Küste ist traumhaft, nur kennt sie noch niemand. Locke Gäste mit Wahrzeichen und Strandbädern an – die Tourismusbehörde hat zwei Gutscheine spendiert.',
+    script: [
+      { day: 0, who: 'buerger', text: 'Leuchtturm und Riesenrad sind schon genehmigt – zum halben Preis!' },
+      { day: 8, who: 'geld', text: 'Ein Strandbad am Ufer bringt Touristen und gute Laune.' },
+      { day: 20, event: 'touristbus' },
+    ],
     goals: [G.tourism(800), G.landmarks(3), G.happy(65)],
     fails: ['bankrupt'],
     setup(g) {
@@ -635,6 +662,12 @@ export const SCENARIOS = [
     id: 'schulden', name: 'Schuldenberg', city: 'Pleitenburg', level: 'schwer', map: 'river', size: 96, seed: 31, difficulty: 'normal', days: 50,
     color: '#d4433a', kicker: 'Sanieren statt resignieren',
     desc: 'Dein Vorgänger hat Pleitenburg in die roten Zahlen geführt: zwei Kredite, eine leere Kasse und teure Verordnungen. Tilge alle Schulden und bring die Kasse ins Plus – ohne die Stadt schrumpfen zu lassen.',
+    script: [
+      { day: 0, who: 'geld', text: 'Kostenlose Pulsbahn, Fahrradstadt, Mülltrennung – schön, aber teuer. Prüfe die Verordnungen.' },
+      { day: 4, who: 'geld', text: 'Kredite kannst du im Haushalt vorzeitig ablösen. Jede Woche ohne Kredit spart Zinsen.' },
+      { day: 15, event: 'citizenbond' },
+      { day: 30, who: 'buerger', text: 'Die Bürger halten zu dir. Noch ein Endspurt!' },
+    ],
     goals: [G.noLoans(), G.money(20000), G.pop(1600, 3)],
     fails: ['bankrupt'],
     setup(g) {
@@ -654,6 +687,11 @@ export const SCENARIOS = [
     id: 'stau', name: 'Verkehrsinfarkt', city: 'Blechhausen', level: 'mittel', map: 'river', size: 96, seed: 58, difficulty: 'normal', days: 40,
     color: '#5d6470', kicker: 'Die Stadt steht still – bring sie in Fahrt',
     desc: 'Blechhausen ist mit dem Auto gewachsen: enge Gassen, ein einziger Weg zu den Fabriken und jeden Morgen endlose Pendlerschlangen. Bring die Leute schneller zur Arbeit – mit Pulsbahn, Alleen und klugem Umbau – ohne dass die Stadt schrumpft.',
+    script: [
+      { day: 0, who: 'verkehr', text: 'Eine einzige Gasse verbindet Wohnen und Arbeit. Eine Pulsbahn-Linie dazwischen wäre ein Anfang.' },
+      { day: 3, who: 'verkehr', text: 'Alleen haben die doppelte Kapazität und sind schneller. Die Gassen sind das Nadelöhr.' },
+      { day: 12, event: 'bikelanes' },
+    ],
     goals: [G.commute(28, 3), G.riders(400, 2), G.pop(3500, 3)],
     fails: ['bankrupt', 'unhappy'],
     setup(g) {
@@ -681,6 +719,11 @@ export const SCENARIOS = [
     id: 'wissen', name: 'Wissenschaftsstadt', city: 'Neu-Gelehrtenheim', level: 'schwer', map: 'lakes', size: 96, seed: 333, difficulty: 'relaxed', days: 90,
     color: '#8f5ad8', kicker: 'Bildung als Standortfaktor',
     desc: 'Die Landesregierung sucht einen Standort für ein Wissenschaftszentrum. Gewinne den Zuschlag mit einer gebildeten Bevölkerung, Gymnasium, Universität und vielen Büros.',
+    script: [
+      { day: 0, who: 'buerger', text: 'Schulen und Bibliotheken zuerst – ohne Bildung keine Büros.' },
+      { day: 25, event: 'coworking' },
+      { day: 45, who: 'bau', text: 'Ab „Großstadt" (4.000 Einwohner) dürfen wir eine Universität bauen.' },
+    ],
     goals: [G.pop(4500), G.edu(60), G.built('highschool'), G.built('university'), G.jobs(4, 700, 'in Büros')],
     fails: ['bankrupt'],
     setup(g) { g.money = 90000; },
@@ -689,6 +732,11 @@ export const SCENARIOS = [
     id: 'boom', name: 'Boomtown', city: 'Goldgrube', level: 'schwer', map: 'coast', size: 128, seed: 4242, difficulty: 'relaxed', days: 70,
     color: '#e3a925', kicker: 'Zur Metropole im Eiltempo',
     desc: 'Investoren, Zuzug, Goldgräberstimmung: Mach aus dem Nichts in 70 Tagen eine Metropole mit 10.000 Einwohnern.',
+    script: [
+      { day: 0, who: 'bau', text: 'Groß denken: breite Straßen, viel Wohngebiet und genug Jobs. Die Investoren warten nicht.' },
+      { day: 20, who: 'verkehr', text: 'Bei diesem Tempo braucht die Stadt bald die Pulsbahn.' },
+      { day: 40, event: 'techfair' },
+    ],
     goals: [G.pop(10000)],
     fails: ['bankrupt'],
     setup(g) { g.money = 100000; g.addEffect('resDemand', 25, 14, 'Goldgräberstimmung'); },
@@ -697,6 +745,10 @@ export const SCENARIOS = [
     id: 'idylle', name: 'Dorfidylle', city: 'Kleinwiesental', level: 'leicht', map: 'lakes', size: 64, seed: 64, difficulty: 'normal', days: 45,
     color: '#63c27a', kicker: 'Klein, fein und glücklich',
     desc: 'Kein Hochhaus, kein Schornstein – Kleinwiesental soll das glücklichste Dorf der Region werden. Halte die Bewohner fünf Tage lang begeistert, ohne zu groß zu werden.',
+    script: [
+      { day: 0, who: 'buerger', text: 'Niedrige Steuern, viele Parks und ein Spielplatz in jeder Straße – so wird man glücklich.' },
+      { day: 15, event: 'market' },
+    ],
     goals: [G.happy(78, 5), G.pop(600), G.popMax(1800), G.jobs(3, 60, 'in der Industrie (höchstens)')].map((x) => (x.id === 'jobs3' ? { ...x, label: 'Höchstens 60 Industrie-Jobs', cmp: '<=' } : x)),
     fails: ['bankrupt'],
     setup(g) { g.money = 45000; },
@@ -705,6 +757,11 @@ export const SCENARIOS = [
     id: 'doener', name: 'Döner-Hauptstadt', city: 'Mêrdînsfeld', level: 'leicht', map: 'river', size: 96, seed: 1999, difficulty: 'relaxed', days: 50,
     color: '#f2b01e', kicker: 'Chili-Cheese für alle',
     desc: 'Mêrdîn will seinen Dönerpalast eröffnen – in der lebendigsten Einkaufsstadt der Region. Bau ihn mit dem Gutschein, sorg für Kundschaft und gute Laune.',
+    script: [
+      { day: 0, who: 'buerger', text: 'Mêrdîn hat den Gutschein schon in der Tasche. Such ihm einen Platz mitten im Einkaufsviertel!' },
+      { day: 10, event: 'foodtruck' },
+      { day: 25, who: 'geld', text: 'Brunnenplätze und Parkhäuser bringen Kundschaft ins Gewerbe.' },
+    ],
     goals: [G.built('doener', 'Mêrdîn’s Dönerpalast eröffnet'), G.jobs(2, 450, 'im Gewerbe'), G.happy(68), G.pop(2000)],
     fails: ['bankrupt'],
     setup(g) { g.money = 70000; g.landmarkVouchers.add('doener'); },
@@ -733,6 +790,7 @@ export function scenarioOptions(id, extra = {}) {
   if (sc.metro) {
     o.mapType = extra.mapType || 'river';
     o.seed = extra.seed ?? Math.floor(Math.random() * 99999);
+    o.name = extra.name || cityName(mulberry32(o.seed + 5));
   }
   return { ...o, ...extra, scenario: sc.id };
 }
@@ -775,6 +833,7 @@ function setupScenario(g) {
     if (v >= (goalOf(a) || 1)) st.skip.push(a.id);
   }
   pushInbox(g, { type: 'scenarioIntro' });
+  if (!sc.metro) runScript(g, sc); // erste Ratgeber-Meldung gleich zum Start
   g.speed = 0; // Start nach dem Briefing
 }
 
@@ -847,10 +906,36 @@ export function continueFreePlay(g) {
   if (isMetro(g) && st.metro) st.metro.ended = true;
 }
 
+// Erzählte Momente eines Szenarios: Ratgeber melden sich, manche Ereignisse kommen zu festen Tagen.
+function runScript(g, sc) {
+  const st = S(g);
+  const day = g.day() - st.scen.startDay;
+  st.scen.script ||= {};
+  for (let k = 0; k < (sc.script || []).length; k++) {
+    const s = sc.script[k];
+    if (s.day > day || st.scen.script[k]) continue;
+    if (s.event) {
+      if (g.pendingEvent || g.pendingCards) continue; // später nochmal
+      const ev = EVENTS.find((e) => e.id === s.event);
+      st.scen.script[k] = g.day();
+      if (!ev || (ev.cond && !ev.cond(g))) continue;
+      g.pendingEvent = ev.id;
+      g.lastEventId = ev.id;
+      g.nextEventDay = Math.max(g.nextEventDay, g.day() + 5);
+      g.emit('event', ev);
+    } else {
+      st.scen.script[k] = g.day();
+      const a = ADVISORS[s.who] || ADVISORS.bau;
+      g.pushNews({ kind: 'advisor', author: `${a.role} ${a.name}`, text: s.text, mood: 'info' });
+    }
+  }
+}
+
 function dailyScenario(g) {
   const st = S(g);
   const sc = st.scen && scenarioById(st.scen.id);
   if (!sc || st.scen.status !== 'running' || sc.metro) return;
+  runScript(g, sc);
   const status = scenarioStatus(g);
   for (const r of status.goals) st.scen.hold[r.goal.id] = r.ok ? (st.scen.hold[r.goal.id] || 0) + 1 : 0;
   const fresh = scenarioStatus(g);
@@ -897,6 +982,13 @@ const DIST_NAMES = ['Altstadt', 'Rosenhöhe', 'Hafenviertel', 'Lindenau', 'Norde
   'Ostkreuz', 'Westend', 'Felsenkeller', 'Inselspitze', 'Sternwarte', 'Hügelstadt', 'Seeblick', 'Ahornplatz', 'Fuchsbau', 'Kranichsteig'];
 
 export const METRO_STARS = [400, 1200, 3000];
+// Tageskarte: für alle am selben Tag gleich (Karte und Startwert aus dem Datum)
+export function dailyMetro(date = new Date()) {
+  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const h = hashStr('metro-' + key);
+  const map = METRO_MAPS[h % METRO_MAPS.length].id;
+  return { key, label: `${date.getDate()}.${date.getMonth() + 1}.`, opts: { mapType: map, seed: h % 99991, daily: key } };
+}
 export const metroStars = (score) => (score >= METRO_STARS[2] ? 3 : score >= METRO_STARS[1] ? 2 : score >= METRO_STARS[0] ? 1 : 0);
 export function metroScore(g) {
   const m = S(g)?.metro;

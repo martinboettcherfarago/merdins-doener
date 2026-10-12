@@ -8,7 +8,7 @@ import { S5_EVENT_IDS } from '../src/content/events.js';
 import { S5_CHATTER_COUNT, S5_CHATTER_ENTRIES } from '../src/content/chatter.js';
 import {
   ACHIEVEMENTS, SCENARIOS, scenarioOptions, scenarioStatus, achievementState, achievementPoints, rankFor,
-  adviceFor, metroScore, continueFreePlay, isMetro, questStatus, QUESTS, rewardText,
+  adviceFor, metroScore, continueFreePlay, isMetro, questStatus, QUESTS, rewardText, dailyMetro,
 } from '../src/sim/systems/progression.js';
 
 const quick = process.argv.includes('schnell');
@@ -204,6 +204,19 @@ for (const sc of SCENARIOS) {
   const gl = Game.fromSave(JSON.parse(JSON.stringify(gs.serialize())));
   ok(scenarioStatus(gl)?.st.id === sc.id, `${sc.id}: Szenario übersteht Speichern/Laden`);
   ok(gl.buildings.size === gs.buildings.size, `${sc.id}: beim Laden wird nichts neu aufgebaut`);
+}
+// Erzählte Momente: Ereignisse im Skript müssen existieren
+for (const sc of SCENARIOS) for (const s of sc.script || []) {
+  if (s.event) ok(!!EVENTS.find((e) => e.id === s.event), `${sc.id}: Skript-Ereignis ${s.event} existiert`);
+  else ok(typeof s.text === 'string' && s.text.length > 10, `${sc.id}: Skript-Text vorhanden`);
+}
+// Tageskarte: gleiche Optionen am selben Tag, gültige Karte
+{
+  const a = dailyMetro(new Date(2026, 9, 12)), b = dailyMetro(new Date(2026, 9, 12)), c = dailyMetro(new Date(2026, 9, 13));
+  ok(JSON.stringify(a) === JSON.stringify(b), 'Tageskarte ist am selben Tag gleich');
+  ok(a.opts.seed !== c.opts.seed, 'Tageskarte wechselt am nächsten Tag');
+  const o = scenarioOptions('metro', a.opts);
+  ok(o.daily === a.key && typeof o.name === 'string' && o.name.length > 2, 'Tageskarte ergibt gültige Spieloptionen');
 }
 // Sieg- und Niederlagenlogik mit Testszenarien
 SCENARIOS.push({ id: '_win', name: 'Test-Sieg', city: 'T', map: 'river', size: 64, seed: 3, difficulty: 'normal', days: 10, goals: [{ id: 'x', label: 'x', cur: () => 1, target: 1 }], setup() {} });

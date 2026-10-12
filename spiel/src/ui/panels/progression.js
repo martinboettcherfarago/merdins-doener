@@ -11,7 +11,7 @@ import { icon } from '../icons.js';
 import {
   ACHIEVEMENTS, ACH_CATS, TIERS, RANKS, SCENARIOS, METRO_MAPS, METRO_STARS, ADVISORS,
   achievementState, achievementPoints, rankFor, achievementById, scenarioById, scenarioStatus, scenarioOptions,
-  adviceFor, metroScore, continueFreePlay, isMetro, bannedNames, questStatus, ADVISORS as ADV,
+  adviceFor, metroScore, continueFreePlay, isMetro, bannedNames, questStatus, ADVISORS as ADV, dailyMetro,
 } from '../../sim/systems/progression.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -37,10 +37,16 @@ function profileScenario(id, stars, days) {
   p.scen[id] = cur;
   saveProfile(p);
 }
-function profileMetro(map, score) {
+function profileMetro(map, score, daily) {
   const p = loadProfile();
   const isRecord = score > (p.metro[map] || 0);
   if (isRecord) p.metro[map] = score;
+  if (daily) {
+    p.daily ||= {};
+    p.daily[daily] = Math.max(p.daily[daily] || 0, score);
+    const keys = Object.keys(p.daily).sort();
+    while (keys.length > 30) delete p.daily[keys.shift()];
+  }
   saveProfile(p);
   return isRecord;
 }
@@ -313,7 +319,7 @@ function queue(ui, fn) {
 function restartScenario(app) {
   const g = app.game;
   if (!g || !g.opts.scenario) return;
-  const extra = isMetro(g) ? { mapType: g.opts.mapType, seed: Math.floor(Math.random() * 99999) } : {};
+  const extra = isMetro(g) ? (g.opts.daily ? { mapType: g.opts.mapType, seed: g.opts.seed, daily: g.opts.daily, name: g.name } : { mapType: g.opts.mapType, seed: Math.floor(Math.random() * 99999) }) : {};
   app.newGame(scenarioOptions(g.opts.scenario, extra));
 }
 
@@ -349,12 +355,13 @@ function showEnd(ui, msg) {
   let html;
   if (msg.metro) {
     const score = st.score ?? metroScore(g);
-    const record = profileMetro(g.opts.mapType, score);
+    const record = profileMetro(g.opts.mapType, score, g.opts.daily);
     const m = g.ext.progression.metro;
     html = `<div class="modal s5-modal"><div class="hero" style="background:${sc.color}"><div class="eyebrow">Endstation</div><h2>${esc(st.reason || 'Das Netz ist überlastet.')}</h2><p>${record ? 'Neuer Rekord auf dieser Karte!' : 'Die Fahrgäste haben aufgegeben.'}</p></div>
 <div style="text-align:center"><div class="s5-big">${fmt(score)}</div><div class="eyebrow" style="margin-top:4px">beförderte Fahrgäste</div><div class="bigstars">${'★'.repeat(st.stars)}<span class="off">${'★'.repeat(3 - st.stars)}</span></div></div>
 <div class="facts"><div><div class="k">Tage</div><div class="v">${g.day() - m.startDay}</div></div><div><div class="k">Viertel</div><div class="v">${m.districts.length}</div></div><div><div class="k">Linien</div><div class="v">${g.transit.lines.length}</div></div><div><div class="k">Züge</div><div class="v">${g.transit.trains.length}</div></div><div><div class="k">Waggons</div><div class="v">${g.transit.totalWagons()}</div></div><div><div class="k">Rekord</div><div class="v">${fmt(loadProfile().metro[g.opts.mapType] || score)}</div></div></div>
-<div class="acts"><button class="btn ghost" data-act="menu">Hauptmenü</button><button class="btn ghost" data-act="free">Stadt weiter ansehen</button><button class="btn" data-act="again">Nochmal (neue Karte)</button></div></div>`;
+${g.opts.daily ? `<p style="text-align:center;margin:0">Tageskarte ${esc(dailyMetro().label)} · dein Bestwert heute: <b>${fmt(loadProfile().daily?.[g.opts.daily] || score)}</b></p>` : ''}
+<div class="acts"><button class="btn ghost" data-act="menu">Hauptmenü</button><button class="btn ghost" data-act="free">Stadt weiter ansehen</button><button class="btn" data-act="again">${g.opts.daily ? 'Tageskarte nochmal' : 'Nochmal (neue Karte)'}</button></div></div>`;
   } else if (msg.won) {
     profileScenario(sc.id, st.stars, st.endDay - st.startDay);
     const idx = SCENARIOS.findIndex((x) => x.id === sc.id);
@@ -507,11 +514,13 @@ MENU_SECTIONS.push({
       return row + `<div class="s5-detail"><b>${esc(sc.city)}</b> · ${esc(map)} · ${sc.size}² Felder<br>${esc(sc.desc)}<div class="eyebrow" style="margin-top:8px">Ziele in ${sc.days} Tagen</div><ul>${sc.goals.map((goal) => `<li>${esc(goal.label)}${goal.hold ? ` (${goal.hold} Tage halten)` : ''}</li>`).join('')}</ul>${p ? `<div>Bestes Ergebnis: ${stars(p.stars)} in ${daysDat(p.best)} · ${p.wins}× geschafft</div>` : ''}<div class="acts"><button class="btn go" data-act="s5-start" data-id="${sc.id}">Szenario starten</button></div></div>`;
     }).join('');
     const best = prof.metro[s5.map] || 0;
+    const daily = dailyMetro();
     return `<div class="card s5-menu"><h3>Szenarien</h3><p class="seg-hint" style="margin:-6px 0 10px">Feste Karten, klare Ziele, knappe Zeit. Je schneller, desto mehr Sterne.</p>${rows}</div>
 <div class="card s5-menu"><h3 style="display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:50%;background:${metro.color};display:inline-block"></span>Metro-Modus</h3>
 <p class="seg-hint" style="margin:-6px 0 10px">${esc(metro.desc)}</p>
 <div class="field"><label>Karte</label><div class="seg">${METRO_MAPS.map((m) => `<button data-act="s5-map" data-v="${m.id}" class="${m.id === s5.map ? 'on' : ''}">${esc(m.name)}${prof.metro[m.id] ? ` · ${fmt(prof.metro[m.id])}` : ''}</button>`).join('')}</div></div>
-<div class="acts" style="align-items:center"><button class="btn big go" data-act="s5-metro">Metro starten</button>${best ? `<span class="seg-hint">Rekord: <b>${fmt(best)}</b> Fahrgäste ${stars(metroStarsFor(best))}</span>` : '<span class="seg-hint">Noch kein Rekord auf dieser Karte.</span>'}</div></div>
+<div class="acts" style="align-items:center"><button class="btn big go" data-act="s5-metro">Metro starten</button>${best ? `<span class="seg-hint">Rekord: <b>${fmt(best)}</b> Fahrgäste ${stars(metroStarsFor(best))}</span>` : '<span class="seg-hint">Noch kein Rekord auf dieser Karte.</span>'}</div>
+<div class="slot" style="margin-top:8px;border-top:1px solid var(--rule)"><div class="grow"><div class="t">Tageskarte ${esc(daily.label)} · ${esc(METRO_MAPS.find((m) => m.id === daily.opts.mapType)?.name || '')}</div><div class="s">Heute für alle gleich.${prof.daily?.[daily.key] ? ` Dein Bestwert: ${fmt(prof.daily[daily.key])}` : ' Noch nicht gespielt.'}</div></div><button class="btn small" data-act="s5-daily">Spielen</button></div></div>
 <div class="card s5-menu"><h3>Ehrentafel</h3><div class="s5-prof"><div><div class="k">Erfolge</div><div class="v">${achCount} / ${ACHIEVEMENTS.length}</div></div><div><div class="k">Punkte</div><div class="v">${pts}</div></div><div><div class="k">Sterne</div><div class="v">${totalStars} / ${list.length * 3}</div></div></div><p class="seg-hint" style="margin:6px 0 0">${esc(rankFor(pts).rank.name)} · Erfolge sammelst du in jeder Stadt außer im Sandkasten.</p></div>`;
   },
   click(menu, act, el) {
@@ -519,6 +528,7 @@ MENU_SECTIONS.push({
     if (act === 's5-sel') { s5.sel = s5.sel === el.dataset.id ? null : el.dataset.id; menu.render(); return true; }
     if (act === 's5-map') { s5.map = el.dataset.v; menu.render(); return true; }
     if (act === 's5-start') { menu.app.newGame(scenarioOptions(el.dataset.id)); return true; }
+    if (act === 's5-daily') { menu.app.newGame(scenarioOptions('metro', dailyMetro().opts)); return true; }
     if (act === 's5-metro') { menu.app.newGame(scenarioOptions('metro', { mapType: s5.map, seed: Math.floor(Math.random() * 99999) })); return true; }
     return false;
   },
