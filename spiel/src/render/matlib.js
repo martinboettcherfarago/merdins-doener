@@ -64,6 +64,9 @@ export const MATERIAL_DEFS = {
   cobblestone: [0x8d8a84, 0.8, 0], roof_tiles_beaver: [0xa4503c, 0.85, 0], roof_thatch: [0x8a7448, 0.95, 0], concrete_board: [0xb3afa6, 0.9, 0],
   brick_clinker: [0x6b3a2e, 0.75, 0], gravel_path: [0xb8ab92, 0.95, 0], meadow: [0x8fb162, 0.95, 0], forest_floor: [0x6a5638, 0.97, 0],
   metal_grating: [0x7d8388, 0.5, 0.7], wood_deck: [0x9a7655, 0.8, 0],
+  // Wünsche G5/G6: schwarzer und petrolfarbener Lack, Klärbecken-Wasser, Milchglas (nachts beleuchtet wie Fenster)
+  paint_black: [0x26272a, 0.55, 0], paint_teal: [0x2f7f80, 0.6, 0],
+  water_sewage: [0x5f6a3e, 0.2, 0.1, { water: true }], glass_frosted: [0xb7c6cc, 0.45, 0.05, { glass: true }],
 };
 
 const cache = new Map();
@@ -96,12 +99,15 @@ const GLASS_DAY = (strength, curtain) => `
 function patchGlass(mat, opts) {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uNight = shared.uNight;
+    shader.uniforms.uTime = shared.uTime;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 attribute float aLit;
 varying float vLit;
-varying vec3 vWorldP;`)
+varying vec3 vWorldP;
+varying float vGY;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
+vGY = transformed.y;
 vec3 ip = vec3(0.0);
 #ifdef USE_INSTANCING
 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
@@ -111,17 +117,26 @@ vWorldP = ip;`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float uNight;
+uniform float uTime;
 varying float vLit;
-varying vec3 vWorldP;`)
+varying vec3 vWorldP;
+varying float vGY;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 ${GLASS_DAY(opts.curtain ? '1.15' : opts.shop ? '0.8' : '1.0', !!opts.curtain)}
 float nightK = smoothstep(0.0, 1.0, uNight);
 float on = step(1.0 - nightK * ${opts.curtain ? '0.45' : opts.shop ? '0.9' : '0.62'}, vLit);
 vec3 warm = mix(vec3(1.0, 0.76, 0.45), vec3(0.82, 0.9, 1.0), step(0.85, fract(vLit * 7.13)));
-totalEmissiveRadiance += on * warm * (0.35 + 1.25 * nightK) * ${opts.shop ? '1.3' : '1.0'};
+// Raumtiefe: Lage im Geschoss (3 m) – oben Deckenlicht heller, tagsüber Sturzschatten
+float fy = fract(vGY / 0.3);
+diffuseColor.rgb *= mix(1.0, 0.62, smoothstep(0.62, 0.8, fy) * (1.0 - nightK));
+float lampK = 0.72 + 0.5 * smoothstep(0.3, 0.78, fy);
+// wenige Fenster mit flackerndem Fernsehlicht
+float tv = step(0.93, fract(vLit * 3.71));
+warm = mix(warm, vec3(0.55, 0.7, 1.0) * (0.75 + 0.25 * sin(uTime * 7.0 + vLit * 40.0) * sin(uTime * 2.3)), tv);
+totalEmissiveRadiance += on * warm * lampK * (0.35 + 1.25 * nightK) * ${opts.shop ? '1.3' : '1.0'};
 diffuseColor.rgb *= 1.0 - 0.5 * nightK;`);
   };
-  mat.customProgramCacheKey = () => 'glass2' + (opts.curtain ? 'c' : '') + (opts.shop ? 's' : '');
+  mat.customProgramCacheKey = () => 'glass3' + (opts.curtain ? 'c' : '') + (opts.shop ? 's' : '');
 }
 
 function patchLodWindows(mat) {
@@ -154,7 +169,7 @@ float hh = fract(sin(dot(cid + vSeed * 31.7, vec2(41.3, 289.1))) * 15731.743);
 float vLit = hh;
 ${GLASS_DAY('0.9', false)}
 float on = step(1.0 - nk * 0.62, hh);
-totalEmissiveRadiance += on * mix(vec3(1.0, 0.76, 0.45), vec3(0.82, 0.9, 1.0), step(0.85, hh)) * (0.35 + 1.25 * nk);
+totalEmissiveRadiance += on * mix(vec3(1.0, 0.76, 0.45), vec3(0.82, 0.9, 1.0), step(0.85, hh)) * (0.72 + 0.5 * smoothstep(0.3, 0.8, fc.y)) * (0.35 + 1.25 * nk);
 diffuseColor.rgb *= 1.0 - 0.5 * nk;`);
   };
   mat.customProgramCacheKey = () => 'lodwin2';

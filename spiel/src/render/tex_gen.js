@@ -224,7 +224,7 @@ export function texGenFactory() {
       L.m[i] = Math.min(1, 0.45 * smooth(0.68, 0.95, blot[i]) + 0.4 * smooth(0.6, 0.92, streak[i]) * smooth(0.35, 0.75, med[i]));
       L.r[i] = 0.84 + 0.12 * (grain[i] - 0.5);
     });
-    L.nk = 0.42; L.aoK = 0.9;
+    L.nk = 0.32; L.aoK = 0.9;
   };
 
   // Ziegel im Kreuzverband: Läuferschichten (12 je 4 m) im Wechsel mit Binderschichten (24 je 4 m)
@@ -1095,4 +1095,5 @@ export const SURFACE = {
   brick_clinker: P('brick', { second: 0x4a4440 }), gravel_path: P('gravel', { second: 0x8a8070, scale: 0.8, flags: F_GROUND, grime: 0 }),
   meadow: P('grass', { second: 0xc9b86a, scale: 0.7, flags: F_GROUND, grime: 0, porous: 0.5 }), forest_floor: P('dirt', { second: 0x4a3a24, flags: F_GROUND, grime: 0 }),
   metal_grating: P('chain', { second: 'base', scale: 2, flags: F_CUTOUT, grime: 0 }), wood_deck: P('wood', { second: 0x2a1f16, scale: 1.2, flags: F_PUDDLE, grime: 0 }),
+  paint_black: P('paint', { second: 0x6a6a6a }), paint_teal: P('paint', { second: 0x8a8580 }),
 };
