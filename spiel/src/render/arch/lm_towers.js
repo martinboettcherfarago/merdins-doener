@@ -122,6 +122,8 @@ registerArch('skytower', {
       const a = c.ry + Math.PI / 4 + (k * Math.PI) / 2;
       const r = (c.w / 2) * Math.SQRT2;
       kit.box('metal_panel_white', Math.sin(a) * r, c.y, Math.cos(a) * r, 1.0 * M, c.h, 1.0 * M, { ry: a });
+      // Pulslinie: Leuchtband auf der Außenkante der Eckfinne
+      if (detail === 2 || (detail === 1 && corners.indexOf(c) % 2 === 0)) kit.box('neon_cyan', Math.sin(a) * (r + 0.5 * M), c.y, Math.cos(a) * (r + 0.5 * M), 0.18 * M, c.h * (detail === 2 ? 1 : 2), 0.12 * M, { ry: a });
       if (detail === 2) for (const off of [-1, 1]) {
         const a2 = c.ry + (k * Math.PI) / 2, u = off * c.w * 0.25;
         const fx = Math.sin(a2) * (c.w / 2 + 0.12 * M) + Math.cos(a2) * u, fz = Math.cos(a2) * (c.w / 2 + 0.12 * M) - Math.sin(a2) * u;
@@ -145,6 +147,13 @@ registerArch('skytower', {
         kit.cyl('metal_dark', px, DK + 0.6 * M, pz, 0.08 * M, 1.1 * M, { seg: 5 });
         kit.cyl('metal_light', px, DK + 1.7 * M, pz, 0.14 * M, 0.6 * M, { rx: Math.PI / 2 - 0.3, ry: a, seg: 6 });
       }
+    }
+    // Skywalk: gläserner Kasten, der über die Plattform hinausragt
+    {
+      const a = RY, ox = Math.sin(a), oz = Math.cos(a), dist = (W1 + 4.0 * M) / 2 + 1.6 * M;
+      kit.box('glass_curtain_blue', ox * dist, DK - 0.1 * M, oz * dist, 3.6 * M, 2.6 * M, 3.2 * M, { ry: a, lit: 0.95 });
+      kit.box('metal_panel_white', ox * dist, DK - 0.3 * M, oz * dist, 3.9 * M, 0.25 * M, 3.5 * M, { ry: a });
+      kit.box('metal_panel_white', ox * dist, DK + 2.5 * M, oz * dist, 3.9 * M, 0.2 * M, 3.5 * M, { ry: a });
     }
     // Krone: vier Finnen laufen zur Spitze zusammen
     const CR = DK + 5.0 * M, CH = 13 * M;

@@ -189,6 +189,10 @@ registerArch('arena', {
       kit.box('metal_corrugated', -1.2 * M, 0.2 * M, CZ - AZ * 1.02 - 1.21 * M, 1.8 * M, 2.8 * M, 0.05 * M);
       kit.box('metal_corrugated', 1.2 * M, 0.2 * M, CZ - AZ * 1.02 - 1.21 * M, 1.8 * M, 2.8 * M, 0.05 * M);
     }
+    // LED-Stele mit Veranstaltungsanzeige
+    kit.box('metal_dark', 7.6 * M, 0, 5.6 * M, 1.6 * M, 6.0 * M, 0.6 * M, { ry: -0.5 });
+    kit.box('glass_curtain_blue', 7.6 * M + Math.sin(-0.5) * 0.32 * M, 0.8 * M, 5.6 * M + Math.cos(-0.5) * 0.32 * M, 1.3 * M, 4.6 * M, 0.04 * M, { ry: -0.5, lit: 1 });
+    if (detail > 0) kit.box('neon_pink', 7.6 * M + Math.sin(-0.5) * 0.33 * M, 5.5 * M, 5.6 * M + Math.cos(-0.5) * 0.33 * M, 1.3 * M, 0.25 * M, 0.04 * M, { ry: -0.5 });
     // Vorplatz
     crowd(kit, 0, 8.8 * M, 12 * M, 1.6 * M, 10);
     if (detail > 0) {

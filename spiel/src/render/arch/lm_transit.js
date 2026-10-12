@@ -155,18 +155,9 @@ registerArch('metro_hub', {
       kit.box('paint_blue', tx, H - 3.0 * M, 0.7 * M, 1.4 * M, 1.4 * M, 0.08 * M);
       if (detail > 0) text(kit, 'paint_white', 'P', tx, H - 2.75 * M, 0.75 * M, 0, 0.9 * M, { depth: 0.03 * M });
     }
-    // Rolltreppenröhren vom Hallendach zum Bahnsteig
-    for (const s of [-1, 1]) {
-      const a = [s * 2.6 * M, GH + 0.5 * M, 1.6 * M], b = [s * 6.2 * M, H - 0.4 * M, 1.6 * M];
-      beam(kit, 'metal_panel_white', a, b, 2.0 * M, 0.5 * M);
-      if (detail > 0) {
-        const geo = new THREE.CylinderGeometry(1.1 * M, 1.1 * M, 1, detail === 2 ? 10 : 6, 1, true);
-        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-        geo.translate(0, 0.5, 0); geo.scale(1, len, 1);
-        const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
-        kit.add('glass_curtain_blue', geo, { x: a[0], y: a[1] + 0.2 * M, z: a[2], rz: ang - Math.PI / 2, lit: 0.7 });
-      }
-    }
+    // Gläserne Aufzüge vor den Treppentürmen und ein Steg vom Hallendach
+    for (const s of [-1, 1]) elevator(kit, s * 8.6 * M, 1.6 * M, H + 0.4 * M, 1.6 * M);
+    if (detail > 0) for (const s of [-1, 1]) kit.box('metal_panel_white', s * 7.8 * M, GH + 0.5 * M, 1.6 * M, 1.8 * M, 0.25 * M, 1.4 * M);
     // Bahnsteigdeck über die ganze Fläche
     kit.box('concrete', 0, H - 1.2 * M, 0, W - 0.2 * M, 0.9 * M, D - 0.4 * M);
     kit.box('concrete_panel', 0, H - 0.3 * M, 0, W, 0.29 * M, D);
