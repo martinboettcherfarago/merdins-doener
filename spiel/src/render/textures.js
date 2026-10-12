@@ -16,47 +16,116 @@
 //                     also uv = weltXZ * 10 / t.metersPerTile
 //   getSurfaceArrays() → { albedo, surface, layers, layerIndex } für Shader mit vielen Mustern
 //                     (z. B. Geländemischung: sampler2DArray, Schicht = layerIndex['grass'] …)
-//   prepareTextures(onProgress) → Promise; erzeugt die Muster stückweise (für einen Ladebildschirm).
+//   prepareTextures(onProgress) → Promise, erfüllt wenn alle Muster fertig sind (für einen Ladebildschirm);
+//   texturesReady(), textureStats() → { ms, mode: 'worker'|'chunked'|'sync', ready, bytes … }.
+// Im Browser startet die Erzeugung beim Laden dieses Moduls in einem Web Worker; der Hauptfaden wird nicht
+// blockiert. Bis die Muster da sind, zeigen die Materialien ihre Grundfarben (neutrale Platzhalter).
 import * as THREE from 'three';
-import { TS, LAYERS, LAYER_INDEX, SURFACE, generateLayer, clearFieldCache, F_GROUND, F_CUTOUT, F_PUDDLE, F_LEAVES } from './tex_gen.js';
+import { TS, LAYERS, LAYER_INDEX, SURFACE, generateLayer, clearFieldCache, texGenFactory, F_GROUND, F_CUTOUT, F_PUDDLE, F_LEAVES } from './tex_gen.js';
 
 export { LAYERS, LAYER_INDEX, SURFACE, F_GROUND, F_CUTOUT, F_PUDDLE, F_LEAVES };
 
 const BYTES = TS * TS * 4;
-const stats = { ms: 0, layers: LAYERS.length, size: TS, bytes: 0, textures2d: 0 };
+const stats = { ms: 0, layers: LAYERS.length, size: TS, bytes: 0, textures2d: 0, ready: false, mode: '' };
 export const textureStats = () => ({ ...stats });
 
 // --- CPU-Daten aller Schichten
-let data = null, pending = null;
+// Im Browser rechnet ein Web Worker die Muster im Hintergrund (Start beim Laden des Moduls). Bis sie da sind,
+// enthalten die Puffer neutrale Werte (Materialien zeigen ihre Grundfarbe); danach werden die Textur-Arrays
+// einmal neu hochgeladen. Ohne Worker (Node, gesperrte Blob-URLs) wird synchron bzw. stückweise erzeugt.
+const NL = LAYERS.length;
+let data = null, worker = null, readyResolve = null;
+const ready = new Promise((r) => { readyResolve = r; });
 function now() { return (typeof performance !== 'undefined' ? performance : Date).now(); }
-function allocData() { return { albedo: new Uint8Array(BYTES * LAYERS.length), surface: new Uint8Array(BYTES * LAYERS.length), done: 0 }; }
-export function textureData() {
-  if (data && data.done === LAYERS.length) return data;
-  const t0 = now();
-  if (!data) data = allocData();
-  for (let k = data.done; k < LAYERS.length; k++) { generateLayer(LAYERS[k], data.albedo, data.surface, k * BYTES); data.done = k + 1; }
+function allocData() {
+  const albedo = new Uint8Array(BYTES * NL), surface = new Uint8Array(BYTES * NL);
+  new Uint32Array(albedo.buffer).fill(0x00808080);  // Detail 1.0, keine Zweitfarbe
+  new Uint32Array(surface.buffer).fill(0xffcc8080); // flache Normale, Rauheit 0.8, keine Verdeckung
+  return { albedo, surface, done: new Uint8Array(NL), count: 0 };
+}
+function ensureData() { if (!data) data = allocData(); return data; }
+function finish() {
+  if (data.count < NL) return;
   clearFieldCache();
-  stats.ms += now() - t0; stats.bytes = data.albedo.length * 2;
-  return data;
+  stats.bytes = data.albedo.length * 2; stats.ready = true;
+  if (arrays) { arrays.albedo.needsUpdate = true; arrays.surface.needsUpdate = true; }
+  if (worker) { worker.terminate(); worker = null; }
+  readyResolve();
 }
-// Stückweise Erzeugung mit Pausen (für Ladebildschirme). onProgress(0..1)
-export function prepareTextures(onProgress) {
-  if (data && data.done === LAYERS.length) { if (onProgress) onProgress(1); return Promise.resolve(); }
-  if (pending) return pending;
-  pending = new Promise((resolve) => {
-    if (!data) data = allocData();
-    const step = () => {
-      const t0 = now();
-      while (data.done < LAYERS.length && now() - t0 < 24) { generateLayer(LAYERS[data.done], data.albedo, data.surface, data.done * BYTES); data.done++; }
-      stats.ms += now() - t0;
-      if (onProgress) onProgress(data.done / LAYERS.length);
-      if (data.done < LAYERS.length) setTimeout(step, 0);
-      else { clearFieldCache(); stats.bytes = data.albedo.length * 2; resolve(); }
+function ensureLayer(k) {
+  const d = ensureData();
+  if (d.done[k]) return;
+  generateLayer(LAYERS[k], d.albedo, d.surface, k * BYTES);
+  d.done[k] = 1; d.count++;
+}
+// Synchron: alle Schichten fertig (blockiert, falls der Worker noch rechnet)
+export function textureData() {
+  const d = ensureData();
+  if (d.count < NL) {
+    const t0 = now();
+    for (let k = 0; k < NL; k++) ensureLayer(k);
+    stats.ms += now() - t0; stats.mode = stats.mode || 'sync';
+    finish();
+  }
+  return d;
+}
+// Stückweise auf dem Hauptfaden (Ersatz, wenn kein Worker möglich ist)
+function chunked() {
+  const d = ensureData();
+  stats.mode = 'chunked';
+  const step = () => {
+    const t0 = now();
+    for (let k = 0; k < NL && now() - t0 < 20; k++) ensureLayer(k);
+    stats.ms += now() - t0;
+    if (d.count < NL) setTimeout(step, 0); else finish();
+  };
+  step();
+}
+function startWorker() {
+  if (typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined' || !URL.createObjectURL) return false;
+  try {
+    const src = `const G = (${texGenFactory.toString()})();
+onmessage = (e) => { const B = G.TS * G.TS * 4, t0 = performance.now();
+  for (const k of e.data.layers) { const a = new Uint8Array(B), s = new Uint8Array(B); G.generateLayer(G.LAYERS[k], a, s, 0); postMessage({ k, a, s }, [a.buffer, s.buffer]); }
+  G.clearFieldCache(); postMessage({ done: true, ms: performance.now() - t0 }); };`;
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    const w = new Worker(url);
+    URL.revokeObjectURL(url);
+    const d = ensureData(), t0 = now();
+    let heard = false;
+    const fail = () => { if (worker !== w) return; w.terminate(); worker = null; if (d.count < NL) chunked(); };
+    w.onmessage = (e) => {
+      heard = true;
+      const m = e.data;
+      if (m.done) { stats.workerMs = m.ms; stats.ms = now() - t0; if (d.count < NL) textureData(); else finish(); return; }
+      if (!d.done[m.k]) { d.albedo.set(m.a, m.k * BYTES); d.surface.set(m.s, m.k * BYTES); d.done[m.k] = 1; d.count++; }
+      if (d.count === NL) { stats.ms = now() - t0; finish(); }
     };
-    step();
-  });
-  return pending;
+    w.onerror = (e) => { if (e && e.preventDefault) e.preventDefault(); fail(); };
+    setTimeout(() => { if (!heard) fail(); }, 5000);
+    worker = w; stats.mode = 'worker';
+    const todo = []; for (let k = 0; k < NL; k++) if (!d.done[k]) todo.push(k);
+    w.postMessage({ layers: todo });
+    return true;
+  } catch (e) { worker = null; return false; }
 }
+let started = false;
+// Startet die Erzeugung im Hintergrund (idempotent). Rückgabe: Promise, erfüllt wenn alle Muster fertig sind.
+export function startTextures() {
+  if (!started) { started = true; if (!startWorker()) { if (typeof setTimeout !== 'undefined' && typeof window !== 'undefined') chunked(); else textureData(); } }
+  return ready;
+}
+// Für Ladebildschirme: onProgress(0..1); erfüllt, wenn alle Muster fertig sind
+export function prepareTextures(onProgress) {
+  startTextures();
+  if (onProgress) {
+    const tick = () => { const p = data ? data.count / NL : 0; onProgress(p); if (p < 1) setTimeout(tick, 50); };
+    tick();
+  }
+  return ready;
+}
+export const texturesReady = () => !!(data && data.count === NL);
+if (typeof window !== 'undefined' && typeof document !== 'undefined') startTextures();
 
 function arrayTex(buf) {
   const t = new THREE.DataArrayTexture(buf, TS, TS, LAYERS.length);
@@ -68,9 +137,10 @@ function arrayTex(buf) {
   return t;
 }
 let arrays = null;
+// Textur-Arrays; im Browser sofort verfügbar (anfangs neutral, die Muster folgen aus dem Worker)
 export function getSurfaceArrays() {
   if (arrays) return arrays;
-  const d = textureData();
+  const d = started ? ensureData() : textureData();
   arrays = { albedo: arrayTex(d.albedo), surface: arrayTex(d.surface), layers: LAYERS, layerIndex: LAYER_INDEX, size: TS };
   return arrays;
 }
@@ -154,7 +224,8 @@ export function getTexture(name) {
   if (tex2d.has(name)) return tex2d.get(name);
   const def = (defsRef && defsRef[name]) || [0x808080, 0.8, 0];
   const s = surfaceOf(name), layer = LAYER_INDEX[s.layer] ?? LAYER_INDEX.paint;
-  const d = textureData(), off = layer * BYTES;
+  ensureLayer(layer);
+  const d = data, off = layer * BYTES;
   const base = lin(def[0]), sec = secondColor(s.second, base);
   const col = new Uint8ClampedArray(BYTES), nor = new Uint8ClampedArray(BYTES), orm = new Uint8ClampedArray(BYTES);
   const rough = (def[1] ?? 0.8) / (LAYER_ROUGH[s.layer] || 0.8) * (s.rough ?? 1), metal = (def[2] ?? 0) * 255, ns = s.normal ?? 1;

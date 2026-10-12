@@ -11,6 +11,7 @@
 // Schnee (shared.uSnow) auf nach oben zeigenden Flächen, Nässe (shared.uWet) mit Pfützen, Herbstlaub (uAutumn).
 import * as THREE from 'three';
 import { shared } from './materials.js';
+import { getSurfaceArrays, LAYER_INDEX } from './textures.js';
 
 const VERT_PARS = `
 #ifdef SURF_ATTR
@@ -97,6 +98,11 @@ const FRAG_SURF = `
   alb = mix(alb, alb * vec3(0.62, 0.6, 0.55), grime * 0.55);
   sRough = clamp(ts.b * p2.z, 0.03, 1.0);
   sMetal = p2.w;
+  #ifndef USE_ENVMAP
+  // Ohne Umgebungskarte spiegeln Metalle nur Schwärze – dann überwiegend als Dielektrikum zeigen
+  alb *= 1.0 + 0.35 * sMetal;
+  sMetal *= 0.25;
+  #endif
   // Normale
   vec2 nt = ts.rg * 2.0 - 1.0;
   vec3 tn = normalize(vec3(nt * p1.w, sqrt(max(1e-4, 1.0 - dot(nt, nt)))));
@@ -122,11 +128,11 @@ const FRAG_SURF = `
   if (uSnow > 0.001 && snowCap > 0.0) {
     float cov = uSnow * snowCap * 1.35 - (0.55 * mc.b + 0.25 * (1.0 - sAO) + 0.2 * mc.a) * 0.6;
     snowK = smoothstep(0.15, 0.45, cov);
-    vec3 snowC = vec3(0.86, 0.89, 0.94) * (0.94 + 0.06 * mc.r);
+    vec3 snowC = vec3(0.86, 0.89, 0.94) * (0.93 + 0.07 * mc.r) * (0.86 + 0.14 * sAO);
     alb = mix(alb, snowC, snowK);
     sRough = mix(sRough, 0.62, snowK);
     sMetal = mix(sMetal, 0.0, snowK);
-    nW = normalize(mix(nW, N, snowK * 0.8));
+    nW = normalize(mix(nW, N, snowK * 0.7));
     sAO = mix(sAO, 1.0, snowK * 0.7);
   }
   // Nässe: dunkler, glatter; Pfützen auf ebenen Böden
@@ -173,5 +179,76 @@ export function makeSurfaceMaterial(opts) {
 reflectedLight.indirectDiffuse *= aoK; reflectedLight.indirectSpecular *= aoK; }`);
   };
   mat.customProgramCacheKey = () => 'g2surf' + (attr ? 'A' : 'U');
+  return mat;
+}
+
+// Detail-Überlagerung für fremde Materialien (z. B. Straßen-Atlas von G8, Gelände von G7):
+// applySurfaceDetail(material, 'asphalt', { scale: 1, color: 1, normal: 1, rough: 1, snow: false, wet: true })
+// multipliert die Farbe mit dem Detailmuster der Schicht (neutral = 1), stört die Normale und moduliert die Rauheit.
+// Projektion in Weltkoordinaten (oben: x/z, Seiten: Hauptachse), 1 Kachel = 4 m / scale. Bestehende
+// onBeforeCompile-Erweiterungen des Materials bleiben erhalten (werden vorher aufgerufen).
+export function applySurfaceDetail(mat, layerName, o = {}) {
+  const arrays = getSurfaceArrays();
+  const layer = LAYER_INDEX[layerName] ?? LAYER_INDEX.paint;
+  const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : () => '';
+  const str = new THREE.Vector4(o.color ?? 1, o.normal ?? 1, o.rough ?? 1, o.scale ?? 1);
+  mat.onBeforeCompile = (shader, renderer) => {
+    if (prev) prev.call(mat, shader, renderer);
+    shader.uniforms.uDAlb = { value: arrays.albedo };
+    shader.uniforms.uDSrf = { value: arrays.surface };
+    shader.uniforms.uDLayer = { value: layer };
+    shader.uniforms.uDStr = { value: str };
+    shader.uniforms.uSnow = shared.uSnow;
+    shader.uniforms.uWet = shared.uWet;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vDWPos;\nvarying vec3 vDWNrm;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+{ vec4 dwp = vec4(transformed, 1.0); vec3 dwn = objectNormal;
+#ifdef USE_INSTANCING
+dwp = instanceMatrix * dwp; dwn = mat3(instanceMatrix) * dwn;
+#endif
+dwp = modelMatrix * dwp; vDWPos = dwp.xyz; vDWNrm = normalize(mat3(modelMatrix) * dwn); }`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+uniform highp sampler2DArray uDAlb;
+uniform highp sampler2DArray uDSrf;
+uniform float uDLayer;
+uniform vec4 uDStr;
+uniform float uSnow;
+uniform float uWet;
+varying vec3 vDWPos;
+varying vec3 vDWNrm;
+vec4 gDA; vec4 gDS; vec3 gDT; vec3 gDB; vec3 gDN;`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+{
+  vec3 N = normalize(vDWNrm); vec3 A = abs(N); vec3 P = vDWPos;
+  if (A.y > 0.5) { gDT = vec3(1.0, 0.0, 0.0); gDB = vec3(0.0, 0.0, 1.0); }
+  else if (A.x > A.z) { gDT = vec3(0.0, 0.0, 1.0); gDB = vec3(0.0, 1.0, 0.0); }
+  else { gDT = vec3(1.0, 0.0, 0.0); gDB = vec3(0.0, 1.0, 0.0); }
+  gDN = N;
+  float sc = 2.5 * uDStr.w;
+  vec2 uv = vec2(dot(P, gDT), dot(P, gDB)) * sc;
+  vec3 dx = dFdx(P), dy = dFdy(P);
+  vec2 gx = vec2(dot(dx, gDT), dot(dx, gDB)) * sc, gy = vec2(dot(dy, gDT), dot(dy, gDB)) * sc;
+  gDA = textureGrad(uDAlb, vec3(uv, uDLayer), gx, gy);
+  gDS = textureGrad(uDSrf, vec3(uv, uDLayer), gx, gy);
+  vec3 det = gDA.rgb * 1.9922 * mix(1.0, gDS.a, 0.4);
+  diffuseColor.rgb *= mix(vec3(1.0), det, uDStr.x);
+  ${o.snow ? `float sk = uSnow * smoothstep(0.4, 0.8, N.y) * smoothstep(0.2, 0.5, uSnow * 1.3 - (1.0 - gDS.a) * 0.4);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.89, 0.94), sk);` : ''}
+  ${o.wet === false ? '' : 'diffuseColor.rgb *= 1.0 - uWet * 0.35 * mix(0.6, 1.0, smoothstep(0.2, 0.9, N.y));'}
+}`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+roughnessFactor = clamp(roughnessFactor * mix(1.0, gDS.b / 0.8, uDStr.z), 0.03, 1.0);
+${o.wet === false ? '' : 'roughnessFactor = mix(roughnessFactor, max(0.07, roughnessFactor * 0.35), uWet);'}`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+{
+  vec2 nt = (gDS.rg * 2.0 - 1.0) * uDStr.y;
+  vec3 Tn = normalize(gDT - gDN * dot(gDN, gDT)); vec3 Bn = gDB - gDN * dot(gDN, gDB); Bn = normalize(Bn - Tn * dot(Tn, Bn));
+  normal = normalize(normal + (viewMatrix * vec4(Tn * nt.x + Bn * nt.y, 0.0)).xyz);
+}`);
+  };
+  mat.customProgramCacheKey = () => prevKey() + '|g2det' + layer + (o.snow ? 's' : '') + (o.wet === false ? '' : 'w');
+  mat.needsUpdate = true;
   return mat;
 }
