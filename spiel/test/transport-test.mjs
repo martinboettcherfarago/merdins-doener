@@ -180,7 +180,12 @@ for (let d = 1; d <= days; d++) {
   ok(Number.isFinite(b.net), 'Haushalt endlich');
   ok((b.inc.tp_fares || 0) >= 0 && (b.exp.tp_lines || 0) > 0, 'Fahrgeld und Linienkosten im Haushalt');
   ok(g.money > -25000, `Stadtkasse nicht pleite (${fmt(g.money)} €)`);
-  if (stationBuilt) ok(hist.slice(-3).some((h) => h.trains > 0), `Fernzüge halten am Hauptbahnhof (${hist.slice(-3).map((h) => h.trains).join('/')} pro Tag)`);
+  if (stationBuilt) {
+    const rail = [...t.rail.entries()].map(([bid, r]) => ({ b: g.buildings.get(bid), r }));
+    const running = rail.some(({ b, r }) => r.ok && b && b.powered && b.connected);
+    if (running) ok(hist.slice(-3).some((h) => h.trains > 0), `Fernzüge halten am Hauptbahnhof (${hist.slice(-3).map((h) => h.trains).join('/')} pro Tag)`);
+    else ok(hist.slice(-3).every((h) => !h.trains), `Hauptbahnhof ohne Strom/Anschluss: keine Fernzüge (${rail.map(({ b }) => b && (b.powered ? 'Strom' : 'kein Strom') + '/' + (b.connected ? 'verbunden' : 'nicht verbunden')).join(', ')})`);
+  }
   checkRenderables(g, 'Teil A');
   // Speichern/Laden
   const data = JSON.stringify(g.serialize());
