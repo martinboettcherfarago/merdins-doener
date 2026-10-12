@@ -363,7 +363,7 @@ export class Engine {
     this.hemi.color.copy(amb).lerp(new THREE.Color(1, 1, 1), 0.25);
     this.hemi.groundColor.setRGB(0.42, 0.36, 0.28).multiplyScalar(0.25 + 0.75 * sunUp);
     const hemiDay = 0.42 + 0.35 * overcast;
-    const hemiNight = 1.15;
+    const hemiNight = 0.55;
     this.hemi.intensity = (hemiDay * (1 - night) + hemiNight * night) * (1 + this.flash * 4);
     if (night > 0.5) { this.hemi.color.setRGB(0.42, 0.52, 0.85); this.hemi.groundColor.setRGB(0.16, 0.14, 0.16); }
     this.hemi.color.multiplyScalar(1 / Math.max(0.6, this.hemi.color.r * 0.3 + this.hemi.color.g * 0.6 + this.hemi.color.b * 0.1));
