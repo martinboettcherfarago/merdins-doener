@@ -29,7 +29,8 @@ const LOD_TICK = 0.3;
 const LOD_NEAR = 12.5, LOD_MID = 25; // Kameraabstand für Detail 2 bzw. 1 (Qualität „medium")
 const LOD_SCALE = { low: 0.65, medium: 1, high: 1.3, ultra: 1.7 };
 const MAX_D2 = 60, MAX_D1 = 160; // höchstens so viele Gebäude in Detail 2 bzw. ≥ 1
-const MAX_PROTOS = 64; // höchstens so viele verschiedene Prototypen in Detail 1/2 (≈ Draw Calls nah)
+const MAX_PROTOS = 64; // höchstens so viele verschiedene Prototypen in Detail 1/2
+const DRAW_BUDGET = 300; // Draw Calls für alle Gebäude (Bündel + Baustellen + Nahdarstellung, inkl. Schatten)
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
 
@@ -1810,17 +1811,22 @@ export class BuildingView {
       rec.want = d < a2 ? 2 : d < a1 ? 1 : 0;
       arr.push(rec);
     }
-    // Obergrenzen: nur die nächsten Gebäude bekommen Detail 1/2 (nach Abstand sortiert), und höchstens
-    // MAX_PROTOS verschiedene Prototypen – Gebäude mit schon gezeigtem Prototyp kosten keinen Draw Call extra.
+    // Obergrenzen: nur die nächsten Gebäude bekommen Detail 1/2 (nach Abstand sortiert). Jeder weitere Prototyp
+    // kostet seine Teile (+ Schatten) aus dem Draw-Call-Budget; Gebäude mit schon gezeigtem Prototyp sind gratis.
     const near = arr.filter((r) => r.want >= 1).sort((a, b) => a.dist - b.dist);
     let n2 = 0, n1 = 0;
     const used = new Set();
     const pm = this.protoMgr;
+    const budget = clamp(DRAW_BUDGET - this.batch.drawEstimate() - this.sites.drawEstimate() - 8, 60, 210);
+    let spent = 0;
     const fits = (rec, d) => {
       const id = pm.idOf(rec.key, rec.level, rec.variant, rec.fw, rec.fd, d).id;
       if (used.has(id)) return true;
-      if (used.size >= MAX_PROTOS) return false;
+      const p = pm.protos.get(id);
+      const cost = p ? p.parts.length + p.parts.filter((q) => q.cast).length : rec.p0.parts.length + 2;
+      if (used.size >= MAX_PROTOS || spent + cost > budget) return false;
       used.add(id);
+      spent += cost;
       return true;
     };
     for (const rec of near) {

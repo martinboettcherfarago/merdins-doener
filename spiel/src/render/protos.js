@@ -936,6 +936,12 @@ export class Batcher {
       gr.flush();
     }
   }
+  // Obergrenze der Draw Calls dieses Bündels (sichtbare Gruppen + Schattenwurf), ohne Sichtbarkeitstest
+  drawEstimate() {
+    let n = 0;
+    for (const ch of this.chunks.values()) for (const gr of ch.groups.values()) if (gr.used - gr.waste > 0) n += gr.mesh.castShadow ? 2 : 1;
+    return n;
+  }
   stats() {
     let draws = 0, verts = 0, waste = 0, groups = 0;
     for (const ch of this.chunks.values()) for (const gr of ch.groups.values()) {
