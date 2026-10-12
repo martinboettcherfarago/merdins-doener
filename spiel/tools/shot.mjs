@@ -71,8 +71,12 @@ try {
     wait, page,
     // Neues Spiel mit Beispielstadt starten und vorspulen
     async city(opts = {}) {
-      await page.evaluate(() => { const b = document.querySelector('[data-act=diff][data-v=sandbox]'); if (b) b.click(); });
-      await page.click('[data-act=start]');
+      // Klick per Skript: Dialoge (z. B. Szenario-Hinweise) dürfen den Start-Knopf nicht verdecken
+      await page.evaluate(() => {
+        const mr = document.getElementById('modal-root'); if (mr) mr.innerHTML = '';
+        const b = document.querySelector('[data-act=diff][data-v=sandbox]'); if (b) b.click();
+        document.querySelector('[data-act=start]').click();
+      });
       await wait(1500);
       await page.evaluate(({ days, hour, dist, pitch, yaw }) => {
         const app = window.__stadtpuls; const g = app.game;

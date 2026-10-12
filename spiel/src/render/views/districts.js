@@ -318,7 +318,8 @@ class WaterPollutionView {
       for (const k of [y * VW + x, y * VW + x + 1, (y + 1) * VW + x, (y + 1) * VW + x + 1]) { vA[k] += p; vN[k]++; }
     }
     const P = [], Cc = [], I = [];
-    const wy = (this.e.terrain && this.e.terrain.water ? this.e.terrain.water.position.y : -0.14) + 0.025;
+    const TR = this.e.terrain, wpos = TR && TR.water && TR.water.position;
+    const wy = (TR && typeof TR.waterLevel === 'number' ? TR.waterLevel : wpos ? wpos.y : -0.14) + 0.025;
     const ox = -W / 2, oz = -H / 2;
     const vidx = new Int32Array(VW * (H + 1)).fill(-1);
     const vert = (vx, vy) => {
