@@ -38,7 +38,7 @@ export class PhotoMode {
     this.opts.fov = Math.round(e.camera.fov);
     if (!this.opts.run) g.speed = 0;
     ui.refreshSpeed();
-    if (e.effects) e.effects.showIcons = false;
+    if (e.effects) { e.effects.showIcons = false; e.effects.iconTimer = 0; }
     if (ui.view !== 'none') ui.setView('none');
     e.overlay.select(null); e.overlay.hideGhost(); e.overlay.hideRadius();
     // Zonenflächen stören auf Fotos
@@ -61,7 +61,7 @@ export class PhotoMode {
     if (s.time !== null) g.time = s.time;
     g.speed = s.speed;
     ui.app.settings.alwaysDay = s.alwaysDay;
-    if (e.effects) e.effects.showIcons = s.icons;
+    if (e.effects) { e.effects.showIcons = s.icons; e.effects.iconTimer = 0; }
     rig.minDist = s.minDist; rig.enabled = s.rigEnabled; rig.autoRotate = s.auto;
     rig.goal.pitch = Math.max(0.42, Math.min(1.38, rig.goal.pitch));
     rig.goal.dist = Math.max(rig.minDist, rig.goal.dist);
@@ -243,7 +243,7 @@ ${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><inp
     ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 6 * s;
     ctx.fillText(`${ui.g.name} · ${ui.g.dateText()} · Stadtpuls`, w - 18 * s, h - (o.cine ? Math.max(0, (h - w / 2.39) / 2) : 0) - 16 * s);
     if (this.fx) { const fl = this.fx.querySelector('.pf-flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go'); }
-    ui.app.audio.play('click');
+    ui.app.audio.play('photo');
     let url = '';
     try { url = out.toDataURL('image/png'); } catch (err) { ui.toast('Foto konnte nicht erstellt werden.', 'bad'); return; }
     const name = `stadtpuls-${ui.g.name.replace(/[^a-z0-9äöüß-]+/gi, '_')}-tag${ui.g.day()}.png`;

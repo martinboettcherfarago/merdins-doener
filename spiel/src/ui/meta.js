@@ -99,7 +99,7 @@ export const VIEW_TEXT = {
   happiness: 'Grün: glücklich. Rot: unglücklich. Klicke ein Gebäude an, um die Gründe zu sehen.',
   traffic: 'Grün: freie Fahrt. Rot: Stau. Alleen haben die doppelte Kapazität, die Pulsbahn nimmt Autos von der Straße.',
   transit: 'Einzugsgebiet der Pulsbahn-Stationen mit Zugverkehr.',
-  resources: 'Grün: fruchtbarer Boden (Bauernhöfe). Braun: Erz (Bergwerke). Industrie dort spezialisiert sich.',
+  resources: 'Industrie spezialisiert sich: Acker → Bauernhof, Wald → Forstbetrieb, Erz → Bergwerk, Öl → Ölförderung.',
 };
 
 export function viewList() {

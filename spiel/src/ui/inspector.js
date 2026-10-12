@@ -19,7 +19,7 @@ export const ZONE_LEVEL_NAMES = {
   3: ['', 'Werkstatt', 'Fabrik', 'Werk', 'Großwerk', 'Hightech-Werk'],
   4: ['', 'Kanzlei', 'Bürohaus', 'Bürokomplex', 'Büroturm', 'Wolkenkratzer'],
 };
-const SPEC_NAMES = { farm: 'Bauernhof', mine: 'Bergwerk', forest: 'Forstbetrieb', oil: 'Ölfeld' };
+const SPEC_NAMES = { farm: 'Bauernhof', mine: 'Bergwerk', forest: 'Forstbetrieb', oil: 'Ölförderung' };
 
 function portrait(b, color) {
   const key = archKeyFor(b);
@@ -60,13 +60,18 @@ ${meterHTML(cong, 1, cong > 0.9 ? 'var(--bad)' : cong > 0.6 ? 'var(--warn)' : 'v
   } else if (s.type === 'tile') {
     const i = s.i;
     const ter = ['Wiese', 'Wasser', 'Strand', 'Fels'][g.world.terrain[i]] || 'Gelände';
-    const res = g.world.resource[i] === RES.FERTILE ? 'fruchtbarer Boden' : g.world.resource[i] === RES.ORE ? 'Erzvorkommen' : g.world.resource[i] === RES.OIL ? 'Ölvorkommen' : '';
+    const res = g.world.resource[i] === RES.FERTILE ? 'fruchtbarer Boden' : g.world.resource[i] === RES.ORE ? 'Erzvorkommen' : g.world.resource[i] === RES.OIL ? 'Ölvorkommen' : g.world.forest && g.world.forest[i] ? 'Wald (Forstwirtschaft)' : '';
     html = `${head('#9bc887', ter + (res ? ' · ' + res : ''), `Feld ${i % g.W}, ${Math.floor(i / g.W)}${g.zone[i] ? ' · Zone ' + ZONE_INFO[g.zone[i]].name : ''}`)}
 <div class="body"><div class="kv"><span>Bodenwert</span><span class="v">${Math.round(g.fields.landValue[i])}</span><span>Verschmutzung</span><span class="v">${Math.round(g.fields.pollution[i] * 100)} %</span><span>Lärm</span><span class="v">${Math.round(g.fields.noise[i] * 100)} %</span>${g.world.trees[i] ? '<span>Wald</span><span class="v">ja</span>' : ''}</div>
 ${g.zone[i] && !g.bld[i] ? `<p class="desc">${g.access[i] < 0 ? 'Keine Straße in Reichweite (max. 2 Felder).' : g.roadComp[g.access[i]] !== g.outsideComp ? 'Die Straße ist nicht mit der Autobahn verbunden.' : g.demand[g.zone[i]] <= 4 ? 'Wartet auf Nachfrage.' : 'Bereit zum Bebauen.'}</p>` : ''}</div>`;
   }
+  let ext = '';
   for (const fn of INSPECTORS) {
-    try { const extra = fn(ui, s); if (extra) html = html.replace(/<\/div>\s*$/, `<div class="ext">${extra}</div></div>`); } catch (e) { console.error(e); }
+    try { const extra = typeof fn === 'function' ? fn(ui, s) : fn && fn.render ? fn.render(ui, s) : null; if (extra) ext += `<div class="ext">${extra}</div>`; } catch (e) { console.error(e); }
+  }
+  if (ext) {
+    const k = html.lastIndexOf('<div class="acts">');
+    html = k >= 0 ? html.slice(0, k) + ext + html.slice(k) : html.replace(/<\/div>\s*$/, `${ext}</div>`);
   }
   return html;
 }
@@ -171,7 +176,11 @@ export function inspectorClick(ui, e) {
   if (!b) return;
   const g = ui.g, s = ui.sel;
   const act = b.dataset.act;
-  if (act === 'close') { ui.closeInspector(); return; }
+  if (act === 'close') { ui.app.audio.play('close'); ui.closeInspector(); return; }
+  // Zusätze anderer Module dürfen eigene Knöpfe haben: fn.click(ui, act, el) → true = behandelt
+  for (const fn of INSPECTORS) {
+    try { if (fn && typeof fn.click === 'function' && fn.click(ui, act, b, s)) { ui._inspHead = null; ui.renderInspector(); return; } } catch (err) { console.error(err); }
+  }
   if (act === 'focus') { const box = ui.selectedBox(); if (box) ui.focusTile(box.x + (box.w - 1) / 2, box.y + (box.h - 1) / 2, 16); return; }
   if (act === 'demolish' && s) {
     const tiles = [];

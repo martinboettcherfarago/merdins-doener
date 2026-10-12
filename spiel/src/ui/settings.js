@@ -28,6 +28,7 @@ export function ensureSettings(s) {
   const p = PRESETS[s.quality];
   for (const k of ['postfx', 'ao', 'bloom', 'shadows']) if (s[k] === undefined) s[k] = p[k];
   if (s.uiScale === undefined) s.uiScale = 1;
+  if (s.ambience === undefined) s.ambience = 1;
   if (s.minimap === undefined) s.minimap = true;
   if (s.advisor === undefined) s.advisor = true;
   if (s.tooltips === undefined) s.tooltips = true;
@@ -68,7 +69,7 @@ export function settingsHTML(ctx) {
 </div>
 <div class="apply${pending ? ' pending' : ''}">${pending ? `${icon('info', 16)}<span>Geänderte Grafikwerte gelten nach einem Neustart der Ansicht.</span>` : `${icon('check', 16)}<span>Die Ansicht entspricht diesen Einstellungen.</span>`}<button class="btn small" data-act="applygfx" ${pending ? '' : 'disabled'}>${ctx.inGame ? 'Ansicht neu starten' : 'Übernehmen'}</button></div>`;
   } else if (tab === 'klang') {
-    body = `<div class="sec"><h3>Lautstärke</h3>${slider('volume', 'Gesamt', s.volume)}${slider('music', 'Musik', s.music)}${slider('sfx', 'Effekte', s.sfx)}</div>
+    body = `<div class="sec"><h3>Lautstärke</h3>${slider('volume', 'Gesamt', s.volume)}${slider('music', 'Musik', s.music)}${slider('sfx', 'Effekte', s.sfx)}${slider('ambience', 'Umgebung', s.ambience ?? 1)}</div>
 <div class="sec">${sw('mute', !s.muted, 'Ton an', 'Taste M schaltet stumm.')}</div>`;
   } else if (tab === 'bedienung') {
     body = `<div class="sec"><h3>Größe der Oberfläche</h3>${seg('uiScale', s.uiScale, UI_SCALES)}</div>

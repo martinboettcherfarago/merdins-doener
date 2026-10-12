@@ -14,7 +14,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const ZONE_DESC = {
   1: 'Hier ziehen Menschen ein. Braucht Strom, Wasser und Jobs in der Nähe.',
   2: 'Läden und Kaufhäuser. Leben von Kundschaft und Waren.',
-  3: 'Fabriken schaffen Jobs, machen aber Abgase. Auf Erz oder fruchtbarem Boden entstehen Bergwerke und Höfe.',
+  3: 'Fabriken schaffen Jobs, machen aber Abgase. Auf Acker, Wald, Erz oder Öl entstehen Bauernhöfe, Forstbetriebe, Bergwerke und Ölfelder.',
   4: 'Saubere Büros für gebildete Arbeitskräfte.',
 };
 const ZONE_THUMB = { 1: ['res', 2, 2], 2: ['com', 2, 1], 3: ['ind', 2, 3], 4: ['off', 3, 0] };
@@ -182,7 +182,9 @@ export function searchCatalog(ui, q) {
 }
 
 export function isActive(it, t) {
-  if (!t || it.kind !== t.kind) return false;
+  if (!t) return false;
+  if (it.kind === 'tool') return t.kind === it.key && String(t.type ?? '') === String(it.type ?? '');
+  if (it.kind !== t.kind) return false;
   if (it.kind === 'road') return t.type === it.type;
   if (it.kind === 'zone') return t.zone === it.zone;
   if (it.kind === 'place') return t.key === it.key;

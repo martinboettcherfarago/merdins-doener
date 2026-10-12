@@ -296,7 +296,7 @@ export class Input {
     if (!b) return null;
     if (b.zone) {
       const names = { 1: ['', 'Häuschen', 'Einfamilienhaus', 'Stadthaus', 'Wohnblock', 'Wohnturm'], 2: ['', 'Kiosk', 'Ladenzeile', 'Kaufhaus', 'Geschäftshaus', 'Einkaufsturm'], 3: ['', 'Werkstatt', 'Fabrik', 'Werk', 'Großwerk', 'Hightech-Werk'], 4: ['', 'Kanzlei', 'Bürohaus', 'Bürokomplex', 'Büroturm', 'Wolkenkratzer'] };
-      const spec = { farm: 'Bauernhof', mine: 'Bergwerk', forest: 'Forstbetrieb', oil: 'Ölfeld' }[b.spec];
+      const spec = { farm: 'Bauernhof', mine: 'Bergwerk', forest: 'Forstbetrieb', oil: 'Ölförderung' }[b.spec];
       const nm = spec || (names[b.zone] || [])[b.level] || ZONE_INFO[b.zone].name;
       if (b.abandoned) return `${nm} · verlassen`;
       if (b.construct < 1) return `${nm} · im Bau ${Math.round(b.construct * 100)} %`;

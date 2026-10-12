@@ -174,10 +174,10 @@ export class UI {
 
     const on = (el, ev, fn) => el.addEventListener(ev, fn);
     on(this.el.speed, 'click', (e) => { const b = e.target.closest('button[data-speed]'); if (b) { this.app.audio.play('click'); this.setSpeed(+b.dataset.speed); } });
-    on(this.el.sys, 'click', (e) => { const b = e.target.closest('button[data-sys]'); if (b) { this.app.audio.play('click'); this.sysAction(b.dataset.sys); } });
-    on(this.root.querySelector('.stats'), 'click', (e) => { const b = e.target.closest('[data-stat]'); if (b) { this.app.audio.play('click'); this.statAction(b.dataset.stat); } });
+    on(this.el.sys, 'click', (e) => { const b = e.target.closest('button[data-sys]'); if (b) { if (b.dataset.sys === 'photo' || b.dataset.sys === 'keys' || b.dataset.sys === 'more') this.app.audio.play('click'); this.sysAction(b.dataset.sys); } });
+    on(this.root.querySelector('.stats'), 'click', (e) => { const b = e.target.closest('[data-stat]'); if (b) this.statAction(b.dataset.stat); });
     on(this.el.weather, 'click', () => { if (PANELS.find((p) => p.id === 'weather')) this.togglePanel('weather'); });
-    on(this.el.dock, 'click', (e) => { const b = e.target.closest('button[data-panel]'); if (b) { this.app.audio.play('click'); this.togglePanel(b.dataset.panel); } });
+    on(this.el.dock, 'click', (e) => { const b = e.target.closest('button[data-panel]'); if (b) this.togglePanel(b.dataset.panel); });
     on(this.el.views, 'click', (e) => { const b = e.target.closest('button[data-view]'); if (b) { this.app.audio.play('click'); this.setView(this.view === b.dataset.view ? 'none' : b.dataset.view); } });
     on(this.el.cats, 'click', (e) => {
       const b = e.target.closest('button.cat');
@@ -272,7 +272,7 @@ export class UI {
     const g = this.g;
     this.unbind = [
       g.on('news', (n) => this.onNews(n)),
-      g.on('milestone', (i) => { setTimeout(() => this.markFresh(), 0); this.notes.push({ title: 'Meilenstein', text: `${MILESTONES[i].name} erreicht!`, mood: 'good', icon: 'trophy', kind: 'milestone' }); this.queueModal(() => this.showMilestone(i)); if (this.cat) this.renderTray(); }),
+      g.on('milestone', (i) => { setTimeout(() => this.markFresh(), 0); this.notes.push({ title: 'Meilenstein', text: `${MILESTONES[i].name} erreicht!`, mood: 'good', icon: 'trophy', kind: 'milestone', silent: true }); this.queueModal(() => this.showMilestone(i)); if (this.cat) this.renderTray(); }),
       g.on('cards', (ids) => this.queueModal(() => this.showCards(ids))),
       g.on('event', (ev) => this.queueModal(() => this.showEvent(ev))),
       g.on('bankrupt', () => this.queueModal(() => this.showBankrupt())),
@@ -599,11 +599,14 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const def = viewList().find((o) => o.id === id);
     if (id === 'none' || !def) { this.el.legend.hidden = true; return; }
     const bad = def.bad;
-    let ramp = id === 'resources' ? 'linear-gradient(90deg,#78be46,#966e5a)' : `linear-gradient(90deg, ${bad ? '#45c46b, #f2c230, #e5483c' : '#e5483c, #f2c230, #45c46b'})`;
+    let ramp = `linear-gradient(90deg, ${bad ? '#45c46b, #f2c230, #e5483c' : '#e5483c, #f2c230, #45c46b'})`;
     let ends = id === 'resources' ? ['fruchtbar', 'Erz'] : bad ? ['gering', 'hoch'] : id === 'traffic' ? ['frei', 'Stau'] : ['schlecht', 'gut'];
     if (id === 'traffic') ramp = 'linear-gradient(90deg,#45c46b,#f2c230,#e5483c)';
     let leg = `<div class="ramp" style="background:${ramp}"></div><div class="ends"><span>${ends[0]}</span><span>${ends[1]}</span></div>`;
-    if (def.legend && def.legend.items) leg = `<div class="litems">${def.legend.items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
+    const items = Array.isArray(def.legend) ? def.legend : def.legend && def.legend.items;
+    if (id === 'resources' && !def.legend) leg = `<div class="litems"><span><i style="background:#78be46"></i>Acker</span><span><i style="background:#2e6b3a"></i>Wald</span><span><i style="background:#966e5a"></i>Erz</span><span><i style="background:#4a4a58"></i>Öl</span></div>`;
+    else if (items) leg = `<div class="litems">${items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
+    else if (def.legend && def.legend.items) leg = `<div class="litems">${def.legend.items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
     else if (def.legend && def.legend.gradient) { leg = `<div class="ramp" style="background:${def.legend.gradient}"></div><div class="ends"><span>${esc((def.legend.ends || [])[0] || '')}</span><span>${esc((def.legend.ends || [])[1] || '')}</span></div>`; }
     else if (id === 'power' || id === 'water') leg = `<div class="litems"><span><i style="background:${id === 'power' ? '#45c46b' : '#3fa0e0'}"></i>versorgt</span><span><i style="background:#e5483c"></i>fehlt</span></div>`;
     this.el.legend.innerHTML = `<h4>${iconAny(def.icon, 'layers', 16)}<span>${esc(def.name)}</span><button class="close" data-act="offview" aria-label="Ansicht schließen">${icon('close', 14)}</button></h4>${leg}<p>${esc(def.text || '')}</p>`;
@@ -676,7 +679,6 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     if (n.kind !== 'chatter' && n.kind !== 'report' && n.kind !== 'card') {
       const where = n.x !== undefined && n.y !== undefined ? { x: n.x, y: n.y } : null;
       this.toast(n.text, n.mood === 'bad' ? 'bad' : n.mood === 'good' ? 'good' : '', { where });
-      if (n.mood === 'bad') this.app.audio.play('bad');
     }
   }
 
@@ -715,7 +717,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   }
 
   // ---------- Panels
-  togglePanel(name) { if (this.panel === name) this.closePanels(); else this.openPanel(name); }
+  togglePanel(name) { if (this.panel === name) { this.app.audio.play('close'); this.closePanels(); } else { this.app.audio.play('open'); this.openPanel(name); } }
   openPanel(name) {
     const def = this.panelDef(name);
     if (!def) return;
@@ -773,7 +775,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const act = b.dataset.act;
-    this.app.audio.play('click');
+    this.app.audio.play(act === 'close' ? 'close' : b.classList.contains('switch') ? 'toggle' : act === 'settab' || b.closest('.tabs, .chart-tabs, .filt') ? 'tab' : 'click');
     if (act === 'close') { this.closePanels(); return; }
     const def = this.panelDef(this.panel);
     if (!def) return;
@@ -940,8 +942,9 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     if (lvl) unlocks.push(['house', `Gebäude bis Stufe ${lvl}`, '#4fae67']);
     for (const [, d] of Object.entries(BUILDINGS)) if (d.landmark && d.unlock + 1 === i) unlocks.push(['landmarks', `Wahrzeichen: ${d.name}`, '#c06a2b']);
     this.refreshTutorial();
+    if (unlocks.length) setTimeout(() => this.app.audio.play('unlock'), 800);
     const prevName = MILESTONES[i - 1] ? MILESTONES[i - 1].name : '';
-    this.openModal(`<div class="modal milestone"><div class="ms-line">${MILESTONES.map((x, k) => `<i class="${k < i ? 'past' : k === i ? 'now' : ''}" data-tip="${esc(x.name)}"></i>`).join('')}</div><div class="eyebrow">Meilenstein erreicht${prevName ? ' · nach ' + esc(prevName) : ''}</div><div class="big">${esc(m.name)}</div><p>${fmt(m.pop)} Menschen nennen ${esc(this.g.name)} jetzt ihr Zuhause.${m.reward && !this.g.sandbox ? ` Das Land gratuliert mit <b>${fmtMoney(m.reward)}</b>.` : ''}</p>${unlocks.length ? `<div class="unlocks"><div class="eyebrow">Neu freigeschaltet</div><div class="ul">${unlocks.map(([ic, n, c]) => `<span style="--c:${c}">${icon(ic, 15, 2.2)}${esc(n)}</span>`).join('')}</div></div>` : ''}<div class="acts" style="justify-content:center"><button class="btn big" data-act="ok">Weiter bauen</button></div></div>`, (e, close) => { if (e.target.closest('[data-act=ok]')) close(); });
+    this.openModal(`<div class="modal milestone"><div class="ms-line">${MILESTONES.map((x, k) => `<i class="${k < i ? 'past' : k === i ? 'now' : ''}" data-tip="${esc(x.name)}"></i>`).join('')}</div><div class="eyebrow">Meilenstein erreicht${prevName ? ' · nach ' + esc(prevName) : ''}</div><div class="ms-title">${esc(m.name)}</div><p>${fmt(m.pop)} Menschen nennen ${esc(this.g.name)} jetzt ihr Zuhause.${m.reward && !this.g.sandbox ? ` Das Land gratuliert mit <b>${fmtMoney(m.reward)}</b>.` : ''}</p>${unlocks.length ? `<div class="unlocks"><div class="eyebrow">Neu freigeschaltet</div><div class="ul">${unlocks.map(([ic, n, c]) => `<span style="--c:${c}">${icon(ic, 15, 2.2)}${esc(n)}</span>`).join('')}</div></div>` : ''}<div class="acts" style="justify-content:center"><button class="btn big" data-act="ok">Weiter bauen</button></div></div>`, (e, close) => { if (e.target.closest('[data-act=ok]')) close(); });
   }
 
   showCards(ids) {

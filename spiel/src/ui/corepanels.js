@@ -23,8 +23,9 @@ const budget = {
   render(ui) {
     const g = ui.g, b = g.budget();
     const nets = g.history.map((h) => h.net ?? 0).slice(-30);
-    const incItems = Object.entries(b.inc).filter(([, v]) => v > 0.5).sort((a, c) => c[1] - a[1]).map(([k, v]) => ({ label: esc(lineLabel(k, INC_LABEL)), value: v, color: INC_COL[k] || '#4fae67', text: fmtMoney(v) }));
-    const expItems = Object.entries(b.exp).filter(([, v]) => v > 0.5).sort((a, c) => c[1] - a[1]).map(([k, v]) => ({ label: esc(lineLabel(k, EXP_LABEL)), value: v, color: EXP_COL[k] || '#e8543f', text: '−' + fmtMoney(v) }));
+    // feste Posten und alle BUDGET_LINES anderer Module (Beträge können negativ sein, z. B. Konjunktur)
+    const incItems = Object.entries(b.inc).filter(([, v]) => Math.abs(v || 0) >= 0.5).sort((a, c) => c[1] - a[1]).map(([k, v]) => ({ label: esc(lineLabel(k, INC_LABEL)), value: v, color: v < 0 ? '#d4433a' : INC_COL[k] || '#4fae67', text: (v < 0 ? '−' : '') + fmtMoney(Math.abs(v)) }));
+    const expItems = Object.entries(b.exp).filter(([, v]) => Math.abs(v || 0) >= 0.5).sort((a, c) => c[1] - a[1]).map(([k, v]) => ({ label: esc(lineLabel(k, EXP_LABEL)), value: v, color: v < 0 ? '#2b9a57' : EXP_COL[k] || '#e8543f', text: (v < 0 ? '+' : '−') + fmtMoney(Math.abs(v)) }));
     const max = Math.max(1, ...incItems.map((i) => i.value), ...expItems.map((i) => i.value));
     const taxes = [1, 2, 3, 4].map((z) => `<div class="slider tax"><label><span class="zdot" style="background:${hex(ZONE_INFO[z].color)}"></span> ${ZONE_INFO[z].name}</label><input type="range" min="0" max="25" step="1" value="${g.taxes[z]}" data-tax="${z}" id="tax-${z}" style="accent-color:${hex(ZONE_INFO[z].color)}"><span class="val num${g.taxes[z] > 12 ? ' neg' : ''}">${g.taxes[z]} %</span></div>`).join('');
     const loans = g.loans.map((l, i) => `<div class="row"><span class="grow">${fmtMoney(l.amount)} · noch ${l.weeksLeft} Wochen<br><span class="sub">Tilgung ${fmtMoney(l.amount / l.weeks)} + Zinsen ${fmtMoney(l.weekly)} pro Woche</span></span><button class="btn small ghost" data-act="repay" data-i="${i}">Ablösen</button></div>`).join('');
@@ -38,7 +39,7 @@ const budget = {
   },
   click(ui, act, el) {
     const g = ui.g;
-    if (act === 'loan') { if (g.takeLoan(+el.dataset.i)) { ui.toast('Kredit aufgenommen.', 'good'); ui.app.audio.play('money'); } }
+    if (act === 'loan') { if (g.takeLoan(+el.dataset.i)) { ui.toast('Kredit aufgenommen.', 'good'); ui.app.audio.play('loan'); } }
     if (act === 'repay') { if (!g.repayLoan(+el.dataset.i)) ui.toast('Nicht genug Geld zum Ablösen.', 'bad'); }
     return true;
   },
@@ -98,7 +99,7 @@ const stats = {
     c.onpointermove = (e) => { const r = c.getBoundingClientRect(); drawLineChart(c, vals, { ...opts, hover: chartIndexAt(c, e.clientX - r.left, vals.length) }); };
     c.onpointerleave = () => drawLineChart(c, vals, opts);
   },
-  click(ui, act, el) { if (act === 'chart') ui.chartKey = el.dataset.k; return true; },
+  click(ui, act, el) { if (act === 'chart') { ui.chartKey = el.dataset.k; ui.app.audio.play('tab'); } return true; },
 };
 
 const policies = {
@@ -115,7 +116,7 @@ const policies = {
       return `<div class="toggle${locked ? ' locked' : ''}${on ? ' active' : ''}"><button class="switch${on ? ' on' : ''}" data-act="policy" data-id="${p.id}" ${locked ? 'disabled' : ''} aria-label="${esc(p.name)}"></button><div class="grow"><div class="t">${esc(p.name)}</div><div class="s">${esc(p.desc)} ${p.cost ? `· ${fmtMoney(cost)}/Tag` : '· kostenlos'}${locked ? ` · ab „${MILESTONES[p.unlock].name}"` : ''}</div></div></div>`;
     }).join('');
   },
-  click(ui, act, el) { if (act === 'policy') ui.g.togglePolicy(el.dataset.id); return true; },
+  click(ui, act, el) { if (act === 'policy') { ui.g.togglePolicy(el.dataset.id); ui.app.audio.play('toggle'); } return true; },
 };
 
 const transit = {

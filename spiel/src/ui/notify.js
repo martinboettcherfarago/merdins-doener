@@ -46,7 +46,11 @@ export class Notifier {
     this.items.unshift(it);
     if (this.items.length > 150) this.items.length = 150;
     this.unread++;
-    if (!quiet) this.changed();
+    if (!quiet) {
+      this.changed();
+      const a = this.ui.app && this.ui.app.audio;
+      if (a && !n.silent) a.play(it.mood === 'bad' ? 'warn' : it.mood === 'good' ? 'good' : 'notify');
+    }
     return it;
   }
 
