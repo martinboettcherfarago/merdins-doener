@@ -6,7 +6,10 @@
 //  4: Plattenbau, Wohnblock mit Loggien, Gründerzeit-Prachtbau, Wohnhof, Terrassenhaus, Laubengang-Riegel
 //  5: Wohnturm mit Staffelgeschossen, Punkthochhaus, Scheibenhochhaus, Plattenbau-Hochhaus, Turm mit Pflanzbalkonen
 import { registerArch } from './index.js';
-import { Geo, rr, rpick, chance } from './rescom_geo.js';
+import { Geo, F, NB, rr, rpick, chance } from './rescom_geo.js';
+import { mframe, massWalls, bays, railing, band } from './rescom_facade.js';
+import { flatRoof } from './rescom_roofs.js';
+import { carport, ground } from './rescom_site.js';
 import { house, winStyle, PAL } from './rescom_house.js';
 import { garden } from './rescom_garden.js';
 import { buildResHigh } from './rescom_block.js';
@@ -46,7 +49,7 @@ function style(name, rng) {
         door: { at: 'center', mat: rpick(rng, ['wood_dark', 'paint_green', 'door_wood']), canopy: null }, bays: { front: 3, side: 2 }, chimney: { mat: 'chimney_brick' }, atticTop: true },
     };
     case 'kubus': return {
-      w: rr(rng, 8.2, 8.8), d: rr(rng, 7.4, 8.2),
+      w: rr(rng, 8.2, 8.8), d: rr(rng, 7.4, 8.2), custom: kubusHouse,
       o: { floors: 2, plinth: 0.15 * M, wall: rpick(rng, ['plaster_white', 'plaster_grey', 'plaster_white', 'concrete_panel']), roof: { type: 'flat', mat: 'roof_flat_gravel', parapet: 0.4 * M, coping: 'metal_light' },
         win: winStyle(rpick(rng, ['modern', 'wide', 'square']), { frame: 'window_frame_dark' }), door: { at: 'left', glazed: true, mat: 'wood_dark', canopy: 'concrete', canopyW: 1.6 * M },
         bays: { front: 3, side: 2 }, sillH: 0.5 * M, floorBand: false },
@@ -91,12 +94,95 @@ function style(name, rng) {
         win: { ...winStyle('tall', { frame: 'window_frame_white' }), surround: 'trim_stone', header: chance(rng, 0.5) ? 'flat' : null }, floorBand: true, door: { at: 'center', canopy: null, double: true, transom: true, mat: 'wood_dark' }, bays: { front: 3, side: 2 } },
     };
     case 'stadthaus': return {
-      w: rr(rng, 6.4, 7.2), d: rr(rng, 8.6, 9.2),
+      w: rr(rng, 6.4, 7.2), d: rr(rng, 8.6, 9.2), custom: stadthausHouse,
       o: { floors: 3, plinth: 0.3 * M, wall: rpick(rng, ['brick_red', 'brick_dark', 'plaster_white', 'wood_planks', 'brick_yellow']), roof: { type: 'flat', mat: chance(rng, 0.5) ? 'green_roof' : 'roof_flat_gravel', parapet: 0.5 * M, coping: 'metal_light' },
         win: { ...winStyle('tall', { frame: 'window_frame_dark' }), h: 2.0 * M, w: 1.4 * M, sill: 'metal_light', panes: { cols: 1, transom: 0.2 } }, door: { at: 'left', glazed: true, mat: 'wood_dark', canopy: 'metal_dark' }, bays: { front: 2, side: 2 }, sillH: 0.5 * M },
     };
   }
   return style('trauf', rng);
+}
+
+// Moderner Kubus: verputztes Erdgeschoss, auskragendes, verkleidetes Obergeschoss, große Verglasung, Dachterrasse
+function kubusHouse(g, o, rng) {
+  const M = 0.1;
+  const { x, z, w, d } = o;
+  const wallA = o.wall || 'plaster_white';
+  const clad = rpick(rng, ['wood_planks', 'wood_dark', 'metal_panel_grey', 'plaster_grey', 'brick_dark']);
+  const fr = 'window_frame_dark';
+  const pl = 0.15 * M, fh = 3.0 * M;
+  const shift = rr(rng, 0.8, 1.4) * M * (rng() < 0.5 ? 1 : -1);
+  // Erdgeschoss (etwas schmaler)
+  const gw = w - Math.abs(shift), gx = x - shift / 2;
+  const m0 = { cx: gx, cz: z, sx: gw, sz: d, y0: 0, y1: pl + fh, wall: wallA };
+  const doorU = shift > 0 ? -gw / 2 + 1.0 * M : gw / 2 - 1.0 * M;
+  const gUs = bays(gw, 3, 0.6 * M);
+  const f0 = [{ kind: 'door', u: doorU, y: pl, w: 1.2 * M, h: 2.3 * M, mat: 'wood_dark', glazed: true, frame: fr, depth: 0.6 * M, mailbox: 'metal_dark' }];
+  f0.push({ kind: 'win', u: shift > 0 ? gw * 0.2 : -gw * 0.2, y: pl + 0.5 * M, w: 2.4 * M, h: 1.6 * M, frame: fr, panes: { cols: 2, ft: 0.05 * M }, sill: 'metal_light' });
+  f0.push({ kind: 'win', u: -doorU * 0.0 + (shift > 0 ? -gw / 2 + 2.2 * M : gw / 2 - 2.2 * M), y: pl + 0.2 * M, w: 0.5 * M, h: 2.1 * M, frame: fr, panes: { cols: 1 } });
+  const b0 = [{ kind: 'win', u: 0, y: pl + 0.05 * M, w: Math.min(5.6 * M, gw - 1.4 * M), h: 2.5 * M, frame: fr, panes: { cols: 3, ft: 0.05 * M } }];
+  const s0 = [{ kind: 'win', u: 0, y: pl + 0.9 * M, w: 1.4 * M, h: 1.3 * M, frame: fr, panes: { cols: 1 }, sill: 'metal_light' }];
+  massWalls(g, m0, { front: f0, back: b0, left: s0, right: s0 });
+  band(g, 'concrete_dark', m0, 0, pl, 0.02 * M, { skip: F.BOTTOM });
+  // Obergeschoss: volle Breite, nach vorne auskragend
+  const out = rr(rng, 0.6, 1.1) * M;
+  const m1 = { cx: x, cz: z + out / 2, sx: w, sz: d + out, y0: pl + fh, y1: pl + fh * 2 + 0.2 * M, wall: clad };
+  const f1 = [{ kind: 'win', u: shift > 0 ? w * 0.12 : -w * 0.12, y: m1.y0 + 0.9 * M, w: w * 0.55, h: 1.3 * M, frame: fr, panes: { cols: 4, ft: 0.05 * M }, sill: 'metal_light' },
+    { kind: 'win', u: shift > 0 ? -w / 2 + 0.9 * M : w / 2 - 0.9 * M, y: m1.y0 + 0.3 * M, w: 0.7 * M, h: 2.2 * M, frame: fr, panes: { cols: 1 } }];
+  const b1 = bays(w, 3, 0.8 * M).map((u) => ({ kind: 'win', u, y: m1.y0 + 0.9 * M, w: 1.5 * M, h: 1.4 * M, frame: fr, panes: { cols: 2 }, sill: 'metal_light' }));
+  const s1 = [{ kind: 'win', u: 0, y: m1.y0 + 0.9 * M, w: 1.2 * M, h: 1.3 * M, frame: fr, panes: { cols: 1 }, sill: 'metal_light' }];
+  massWalls(g, m1, { front: f1, back: b1, left: s1, right: s1 });
+  // Unterseite der Auskragung
+  g.box(clad, x, m1.y0 - 0.02 * M, z + d / 2 + out / 2, w, 0.04 * M, out);
+  if (Math.abs(shift) > 0.1 * M) g.box(clad, x + (shift > 0 ? w / 2 - Math.abs(shift) / 2 : -w / 2 + Math.abs(shift) / 2), m1.y0 - 0.02 * M, z, Math.abs(shift), 0.04 * M, d);
+  flatRoof(g, m1, m1.y1, { mat: rng() < 0.5 ? 'green_roof' : 'roof_flat_gravel', wall: clad, parapet: 0.3 * M, coping: 'metal_light' });
+  if (g.detail >= 1 && rng() < 0.5) {
+    railing(g, mframe(x, z + out / 2, w, d + out, 'front'), 0, m1.y1 + 0.3 * M, -0.15 * M, w - 0.4 * M, 0.9 * M, 'metal_dark', 'bars');
+    g.box('concrete', x + w * 0.25, m1.y1, z - d * 0.2, 2.2 * M, 2.4 * M, 2.4 * M, { skip: NB });
+  }
+  if (Math.abs(shift) > 0.5 * M && g.detail >= 1) {
+    // Stellplatz unter der Auskragung
+    g.box('pavers', x + (shift > 0 ? w / 2 - Math.abs(shift) / 2 : -w / 2 + Math.abs(shift) / 2), 0, z, Math.abs(shift), 0.05 * M, d, { skip: NB });
+  }
+  return { info: null, top: m1.y1, yEave: m1.y1, m: m1, doorU: gx - x + doorU, pl, FH: fh, floorY: (k) => pl + k * fh };
+}
+
+// Modernes Stadthaus: drei Geschosse, bodentiefe Fenster mit Absturzsicherung, Dachaufbau mit Terrasse
+function stadthausHouse(g, o, rng) {
+  const M = 0.1;
+  const { x, z, w, d } = o;
+  const wall = o.wall || 'brick_red';
+  const accent = rpick(rng, ['wood_planks', 'metal_panel_grey', 'wood_dark', 'concrete_panel']);
+  const fr = 'window_frame_dark';
+  const pl = 0.3 * M, fh = 3.0 * M, n = 3;
+  const top = pl + n * fh;
+  const m = { cx: x, cz: z, sx: w, sz: d, y0: 0, y1: top, wall };
+  const left = rng() < 0.5;
+  const du = left ? -w / 2 + 1.0 * M : w / 2 - 1.0 * M;
+  const front = [{ kind: 'door', u: du, y: pl, w: 1.1 * M, h: 2.4 * M, mat: rpick(rng, ['wood_dark', 'trim_dark', 'paint_red']), glazed: true, frame: fr, depth: 0.5 * M, mailbox: 'metal_light', transom: true }];
+  front.push({ kind: 'win', u: left ? w * 0.18 : -w * 0.18, y: pl + 0.8 * M, w: Math.min(2.6 * M, w - 3.2 * M), h: 1.6 * M, frame: fr, panes: { cols: 2 }, sill: 'metal_light' });
+  for (let f = 1; f < n; f++) for (const u of bays(w, 2, 0.4 * M)) front.push({ kind: 'win', u, y: pl + f * fh + 0.05 * M, w: Math.min(1.5 * M, w / 2 - 0.9 * M), h: 2.4 * M, frame: fr, panes: { cols: 1, transom: 0.18 }, sill: null, french: 'metal_dark' });
+  const back = [];
+  back.push({ kind: 'win', u: 0, y: pl + 0.05 * M, w: Math.min(4.2 * M, w - 1.4 * M), h: 2.4 * M, frame: fr, panes: { cols: 3 } });
+  for (let f = 1; f < n; f++) for (const u of bays(w, 2, 0.5 * M)) back.push({ kind: 'win', u, y: pl + f * fh + 0.8 * M, w: 1.3 * M, h: 1.5 * M, frame: fr, panes: { cols: 2 }, sill: 'metal_light' });
+  massWalls(g, m, { front, back, left: [], right: [] });
+  // Gliederung: Sockel, Gesimsbänder aus Beton, Paneel zwischen den Fenstern
+  band(g, 'concrete_dark', m, 0, pl, 0.03 * M, { skip: F.BOTTOM });
+  const fF = mframe(x, z, w, d, 'front');
+  if (g.detail >= 1) {
+    for (let f = 1; f < n; f++) g.wbox('concrete', fF, 0, pl + f * fh - 0.12 * M, 0.04 * M, w, 0.16 * M, 0.08 * M, { skip: F.BACK });
+    g.wbox(accent, fF, 0, pl + fh + 0.05 * M, 0.015 * M, 0.5 * M, fh * (n - 1) - 0.2 * M, 0.03 * M, { skip: F.BACK });
+  }
+  // Dach: Attika, Dachaufbau mit Terrasse nach vorne
+  flatRoof(g, m, top, { mat: 'pavers', wall, parapet: 0.35 * M, coping: 'metal_light' });
+  const rd = d * 0.5;
+  const rm = { cx: x, cz: z - d / 2 + rd / 2, sx: w - 0.5 * M, sz: rd, y0: top, y1: top + 2.8 * M, wall: accent };
+  massWalls(g, rm, { front: [{ kind: 'win', u: 0, y: top + 0.05 * M, w: Math.min(3.2 * M, w - 1.6 * M), h: 2.3 * M, frame: fr, panes: { cols: 2 } }], back: [], left: [], right: [] });
+  flatRoof(g, rm, rm.y1, { mat: 'green_roof', wall: accent, parapet: 0.15 * M, coping: 'metal_light' });
+  if (g.detail >= 1) {
+    railing(g, fF, 0, top + 0.35 * M, -0.12 * M, w - 0.3 * M, 0.75 * M, 'metal_dark', 'bars');
+    if (g.detail >= 2) { g.box('wood_planks', x - w * 0.2, top, z + d * 0.2, 1.4 * M, 0.45 * M, 0.5 * M, { skip: NB }); g.box('leaves_green', x + w * 0.3, top, z + d * 0.3, 0.6 * M, 0.7 * M, 0.6 * M, { skip: NB }); }
+  }
+  return { info: null, top: rm.y1, yEave: top, m, doorU: du, pl, FH: fh, floorY: (k) => pl + k * fh };
 }
 
 // Haus auf ein Grundstück setzen (Breite W, Tiefe D) und Garten anlegen
@@ -118,7 +204,7 @@ function plotHouse(ctx, g, name, opt = {}) {
   const z = D / 2 - frontY - d / 2;
   const hopt = { ...st.o, ...(opt.house || {}), x, z, w, d };
   if (opt.solar) hopt.solar = {};
-  const res = house(g, hopt);
+  const res = st.custom ? st.custom(g, hopt, rng) : house(g, hopt);
   if (opt.garden !== false) garden(g, { W, D }, { x, z, w, d, doorU: res.doorU }, { drive: opt.drive, driveSide: opt.reserve ? rside : undefined, ...(opt.gardenOpt || {}) });
   return res;
 }
@@ -191,8 +277,8 @@ function rowHouses(ctx, g, o = {}) {
     // Vorgarten je Einheit
     const det = g.detail;
     const zf = D / 2;
-    g.box('grass', x, 0, (zf + z + d / 2) / 2, uw - 0.05 * M, 0.03 * M, zf - (z + d / 2), { skip: 32 });
-    g.box('pavers', x + (k % 2 ? 1 : -1) * (uw / 2 - 1.3 * M), 0, (zf + z + d / 2) / 2, 1.3 * M, 0.05 * M, zf - (z + d / 2), { skip: 32 });
+    ground(g, 'grass', x, (zf + z + d / 2) / 2, uw - 0.05 * M, zf - (z + d / 2), 0.03 * M);
+    ground(g, 'pavers', x + (k % 2 ? 1 : -1) * (uw / 2 - 1.3 * M), (zf + z + d / 2) / 2, 1.3 * M, zf - (z + d / 2), 0.05 * M);
     if (det >= 1) {
       g.box('hedge', x + (k % 2 ? -1 : 1) * 0.5 * M, 0, zf - 0.4 * M, uw - 2.2 * M, 0.8 * M, 0.45 * M, { skip: 32 });
       if (det >= 2) {
@@ -201,7 +287,7 @@ function rowHouses(ctx, g, o = {}) {
     }
     // Garten hinten
     const zb0 = -D / 2, zb1 = z - d / 2;
-    g.box('grass', x, 0, (zb0 + zb1) / 2, uw - 0.05 * M, 0.03 * M, zb1 - zb0, { skip: 32 });
+    ground(g, 'grass', x, (zb0 + zb1) / 2, uw - 0.05 * M, zb1 - zb0, 0.03 * M);
     if (det >= 1 && k < n - 1) g.box('wood_planks', x + uw / 2, 0, (zb0 + zb1) / 2, 0.06 * M, 1.6 * M, zb1 - zb0, { skip: 32 });
     if (det >= 1 && zb1 - zb0 > 2.5 * M) g.box('pavers', x, 0, zb1 - 1.2 * M, uw * 0.8, 0.06 * M, 2.2 * M, { skip: 32 });
   }

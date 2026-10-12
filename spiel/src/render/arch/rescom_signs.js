@@ -37,29 +37,53 @@ export function text(g, f, str, u, y, d, px, mat, o = {}) {
   const total = textWidth(s) * px;
   let x = u - total / 2;
   const depth = o.depth ?? 0.04 * M;
-  const solid = g.detail >= 2 && depth > 0;
+  // Tiefe nur bei großen Buchstaben in der Nahsicht (sonst flache Flächen: 2 statt 8 Dreiecke je Rechteck)
+  const solid = g.detail >= 2 && depth > 0 && px >= (o.solidPx ?? 0.14 * M);
   for (const ch of s) {
     const { rows, acc } = glyph(ch);
     const gw = rows[0].length;
-    const lines = acc ? [acc.padEnd(gw, '0').slice(0, gw), ...rows] : rows;
-    lines.forEach((row, r) => {
-      // Unterkante der Zeile: ohne Akzent y + (4 - r) px; mit Akzent ist Zeile 0 der Punkt darüber
-      const lineY = acc ? (r === 0 ? y + 5.25 * px : y + (5 - r) * px) : y + (4 - r) * px;
-      let k = 0;
-      while (k < row.length) {
-        if (row[k] !== '1') { k++; continue; }
-        let e = k;
-        while (e < row.length && row[e] === '1') e++;
-        const cu = x + ((k + e) / 2) * px, w = (e - k) * px;
-        const ph = r === 0 && acc ? px * 0.8 : px;
-        if (solid) g.wbox(mat, f, cu, lineY, d + depth / 2, w, ph, depth, { skip: F.BACK });
-        else g.wquad(mat, f, cu, lineY, d + 0.005 * M, w, ph, o.lit ?? 0);
-        k = e;
+    for (const [c0, c1, r0, r1] of glyphRects(rows)) {
+      const cu = x + ((c0 + c1) / 2) * px, w = (c1 - c0) * px;
+      const yb = y + (5 - r1) * px, h = (r1 - r0) * px;
+      if (solid) g.wbox(mat, f, cu, yb, d + depth / 2, w, h, depth, { skip: F.BACK });
+      else g.wquad(mat, f, cu, yb, d + 0.005 * M, w, h, o.lit ?? 0);
+    }
+    if (acc) {
+      for (let k = 0; k < gw; k++) if (acc[k] === '1') {
+        const cu = x + (k + 0.5) * px;
+        if (solid) g.wbox(mat, f, cu, y + 5.25 * px, d + depth / 2, px, px * 0.8, depth, { skip: F.BACK });
+        else g.wquad(mat, f, cu, y + 5.25 * px, d + 0.005 * M, px, px * 0.8, o.lit ?? 0);
       }
-    });
+    }
     x += (gw + 1) * px;
   }
   return total;
+}
+// Pixel einer Glyphe zu Rechtecken zusammenfassen: [spalte0, spalte1, zeile0, zeile1)
+const rectCache = new Map();
+function glyphRects(rows) {
+  const k = rows.join('/');
+  if (rectCache.has(k)) return rectCache.get(k);
+  const runs = rows.map((row) => {
+    const out = [];
+    let i = 0;
+    while (i < row.length) { if (row[i] !== '1') { i++; continue; } let e = i; while (e < row.length && row[e] === '1') e++; out.push([i, e]); i = e; }
+    return out;
+  });
+  const rects = [];
+  const open = new Map();
+  runs.forEach((rr2, r) => {
+    const next = new Map();
+    for (const [a, b] of rr2) {
+      const key = a + ',' + b;
+      if (open.has(key)) { const rc = open.get(key); rc[3] = r + 1; next.set(key, rc); open.delete(key); }
+      else { const rc = [a, b, r, r + 1]; rects.push(rc); next.set(key, rc); }
+    }
+    open.clear();
+    for (const [kk, v] of next) open.set(kk, v);
+  });
+  rectCache.set(k, rects);
+  return rects;
 }
 
 // Schriftzug passend in eine Breite (Pixelgröße automatisch), mit optionalem Schildband dahinter

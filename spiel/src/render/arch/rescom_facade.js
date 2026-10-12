@@ -88,7 +88,7 @@ export function opening(g, f, op, wallMat) {
     }
     if (op.lamp !== false && D >= 1) {
       const lu = u + w / 2 + 0.35 * M, ly = y + Math.min(h, 2.2 * M) * 0.85;
-      if (D >= 2) g.wbox('emissive_warm', f, lu, ly, 0.08 * M, 0.14 * M, 0.22 * M, 0.14 * M);
+      if (D >= 2) g.wbox(g.lamp, f, lu, ly, 0.08 * M, 0.14 * M, 0.22 * M, 0.14 * M);
       const [lx, , lz] = W(f, lu, ly, 0.2 * M);
       g.kit.light(lx, ly + 0.1 * M, lz, 0xffd79a, 0.35);
     }
@@ -130,10 +130,11 @@ export function opening(g, f, op, wallMat) {
   if (op.sill) g.wbox(op.sill === true ? 'trim_stone' : op.sill, f, u, y - 0.05 * M, -r / 2 + 0.03 * M, w + 0.12 * M, 0.06 * M, r + 0.06 * M);
   if (op.surround) {
     const s = op.surroundW ?? 0.16 * M, t = 0.04 * M, sm = op.surround;
-    g.wbox(sm, f, u0 - s / 2, y - (op.sill ? 0.02 * M : s), t / 2, s, h + (op.sill ? 0.02 * M : s) + s, t, { skip: F.BACK });
-    g.wbox(sm, f, u1 + s / 2, y - (op.sill ? 0.02 * M : s), t / 2, s, h + (op.sill ? 0.02 * M : s) + s, t, { skip: F.BACK });
-    g.wbox(sm, f, u, y1, t / 2, w, s, t, { skip: F.BACK });
-    if (!op.sill) g.wbox(sm, f, u, y - s, t / 2, w, s, t, { skip: F.BACK });
+    const yb = y - (op.sill ? 0.02 * M : s), hh = h + (op.sill ? 0.02 * M : s) + s;
+    g.wbox(sm, f, u0 - s / 2, yb, t / 2, s, hh, t, { skip: F.BACK | F.TOP | F.BOTTOM });
+    g.wbox(sm, f, u1 + s / 2, yb, t / 2, s, hh, t, { skip: F.BACK | F.TOP | F.BOTTOM });
+    g.wbox(sm, f, u, y1, t / 2, w, s, t, { skip: F.BACK | F.BOTTOM | F.LEFT | F.RIGHT });
+    if (!op.sill) g.wbox(sm, f, u, y - s, t / 2, w, s, t, { skip: F.BACK | F.TOP | F.LEFT | F.RIGHT });
   }
   if (op.header) {
     const hw = w + (op.surround ? 0.5 * M : 0.3 * M), hy = y1 + (op.surround ? 0.16 * M : 0.02 * M);
@@ -174,9 +175,11 @@ export function paneSet(g, f, u, y, d, w, h, frameMat, glass, p = {}, lit = 0, f
   const ft = ftIn ?? p.ft ?? 0.08 * M, mt = p.mt ?? 0.06 * M;
   const iw = w - ft * 2, ih = h - ft * 2;
   if (iw <= 0 || ih <= 0) return;
-  const cols = p.cols ?? (w > 1.1 * M ? 2 : 1);
-  const tr = p.transom ?? 0; // Anteil Oberlicht
-  const rows = p.rows ?? 1;
+  // Mittlere Entfernung: Sprossen nicht sichtbar → eine Scheibe je Fenster
+  const coarse = g.detail === 1 && !p.keep;
+  const cols = coarse ? 1 : p.cols ?? (w > 1.1 * M ? 2 : 1);
+  const tr = coarse ? 0 : p.transom ?? 0; // Anteil Oberlicht
+  const rows = coarse ? 1 : p.rows ?? 1;
   const y0 = y + ft;
   let mainH = ih, topH = 0;
   if (tr > 0) { topH = (ih - mt) * tr; mainH = ih - mt - topH; }
@@ -259,15 +262,31 @@ export function wall(g, f, wallMat, y0, y1, ops = [], o = {}) {
     lodWindows(g, f, ops, o.d || 0);
     return;
   }
-  const holes = [];
+  const holes = [], ok = [];
+  const pad = 0.03 * M;
   for (const op of ops) {
     const hu0 = Math.max(u0 + 0.02 * M, op.u - op.w / 2), hu1 = Math.min(u1 - 0.02 * M, op.u + op.w / 2);
     if (hu1 - hu0 < 0.05 * M) continue;
+    const h = { u0: hu0, u1: hu1, y0: op.y, y1: op.y + op.h };
+    // Überlappung mit bereits gesetzten Öffnungen oder außerhalb des Umrisses → weglassen
+    // (Prüfhilfe: globalThis.__g3drop = [] sammelt verworfene Öffnungen)
+    if (holes.some((q) => h.u0 < q.u1 + pad && h.u1 > q.u0 - pad && h.y0 < q.y1 + pad && h.y1 > q.y0 - pad)) { if (globalThis.__g3drop) globalThis.__g3drop.push('ov:' + op.kind); continue; }
+    if (!insidePoly(outer, h.u0, h.y0 + 0.01 * M) || !insidePoly(outer, h.u1, h.y0 + 0.01 * M) || !insidePoly(outer, h.u0, h.y1 + 0.01 * M) || !insidePoly(outer, h.u1, h.y1 + 0.01 * M)) { if (globalThis.__g3drop) globalThis.__g3drop.push('out:' + op.kind); continue; }
     op.u = (hu0 + hu1) / 2; op.w = hu1 - hu0;
-    holes.push({ u0: hu0, u1: hu1, y0: op.y, y1: op.y + op.h });
+    holes.push(h); ok.push(op);
   }
   g.wallShape(wallMat, f, outer, holes, o.d || 0);
-  for (const op of ops) if (op.w >= 0.05 * M) opening(g, o.d ? { ...f, ox: f.ox + f.s * o.d, oz: f.oz + f.c * o.d } : f, op, o.reveal || wallMat);
+  for (const op of ok) opening(g, o.d ? { ...f, ox: f.ox + f.s * o.d, oz: f.oz + f.c * o.d } : f, op, o.reveal || wallMat);
+}
+
+// Punkt im Vieleck (gerade-ungerade-Regel), Rand zählt als außen
+function insidePoly(poly, x, y) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
 }
 
 // Fensterraster für die Fernansicht aus den Öffnungen ableiten

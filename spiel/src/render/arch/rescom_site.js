@@ -84,7 +84,7 @@ export function fence(g, x0, z0, x1, z1, type = 'picket', o = {}) {
   if (D < 2) { g.box(mat, cx, h * 0.15, cz, len, h * 0.75, 0.03 * M, { ry, skip: NB }); return; }
   g.box(mat, cx, h * 0.75, cz, len, 0.07 * M, 0.04 * M, { ry });
   g.box(mat, cx, h * 0.25, cz, len, 0.07 * M, 0.04 * M, { ry });
-  const step = type === 'metal' ? 0.16 * M : 0.2 * M;
+  const step = (type === 'metal' ? 0.16 * M : 0.2 * M) * (len > 9 * M ? 1.6 : 1);
   const n = Math.floor(len / step);
   for (let k = 0; k < n; k++) {
     const t = (k + 0.5) / n;
@@ -280,7 +280,7 @@ export function lamp(g, x, z, h = 4.5 * M) {
   if (g.detail >= 1) {
     g.cyl('metal_dark', x, 0, z, 0.06 * M, h, { seg: 5, cap: false });
     g.box('metal_dark', x, h, z, 0.5 * M, 0.12 * M, 0.25 * M);
-    if (g.detail >= 2) g.box('emissive_warm', x, h - 0.04 * M, z, 0.4 * M, 0.04 * M, 0.18 * M);
+    if (g.detail >= 2) g.box(g.lamp, x, h - 0.04 * M, z, 0.4 * M, 0.04 * M, 0.18 * M);
   }
   g.kit.light(x, h - 0.1 * M, z, 0xffd79a, 0.5);
 }

@@ -184,6 +184,28 @@ export function house(g, o) {
     if (o.roofWindows) for (let k = 0; k < o.roofWindows; k++) roofWindow(g, info, -1, (k - (o.roofWindows - 1) / 2) * 1.8 * M, 0.9 * M);
     if (o.solar) solarField(g, info, o.solar.side ?? -1, o.solar.x ?? 0, o.solar.dist ?? 0.6 * M, o.solar.w ?? Math.min((ridgeX ? o.w : o.d) - 2 * M, 5 * M), o.solar.h ?? 2.2 * M);
   }
+  // Fachwerk im Giebel: Mittelständer, Kehlbalken, Streben
+  if (o.timber && info && D >= 1 && (rt === 'gable' || rt === 'gableF' || rt === 'halfhip')) {
+    const tm = o.timber, t = 0.03 * M, bw = 0.17 * M;
+    for (const end of ['lo', 'hi']) {
+      const side = ridgeX ? (end === 'hi' ? 'right' : 'left') : (end === 'hi' ? 'front' : 'back');
+      if (party.includes(side)) continue;
+      const f = mframe(m.cx, m.cz, m.sx, m.sz, side);
+      const b = info.b, tan = info.tan, H = info.yR - yEave;
+      const ow = gableOps[end].filter((op) => op.y > yEave - 0.5 * M);
+      const yC = yEave + H * 0.42, hwC = Math.max(0.2 * M, b - (yC - yEave) / tan - 0.25 * M);
+      const free = (u, y0, y1) => !ow.some((op) => Math.abs(op.u - u) < op.w / 2 + bw && op.y < y1 && op.y + op.h > y0);
+      if (free(0, yEave, info.yR)) g.wbox(tm, f, 0, yEave, t / 2, bw, H - 0.45 * M, t, { skip: F.BACK | F.BOTTOM });
+      if (free(0, yC, yC + bw)) g.wbox(tm, f, 0, yC, t / 2, hwC * 2, bw, t, { skip: F.BACK });
+      for (const sg of [-1, 1]) {
+        const u0 = sg * (b - 0.3 * M), u1 = sg * 0.15 * M;
+        const mu = (u0 + u1) / 2, my = (yEave + yC) / 2;
+        if (!free(mu, yEave, yC)) continue;
+        const len = Math.hypot(u1 - u0, yC - yEave), ang = Math.atan2(yC - yEave, u1 - u0);
+        g.rbox(tm, f.ox + f.c * mu + f.s * t, my, f.oz - f.s * mu + f.c * t, len, bw * 0.85, t, 0, f.ry, ang, { skip: F.BACK });
+      }
+    }
+  }
   if (o.chimney && info) {
     const cxL = o.chimney.x ?? ((ridgeX ? o.w : o.d) * 0.22), czL = o.chimney.z ?? -info.b * 0.25;
     chimney(g, info, cxL, czL, { mat: o.chimney.mat });
@@ -203,8 +225,9 @@ export function house(g, o) {
 
 // Zwerchgiebel (Querhaus) in der Frontmitte
 function crossGable(g, o, m, info, yEave, floorY, win, wallMat, roofMat, under, edge) {
-  const c = o.cross;
+  const c = { ...o.cross };
   const w = c.w ?? Math.min(o.w * 0.42, 3.8 * M), out = c.out ?? 0.6 * M;
+  if (out <= 0.1 * M) c.balcony = false;
   const pitch = c.pitch ?? 45;
   const extra = c.up ?? 1.4 * M; // Wand höher als Traufe
   const yTop = yEave + extra;
@@ -221,7 +244,7 @@ function crossGable(g, o, m, info, yEave, floorY, win, wallMat, roofMat, under, 
   if (o.plinth > 0.05 * M && out > 0.1 * M) band(g, o.plinthMat || 'stone_grey', { ...mm }, 0, o.plinth, 0.04 * M, { sides: ['front', 'left', 'right'], skip: F.BOTTOM });
   const yA = Math.max(floorY(fl) + 0.3 * M, out > 0.1 * M ? 0 : yEave + 0.15 * M);
   const gw = Math.min(win.w * 1.4, w - 1.4 * M);
-  const gh = Math.min(1.3 * M, (w / 2) * Math.tan((pitch * Math.PI) / 180) * 0.7 + (yTop - yA) - 0.3 * M);
+  const gh = Math.min(1.3 * M, yTop + (w / 2 - gw / 2) * Math.tan((pitch * Math.PI) / 180) - 0.2 * M - yA);
   const gOps = { hi: [...(out > 0.1 * M ? ops : []), { ...win, u: 0, y: yA, w: gw, h: gh, panes: { cols: 2 }, shutters: null, flowers: null }] };
   if (c.balcony && g.detail >= 1) {
     gOps.hi[gOps.hi.length - 1] = { ...win, kind: 'win', u: 0, y: floorY(fl) + 0.05 * M, w: gw, h: Math.min(2.1 * M, yTop + 0.6 * M - floorY(fl)), panes: { cols: 2 }, sill: null, shutters: null };

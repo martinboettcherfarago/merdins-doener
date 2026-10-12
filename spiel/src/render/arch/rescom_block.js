@@ -7,6 +7,7 @@ import { mframe, massWalls, bays, band, cornice, balcony, railing, erker, pilast
 import { rectRoof, dormer, chimney, flatRoof, mansardRoof, mansardDormer, rooftop, flatSolar, satDish } from './rescom_roofs.js';
 import { ground, tree, bush, hedge, fence, bins, bikeRack, parkingRow, lamp, bench, planter, play } from './rescom_site.js';
 import { PAL } from './rescom_house.js';
+import { text, textWidth } from './rescom_signs.js';
 
 // ---------- Werkzeuge
 // Geschossstapel: Ebenen y[0..n] (y[n] = Oberkante), gf = Erdgeschosshöhe
@@ -28,7 +29,7 @@ export function rows(st, us, fn, from = 0, to = st.n) {
 }
 // Hauseingang mit Vordach, Lampe, Briefkasten, Stufen; liefert Öffnung
 export function entranceOp(o = {}) {
-  return { kind: 'door', w: o.w ?? 1.5 * M, h: o.h ?? 2.5 * M, y: 0, mat: o.mat || 'door_glass', glazed: o.glazed ?? true, double: o.double ?? true, transom: o.transom ?? true, frame: o.frame || 'window_frame_dark', canopy: o.canopy, canopyW: o.canopyW ?? 1.2 * M, canopyD: o.canopyD ?? 1.4 * M, mailbox: o.mailbox ?? 'metal_light', depth: o.depth ?? 0.35 * M };
+  return { kind: 'door', w: o.w ?? 1.5 * M, h: o.h ?? 2.5 * M, y: 0, mat: o.mat || 'trim_dark', glazed: o.glazed ?? true, double: o.double ?? true, transom: o.transom ?? true, frame: o.frame || 'window_frame_dark', canopy: o.canopy, canopyW: o.canopyW ?? 1.2 * M, canopyD: o.canopyD ?? 1.4 * M, mailbox: o.mailbox ?? 'metal_light', depth: o.depth ?? 0.35 * M };
 }
 // Plattenfugen (waagrecht je Geschoss, senkrecht je Achse) als flache Leisten
 export function panelJoints(g, f, st, us, bayW, o = {}) {
@@ -51,6 +52,47 @@ export function blockGround(g, W, D, front, back, o = {}) {
 
 // Seitenwände eines Reihenbaus: Brandwand (wenig Fenster) oder volle Fassade
 const blank = () => [];
+
+// Brandwand: entweder ein paar nachträglich eingebrochene Fenster (Öffnungen) oder Schmuck (Efeu, alte Wandreklame).
+// firewallOps liefert die Öffnungen (vor massWalls), firewallDecor den Schmuck (danach).
+export function firewallOps(st, len, rng, kind) {
+  if (kind !== 'windows') return [];
+  const ops = [];
+  const us = len > 9 * M ? [-len * 0.25, len * 0.22] : [len * 0.18];
+  for (let f = 1; f < st.n; f++) for (const u of us) if (rng() < 0.8) ops.push(winT({ u, y: st.y[f] + 0.9 * M, w: 0.9 * M, h: 1.2 * M, frame: 'window_frame_white', panes: { cols: 1 }, sill: 'metal_light' }));
+  return ops;
+}
+export const firewallKind = (rng) => rpick(rng, ['windows', 'ivy', 'ghost', 'plain', 'ivy', 'ghost']);
+const GHOST = ['SEIFE', 'KAFFEE', 'MALZBIER', 'BRAUEREI', 'SCHOKOLADE', 'TABAK', 'KOLONIALWAREN', 'NÄHMASCHINEN', 'MÖBEL', 'BIER'];
+export function firewallDecor(g, f, y0, y1, rng, kind) {
+  if (g.detail === 0 || kind === 'windows' || kind === 'plain') return;
+  const L = f.len;
+  if (kind === 'ivy') {
+    // unregelmäßige Efeuflächen vom Boden aufwärts
+    const n = 2 + Math.floor(rng() * 2);
+    for (let k = 0; k < n; k++) {
+      const cu = (rng() - 0.5) * L * 0.6, w = rr(rng, 2.5, 5.0) * M, h = Math.min(y1 - y0 - 0.5 * M, rr(rng, 4, 10) * M);
+      const pts = [];
+      const seg = 12;
+      for (let i = 0; i < seg; i++) {
+        const a = (i / seg) * Math.PI * 2;
+        const r = rr(rng, 0.75, 1.0);
+        pts.push([cu + Math.cos(a) * w / 2 * r, y0 + h / 2 + Math.sin(a) * h / 2 * r]);
+      }
+      const mat = k % 2 ? 'leaves_dark' : 'hedge';
+      g.shape2(mat, pts.map(([u, y]) => [u, Math.max(y0, y)]), [], (u, y) => [f.ox + f.c * u + f.s * (0.03 + k * 0.01) * M, y, f.oz - f.s * u + f.c * (0.03 + k * 0.01) * M], [f.s, 0, f.c]);
+    }
+    return;
+  }
+  // alte Wandreklame
+  const word = rpick(rng, GHOST);
+  const w = Math.min(L * 0.8, 9 * M), h = Math.min((y1 - y0) * 0.3, 3.2 * M);
+  const yb = y1 - h - rr(rng, 1.0, 2.5) * M;
+  const bg = rpick(rng, ['paint_red', 'paint_blue', 'paint_green', 'plaster_ochre', 'trim_dark']);
+  g.wquad(bg, f, 0, yb, 0.012 * M, w, h);
+  const px = Math.min((w * 0.85) / Math.max(1, textWidth(word)), (h * 0.6) / 5);
+  text(g, f, word, 0, yb + (h - 5 * px) / 2, 0.02 * M, px, rpick(rng, ['paint_white', 'plaster_cream', 'paint_yellow']), { depth: 0 });
+}
 
 // ---------- Fassaden-Vorlagen
 function winT(o) { return { kind: 'win', ...o }; }
@@ -96,14 +138,19 @@ function gruenderzeit(ctx, g, P, o = {}) {
   const backOps = rows(st, backUs, (f) => winT({ w: 1.15 * M, h: f === 0 ? 1.5 * M : 1.7 * M, y: f === 0 ? st.gf - 2.2 * M : 0.75 * M, frame: 'window_frame_white', panes: { cols: 2, transom: 0.25 }, sill: 'metal_light' }));
   // Treppenhaus-Fenster hinten (halbgeschossig versetzt)
   const sideOps = W > 1.5 || o.corner ? rows(st, bays(bd, Math.max(1, Math.round(bd / (3.4 * M))), 0.8 * M), (f) => f === 0 ? null : winT({ w: 1.1 * M, h: 1.8 * M, y: 0.75 * M, frame: 'window_frame_white', panes: { cols: 2, transom: 0.25 }, sill: 'trim_stone', surround: trim })) : [];
-  massWalls(g, m, { front: frontOps, back: backOps, left: o.corner === 'left' ? sideOps : blank(), right: o.corner === 'right' ? sideOps : blank() });
+  const fwk = [firewallKind(rng), firewallKind(rng)];
+  const fwL = o.corner === 'left' ? sideOps : firewallOps(st, bd, rng, fwk[0]), fwR = o.corner === 'right' ? sideOps : firewallOps(st, bd, rng, fwk[1]);
+  massWalls(g, m, { front: frontOps, back: backOps, left: fwL, right: fwR });
+  if (o.corner !== 'left') firewallDecor(g, mframe(0, cz, bw, bd, 'left'), st.y[1], st.top, rng, fwk[0]);
+  if (o.corner !== 'right') firewallDecor(g, mframe(0, cz, bw, bd, 'right'), st.y[1], st.top, rng, fwk[1]);
   // Gliederung: Sockel, Rustika im EG, Gurtgesimse, Traufgesims
   band(g, 'stone_sandstone', m, 0, st.pl + 0.05 * M, 0.05 * M, { skip: F.BOTTOM });
   if (!o.shops) rustication(g, fF, 'trim_dark', st.pl + 0.3 * M, st.y[1] - 0.2 * M, 0.45 * M);
   band(g, trim, m, st.y[1] - 0.15 * M, 0.3 * M, 0.08 * M, { sides: ['front', 'back'] });
   if (n >= 4) band(g, trim, m, st.y[2] - 0.1 * M, 0.16 * M, 0.05 * M, { sides: ['front'] });
-  cornice(g, trim, m, st.top - 0.4 * M, 1.2, { dentils: true, sides: ['front', 'back'] });
-  if (g.detail >= 2) quoins(g, fF, trim, st.y[1], st.top - 0.4 * M);
+  const wide = W > 1.5;
+  cornice(g, trim, m, st.top - 0.4 * M, 1.2, { dentils: !wide, sides: ['front', 'back'] });
+  if (g.detail >= 2 && !wide) quoins(g, fF, trim, st.y[1], st.top - 0.4 * M);
   if (g.detail >= 1 && o.lisenen !== false) pilasters(g, fF, trim, [-bw / 2 + 0.25 * M, bw / 2 - 0.25 * M], st.y[1], st.top - 0.4 * M, 0.4 * M, 0.05 * M);
   // Erker / Balkone
   if (g.detail >= 1) {
@@ -119,7 +166,7 @@ function gruenderzeit(ctx, g, P, o = {}) {
     for (const [i, u] of us.entries()) {
       if (eBays.some((e) => Math.abs(e - u) < 1.6 * M)) continue;
       if (i === doorBay && chance(rng, 0.5)) continue;
-      if (chance(rng, 0.45)) for (let f = 2; f < n; f += 1 + (rng() < 0.5 ? 1 : 0)) balcony(g, fF, u, st.y[f], 1.9 * M, 0.85 * M, { slab: trim, rail: 'metal_dark', type: 'bars' });
+      if (chance(rng, wide ? 0.3 : 0.45)) for (let f = 2; f < n; f += 1 + (rng() < 0.5 ? 1 : 0)) balcony(g, fF, u, st.y[f], 1.9 * M, 0.85 * M, { slab: trim, rail: wide ? trim : 'metal_dark', type: wide ? 'solid' : 'bars', railH: wide ? 0.8 * M : 1.0 * M });
     }
     // Hinten: Balkonturm
     const fB = mframe(0, cz, bw, bd, 'back');
@@ -185,7 +232,10 @@ function backstein(ctx, g, P) {
     return winT({ w: 1.1 * M, h: f === 0 ? 1.6 * M : 1.75 * M, y: f === 0 ? 1.0 * M : 0.75 * M, frame: 'window_frame_white', panes: { cols: 2, rows: 2, transom: 0.25 }, sill: 'trim_stone', header: 'seg', headerMat: trim });
   });
   const backOps = rows(st, bays(bw, nb, 0.5 * M), () => winT({ w: 1.1 * M, h: 1.6 * M, y: 0.8 * M, frame: 'window_frame_white', panes: { cols: 2, transom: 0.25 }, sill: 'metal_light' }));
-  massWalls(g, m, { front: frontOps, back: backOps, left: blank(), right: blank() });
+  const fwk = [firewallKind(rng), firewallKind(rng)];
+  massWalls(g, m, { front: frontOps, back: backOps, left: firewallOps(st, bd, rng, fwk[0]), right: firewallOps(st, bd, rng, fwk[1]) });
+  firewallDecor(g, mframe(0, cz, bw, bd, 'left'), st.y[1], st.top, rng, fwk[0]);
+  firewallDecor(g, mframe(0, cz, bw, bd, 'right'), st.y[1], st.top, rng, fwk[1]);
   band(g, 'stone_dark', m, 0, st.pl, 0.05 * M, { skip: F.BOTTOM });
   for (let k = 1; k < n; k++) band(g, trim, m, st.y[k] - 0.12 * M, 0.14 * M, 0.04 * M, { sides: ['front'] });
   cornice(g, trim, m, st.top - 0.35 * M, 0.9, { sides: ['front', 'back'] });
@@ -236,7 +286,7 @@ function nachkrieg(ctx, g, P) {
   const fF = mframe(0, cz, bw, bd, 'front');
   const frontOps = rows(st, us, (f, b) => {
     if (stairs.includes(b)) {
-      if (f === 0) return { ...entranceOp({ mat: 'door_glass', canopy: 'concrete', canopyW: 0.9 * M, frame: 'window_frame_dark', h: 2.3 * M, w: 1.2 * M, double: false, depth: 0.25 * M }), y: -0.65 * M };
+      if (f === 0) return { ...entranceOp({ mat: 'trim_dark', canopy: 'concrete', canopyW: 0.9 * M, frame: 'window_frame_dark', h: 2.3 * M, w: 1.2 * M, double: false, depth: 0.25 * M }), y: -0.65 * M };
       return winT({ w: 0.9 * M, h: 1.3 * M, y: -st.fh * 0.5 + 1.0 * M, frame: fr, panes: { cols: 1, rows: 2 }, sill: 'metal_light' });
     }
     return winT({ w: 1.25 * M, h: 1.35 * M, y: 0.9 * M, frame: fr, panes: { cols: 2 }, sill: 'metal_light' });
@@ -305,7 +355,9 @@ function modernMfh(ctx, g, P, o = {}) {
   });
   const sOps = rows(st, bays(bd, Math.max(1, Math.round(bd / (3.6 * M))), 1.0 * M), () => winT({ w: 1.2 * M, h: 1.5 * M, y: 0.9 * M, frame: fr, panes: { cols: 1 }, sill: 'metal_light' }));
   const party = W <= 1.5 && chance(rng, 0.5);
-  massWalls(g, m, { front: frontOps, back: backOps, left: party ? blank() : sOps, right: party ? blank() : sOps });
+  const fwk = firewallKind(rng);
+  massWalls(g, m, { front: frontOps, back: backOps, left: party ? firewallOps(st, bd, rng, fwk) : sOps, right: party ? blank() : sOps });
+  if (party) firewallDecor(g, mframe(0, cz, bw, bd, 'left'), st.y[1], st.top, rng, fwk === 'ghost' ? 'ivy' : fwk);
   band(g, 'concrete_dark', m, 0, st.pl, 0.02 * M, { skip: F.BOTTOM });
   const fB = mframe(0, cz, bw, bd, 'back');
   if (g.detail >= 1) for (let f = 1; f < n; f++) for (let b = 0; b < nb; b += 2) balcony(g, fB, us[b], st.y[f], 2.6 * M, 1.6 * M, { slab: 'concrete', rail: rpick(rng, ['metal_dark', 'metal_light']), type: chance(rng, 0.5) ? 'bars' : 'panel', plants: chance(rng, 0.3) ? 'leaves_green' : null });
@@ -373,7 +425,7 @@ function laubengang(ctx, g, P) {
   const tx = cx + bw / 2 + tw / 2;
   const tm = { cx: tx, cz: zF - 1.6 * M + gal / 2, sx: tw, sz: 4.2 * M, y0: 0, y1: st.top + 1.2 * M, wall: rpick(rng, ['concrete', 'brick_dark', 'metal_panel_grey']) };
   const tf = mframe(tm.cx, tm.cz, tm.sx, tm.sz, 'front');
-  massWalls(g, tm, { front: [{ ...entranceOp({ canopy: 'concrete', w: 1.4 * M, h: 2.4 * M }), u: 0 }, ...rows(st, [0], (f) => f === 0 ? null : winT({ w: 0.9 * M, h: st.fh - 0.4 * M, y: -st.fh * 0.4, frame: 'metal_dark', panes: { cols: 1, rows: 3 } }), 1)] });
+  massWalls(g, tm, { front: [{ ...entranceOp({ canopy: 'concrete', w: 1.4 * M, h: 2.4 * M }), u: 0 }, ...rows(st, [0], (f) => winT({ w: 0.9 * M, h: st.fh - 0.4 * M, y: -st.fh * 0.4, frame: 'metal_dark', panes: { cols: 1, rows: 3 } }), 2)] });
   void tf;
   flatRoof(g, tm, tm.y1, { mat: 'roof_flat_membrane', wall: tm.wall, parapet: 0.2 * M });
   flatRoof(g, m, st.top, { mat: 'roof_flat_gravel', wall, parapet: 0.5 * M });
@@ -762,7 +814,8 @@ function scheibe(ctx, g, P) {
   const nb = Math.max(3, Math.round(bw / (2.6 * M)));
   const us = bays(bw, nb, 0.2 * M);
   const front0 = rows(st, us, (fl, b) => {
-    if (fl === 0) return b === Math.floor(nb / 2) ? { ...entranceOp({ canopy: 'concrete', canopyW: 3 * M, w: 2.4 * M, h: 2.8 * M }), y: 0 } : winT({ w: 2.0 * M, h: 2.2 * M, y: 0.6 * M, frame: 'metal_dark', panes: { cols: 2 } });
+    const step = (bw - 0.4 * M) / nb;
+    if (fl === 0) return b === Math.floor(nb / 2) ? { ...entranceOp({ canopy: 'concrete', canopyW: 3 * M, w: Math.min(2.4 * M, step - 0.4 * M), h: 2.8 * M }), y: 0 } : winT({ w: Math.min(2.0 * M, step - 0.5 * M), h: 2.2 * M, y: 0.6 * M, frame: 'metal_dark', panes: { cols: 2 } });
     return { kind: 'loggia', w: 2.6 * M * (bw / (nb * 2.6 * M)) - 0.3 * M, h: fh - 0.3 * M, y: 0.05 * M, depth: 1.3 * M, frame: fr, parapet: b % 2 ? color : wall, backWall: 'plaster_white', reveal: wall };
   });
   const back0 = rows(st, us, (fl) => fl === 0 ? null : winT({ w: 1.4 * M, h: 1.4 * M, y: 0.85 * M, frame: fr, panes: { cols: 2 }, sill: 'metal_light' }));
@@ -790,12 +843,12 @@ function gruenTurm(ctx, g, P) {
   const n = 16 + Math.floor(rng() * 6);
   const fh = 3.1 * M;
   const front = 2.4 * M;
-  const s = Math.min(W - 2.8 * M, D - front - 3.0 * M, 14 * M);
-  const cz = D / 2 - front - s / 2 - 0.6 * M;
+  const s = Math.min(W - 2.4 * M, D - front - 1.6 * M, 14 * M);
+  const cz = D / 2 - front - s / 2 - 0.2 * M;
   const wall = rpick(rng, ['concrete', 'stone_grey', 'plaster_grey', 'metal_panel_grey']);
   const st = stack(0.3 * M, 4.2 * M, fh, n);
   const m = { cx: 0, cz, sx: s, sz: s, y0: 0, y1: st.top, wall };
-  towerFloors(g, m, st, { bay: 2.4 * M, win: (fl, b, nb, side) => fl === 0 ? (side === 'front' && b === Math.floor(nb / 2) ? { ...entranceOp({ canopy: null, w: 2.2 * M, h: 3.2 * M }), y: 0 } : winT({ w: 2.0 * M, h: 3.4 * M, y: 0.3 * M, frame: 'metal_dark', panes: { cols: 2 } })) : winT({ w: 2.0 * M, h: 2.5 * M, y: 0.05 * M, frame: 'metal_dark', panes: { cols: 2 } }) });
+  towerFloors(g, m, st, { bay: 2.4 * M, win: (fl, b, nb, side, f) => { const ww = Math.min(2.0 * M, (f.len - 0.6 * M) / nb - 0.45 * M); return fl === 0 ? (side === 'front' && b === Math.floor(nb / 2) ? { ...entranceOp({ canopy: null, w: ww, h: 3.2 * M }), y: 0 } : winT({ w: ww, h: 3.4 * M, y: 0.3 * M, frame: 'metal_dark', panes: { cols: 2 } })) : winT({ w: ww, h: 2.5 * M, y: 0.05 * M, frame: 'metal_dark', panes: { cols: 2 } }); } });
   // umlaufende, versetzte Balkonplatten mit Pflanztrögen und Bäumchen
   const out = 1.4 * M;
   for (let fl = 1; fl < n; fl++) {
@@ -820,12 +873,91 @@ function gruenTurm(ctx, g, P) {
   towerGround(g, W, D, front, rng);
 }
 
-// 5f Zwillingstürme auf einem Sockel / Turm mit Glasecke
+// Rundturm (Vieleck) mit umlaufenden Ringbalkonen
+function ringSlab(g, mat, cx, cz, n, r0, r1, y, t) {
+  const P = (k, r, yy) => { const a = (k / n) * Math.PI * 2; return [cx + Math.sin(a) * r, yy, cz + Math.cos(a) * r]; };
+  for (let k = 0; k < n; k++) {
+    g.quad(mat, P(k, r0, y), P(k, r1, y), P(k + 1, r1, y), P(k + 1, r0, y), 0, [0, 1, 0]);
+    if (t > 0) {
+      g.quad(mat, P(k, r0, y - t), P(k + 1, r0, y - t), P(k + 1, r1, y - t), P(k, r1, y - t), 0, [0, -1, 0]);
+      const a = ((k + 0.5) / n) * Math.PI * 2;
+      g.quad(mat, P(k, r1, y - t), P(k + 1, r1, y - t), P(k + 1, r1, y), P(k, r1, y), 0, [Math.sin(a), 0, Math.cos(a)]);
+    }
+  }
+}
+function rundturm(ctx, g, P) {
+  const { rng } = ctx;
+  const { W, D } = P;
+  const n = 12;
+  const floors = 18 + Math.floor(rng() * 6);
+  const front = 2.2 * M;
+  const R = Math.min(W - 2.6 * M, D - front - 2.4 * M) / 2;
+  const cx = 0, cz = D / 2 - front - R - 1.0 * M;
+  const st = stack(0.3 * M, 4.2 * M, 2.95 * M, floors);
+  const wallM = rpick(rng, ['plaster_white', 'concrete_panel', 'brick_white', 'metal_panel_white', 'plaster_cream']);
+  const rail = rpick(rng, ['metal_light', 'paint_white', 'concrete', 'metal_panel_grey']);
+  const fr = 'window_frame_dark';
+  const seg = 2 * R * Math.sin(Math.PI / n), ap = R * Math.cos(Math.PI / n);
+  for (let k = 0; k < n; k++) {
+    const a = ((k + 0.5) / n) * Math.PI * 2;
+    const f = { ox: cx + Math.sin(a) * ap, oz: cz + Math.cos(a) * ap, ry: a, c: Math.cos(a), s: Math.sin(a), len: seg };
+    const ops = rows(st, [0], (fl) => {
+      if (fl === 0) return k === 0 || k === n - 1 ? { kind: 'door', w: Math.min(seg - 0.5 * M, 1.8 * M), h: 2.8 * M, y: 0, mat: 'trim_dark', glazed: true, frame: 'metal_dark', depth: 0.3 * M } : winT({ w: seg - 0.8 * M, h: 2.8 * M, y: 0.4 * M, frame: 'metal_dark', panes: { cols: 2 } });
+      return winT({ w: Math.min(seg - 0.6 * M, 2.0 * M), h: fl % 2 ? 2.3 * M : 1.6 * M, y: fl % 2 ? 0.05 * M : 0.75 * M, frame: fr, panes: { cols: 2 }, sill: fl % 2 ? null : 'metal_light' });
+    });
+    wallImpl(g, f, wallM, 0, st.top, ops);
+  }
+  // Ringbalkone jedes zweite Geschoss, Sockelband, Dach
+  const Rv = R; // Eckradius des Vielecks
+  for (let fl = 1; fl < floors; fl += 2) {
+    ringSlab(g, 'concrete', cx, cz, n, Rv - 0.05 * M, Rv + 1.3 * M, st.y[fl], 0.18 * M);
+    if (g.detail >= 1) {
+      // Brüstung als Ringwand
+      const Pt = (k, r, yy) => { const a = (k / n) * Math.PI * 2; return [cx + Math.sin(a) * r, yy, cz + Math.cos(a) * r]; };
+      for (let k = 0; k < n; k++) {
+        const a = ((k + 0.5) / n) * Math.PI * 2;
+        const r = Rv + 1.25 * M;
+        g.quad(rail, Pt(k, r, st.y[fl]), Pt(k + 1, r, st.y[fl]), Pt(k + 1, r, st.y[fl] + 1.0 * M), Pt(k, r, st.y[fl] + 1.0 * M), 0, [Math.sin(a), 0, Math.cos(a)]);
+        g.quad(rail, Pt(k + 1, r - 0.04 * M, st.y[fl]), Pt(k, r - 0.04 * M, st.y[fl]), Pt(k, r - 0.04 * M, st.y[fl] + 1.0 * M), Pt(k + 1, r - 0.04 * M, st.y[fl] + 1.0 * M), 0, [-Math.sin(a), 0, -Math.cos(a)]);
+      }
+    }
+  }
+  ringSlab(g, 'concrete_dark', cx, cz, n, Rv - 0.05 * M, Rv + 0.3 * M, st.y[1], 0.5 * M);
+  const Pt = (k, r, yy) => { const a = (k / n) * Math.PI * 2; return [cx + Math.sin(a) * r, yy, cz + Math.cos(a) * r]; };
+  const topPoly = [];
+  for (let k = 0; k < n; k++) topPoly.push(Pt(k, Rv, st.top));
+  g.poly('roof_flat_gravel', topPoly, 0, [0, 1, 0]);
+  ringSlab(g, 'concrete', cx, cz, n, Rv - 0.3 * M, Rv + 0.2 * M, st.top + 0.6 * M, 0.6 * M);
+  // Technikaufbau mit Krone
+  const cr = R * 0.45;
+  g.cyl('metal_panel_grey', cx, st.top, cz, cr, 3.0 * M, { seg: n, rot: Math.PI / n });
+  if (g.detail >= 1) {
+    g.cyl('metal_light', cx, st.top + 3.0 * M, cz, cr + 0.15 * M, 0.12 * M, { seg: n });
+    g.cyl('metal_dark', cx, st.top + 3.1 * M, cz, 0.06 * M, 5.0 * M, { seg: 4 });
+  }
+  g.kit.light(cx, st.top + 8.1 * M, cz, 0xff3020, 0.5);
+  towerGround(g, W, D, front, rng);
+}
+
+// 5f Zwillingstürme auf einem Sockel / Rundturm (kleine Grundstücke)
 function zwillinge(ctx, g, P) {
   const { rng } = ctx;
   const { W, D } = P;
   if (W < 1.5 && D < 1.5) {
-    punkthaus(ctx, g, P, { floors: 20 + Math.floor(rng() * 4), crown: 'glass_curtain_blue' });
+    rundturm(ctx, g, P);
+    return;
+  }
+  if (W < 1.5 || D < 1.5) {
+    // zwei schlanke Punkthäuser hintereinander bzw. nebeneinander, unterschiedlich hoch
+    const along = W >= D;
+    const half = along ? { W: W / 2, D } : { W, D: D / 2 };
+    for (const sg of [-1, 1]) {
+      const n = 16 + Math.floor(rng() * 4) + (sg > 0 ? 4 : 0);
+      const s2 = Math.min(half.W - 1.8 * M, half.D - 3.0 * M, 11 * M);
+      const cx2 = along ? sg * W / 4 : 0, cz2 = along ? D / 2 - 2.2 * M - s2 / 2 : sg * D / 4 + (sg > 0 ? -0.6 * M : 0.6 * M);
+      punkthaus(ctx, g, half, { floors: n, cx: cx2, cz: cz2, size: s2, ground: false, crown: sg > 0 ? 'glass_curtain_blue' : 'metal_panel_grey' });
+    }
+    towerGround(g, W, D, 2.0 * M, rng);
     return;
   }
   const pod = 2;

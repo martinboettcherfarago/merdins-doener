@@ -37,7 +37,7 @@ export function shopDecor(g, f, op, o = {}) {
   const w = op.w + (o.extra ?? 0.2 * M);
   if (o.name) {
     const bh = o.bandH ?? 0.75 * M;
-    signBand(g, f, o.name, op.u, top + (o.bandGap ?? 0.12 * M), w, bh, { band: o.band === undefined ? 'trim_dark' : o.band, mat: o.letters || rpick(g.rng, ['sign_white', 'neon_yellow', 'sign_white', 'neon_cyan', 'neon_pink']), maxPx: o.maxPx, fill: o.fill });
+    signBand(g, f, o.name, op.u, top + (o.bandGap ?? 0.12 * M), w, bh, { band: o.band === undefined ? 'trim_dark' : o.band, mat: o.letters || g.neon(rpick(g.rng, ['sign_white', 'neon_yellow', 'sign_white', 'neon_cyan', 'neon_pink'])), maxPx: o.maxPx, fill: o.fill });
   }
   if (o.awning) awning(g, f, op.u, top + (o.name ? -0.02 * M : 0.15 * M), op.w + 0.3 * M, o.awningD ?? 1.5 * M, o.awning, o.awningType || 'fixed');
   if (o.blade) bladeSign(g, f, op.u + op.w / 2 + 0.5 * M, top + 0.15 * M, { glyph: o.blade, glyphMat: o.bladeMat || 'paint_red', panel: o.bladePanel || 'sign_white' });
@@ -78,7 +78,7 @@ export function fuelCanopy(g, x, z, sx, sz, h = 4.8 * M, o = {}) {
   const mat = o.mat || 'paint_white', band = o.band || 'paint_red';
   g.box(mat, x, h, z, sx, 0.25 * M, sz);
   g.box(band, x, h + 0.25 * M, z, sx + 0.04 * M, 0.55 * M, sz + 0.04 * M, { skip: F.BOTTOM });
-  g.hquad('emissive_cool', x, h - 0.005 * M, z, sx * 0.9, sz * 0.8);
+  g.hquad('sign_white', x, h - 0.005 * M, z, sx * 0.9, sz * 0.8);
   if (g.detail >= 1) {
     const f = { ox: x, oz: z + sz / 2 + 0.02 * M, ry: 0, c: 1, s: 0, len: sx };
     signBand(g, f, o.name || 'TANKSTELLE', 0, h + 0.27 * M, sx * 0.9, 0.5 * M, { band: null, mat: 'sign_white', depth: 0.02 * M, light: false });

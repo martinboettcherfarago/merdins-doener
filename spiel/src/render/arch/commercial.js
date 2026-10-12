@@ -13,7 +13,7 @@ import { mframe, massWalls, bays, band, cornice, balcony, railing, pilasters, wa
 import { rectRoof, flatRoof, rooftop, chimney, dormer, flatSolar } from './rescom_roofs.js';
 import { ground, tree, bush, hedge, fence, bins, bikeRack, parkingRow, lamp, bench, planter, cafeSeating, parasol, car, CAR_COLORS } from './rescom_site.js';
 import { house, winStyle, PAL } from './rescom_house.js';
-import { stack, rows, entranceOp, gruenderzeit, punkthaus, towerGround } from './rescom_block.js';
+import { stack, rows, entranceOp, gruenderzeit, punkthaus, towerGround, firewallOps, firewallDecor, firewallKind } from './rescom_block.js';
 import { signBand, awning, bladeSign, logoDisc, display, pylon, flags, text, textWidth } from './rescom_signs.js';
 import { NAMES, AWNINGS, NEON, shopDecor, curtain, glassBox, fuelCanopy, greenhouse, cartShelter, roofSign } from './rescom_shop.js';
 
@@ -89,7 +89,7 @@ function baeckerei(ctx, g, P, o = {}) {
   band(g, 'stone_grey', m, 0, 0.15 * M, 0.03 * M, { skip: F.BOTTOM });
   const fF = mframe(0, cz, w, d, 'front');
   const aw = o.awning || rpick(rng, AWNINGS);
-  sUs.forEach((u, i) => shopDecor(g, fF, shops[i], { name: i === 0 || nb === 1 ? nm : (isCafe ? 'KUCHEN' : 'CAFÉ'), awning: aw, awningType: rpick(rng, ['fixed', 'fixed', 'dome']), band: o.band || rpick(rng, ['trim_dark', 'wood_dark', 'paint_green', 'paint_red']), letters: rpick(rng, ['sign_white', 'neon_yellow', 'paint_yellow']), blade: i === 0 && !isCafe ? 'B' : null, bladeMat: 'paint_yellow', bladePanel: 'trim_dark', bandGap: 0.12 * M }));
+  sUs.forEach((u, i) => shopDecor(g, fF, shops[i], { name: i === 0 || nb === 1 ? nm : (isCafe ? 'KUCHEN' : 'CAFÉ'), awning: aw, awningType: rpick(rng, ['fixed', 'fixed', 'dome']), band: o.band || rpick(rng, ['trim_dark', 'wood_dark', 'paint_green', 'paint_red']), letters: g.neon(rpick(rng, ['sign_white', 'neon_yellow', 'paint_yellow'])), blade: i === 0 && !isCafe ? 'B' : null, bladeMat: 'paint_yellow', bladePanel: 'trim_dark', bandGap: 0.12 * M }));
   if (gable) {
     const info = rectRoof(g, { cx: 0, cz, sx: w, sz: d, y0: top, pitch: rr(rng, 38, 45), ridge: 'x', mat: rpick(rng, PAL.roofTiles), under: 'wood_planks', edge: 'paint_white', wall: wallM, eave: 0.45 * M, verge: 0.3 * M });
     if (g.detail >= 1) dormer(g, info, 1, 0, { type: 'gable', w: 1.8 * M, wall: wallM });
@@ -160,7 +160,7 @@ function imbiss(ctx, g, P) {
   flatRoof(g, m, h, { mat: 'roof_flat_membrane', wall: wallM, parapet: 1.1 * M, coping: 'metal_light' });
   const fF = mframe(0, cz, w, d, 'front');
   const nm = name(rng, 'snack');
-  signBand(g, fF, nm, 0, h + 0.05 * M, w - 0.6 * M, 0.95 * M, { band: null, mat: rpick(rng, ['neon_yellow', 'neon_pink', 'emissive_red', 'neon_cyan']), depth: 0.08 * M, maxPx: 0.18 * M });
+  signBand(g, fF, nm, 0, h + 0.05 * M, w - 0.6 * M, 0.95 * M, { band: null, mat: g.neon(rpick(rng, ['neon_yellow', 'neon_pink', 'emissive_red', 'neon_cyan'])), depth: 0.08 * M, maxPx: 0.18 * M });
   awning(g, fF, counter.u, counter.y + counter.h + 0.3 * M, counter.w + 0.4 * M, 1.0 * M, rpick(rng, AWNINGS), 'fixed');
   if (g.detail >= 1) {
     g.wbox('metal_light', fF, counter.u, counter.y - 0.05 * M, 0.25 * M, counter.w + 0.2 * M, 0.06 * M, 0.5 * M);
@@ -239,7 +239,7 @@ function ladenzeile(ctx, g, P, o = {}) {
   const fF = mframe(0, cz, w, d, 'front');
   shops.forEach((sh, k) => {
     const kind = o.kinds ? o.kinds[k % o.kinds.length] : kinds[(k + Math.floor(rng() * 8)) % kinds.length];
-    shopDecor(g, fF, sh, { name: name(rng, kind), awning: chance(rng, 0.7) ? rpick(rng, AWNINGS) : null, awningType: rpick(rng, ['fixed', 'roll', 'fixed']), band: rpick(rng, ['trim_dark', 'paint_white', 'wood_dark', 'paint_blue', 'paint_red', 'metal_panel_grey']), letters: rpick(rng, NEON), blade: kind === 'pharmacy' ? 'A' : null, bladeMat: 'emissive_red', fill: 0.7 });
+    shopDecor(g, fF, sh, { name: name(rng, kind), awning: chance(rng, 0.7) ? rpick(rng, AWNINGS) : null, awningType: rpick(rng, ['fixed', 'roll', 'fixed']), band: rpick(rng, ['trim_dark', 'paint_white', 'wood_dark', 'paint_blue', 'paint_red', 'metal_panel_grey']), letters: g.neon(rpick(rng, NEON)), blade: kind === 'pharmacy' ? 'A' : null, bladeMat: 'emissive_red', fill: 0.7 });
     if (k < n - 1 && g.detail >= 1) g.wbox(wallM, fF, sh.u + uw / 2, 0, 0.12 * M, 0.5 * M, top - 0.2 * M, 0.24 * M, { skip: F.BACK });
   });
   cornice(g, 'trim_stone', m, top - 0.3 * M, 0.8, { sides: ['front'] });
@@ -344,7 +344,8 @@ function supermarkt(ctx, g, P) {
   const wallM = rpick(rng, ['metal_panel_white', 'brick_red', 'concrete_panel', 'metal_panel_grey']);
   const m = { cx: 0, cz, sx: w, sz: d, y0: 0, y1: h, wall: wallM };
   const entr = { kind: 'shop', u: -w / 2 + 3.5 * M, y: 0.1 * M, w: 5.5 * M, h: 3.2 * M, frame: 'metal_dark', door: 1, cols: 3, transom: 0 };
-  const band2 = { kind: 'shop', u: w * 0.15, y: 0.1 * M, w: w * 0.45, h: 2.2 * M, frame: 'metal_dark', cols: 6 };
+  const b2a = entr.u + entr.w / 2 + 0.8 * M, b2b = w / 2 - 0.8 * M;
+  const band2 = { kind: 'shop', u: (b2a + b2b) / 2, y: 0.1 * M, w: Math.max(0.5 * M, b2b - b2a), h: 2.2 * M, frame: 'metal_dark', cols: Math.max(2, Math.round((b2b - b2a) / (1.8 * M))) };
   massWalls(g, m, { front: [entr, band2], back: [{ kind: 'garage', u: w * 0.3, y: 0.05 * M, w: 3.2 * M, h: 3.4 * M, mat: 'metal_corrugated' }], left: [], right: [] });
   // Pultdach mit großem Vordach
   flatRoof(g, m, h, { mat: 'roof_flat_membrane', wall: wallM, parapet: 0.4 * M });
@@ -403,7 +404,7 @@ function werkstatt(ctx, g, P, o = {}) {
   const wallM = show ? 'metal_panel_white' : rpick(rng, ['metal_corrugated', 'brick_red', 'metal_panel_grey']);
   const m = { cx: 0, cz, sx: w, sz: d, y0: 0, y1: h, wall: wallM };
   const ops = show ? [{ kind: 'shop', u: -w * 0.15, y: 0.1 * M, w: w * 0.6, h: 4.0 * M, frame: 'metal_dark', door: 1, cols: 5 }, { kind: 'garage', u: w * 0.35, y: 0.05 * M, w: 3.2 * M, h: 3.6 * M, mat: 'metal_panel_white' }]
-    : bays(w, 3, 0.8 * M).map((u, i) => i < 2 ? { kind: 'garage', u, y: 0.05 * M, w: 3.4 * M, h: 3.8 * M, mat: 'metal_panel_grey' } : { kind: 'door', u, y: 0.05 * M, w: 1.1 * M, h: 2.2 * M, mat: 'door_glass', glazed: true });
+    : bays(w, 3, 0.8 * M).map((u, i) => i < 2 ? { kind: 'garage', u, y: 0.05 * M, w: 3.4 * M, h: 3.8 * M, mat: 'metal_panel_grey' } : { kind: 'door', u, y: 0.05 * M, w: 1.1 * M, h: 2.2 * M, mat: 'trim_dark', glazed: true });
   massWalls(g, m, { front: ops });
   flatRoof(g, m, h, { mat: 'roof_flat_membrane', wall: wallM, parapet: 0.6 * M });
   const fF = mframe(0, cz, w, d, 'front');
@@ -454,16 +455,19 @@ function wohnGeschaeft(ctx, g, P, o = {}) {
   const sUs = bays(w, nS, 0.3 * M);
   const shops = sUs.map((u, i) => ({ kind: 'shop', u: u + (i === nS - 1 ? -0.7 * M : 0), y: 0.15 * M, w: (w - 0.6 * M) / nS - (i === nS - 1 ? 2.4 * M : 1.0 * M), h: 3.2 * M, frame: old ? 'wood_dark' : 'metal_dark', door: 0, cols: 3, transom: old ? 0.6 * M : 0 }));
   const doorU = w / 2 - 1.2 * M;
-  const ops = [...shops, { ...entranceOp({ canopy: null, mat: old ? 'wood_dark' : 'door_glass', glazed: !old, w: 1.2 * M, h: 2.6 * M, double: false }), u: doorU, y: 0.15 * M }];
+  const ops = [...shops, { ...entranceOp({ canopy: null, mat: old ? 'wood_dark' : 'trim_dark', glazed: !old, w: 1.2 * M, h: 2.6 * M, double: false }), u: doorU, y: 0.15 * M }];
   const us = bays(w, Math.max(2, Math.round(w / (2.8 * M))), 0.4 * M);
   ops.push(...rows(st, us, (f) => f === 0 ? null : winT({ w: old ? 1.2 * M : 1.6 * M, h: old ? 1.8 * M : 1.6 * M, y: old ? 0.75 * M : 0.8 * M, frame: old ? 'window_frame_white' : 'window_frame_dark', panes: { cols: 2, transom: old ? 0.25 : 0 }, sill: old ? 'trim_stone' : 'metal_light', surround: old ? 'trim_stone' : null, french: !old && chance(rng, 0.3) ? 'metal_dark' : null }), 1));
   const backOps = rows(st, bays(w, Math.max(2, Math.round(w / (3 * M))), 0.6 * M), (f) => f === 0 ? { kind: 'door', w: 1.0 * M, h: 2.1 * M, y: 0, mat: 'metal_panel_grey' } : winT({ w: 1.2 * M, h: 1.4 * M, y: 0.85 * M, frame: 'window_frame_white', panes: { cols: 2 } }));
-  massWalls(g, m, { front: ops, back: backOps, left: [], right: [] });
+  const fwk = [firewallKind(rng), firewallKind(rng)];
+  massWalls(g, m, { front: ops, back: backOps, left: firewallOps(st, d, rng, fwk[0]), right: firewallOps(st, d, rng, fwk[1]) });
+  firewallDecor(g, mframe(0, cz, w, d, 'left'), st.y[1], st.top, rng, fwk[0]);
+  firewallDecor(g, mframe(0, cz, w, d, 'right'), st.y[1], st.top, rng, fwk[1]);
   const fF = mframe(0, cz, w, d, 'front');
   const kinds = o.kinds || ['shop', 'baker', 'pharmacy', 'cafe', 'hair', 'bank', 'shop', 'rest'];
   shops.forEach((sh) => {
     const kind = rpick(rng, kinds);
-    shopDecor(g, fF, sh, { name: name(rng, kind), awning: chance(rng, old ? 0.7 : 0.4) ? rpick(rng, AWNINGS) : null, band: old ? null : rpick(rng, ['trim_dark', 'metal_panel_grey', 'paint_white']), letters: old ? rpick(rng, ['trim_dark', 'paint_red', 'wood_dark', 'paint_blue']) : rpick(rng, NEON), blade: kind === 'pharmacy' ? 'A' : kind === 'baker' ? 'B' : null, bladeMat: kind === 'pharmacy' ? 'emissive_red' : 'paint_yellow', maxPx: old ? 0.13 * M : 0.16 * M, bandGap: 0.1 * M, bandH: 0.65 * M });
+    shopDecor(g, fF, sh, { name: name(rng, kind), awning: chance(rng, old ? 0.7 : 0.4) ? rpick(rng, AWNINGS) : null, band: old ? null : rpick(rng, ['trim_dark', 'metal_panel_grey', 'paint_white']), letters: old ? rpick(rng, ['trim_dark', 'paint_red', 'wood_dark', 'paint_blue']) : g.neon(rpick(rng, NEON)), blade: kind === 'pharmacy' ? 'A' : kind === 'baker' ? 'B' : null, bladeMat: kind === 'pharmacy' ? 'emissive_red' : 'paint_yellow', maxPx: old ? 0.13 * M : 0.16 * M, bandGap: 0.1 * M, bandH: 0.65 * M });
   });
   band(g, old ? 'trim_stone' : 'concrete', m, st.y[1] - 0.12 * M, 0.25 * M, old ? 0.12 * M : 0.2 * M, { sides: ['front'] });
   if (old) {
@@ -487,6 +491,7 @@ function wohnGeschaeft(ctx, g, P, o = {}) {
 }
 
 function apotheke(ctx, g, P) {
+  g.neon('emissive_red');
   const r = wohnGeschaeft(ctx, g, P, { floors: 3, old: true, kinds: ['pharmacy'] });
   if (g.detail >= 1) {
     // großes rotes Apotheken-A an der Fassade
@@ -537,10 +542,11 @@ function geschaeftshaus(ctx, g, P, o = {}) {
   const sUs = bays(w, nS, 0.3 * M);
   const shops = sUs.map((u) => ({ kind: 'shop', u, y: 0.15 * M, w: (w - 0.6 * M) / nS - 0.8 * M, h: 3.6 * M, frame: 'metal_dark', door: 0, cols: 3 }));
   // 1. OG: Bandfenster als Vorhangfassade (über Öffnung mit flacher Laibung)
-  const band1 = { kind: 'shop', u: 0, y: st.y[1] + 0.3 * M, w: w - 1.0 * M, h: st.fh - 0.6 * M, frame: 'metal_dark', cols: Math.round(w / (1.8 * M)), riser: 0.05 * M, depth: 0.25 * M, glass: 'glass_curtain_blue' };
+  const cg = rpick(rng, ['glass_curtain_blue', 'glass_curtain_dark', 'glass_curtain_green']);
+  const band1 = { kind: 'shop', u: 0, y: st.y[1] + 0.3 * M, w: w - 1.0 * M, h: st.fh - 0.6 * M, frame: 'metal_dark', cols: Math.round(w / (1.8 * M)), riser: 0.05 * M, depth: 0.25 * M, glass: cg };
   const upper = rows(st, bays(w, Math.max(2, Math.round(w / (2.4 * M))), 0.4 * M), (f) => f < 2 ? null : winT({ w: 1.7 * M, h: 1.9 * M, y: 0.7 * M, frame: 'metal_dark', panes: { cols: 2 }, sill: 'metal_light' }), 2);
   massWalls(g, m, { front: [...shops, band1, ...upper], back: rows(st, bays(w, Math.max(2, Math.round(w / (3 * M))), 0.5 * M), (f) => f === 0 ? null : winT({ w: 1.5 * M, h: 1.5 * M, y: 0.9 * M, frame: 'metal_dark', panes: { cols: 2 } })), left: o.corner ? rows(st, bays(d, 3, 0.8 * M), (f) => f === 0 ? null : winT({ w: 1.6 * M, h: 1.8 * M, y: 0.7 * M, frame: 'metal_dark', panes: { cols: 2 } })) : [], right: [] });
-  shops.forEach((sh) => shopDecor(g, fF, sh, { name: name(rng, rpick(rng, ['shop', 'shop', 'cafe', 'bank', 'pharmacy'])), band: null, letters: rpick(rng, NEON), awning: chance(rng, 0.3) ? rpick(rng, AWNINGS) : null, maxPx: 0.15 * M, bandGap: 0.05 * M, bandH: 0.6 * M }));
+  shops.forEach((sh) => shopDecor(g, fF, sh, { name: name(rng, rpick(rng, ['shop', 'shop', 'cafe', 'bank', 'pharmacy'])), band: null, letters: g.neon(rpick(rng, NEON)), awning: chance(rng, 0.3) ? rpick(rng, AWNINGS) : null, maxPx: 0.15 * M, bandGap: 0.05 * M, bandH: 0.6 * M }));
   // Gliederung: Kragplatte über EG, Lisenen, Dachrand
   g.wbox('concrete', fF, 0, st.y[1] - 0.2 * M, 0.6 * M, w + 0.2 * M, 0.25 * M, 1.2 * M, { skip: F.BACK });
   pilasters(g, fF, wallM === 'stone_sandstone' ? 'stone_grey' : 'concrete', bays(w, Math.max(2, Math.round(w / (2.4 * M))), 0.4 * M).map((u, i, a) => i < a.length - 1 ? (u + a[i + 1]) / 2 : null).filter((x) => x !== null), st.y[2], st.top, 0.3 * M, 0.12 * M);
@@ -548,7 +554,7 @@ function geschaeftshaus(ctx, g, P, o = {}) {
   // Staffelgeschoss
   const sm = { cx: 0, cz: cz - 1.0 * M, sx: w - 3 * M, sz: d - 3 * M, y0: st.top, y1: st.top + 3.2 * M, wall: 'metal_panel_grey' };
   if (sm.sz > 3 * M) {
-    glassBox(g, sm, { glass: 'glass_curtain_dark', frame: 'metal_dark', fh: 3.2 * M, colW: 2.0 * M });
+    glassBox(g, sm, { glass: cg, frame: 'metal_dark', fh: 3.2 * M, colW: 2.0 * M });
     flatRoof(g, sm, sm.y1, { mat: 'roof_flat_gravel', wall: 'metal_dark', parapet: 0.3 * M });
     rooftop(g, 0, sm.y1 + 0.3 * M, sm.cz, sm.sx, sm.sz, { n: 2 });
   }
@@ -568,7 +574,7 @@ function gzLaeden(ctx, g, P) {
   const fF = mframe(0, r.cz, r.bw, r.bd, 'front');
   for (const u of bays(r.bw, nb, 0.3 * M)) {
     const sh = { u, y: 0.2 * M, w: Math.min(r.bw / nb - 0.5 * M, 2.6 * M), h: r.st.gf - 0.7 * M };
-    shopDecor(g, fF, sh, { name: name(rng, rpick(rng, ['shop', 'baker', 'cafe', 'flowers', 'shop', 'pharmacy'])), band: null, letters: rpick(rng, ['sign_white', 'paint_yellow', 'neon_yellow', 'paint_white']), awning: chance(rng, 0.6) ? rpick(rng, AWNINGS) : null, awningType: rpick(rng, ['fixed', 'dome', 'roll']), maxPx: 0.09 * M, bandH: 0.45 * M, bandGap: 0.05 * M });
+    shopDecor(g, fF, sh, { name: name(rng, rpick(rng, ['shop', 'baker', 'cafe', 'flowers', 'shop', 'pharmacy'])), band: null, letters: g.neon(rpick(rng, ['sign_white', 'paint_yellow', 'neon_yellow', 'paint_white'])), awning: chance(rng, 0.6) ? rpick(rng, AWNINGS) : null, awningType: rpick(rng, ['fixed', 'dome', 'roll']), maxPx: 0.09 * M, bandH: 0.45 * M, bandGap: 0.05 * M });
   }
 }
 
@@ -593,7 +599,6 @@ function hotel(ctx, g, P, o = {}) {
   // Vordach (Marquise) mit Stützen und Licht
   const cw = Math.min(w - 2 * M, 7 * M);
   g.wbox(accent, fF, 0, 4.0 * M, 1.6 * M, cw, 0.35 * M, 3.2 * M);
-  g.wquad('emissive_warm', { ...fF }, 0, 4.0 * M - 0.005 * M, 1.6 * M, 0.01 * M, 0.01 * M);
   if (g.detail >= 1) for (const s of [-1, 1]) g.wbox('metal_light', fF, s * (cw / 2 - 0.2 * M), 0, 3.0 * M, 0.12 * M, 4.0 * M, 0.12 * M, { skip: F.TOP | F.BOTTOM });
   signBand(g, { ...fF, ox: fF.ox + fF.s * 3.2 * M, oz: fF.oz + fF.c * 3.2 * M }, 'HOTEL', 0, 4.38 * M, cw * 0.6, 0.5 * M, { band: null, mat: 'sign_white', depth: 0.03 * M });
   for (let k = 0; k < 3; k++) g.kit.light(fF.ox + fF.c * (k - 1) * cw * 0.3 + fF.s * 1.6 * M, 3.9 * M, fF.oz - fF.s * (k - 1) * cw * 0.3 + fF.c * 1.6 * M, 0xffd79a, 0.6);
@@ -607,7 +612,7 @@ function hotel(ctx, g, P, o = {}) {
     g.wbox(accent, fF, vx, st.y[2], 0.8 * M, 0.25 * M, Math.min(st.top - st.y[2] - 0.5 * M, word.length * 7 * px + 1 * M), 1.5 * M);
     for (const sg of [1, -1]) {
       const ff = { ...vf, ox: vf.ox + vf.s * 0 + fF.c * 0.13 * M * sg, oz: vf.oz + -fF.s * 0.13 * M * sg, ry: fF.ry + sg * Math.PI / 2, c: Math.cos(fF.ry + sg * Math.PI / 2), s: Math.sin(fF.ry + sg * Math.PI / 2) };
-      [...word].forEach((ch, i) => text(g, ff, ch, 0, st.y[2] + 0.5 * M + (word.length - 1 - i) * 6.5 * px, 0, px, rpick(rng, ['neon_yellow', 'sign_white', 'neon_pink']), { depth: 0.03 * M }));
+      [...word].forEach((ch, i) => text(g, ff, ch, 0, st.y[2] + 0.5 * M + (word.length - 1 - i) * 6.5 * px, 0, px, g.neon(rpick(rng, ['neon_yellow', 'sign_white', 'neon_pink'])), { depth: 0.03 * M }));
     }
   }
   // Balkone an den Seitenachsen
@@ -643,13 +648,14 @@ function warenhaus(ctx, g, P) {
     for (let f = 1; f < n; f++) ops.push({ kind: 'win', u, y: st.y[f] + 0.5 * M, w: bw, h: st.fh - 0.8 * M, frame: 'metal_dark', panes: { cols: 3, transom: 0.25, transomCols: 3 }, depth: 0.35 * M });
   });
   massWalls(g, m, { front: ops, back: rows(st, bays(w, nb, 0.6 * M), (f) => f === 0 ? null : winT({ w: 1.6 * M, h: 1.8 * M, y: 0.9 * M, frame: 'metal_dark', panes: { cols: 2 } })), left: [], right: [] });
+  for (const sd of ['left', 'right']) firewallDecor(g, mframe(0, cz, w, d, sd), st.y[1], st.top, rng, rpick(rng, ['ghost', 'plain', 'ivy']));
   const fF = mframe(0, cz, w, d, 'front');
   pilasters(g, fF, stone === 'brick_red' ? 'trim_stone' : 'stone_grey', us.map((u, i) => u + (w - 1.0 * M) / nb / 2).slice(0, -1).concat([-w / 2 + 0.3 * M, w / 2 - 0.3 * M]), st.y[1], st.top - 0.5 * M, 0.5 * M, 0.2 * M);
   band(g, 'trim_stone', m, st.y[1] - 0.3 * M, 0.35 * M, 0.15 * M, { sides: ['front'] });
   cornice(g, 'trim_stone', m, st.top - 0.5 * M, 1.4, { dentils: true, sides: ['front'] });
   const nm = name(rng, 'store');
   signBand(g, fF, nm, 0, st.y[1] - 0.25 * M - 0.0 * M, w * 0.5, 0.0001, { band: null, light: false });
-  roofSign(g, fF, nm, 0, st.top + 0.7 * M, w * 0.7, rpick(rng, ['sign_white', 'neon_yellow', 'emissive_red']));
+  roofSign(g, fF, nm, 0, st.top + 0.7 * M, w * 0.7, g.neon(rpick(rng, ['sign_white', 'neon_yellow', 'emissive_red'])));
   // Mansarddach mit Kupfer
   rectRoof(g, { cx: 0, cz, sx: w, sz: d, y0: st.top, pitch: 30, ridge: 'x', mat: 'roof_copper', under: 'trim_stone', edge: 'trim_stone', k: 1, eave: 0.2 * M });
   if (g.detail >= 1) {
@@ -678,13 +684,13 @@ function kino(ctx, g, P) {
   const fF = mframe(0, cz, w, d, 'front');
   // Leuchtvordach mit Lauflicht-Kanten
   g.wbox('trim_dark', fF, 0, 4.1 * M, 1.3 * M, w - 1.0 * M, 0.6 * M, 2.6 * M);
-  g.wbox(rpick(rng, ['neon_yellow', 'emissive_warm', 'sign_white']), fF, 0, 4.1 * M, 2.62 * M, w - 1.0 * M, 0.08 * M, 0.04 * M);
-  g.wbox(rpick(rng, ['neon_yellow', 'emissive_warm', 'neon_pink']), fF, 0, 4.62 * M, 2.62 * M, w - 1.0 * M, 0.08 * M, 0.04 * M);
+  g.wbox(g.neon(rpick(rng, ['neon_yellow', 'emissive_warm', 'sign_white'])), fF, 0, 4.1 * M, 2.62 * M, w - 1.0 * M, 0.08 * M, 0.04 * M);
+  g.wbox(g.neon(rpick(rng, ['neon_yellow', 'emissive_warm', 'neon_pink'])), fF, 0, 4.62 * M, 2.62 * M, w - 1.0 * M, 0.08 * M, 0.04 * M);
   const nm = name(rng, 'kino');
   signBand(g, { ...fF, ox: fF.ox + fF.s * 2.6 * M, oz: fF.oz + fF.c * 2.6 * M }, nm, 0, 4.18 * M, w * 0.7, 0.42 * M, { band: null, mat: 'sign_white', depth: 0.03 * M });
   // Plakatkästen
-  if (g.detail >= 1) for (const u of bays(w, 4, 1.0 * M)) { g.wbox('metal_dark', fF, u, 8.8 * M, 0.08 * M, 1.6 * M, 2.2 * M, 0.15 * M, { skip: F.BACK }); g.wquad(rpick(rng, ['paint_blue', 'paint_red', 'paint_yellow', 'neon_cyan', 'neon_pink', 'paint_orange']), fF, u, 8.95 * M, 0.16 * M, 1.4 * M, 1.9 * M); }
-  roofSign(g, fF, nm, 0, h + 0.1 * M, w * 0.8, rpick(rng, ['neon_pink', 'neon_cyan', 'emissive_red', 'neon_yellow']));
+  if (g.detail >= 1) for (const u of bays(w, 4, 1.0 * M)) { g.wbox('metal_dark', fF, u, 8.8 * M, 0.08 * M, 1.6 * M, 2.2 * M, 0.15 * M, { skip: F.BACK }); g.wquad(g.neon(rpick(rng, ['paint_blue', 'paint_red', 'paint_yellow', 'neon_cyan', 'neon_pink', 'paint_orange'])), fF, u, 8.95 * M, 0.16 * M, 1.4 * M, 1.9 * M); }
+  roofSign(g, fF, nm, 0, h + 0.1 * M, w * 0.8, g.neon(rpick(rng, ['neon_pink', 'neon_cyan', 'emissive_red', 'neon_yellow'])));
   band(g, 'metal_dark', m, h - 0.4 * M, 0.4 * M, 0.08 * M);
   flatRoof(g, m, h, { mat: 'roof_flat_membrane', wall: wallM, parapet: 0.2 * M });
   rooftop(g, 0, h, cz, w, d, { n: 4 });
@@ -720,7 +726,7 @@ function glasEcke(ctx, g, P, o = {}) {
   flatRoof(g, { cx: 0, cz, sx: w, sz: d }, st.top + 0.6 * M, { mat: 'roof_flat_gravel', wall: 'stone_grey', parapet: 0.2 * M });
   rooftop(g, 0, st.top + 0.6 * M, cz, w, d, { stair: true, n: 3 });
   const fG = mframe(0, gm.cz, gm.sx, gm.sz, 'front');
-  signBand(g, fG, name(rng, rpick(rng, ['shop', 'bank', 'cafe'])), 0, st.y[1] - 0.95 * M, gm.sx * 0.5, 0.5 * M, { band: null, mat: rpick(rng, NEON), depth: 0.03 * M });
+  signBand(g, fG, name(rng, rpick(rng, ['shop', 'bank', 'cafe'])), 0, st.y[1] - 0.95 * M, gm.sx * 0.5, 0.5 * M, { band: null, mat: g.neon(rpick(rng, NEON)), depth: 0.03 * M });
   comGround(g, PW, PD, front + 0.2 * M);
   if (g.detail >= 1) { for (const sx of [-1, 1]) tree(g, sx * (w / 2 - 1.2 * M), PD / 2 - front * 0.4, 0.8); bikeRack(g, 0, PD / 2 - front * 0.4, 5); }
 }
@@ -749,7 +755,7 @@ function kaufhaus(ctx, g, P) {
     for (const u of bays(w, Math.round(w / (2.5 * M)), 0)) if (Math.abs(u) > foyerW * 0.3) g.wbox('concrete_dark', fF, u - w / Math.round(w / (2.5 * M)) / 2, st.y[1], 0.015 * M, 0.06 * M, st.top - st.y[1], 0.03 * M, { skip: F.BACK | F.TOP | F.BOTTOM });
   }
   const nm = name(rng, 'store');
-  const letters = rpick(rng, ['emissive_red', 'sign_white', 'neon_cyan', 'paint_blue']);
+  const letters = g.neon(rpick(rng, ['emissive_red', 'sign_white', 'neon_cyan', 'paint_blue']));
   for (const sg of [-1, 1]) signBand(g, fF, nm, sg * (foyerW / 2 + (w - foyerW) / 4), st.top - 3.2 * M, (w - foyerW) / 2 - 1 * M, 2.4 * M, { band: null, mat: letters, depth: 0.12 * M, maxPx: 0.45 * M });
   g.wbox('trim_dark', fF, 0, st.y[1] - 0.4 * M, 1.4 * M, w * 0.7, 0.4 * M, 2.8 * M);
   band(g, 'metal_dark', m, st.top - 0.3 * M, 0.3 * M, 0.1 * M);
@@ -777,11 +783,13 @@ function einkaufszentrum(ctx, g, P) {
     const m = { cx: sg * (passW / 2 + ww / 2), cz, sx: ww, sz: d, y0: 0, y1: st.top, wall: wallM };
     const us = bays(ww, Math.max(1, Math.round(ww / (5 * M))), 0.4 * M);
     const fOps = us.map((u) => ({ kind: 'shop', u, y: 0.15 * M, w: Math.min(4.6 * M, ww / us.length - 1.0 * M), h: 4.2 * M, frame: 'metal_dark', door: 0, cols: 3 }));
-    const inner = rows(st, bays(d, Math.max(2, Math.round(d / (6 * M))), 1.0 * M), (f) => f === 0 ? { kind: 'shop', w: 4.4 * M, h: 4.0 * M, y: 0, frame: 'metal_dark', door: 0, cols: 3 } : { kind: 'shop', w: 4.4 * M, h: 3.6 * M, y: 0.3 * M, frame: 'metal_dark', cols: 3, riser: 1.0 * M });
+    const nIn = Math.max(1, Math.round(d / (6 * M)));
+    const sw = Math.min(4.4 * M, (d - 2.0 * M) / nIn - 0.8 * M);
+    const inner = rows(st, bays(d, nIn, 1.0 * M), (f) => f === 0 ? { kind: 'shop', w: sw, h: 4.0 * M, y: 0, frame: 'metal_dark', door: 0, cols: 2 } : { kind: 'shop', w: sw, h: 3.6 * M, y: 0.3 * M, frame: 'metal_dark', cols: 2, riser: 1.0 * M });
     const sides = { front: fOps, back: [], left: sg > 0 ? inner : [], right: sg < 0 ? inner : [] };
     massWalls(g, m, sides);
     const fF = mframe(m.cx, cz, ww, d, 'front');
-    fOps.forEach((sh) => shopDecor(g, fF, sh, { name: name(rng, rpick(rng, ['shop', 'shop', 'cafe', 'snack'])), band: rpick(rng, ['trim_dark', 'metal_panel_grey']), letters: rpick(rng, NEON), maxPx: 0.16 * M }));
+    fOps.forEach((sh) => shopDecor(g, fF, sh, { name: name(rng, rpick(rng, ['shop', 'shop', 'cafe', 'snack'])), band: rpick(rng, ['trim_dark', 'metal_panel_grey']), letters: g.neon(rpick(rng, NEON)), maxPx: 0.16 * M }));
     band(g, 'metal_dark', m, st.top - 0.4 * M, 0.4 * M, 0.08 * M);
     flatRoof(g, m, st.top, { mat: 'roof_flat_membrane', wall: wallM, parapet: 0.5 * M });
     rooftop(g, m.cx, st.top, cz, ww, d, { n: 4 });
@@ -836,11 +844,11 @@ function einkaufsturm(ctx, g, P, o = {}) {
   fOps.push({ kind: 'shop', u: 0, y: pst.y[1] + 0.4 * M, w: w - 1.5 * M, h: pst.top - pst.y[1] - 1.4 * M, frame: 'metal_dark', cols: Math.round(w / (2 * M)), riser: 0.05 * M, glass: 'glass_curtain_blue', depth: 0.3 * M });
   massWalls(g, pm, { front: fOps, back: [], left: [], right: [] });
   const fF = mframe(0, cz, w, d, 'front');
-  fOps.slice(0, us.length).forEach((sh) => shopDecor(g, fF, sh, { name: name(rng, rpick(rng, ['shop', 'shop', 'cafe', 'snack', 'bank'])), band: null, letters: rpick(rng, NEON), maxPx: 0.15 * M, bandGap: 0.05 * M, bandH: 0.6 * M }));
+  fOps.slice(0, us.length).forEach((sh) => shopDecor(g, fF, sh, { name: name(rng, rpick(rng, ['shop', 'shop', 'cafe', 'snack', 'bank'])), band: null, letters: g.neon(rpick(rng, NEON)), maxPx: 0.15 * M, bandGap: 0.05 * M, bandH: 0.6 * M }));
   g.wbox('concrete', fF, 0, pst.y[1] - 0.3 * M, 0.9 * M, w + 0.2 * M, 0.3 * M, 1.8 * M, { skip: F.BACK });
   flatRoof(g, pm, pst.top, { mat: 'green_roof', wall: wallM, parapet: 1.0 * M, coping: 'metal_light' });
   // LED-Wand am Podium
-  if (g.detail >= 1) { const sw = Math.min(w * 0.35, 8 * M); g.wbox('metal_dark', fF, -w / 2 + sw / 2 + 0.6 * M, pst.top - 0.2 * M, 0.2 * M, sw + 0.3 * M, 3.4 * M, 0.3 * M); g.wquad(rpick(rng, ['neon_cyan', 'neon_pink', 'emissive_cool', 'neon_yellow']), fF, -w / 2 + sw / 2 + 0.6 * M, pst.top, 0.36 * M, sw, 3.0 * M); }
+  if (g.detail >= 1) { const sw = Math.min(w * 0.35, 8 * M); g.wbox('metal_dark', fF, -w / 2 + sw / 2 + 0.6 * M, pst.top - 0.2 * M, 0.2 * M, sw + 0.3 * M, 3.4 * M, 0.3 * M); g.wquad(g.neon(rpick(rng, ['neon_cyan', 'neon_pink', 'sign_white', 'neon_yellow'])), fF, -w / 2 + sw / 2 + 0.6 * M, pst.top, 0.36 * M, sw, 3.0 * M); }
   // Turm
   const n = o.floors ?? 16 + Math.floor(rng() * 8);
   const tw = Math.min(w * 0.55, 18 * M), td = Math.min(d * 0.6, 16 * M);
@@ -862,7 +870,7 @@ function einkaufsturm(ctx, g, P, o = {}) {
   g.box('metal_dark', tcx, tst.top, tcz, tw * 0.3, cH * 0.7, td * 0.3, { skip: F.BOTTOM });
   g.cyl('metal_light', tcx, tst.top + cH * 0.7, tcz, 0.08 * M, 6 * M, { seg: 5 });
   g.kit.light(tcx, tst.top + cH * 0.7 + 6 * M, tcz, 0xff3020, 0.5);
-  roofSign(g, mframe(tcx, tcz, tw, td, 'front'), o.name || name(rng, 'center').split(' ')[0], 0, tst.top - 2.2 * M, tw * 0.7, rpick(rng, ['sign_white', 'neon_cyan', 'emissive_red']));
+  roofSign(g, mframe(tcx, tcz, tw, td, 'front'), o.name || name(rng, 'center').split(' ')[0], 0, tst.top - 2.2 * M, tw * 0.7, g.neon(rpick(rng, ['sign_white', 'neon_cyan', 'emissive_red'])));
   comGround(g, PW, PD, front + 0.2 * M);
   if (g.detail >= 1) for (const u of bays(w, 4, 1 * M)) tree(g, u, PD / 2 - front * 0.45, 0.85);
 }
@@ -881,10 +889,10 @@ function werbeturm(ctx, g, P) {
   if (g.detail >= 1) {
     // senkrechte Leuchtbänder an den Ecken + große Bildschirmwand
     const { st, w, fF } = r;
-    for (const sg of [-1, 1]) g.wbox(rpick(rng, ['neon_cyan', 'neon_pink', 'neon_yellow']), fF, sg * (w / 2 - 0.15 * M), st.y[2], 0.3 * M, 0.12 * M, st.top - st.y[2], 0.08 * M, { skip: F.BACK });
+    for (const sg of [-1, 1]) g.wbox(g.neon(rpick(rng, ['neon_cyan', 'neon_pink', 'neon_yellow'])), fF, sg * (w / 2 - 0.15 * M), st.y[2], 0.3 * M, 0.12 * M, st.top - st.y[2], 0.08 * M, { skip: F.BACK });
     const sw = Math.min(w * 0.5, 9 * M), sh = Math.min(6 * M, (st.top - st.y[2]) * 0.3);
     g.wbox('metal_dark', fF, 0, st.y[3], 0.5 * M, sw + 0.4 * M, sh + 0.4 * M, 0.4 * M);
-    g.wquad(rpick(rng, ['neon_cyan', 'emissive_cool', 'neon_pink']), fF, 0, st.y[3] + 0.2 * M, 0.71 * M, sw, sh);
+    g.wquad(g.neon(rpick(rng, ['neon_cyan', 'sign_white', 'neon_pink'])), fF, 0, st.y[3] + 0.2 * M, 0.71 * M, sw, sh);
     text(g, fF, rpick(rng, ['STADTPULS', 'SALE', 'NEU', 'ANGEBOT']), 0, st.y[3] + sh * 0.3, 0.72 * M, sw * 0.08, 'sign_white', { depth: 0.01 * M });
   }
   void PW; void PD;
@@ -918,7 +926,7 @@ function glasturm(ctx, g, P) {
   glassBox(g, { cx: 0, cz, sx: s + 1.2 * M, sz: s + 1.2 * M, y0: 0, y1: pst.top }, { glass: 'glass_shop', frame: 'metal_dark', fh: 4.5 * M, colW: 2.2 * M });
   g.box('stone_grey', 0, pst.top, cz, s + 1.6 * M, 0.6 * M, s + 1.6 * M);
   const fP = mframe(0, cz, s + 1.2 * M, s + 1.2 * M, 'front');
-  signBand(g, fP, name(rng, rpick(rng, ['shop', 'bank', 'cafe'])), 0, pst.y[1] - 0.9 * M, s * 0.5, 0.6 * M, { band: null, mat: rpick(rng, NEON), depth: 0.04 * M });
+  signBand(g, fP, name(rng, rpick(rng, ['shop', 'bank', 'cafe'])), 0, pst.y[1] - 0.9 * M, s * 0.5, 0.6 * M, { band: null, mat: g.neon(rpick(rng, NEON)), depth: 0.04 * M });
   // Schaft in drei Abschnitten
   let y = pst.top + 0.6 * M, sz = s;
   const parts = [10 + Math.floor(rng() * 6), 5 + Math.floor(rng() * 3), 3];
@@ -963,6 +971,7 @@ registerArch('com', {
   build(ctx) {
     const { kit, level, fw, fd, variant } = ctx;
     const g = new Geo(kit);
+    g.lamp = 'sign_white';
     const lv = COM[Math.min(5, Math.max(1, level))];
     const list = lv[`${fw}x${fd}`] || lv['*'] || lv['1x1'];
     list[variant % list.length](ctx, g, { W: fw, D: fd });

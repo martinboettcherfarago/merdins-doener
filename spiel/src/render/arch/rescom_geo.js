@@ -37,7 +37,11 @@ export class Geo {
     this.detail = kit.detail;
     this.rng = kit.rng;
     this.bufs = new Map();
+    this._neon = null;
+    this.lamp = 'emissive_warm'; // Material kleiner Leuchten (Gewerbe: 'sign_white')
   }
+  // Leuchtmaterial pro Gebäude festhalten (jedes Sondermaterial kostet einen eigenen Draw Call)
+  neon(m) { if (!this._neon) this._neon = m; return this._neon; }
   buf(mat) {
     let b = this.bufs.get(mat);
     if (!b) { b = { p: [], n: [], uv: [], lit: [] }; this.bufs.set(mat, b); }
