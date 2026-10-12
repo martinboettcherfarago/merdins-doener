@@ -276,7 +276,7 @@ registerArch('skatepark', {
       for (let i = 1; i <= n; i++) { const t = (i / n) * Math.PI / 2; prof.push([R - R * Math.sin(t), R - R * Math.cos(t)]); }
       prof.push([-deck, R]);
       k.prism('concrete_panel', prof, len, { x, y: 0, z, ry });
-      if (P.D1(k)) { const g = new P.G(k, x, z, ry); g.pipe('metal_light', [-len / 2, R + 0.05 * M, 0], [len / 2, R + 0.05 * M, 0], 0.06 * M, { seg: 5 }); }
+      if (P.D1(k)) { const g = new P.G(k, x, z, ry); g.pipe('metal_light', [0, R + 0.05 * M, -len / 2], [0, R + 0.05 * M, len / 2], 0.06 * M, { seg: 5 }); }
     };
     qp(0, -D / 2 + 1.3 * M, -Math.PI / 2, W - 1.2 * M);
     qp(-W / 2 + 1.3 * M, 0.6 * M, 0, 6 * M, 1.4 * M);

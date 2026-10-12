@@ -29,8 +29,8 @@ function roundBasin(k, x, z, r, o = {}) {
     s.box(o.bridge || 'paint_blue', r / 2, 0.35 * M, 0, r + 0.2 * M, 0.12 * M, 1.2 * M);
     if (s.detail >= 2) {
       for (const sd of [-1, 1]) s.box('metal_dark', r / 2, 0.47 * M, sd * 0.6 * M, r, 0.9 * M, 0.05 * M);
-      s.box('metal_dark', r - 0.2 * M, -0.9 * M, 0, 0.5 * M, 0.9 * M, 0.9 * M);
-      s.box('metal_dark', r * 0.55, -0.8 * M, 0.3 * M, 0.08 * M, 0.8 * M, 0.08 * M);
+      s.box('metal_light', r - 0.1 * M, -0.5 * M, 0, 0.5 * M, 0.5 * M, 0.7 * M);
+      s.box('metal_dark', r * 0.55, -0.7 * M, 0.3 * M, 0.08 * M, 0.7 * M, 0.08 * M);
     }
     s.cyl('metal_dark', 0, 0, 0, 0.9 * M, 0.6 * M, { seg: 10 });
   });
@@ -86,11 +86,12 @@ registerArch('watertower', {
       // Kugelbehälter auf Stützen
       k.cyl('concrete', 0, 0, 0, 3.2 * M, 0.5 * M, { seg: P.segs(k, 16) });
       k.cyl('tank_white', 0, 0.5 * M, 0, 0.7 * M, 15 * M, { seg: P.segs(k, 10) });
-      P.sphereTank(k, 0, 0, 4.4 * M, { y: 18.5 * M, legs: 6, mat: 'tank_white', legMat: 'tank_white' });
+      P.sphereTank(k, 0, 0, 4.4 * M, { y: 18.5 * M, legs: 6, mat: 'tank_white', legMat: 'tank_white', stair: false });
       if (P.D1(k)) {
-        k.cyl('paint_blue', 0, 17.8 * M, 0, 4.42 * M, 1.4 * M, { seg: P.segs(k, 18), open: true });
+        k.cyl('paint_blue', 0, 17.8 * M, 0, 4.42 * M, 1.4 * M, { seg: P.segs(k, 24), open: true });
         for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.2, b = a + Math.PI / 3; P.beam(k, 'tank_white', [Math.cos(a) * 4.3 * M, 8 * M, Math.sin(a) * 4.3 * M], [Math.cos(b) * 4.3 * M, 8 * M, Math.sin(b) * 4.3 * M], 0.18 * M); }
-        P.signBox(k, 'WASSER', 0, 18.8 * M, 4.46 * M, 0, { px: 0.22 * M, bg: 'paint_blue', frame: false, d: 0.04 * M });
+        P.textArc(k, 'WASSER', 0, 18.5 * M, 0, 4.43 * M, 0.5, 0.2 * M, 'paint_white');
+        P.textArc(k, 'WASSER', 0, 18.5 * M, 0, 4.43 * M, 0.5 + Math.PI, 0.2 * M, 'paint_white');
       }
       k.box('plaster_white', 0, 0, 2.6 * M, 2.4 * M, 2.6 * M, 1.6 * M);
       P.door(k, 0, 3.4 * M, 0, { w: 1 * M, h: 2.1 * M, mat: 'metal_dark' });
@@ -158,7 +159,7 @@ registerArch('waterworks', {
     const hx = -3.4 * M, hz = 4.6 * M, hw = 10 * M, hd = 6 * M, hh = 6.2 * M;
     k.box(brick, hx, 0, hz, hw, hh, hd);
     k.box('stone_grey', hx, 0, hz, hw + 0.14 * M, 0.8 * M, hd + 0.14 * M);
-    P.gridRow(k, 'front', hx, hz, hw, hd, 4, 1.4 * M, 1.4 * M, 3 * M, 2, 4, { arch: true, archMat: 'trim_stone', frame: 'window_frame_white' });
+    P.gridRow(k, 'front', hx, hz, hw, hd, 4, 1.4 * M, 1.4 * M, 2.5 * M, 2, 4, { arch: true, archMat: 'trim_stone', frame: 'window_frame_white' });
     P.gridRow(k, 'right', hx, hz, hw, hd, 2, 1.4 * M, 1.4 * M, 3 * M, 2, 4, { arch: true, archMat: 'trim_stone', frame: 'window_frame_white' });
     P.gridRow(k, 'back', hx, hz, hw, hd, 4, 1.4 * M, 1.4 * M, 3 * M, 2, 4, { arch: true, frame: 'window_frame_white' });
     if (P.D1(k)) k.band('trim_stone', hx, hz, hw, hd, hh - 0.4 * M, 0.4 * M, 0.12 * M);
@@ -168,7 +169,7 @@ registerArch('waterworks', {
     if (P.D1(k)) { k.band('trim_stone', tx, tz, 3 * M, 3 * M, 11.4 * M, 0.6 * M, 0.15 * M); for (const sd of ['front', 'right']) { const [x, z, ry] = P.onSide(sd, tx, tz, 3 * M, 3 * M, 0, 0.06 * M); P.clock(k, x, 9.8 * M, z, 0.8 * M, ry); } }
     k.hipRoof('roof_copper', tx, 12 * M, tz, 3 * M, 3 * M, 3 * M, { overhang: 0.3 * M, ridgeK: 1 });
     P.door(k, hx + 1.2 * M, hz + hd / 2, 0, { w: 1.8 * M, h: 2.8 * M, mat: 'wood_dark', frame: 'trim_stone' });
-    P.text(k, 'WASSERWERK', hx + 1.2 * M, 5.2 * M, hz + hd / 2 + 0.05 * M, 0, 0.15 * M, 'trim_stone');
+    P.text(k, 'WASSERWERK', hx + 1.2 * M, 5.2 * M, hz + hd / 2 + 0.05 * M, 0, 0.13 * M, 'trim_stone');
     // Reinwasserbehälter (begrünter Hügel mit Lüftern)
     P.mound(k, 'grass', 6.4 * M, 4.8 * M, 3.6 * M, 1.8 * M, { sz: 1.05 });
     if (P.D1(k)) for (const [x, z] of [[5.4, 4.2], [7.4, 5.4]]) { k.cyl('metal_light', x * M, 1.4 * M, z * M, 0.2 * M, 1.0 * M, { seg: 6 }); k.cone('metal_dark', x * M, 2.4 * M, z * M, 0.4 * M, 0.3 * M, { seg: 6 }); }
@@ -248,6 +249,9 @@ registerArch('sewage_outlet', {
     k.add('rubber', new THREE.CircleGeometry(0.75 * M, P.segs(k, 12)), { x: 0, y: 1.2 * M, z: -1.42 * M, ry: Math.PI });
     k.box('dirt', 0, 0, -1.9 * M, 1.6 * M, 1.05 * M, 1.2 * M);
     if (P.D2(k)) { P.railing(k, -2.2 * M, -4.9 * M, 2.2 * M, -4.9 * M, 0.9 * M); P.railing(k, -2.6 * M, -0.85 * M, 2.6 * M, -0.85 * M, 3.0 * M); }
+    // Zulauf: halb eingegrabenes Betonrohr mit Schachtdeckeln
+    P.pipe(k, 'concrete', [-3.4 * M, 0.2 * M, D / 2 - 0.4 * M], [-3.4 * M, 0.2 * M, -0.9 * M], 0.75 * M, { seg: P.segs(k, 12), open: false });
+    if (P.D1(k)) for (const z of [3.2, 0.6]) { k.cyl('concrete_dark', -3.4 * M, 0, z * M, 0.9 * M, 1.05 * M, { seg: 10 }); k.cyl('metal_dark', -3.4 * M, 1.05 * M, z * M, 0.6 * M, 0.06 * M, { seg: 10 }); }
     // Kontrollhäuschen
     k.box('concrete_panel', 2.8 * M, 0, 2 * M, 3 * M, 2.6 * M, 2.6 * M);
     k.flatRoof('roof_flat_membrane', 'trim_dark', 2.8 * M, 2.6 * M, 2 * M, 3 * M, 2.6 * M, { parapet: 0.2 * M });
@@ -323,6 +327,13 @@ registerArch('incinerator', {
     if (v === 0) {
       for (let i = 0; i < 6; i++) k.box(accent, hx - hw / 2 + 1.2 * M + i * 2.1 * M, 0.8 * M, hz + hd / 2 + 0.04 * M, 0.9 * M, 11 * M, 0.06 * M);
       P.ribbon(k, 'right', hx, hz, hw, hd, 7 * M, 2 * M);
+      P.ribbon(k, 'left', hx, hz, hw, hd, 7 * M, 2 * M);
+      // verglastes Treppenhaus an der Ecke
+      const sx = hx - hw / 2 + 1.4 * M, sz = hz + hd / 2 + 1.0 * M;
+      k.box('metal_panel_white', sx, 0, sz, 2.6 * M, 15 * M, 2.0 * M);
+      k.curtainWall('front', sx, sz, 2.6 * M, 2.0 * M, 0.6 * M, 13.8 * M, { glass: 'glass_curtain_blue', fh: 3.0 * M, colW: 1.3 * M });
+      k.curtainWall('left', sx, sz, 2.6 * M, 2.0 * M, 0.6 * M, 13.8 * M, { glass: 'glass_curtain_blue', fh: 3.0 * M, colW: 1.0 * M });
+      k.flatRoof('roof_flat_membrane', accent, sx, 15 * M, sz, 2.6 * M, 2.0 * M, { parapet: 0.3 * M });
     } else {
       // bunte Kacheln, Kugel am Kamin (Hundertwasser-Anklang)
       const cols = ['paint_red', 'paint_yellow', 'paint_blue', 'paint_green', 'paint_white'];
@@ -335,11 +346,12 @@ registerArch('incinerator', {
     k.flatRoof('roof_flat_membrane', accent, ax, 6.6 * M, az, aw, ad, { parapet: 0.5 * M });
     for (let i = 0; i < 3; i++) P.rollerDoor(k, ax - 3.8 * M + i * 3.8 * M, az + ad / 2, 0, 3.2 * M, 4.4 * M, { mat: 'metal_panel_grey' });
     P.signBox(k, 'MUELLHEIZKRAFTWERK', ax, 5.9 * M, az + ad / 2, 0, { px: 0.13 * M, bg: accent });
-    P.garbageTruck(k, 2.2 * M, 7.6 * M, Math.PI + 0.1);
-    P.garbageTruck(k, -4.6 * M, 8.2 * M, -Math.PI / 2 + 0.2);
+    P.garbageTruck(k, 5.2 * M, 8.0 * M, Math.PI / 2 + 0.05);
+    P.garbageTruck(k, -3.0 * M, 8.2 * M, -Math.PI / 2);
     // Rauchgasreinigung + Kamin
     k.box('metal_panel_grey', 7.4 * M, 0, -5.4 * M, 4.6 * M, 9 * M, 6 * M);
     if (P.D1(k)) { k.band('metal_dark', 7.4 * M, -5.4 * M, 4.6 * M, 6 * M, 4.5 * M, 0.2 * M, 0.2 * M); for (let i = 0; i < 2; i++) k.cyl('metal_light', 6.4 * M + i * 2 * M, 9 * M, -5.4 * M, 0.7 * M, 2 * M, { seg: 10 }); }
+    for (let i = 0; i < 2; i++) { P.tank(k, 6.2 * M + i * 2.6 * M, -1.0 * M, 1.0 * M, 7.0 * M, { mat: 'metal_panel_white', roof: 'cone', coneK: 0.6, ringsAt: [0.3, 0.7] }); P.pipe(k, 'metal_light', [6.2 * M + i * 2.6 * M, 6.4 * M, -1.8 * M], [6.2 * M + i * 2.6 * M, 6.4 * M, -2.6 * M], 0.35 * M); }
     k.flatRoof('roof_flat_membrane', 'metal_dark', 7.4 * M, 9 * M, -5.4 * M, 4.6 * M, 6 * M, { parapet: 0.3 * M });
     P.pipe(k, 'metal_light', [5 * M, 10.5 * M, -5.4 * M], [7.4 * M, 10.5 * M, -5.4 * M], 0.8 * M, { open: false });
     const sx = 7.6 * M, sz = -9 * M + 1.2 * M;
@@ -360,14 +372,13 @@ registerArch('recycling', {
     // Rampe mit Geländer, darunter Mulden
     const rz = -6.2 * M;
     k.box('concrete', -1 * M, 0, rz, 15 * M, 1.6 * M, 3.4 * M);
-    k.prism('concrete', [[-1.7 * M, 0], [1.7 * M, 0], [1.7 * M, 1.6 * M]], 5 * M, { x: 9 * M, y: 0, z: rz, ry: 0 });
-    k.prism('concrete', [[0, 0], [5 * M, 0], [0, 1.6 * M]], 3.4 * M, { x: 6.5 * M, y: 0, z: rz, ry: 0 });
+    k.prism('concrete', [[0, 0], [3.0 * M, 0], [0, 1.6 * M]], 3.4 * M, { x: 6.5 * M, y: 0, z: rz, ry: 0 });
     P.railing(k, -8.5 * M, rz + 1.7 * M, 6.5 * M, rz + 1.7 * M, 1.6 * M);
     const fills = [['container_blue', 'canvas_white', 'PAPIER'], ['container_green', 'leaves_dark', 'GRUEN'], ['container_yellow', 'paint_yellow', 'PLASTIK'], ['metal_panel_grey', 'metal_light', 'METALL'], ['container_red', 'wood_planks', 'HOLZ']];
     fills.forEach(([c, f, label], i) => {
       const x = -7 * M + i * 2.9 * M;
       skip(k, x, rz + 3.4 * M, 0, c, f, { len: 3.2 * M, w: 2.5 * M, h: 1.4 * M, low: 0.3 });
-      if (P.D1(k)) P.signBox(k, label, x, 3.0 * M, rz + 1.75 * M, 0, { px: 0.09 * M, bg: c, fg: 'paint_white', frame: 'metal_dark' });
+      if (P.D1(k)) P.signBox(k, label, x, 2.6 * M, rz + 1.75 * M, 0, { px: 0.06 * M, bg: c, fg: 'paint_white', frame: 'metal_dark' });
     });
     // Sortierhalle mit offener Front und Ballen
     const hx = -4.4 * M, hz = 3.4 * M, hw = 10 * M, hd = 6.4 * M, hh = 6 * M, wall = v ? 'metal_corrugated_green' : 'metal_corrugated';

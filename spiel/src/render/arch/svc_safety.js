@@ -74,11 +74,11 @@ registerArch('shelter', {
     if (P.D1(k)) { k.box('emissive_green', bx - 2 * M, 3.3 * M, bz + bd / 2 + 0.7 * M, 0.8 * M, 0.35 * M, 0.06 * M); k.light(bx - 2 * M, 3.4 * M, bz + bd / 2 + 1 * M, 0x60ff90, 0.3); }
     // Zelte, Wassertank, Container, Toiletten
     for (const z of [-2.4 * M, 1.6 * M]) {
-      k.prism('canvas_white', [[-1.9 * M, 0], [1.9 * M, 0], [1.9 * M, 1.6 * M], [0, 2.8 * M], [-1.9 * M, 1.6 * M]], 4.6 * M, { x: 5.6 * M, y: 0, z, ry: Math.PI / 2 });
-      if (P.D1(k)) { k.box(THW, 3.28 * M, 1.4 * M, z, 0.04 * M, 0.6 * M, 0.6 * M); k.box('paint_white', 3.26 * M, 1.6 * M, z, 0.04 * M, 0.2 * M, 0.45 * M); }
+      k.prism('canvas_white', [[-1.9 * M, 0], [1.9 * M, 0], [1.9 * M, 1.6 * M], [0, 2.8 * M], [-1.9 * M, 1.6 * M]], 4.4 * M, { x: 4.8 * M, y: 0, z, ry: Math.PI / 2 });
+      if (P.D1(k)) { k.box(THW, 2.58 * M, 1.4 * M, z, 0.04 * M, 0.6 * M, 0.6 * M); k.box('paint_white', 2.56 * M, 1.6 * M, z, 0.04 * M, 0.2 * M, 0.45 * M); }
     }
-    P.tank(k, 8.8 * M, 1.6 * M, 0.8 * M, 2.0 * M, { mat: 'tank_white', roof: 'dome', domeK: 0.3, rings: false });
-    P.container(k, 8.4 * M, 0, -2.6 * M, 0, 'container_blue');
+    P.tank(k, 9.0 * M, 2.6 * M, 0.75 * M, 2.0 * M, { mat: 'tank_white', roof: 'dome', domeK: 0.3, rings: false });
+    P.container(k, 8.6 * M, 0, -1.8 * M, 0, 'container_blue');
     if (P.D1(k)) for (let i = 0; i < 3; i++) k.box(i === 1 ? 'paint_white' : THW, 6.0 * M + i * 1.3 * M, 0, 4.2 * M, 1.1 * M, 2.3 * M, 1.1 * M);
     P.lamp(k, 2.6 * M, 4.4 * M, 4.4 * M);
     return P.finish(k);
@@ -181,14 +181,14 @@ registerArch('snow_depot', {
     k.box('metal_panel_grey', gx, 0, gz, 4.4 * M, 4.6 * M, 6.6 * M);
     k.box('paint_orange', gx, 3.8 * M, gz, 4.46 * M, 0.5 * M, 6.66 * M);
     k.flatRoof('roof_flat_membrane', 'paint_orange', gx, 4.6 * M, gz, 4.4 * M, 6.6 * M, { parapet: 0.3 * M });
-    P.rollerDoor(k, gx, gz + 3.3 * M, 0, 3.2 * M, 3.4 * M, { mat: 'metal_panel_white', frame: 'paint_orange' });
+    P.rollerDoor(k, gx, gz + 3.3 * M, 0, 3.2 * M, 3.4 * M, { mat: 'metal_panel_white', frame: 'paint_orange', open: true });
     P.signBox(k, 'WINTERDIENST', gx, 4.95 * M, gz + 3.33 * M, 0, { px: 0.06 * M, bg: 'paint_orange', frame: false });
     // Räumfahrzeug mit Schild
     if (P.D1(k)) {
-      const g = new P.G(k, gx, 3.8 * M, 0);
-      P.truck(k, gx, 3.0 * M, 0, { len: 6.4 * M, cab: 'paint_orange', body: 'paint_orange', bodyH: 1.6 * M });
-      g.box('paint_orange', 0, 0.2 * M, 0.9 * M, 3.0 * M, 1.0 * M, 0.25 * M, { ry: 0.35 });
-      g.box('emissive_warm', 0, 3.0 * M, -0.8 * M, 1.0 * M, 0.2 * M, 0.3 * M);
+      const g = new P.G(k, gx, 1.5 * M, 0);
+      P.truck(k, gx, 1.5 * M, 0, { len: 6.4 * M, cab: 'paint_orange', body: 'paint_orange', bodyH: 1.6 * M });
+      g.box('paint_orange', 0, 0.2 * M, 3.3 * M, 3.0 * M, 1.0 * M, 0.25 * M, { ry: 0.3 });
+      g.box('emissive_warm', 0, 3.0 * M, 2.1 * M, 1.0 * M, 0.2 * M, 0.3 * M);
     }
     P.lamp(k, -4.2 * M, 4.2 * M, 4.4 * M);
     return P.finish(k);
@@ -202,8 +202,8 @@ registerArch('flood_barrier', {
     const k = ctx.kit, [W, D] = dims(ctx), v = ctx.variant;
     P.lot(k, W, D, 'grass', { curb: false });
     // Deich mit Schutzmauer
-    const dz = -2.6 * M, dh = 2.4 * M;
-    k.prism('grass', [[-4.6 * M, 0], [4.6 * M, 0], [1.0 * M, dh], [-1.0 * M, dh]], W - 0.3 * M, { x: 0, y: 0, z: dz, ry: Math.PI / 2 });
+    const dz = -2.6 * M, dh = 2.0 * M;
+    k.prism('grass', [[-2.3 * M, 0], [2.3 * M, 0], [0.7 * M, dh], [-0.7 * M, dh]], W - 0.3 * M, { x: 0, y: 0, z: dz, ry: Math.PI / 2 });
     k.box('concrete', 0, dh - 0.3 * M, dz, W - 0.3 * M, 1.5 * M, 0.5 * M);
     if (P.D1(k)) k.box('concrete_dark', 0, dh + 1.2 * M, dz, W - 0.3 * M, 0.15 * M, 0.7 * M);
     // Mobile Dammbalken im Durchlass

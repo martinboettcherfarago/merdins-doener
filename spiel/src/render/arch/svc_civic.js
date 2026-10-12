@@ -19,7 +19,7 @@ function antenna(k, x, y0, z, h = 6 * M) {
 function bayDoors(k, cx, cz, sx, sz, n, w, h, o = {}) {
   for (let i = 0; i < n; i++) {
     const x = cx - sx / 2 + (sx / n) * (i + 0.5);
-    P.rollerDoor(k, x, cz + sz / 2, 0, w, h, { mat: o.mat || 'metal_panel_white', frame: o.frame || 'paint_red', glassRow: true, ribs: 4 });
+    P.rollerDoor(k, x, cz + sz / 2, 0, w, h, { mat: o.mat || 'metal_panel_white', frame: o.frame || 'paint_red', glassRow: true, ribs: 4, open: (o.open || []).includes(i) });
   }
 }
 // Ausfahrt mit Markierung vor den Toren
@@ -55,7 +55,7 @@ registerArch('police', {
       if (P.D1(k)) k.band('paint_blue', bx, bz, bw, bd, FLOOR - 0.25 * M, 0.5 * M, 0.04 * M);
       P.ribbon(k, 'front', bx + 1.1 * M, bz, 3.8 * M, bd, 0.5 * M, 1.9 * M, { margin: 0.2 * M });
       P.door(k, bx - 2.0 * M, bz + bd / 2, 0, { glass: true, w: 1.5 * M, canopy: 'paint_blue' });
-      P.signBox(k, 'POLIZEI', bx, 5.3 * M, bz + bd / 2, 0, { px: 0.17 * M, bg: 'paint_blue' });
+      P.signBox(k, 'POLIZEI', bx, 5.3 * M, bz + bd / 2, 0, { px: 0.14 * M, bg: 'paint_blue' });
       antenna(k, bx - 2 * M, top, bz - 2 * M, 7 * M);
     } else {
       const top = P.block(k, { x: bx, z: bz, w: bw, d: bd, floors: 2, wall: 'stone_sandstone', plinth: 'stone_dark', win: { frame: 'window_frame_white', sill: true, spacing: 2.1 * M, winW: 1.1 * M, winH: 1.7 * M }, cornice: 'trim_stone', roof: 'hip', roofMat: 'roof_slate', roofH: 2.6 * M, skipGround: 'front' });
@@ -71,9 +71,9 @@ registerArch('police', {
     k.flatRoof('roof_flat_membrane', 'paint_blue', 3.2 * M, 3.4 * M, -2.6 * M, 3.4 * M, 4.4 * M, { parapet: 0.3 * M });
     P.rollerDoor(k, 3.2 * M, -0.4 * M, 0, 2.6 * M, 2.6 * M, { mat: 'metal_panel_grey' });
     P.policeCar(k, 3.3 * M, 2.6 * M, Math.PI);
-    if (v === 0) P.policeCar(k, -3.6 * M, 3.7 * M, Math.PI / 2 + 0.05);
-    P.bikeRack(k, -0.4 * M, 4.2 * M, 0, 3);
-    P.lamp(k, 1.4 * M, 4.4 * M, 3.8 * M);
+    if (v === 0) P.policeCar(k, -2.5 * M, 4.0 * M, Math.PI / 2 + 0.03);
+    P.bikeRack(k, 0.4 * M, 4.4 * M, 0, 2);
+    P.lamp(k, 1.3 * M, 3.6 * M, 3.8 * M);
     return P.finish(k);
   },
 });
@@ -125,8 +125,8 @@ registerArch('fire', {
     apron(k, hx, hz + hd / 2, D / 2 - 0.2 * M, hw, 2);
     k.box(wall, hx, 0, hz, hw, hh, hd);
     k.box('stone_grey', hx, 0, hz, hw + 0.12 * M, 0.4 * M, hd + 0.12 * M);
-    bayDoors(k, hx, hz, hw, hd, 2, 3.2 * M, 3.8 * M, { frame: v ? 'paint_red' : 'trim_stone' });
-    if (P.D1(k)) { k.band(v ? 'paint_red' : 'trim_stone', hx, hz, hw, hd, hh - 0.6 * M, 0.6 * M, 0.06 * M); P.signBox(k, 'FEUERWEHR', hx, hh - 0.0 * M, hz + hd / 2 + 0.05 * M, 0, { px: 0.15 * M, bg: 'paint_red', frame: 'trim_dark' }); }
+    bayDoors(k, hx, hz, hw, hd, 2, 3.2 * M, 3.8 * M, { frame: v ? 'paint_red' : 'trim_stone', open: [0] });
+    if (P.D1(k)) { k.band(v ? 'paint_red' : 'trim_stone', hx, hz, hw, hd, hh - 0.6 * M, 0.6 * M, 0.06 * M); P.signBox(k, 'FEUERWEHR', hx, hh - 0.0 * M, hz + hd / 2 + 0.05 * M, 0, { px: 0.12 * M, bg: 'paint_red', frame: 'trim_dark' }); }
     k.windows('left', hx, hz, hw, hd, 0, 1, FLOOR * 1.4, { frame: 'window_frame_white', spacing: 2.4 * M, winH: 1.2 * M });
     k.flatRoof('roof_flat_membrane', v ? 'paint_red' : 'trim_stone', hx, hh, hz, hw, hd, { parapet: 0.4 * M });
     // Sozialtrakt mit Schlauchturm
@@ -134,7 +134,7 @@ registerArch('fire', {
     P.door(k, 3.9 * M, 3.5 * M, 0, { w: 1.1 * M, glass: true });
     hoseTower(k, 3.6 * M, -3.6 * M, 2.4 * M, 13 * M, wall, { roof: v ? 'flat' : 'hip' });
     P.text(k, '112', 3.6 * M, 9.6 * M, -3.6 * M + 1.24 * M, 0, 0.2 * M, 'paint_white');
-    P.fireTruck(k, hx - 1.9 * M, 2.4 * M, 0, { len: 7.6 * M });
+    P.fireTruck(k, hx - 1.9 * M, 1.2 * M, 0, { len: 7.4 * M });
     if (P.D1(k)) k.box('emissive_red', hx, hh + 0.4 * M, hz + hd / 2 - 0.3 * M, 0.5 * M, 0.3 * M, 0.3 * M);
     P.lamp(k, 4.4 * M, 4.4 * M, 4 * M);
     return P.finish(k);
@@ -151,7 +151,7 @@ registerArch('firehq', {
     apron(k, hx, hz + hd / 2, D / 2 - 0.2 * M, hw, 4);
     k.box('brick_red', hx, 0, hz, hw, hh, hd);
     k.box('stone_grey', hx, 0, hz, hw + 0.12 * M, 0.4 * M, hd + 0.12 * M);
-    bayDoors(k, hx, hz, hw, hd, 4, 3.0 * M, 4.2 * M, { frame: 'trim_stone' });
+    bayDoors(k, hx, hz, hw, hd, 4, 3.0 * M, 4.2 * M, { frame: 'trim_stone', open: [0, 1] });
     // Obergeschoss (zurückgesetzt) mit Fensterband
     k.box('plaster_white', hx, hh, hz - 1 * M, hw, 3.2 * M, hd - 2 * M);
     P.ribbon(k, 'front', hx, hz - 1 * M, hw, hd - 2 * M, hh + 0.8 * M, 1.6 * M);
@@ -170,10 +170,10 @@ registerArch('firehq', {
     k.flatRoof('roof_flat_membrane', 'paint_red', tx, 16 * M, tz, 3.4 * M, 3.4 * M, { parapet: 0.6 * M });
     P.text(k, '112', tx, 13.6 * M, tz + 1.72 * M, 0, 0.28 * M, 'paint_red');
     // Fahrzeuge
-    P.fireTruck(k, hx - 5.6 * M, 5.6 * M, 0, { len: 8 * M });
-    P.fireTruck(k, hx + 1.9 * M, 5.2 * M, 0, { len: 9 * M });
-    P.van(k, 7.6 * M, 6.4 * M, Math.PI / 2, 'paint_red', { lights: 'emissive_cool' });
-    P.fireTruck(k, 7.5 * M, 1.4 * M, Math.PI / 2 + Math.PI, { len: 7 * M, ladder: false });
+    P.fireTruck(k, hx - 5.6 * M, 4.6 * M, 0, { len: 8 * M });
+    P.fireTruck(k, hx - 1.9 * M, 4.8 * M, 0, { len: 9 * M, ladder: true });
+    P.van(k, 7.6 * M, 7.3 * M, 0, 'paint_red', { lights: 'emissive_cool' });
+    P.fireTruck(k, 7.6 * M, 1.4 * M, Math.PI, { len: 6.5 * M, ladder: false });
     P.lamp(k, 5.6 * M, 8.8 * M, 5 * M);
     return P.finish(k);
   },
@@ -235,12 +235,11 @@ registerArch('hospital', {
     P.signBox(k, 'KLINIKUM', px - 3 * M, 3.75 * M, pz + pd / 2 + 0.06 * M, 0, { px: 0.17 * M, bg: 'paint_blue' });
     P.canopy(k, px - 3 * M, 3.2 * M, pz + pd / 2 + 1.4 * M, 5 * M, 2.8 * M, { mat: 'metal_panel_white' });
     // Notaufnahme rechts mit Vordach und Rettungswagen
-    P.canopy(k, 6.4 * M, 3.4 * M, pz + pd / 2 + 2.0 * M, 6 * M, 4 * M, { mat: 'paint_red' });
-    P.signBox(k, 'NOTAUFNAHME', 6.4 * M, 4.25 * M, pz + pd / 2 + 4.05 * M, 0, { px: 0.1 * M, bg: 'paint_red', d: 0.06 * M });
+    P.canopy(k, 6.4 * M, 3.4 * M, pz + pd / 2 + 1.3 * M, 6 * M, 2.6 * M, { mat: 'paint_red' });
+    P.signBox(k, 'NOTAUFNAHME', 6.4 * M, 4.25 * M, pz + pd / 2 + 2.65 * M, 0, { px: 0.1 * M, bg: 'paint_red', d: 0.06 * M });
     P.door(k, 6.4 * M, pz + pd / 2, 0, { glass: true, w: 2.4 * M });
-    P.ambulance(k, 5.0 * M, pz + pd / 2 + 2.4 * M, Math.PI);
-    P.ambulance(k, 7.9 * M, pz + pd / 2 + 2.4 * M, Math.PI + 0.05);
-    P.slab(k, 'asphalt', 6.4 * M, 8.2 * M, 6.4 * M, 3.2 * M);
+    P.ambulance(k, 5.8 * M, pz + pd / 2 + 1.5 * M, -Math.PI / 2);
+    P.slab(k, 'asphalt', 6.4 * M, 8.5 * M, 6.4 * M, 2.8 * M);
     for (const x of [-9, -6.5, -4]) P.tree(k, x * M, 8.4 * M, 0.65);
     P.bench(k, -6.6 * M, 6.4 * M, 0); P.lamp(k, -1.4 * M, 9 * M);
     return P.finish(k);
@@ -422,7 +421,7 @@ registerArch('prison', {
   build(ctx) {
     const k = ctx.kit, [W, D] = dims(ctx);
     P.lot(k, W, D, 'concrete');
-    const e = W / 2 - 0.5 * M, f = D / 2 - 0.5 * M, h = 5.2 * M;
+    const e = W / 2 - 1.6 * M, f = D / 2 - 1.6 * M, h = 5.2 * M;
     // Außenmauer mit Stacheldraht
     for (const [a, b] of [[[-e, -f], [e, -f]], [[-e, -f], [-e, f - 3.6 * M]], [[e, -f], [e, f - 3.6 * M]], [[-e, f - 3.6 * M], [-3.4 * M, f - 3.6 * M]], [[3.4 * M, f - 3.6 * M], [e, f - 3.6 * M]]]) {
       P.wall(k, a[0], a[1], b[0], b[1], h, { mat: 'concrete', t: 0.6 * M, cap: 'concrete_dark' });

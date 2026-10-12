@@ -61,8 +61,8 @@ registerArch('warehouse', {
     k.flatRoof('roof_flat_membrane', accent, ox, 6.6 * M, oz, 5 * M, 4 * M, { parapet: 0.3 * M });
     P.door(k, ox - 1.2 * M, oz + 2 * M, 0, { glass: true });
     // Lkw an den Rampen, Markierungen, Container
-    P.truck(k, hx - 4.8 * M, 5.8 * M, Math.PI, { len: 9.4 * M, cab: 'paint_white', body: v ? 'metal_panel_white' : 'canvas_white', stripe: accent });
-    P.truck(k, hx + 3.2 * M, 6.0 * M, Math.PI, { len: 9.4 * M, cab: 'paint_red', body: 'metal_panel_grey' });
+    P.truck(k, hx - 4.8 * M, 5.2 * M, 0, { len: 8.6 * M, cab: 'paint_white', body: v ? 'metal_panel_white' : 'canvas_white', stripe: accent });
+    P.truck(k, hx + 3.2 * M, 5.3 * M, 0, { len: 8.6 * M, cab: 'paint_red', body: 'metal_panel_grey' });
     if (P.D1(k)) for (let i = 0; i <= 4; i++) P.line(k, hx - 6.8 * M + i * 4 * M, 1.4 * M, hx - 6.8 * M + i * 4 * M, 9.4 * M, 0.15 * M, 'paint_yellow');
     P.containerStack(k, 8.4 * M, 5.6 * M, 1, 1, 2, { long: false });
     P.crates(k, -2.4 * M, 2.2 * M, 4, { spread: 2.6 * M });
@@ -100,7 +100,7 @@ registerArch('food_factory', {
     k.box('brick_red', -7.6 * M, 0, -8.2 * M, 3.4 * M, 4.4 * M, 2.8 * M);
     P.stack(k, -8.4 * M, -8.4 * M, 12 * M, { r: 0.45 * M, rTop: 0.4 * M, mat: 'metal_light', type: 'steam', amount: 0.8, platform: false });
     for (let i = 0; i < 2; i++) P.fanUnit(k, hx - 3 * M + i * 6 * M, hh + 1.8 * M, hz - 4 * M, 0.7 * M);
-    P.truck(k, hx + 2.6 * M, 7.4 * M, Math.PI, { len: 9 * M, cab: 'paint_white', body: 'metal_panel_white', stripe: accent });
+    P.truck(k, 1.6 * M, 8.0 * M, Math.PI / 2, { len: 9 * M, cab: 'paint_white', body: 'metal_panel_white', stripe: accent });
     P.lamp(k, 9 * M, 4.4 * M, 5 * M);
     return P.finish(k);
   },
@@ -142,7 +142,7 @@ registerArch('sawmill', {
     P.stack(k, 9.0 * M, -3.8 * M, 11 * M, { r: 0.45 * M, rTop: 0.38 * M, mat: 'metal_light', capMat: 'metal_dark', amount: 0.9, platform: false });
     lumber(k, 7.0 * M, 7.6 * M, 3.6 * M, 1.4 * M, 3); lumber(k, -1.4 * M, 7.6 * M, 3.6 * M, 1.4 * M, 2);
     // Langholz-Lkw
-    if (P.D1(k)) { P.truck(k, -7.4 * M, 6.6 * M, Math.PI / 2, { len: 11 * M, cab: 'paint_green', body: false }); for (let r = 0; r < 2; r++) for (let i = 0; i < 3 - r; i++) P.pipe(k, 'log_wood', [-11.6 * M + 3.4 * M, 1.3 * M + r * 0.5 * M, 6.0 * M + i * 0.55 * M + r * 0.27 * M], [-6.2 * M + 3.4 * M, 1.3 * M + r * 0.5 * M, 6.0 * M + i * 0.55 * M + r * 0.27 * M], 0.27 * M, { seg: 6, open: false }); }
+    if (P.D1(k)) { P.truck(k, -4.4 * M, 6.6 * M, Math.PI / 2, { len: 11 * M, cab: 'paint_green', body: false }); for (let r = 0; r < 2; r++) for (let i = 0; i < 3 - r; i++) P.pipe(k, 'log_wood', [-9.4 * M, 1.3 * M + r * 0.5 * M, 6.05 * M + i * 0.55 * M + r * 0.27 * M], [-2.6 * M, 1.3 * M + r * 0.5 * M, 6.05 * M + i * 0.55 * M + r * 0.27 * M], 0.27 * M, { seg: 6, open: false }); }
     P.lamp(k, 9.2 * M, 6.0 * M, 5 * M);
     return P.finish(k);
   },
@@ -263,8 +263,8 @@ registerArch('cargo_rail', {
     const tz = [-7.6, -4.0, -0.4].map((z) => z * M);
     for (const z of tz) P.track(k, x0, x1, z);
     // Züge
-    const kinds = [['flat', 'flat', 'flat', 'tank'], ['box', 'box', 'hopper', 'flat'], ['tank', 'tank', 'flat']];
-    kinds.forEach((list, ti) => list.forEach((kd, i) => P.wagon(k, x0 + 7.6 * M + i * 14.6 * M + (ti === 1 ? 3 * M : 0), tz[ti], Math.PI / 2, kd)));
+    const kinds = [['flat', 'flat', 'tank'], ['box', 'hopper', 'box'], ['tank', 'flat']];
+    kinds.forEach((list, ti) => list.forEach((kd, i) => P.wagon(k, -9.6 * M + i * 9.6 * M + (ti === 2 ? 4.8 * M : 0), tz[ti], Math.PI / 2, kd, { len: 8.8 * M })));
     // Portalkran über den Gleisen
     const cx = 2.6 * M;
     for (const z of [-9.6 * M, 3.0 * M]) {
@@ -277,8 +277,8 @@ registerArch('cargo_rail', {
     P.container(k, cx, 3.8 * M, -4.0 * M, Math.PI / 2, 'container_red');
     // Containerlager und Lkw vorne
     P.slab(k, 'asphalt', -1 * M, 6.6 * M, 26 * M, 6.0 * M);
-    P.containerStack(k, -10 * M, 5.4 * M, 3, 1, 3, { long: true });
-    P.containerStack(k, 9.4 * M, 5.4 * M, 2, 1, 2, { long: true });
+    P.containerStack(k, -10 * M, 6.2 * M, 3, 1, 3, { long: false });
+    P.containerStack(k, 10.4 * M, 6.2 * M, 2, 1, 2, { long: false });
     P.truck(k, -1.4 * M, 6.8 * M, Math.PI / 2, { len: 14 * M, cab: 'paint_white', body: 'container_blue', bodyH: 2.6 * M });
     // Stellwerk
     const sx = 4.0 * M, sz = 7.4 * M;
@@ -333,8 +333,8 @@ registerArch('cargo_harbor', {
     P.block(k, { x: -10 * M, z: 11.4 * M, w: 8 * M, d: 5 * M, floors: 3, wall: 'metal_panel_white', win: { frame: 'window_frame_dark', spacing: 2.0 * M }, cornice: 'paint_blue', roof: 'flat', clutter: 2 });
     P.signBox(k, 'HAFEN', -10 * M, 8.4 * M, 13.92 * M, 0, { px: 0.2 * M, bg: 'paint_blue' });
     P.canopy(k, 6.6 * M, 5 * M, 12.4 * M, 10 * M, 4 * M, { mat: 'metal_panel_white' });
-    P.truck(k, 4.2 * M, 11.8 * M, Math.PI, { len: 14 * M, cab: 'paint_blue', body: 'container_green', bodyH: 2.6 * M });
-    P.truck(k, 9.0 * M, 11.4 * M, 0, { len: 14 * M, cab: 'paint_white', body: 'container_red', bodyH: 2.6 * M });
+    P.truck(k, 6.6 * M, 11.2 * M, -Math.PI / 2, { len: 12 * M, cab: 'paint_blue', body: 'container_green', bodyH: 2.6 * M });
+    P.truck(k, 6.0 * M, 13.6 * M, Math.PI / 2, { len: 12 * M, cab: 'paint_white', body: 'container_red', bodyH: 2.6 * M });
     for (const x of [-13, 0, 13]) { k.cyl('metal_light', x * M, 0, 6.6 * M, 0.2 * M, 18 * M, { seg: 6 }); if (P.D1(k)) { k.box('emissive_cool', x * M, 18 * M, 6.6 * M, 2.4 * M, 0.5 * M, 0.8 * M); k.light(x * M, 18 * M, 6.6 * M, 0xeaf4ff, 1.0); } }
     return P.finish(k);
   },

@@ -37,15 +37,19 @@ registerArch('coal', {
     const tx = -2 * M, tz = 3.1 * M, tw = 10 * M, td = 6 * M, th = 8 * M;
     k.box(brick, tx, 0, tz, tw, th, td);
     k.box('concrete_dark', tx, 0, tz, tw + 0.14 * M, 0.6 * M, td + 0.14 * M);
-    P.gridRow(k, 'front', tx, tz, tw, td, 4, 1.2 * M, 1.6 * M, 4.6 * M, 3, 5, { arch: true });
+    P.gridRow(k, 'front', tx, tz, tw, td, 4, 1.2 * M, 1.6 * M, 4.0 * M, 3, 5, { arch: true });
     P.gridRow(k, 'right', tx, tz, tw, td, 2, 1.2 * M, 1.4 * M, 4.6 * M, 3, 5, { arch: true });
     P.gridRow(k, 'left', tx, tz, tw, td, 2, 1.2 * M, 1.4 * M, 4.6 * M, 3, 5, { arch: true });
     if (P.D1(k)) k.band('trim_stone', tx, tz, tw, td, th - 0.5 * M, 0.5 * M, 0.12 * M);
     k.gableRoof('roof_metal_grey', tx, th, tz, tw, td, 1.6 * M, { ridge: 'x', overhang: 0.3 * M });
     k.gableEnds(brick, tx, th, tz, tw, td, 1.6 * M, { ridge: 'x' });
-    if (P.D2(k)) for (let i = 0; i < 3; i++) k.box('glass_skylight', tx - 3 * M + i * 3 * M, th + 0.95 * M, tz, 1.6 * M, 0.7 * M, 3.4 * M);
+    if (P.D1(k)) {
+      k.box('metal_corrugated', tx, th + 1.2 * M, tz, 7 * M, 0.9 * M, 1.4 * M);
+      for (const s of [-1, 1]) P.quad(k, 'glass_window', tx, th + 1.65 * M, tz + s * 0.73 * M, 6.6 * M, 0.55 * M, s > 0 ? 0 : Math.PI);
+      k.box('roof_metal_grey', tx, th + 2.1 * M, tz, 7.4 * M, 0.14 * M, 1.9 * M);
+    }
     P.door(k, tx + 3.2 * M, tz + td / 2, 0, { w: 3 * M, h: 3.6 * M, mat: 'metal_panel_grey' });
-    P.signBox(k, 'STADTWERKE', tx - 1.5 * M, 7.0 * M, tz + td / 2, 0, { px: 0.17 * M, bg: 'trim_dark', fg: 'sign_white' });
+    P.signBox(k, 'STADTWERKE', tx, 6.85 * M, tz + td / 2, 0, { px: 0.11 * M, bg: 'trim_dark', fg: 'sign_white' });
     // Schornstein mit Rauchgaskanal
     const cx = -8.2 * M, cz = -7.6 * M;
     P.stack(k, cx, cz, 34 * M, { r: 1.2 * M, rTop: 0.85 * M, mat: v === 0 ? 'concrete' : 'chimney_brick', bands: 3, bandH: 1.4 * M, amount: 2.4 });
@@ -60,6 +64,14 @@ registerArch('coal', {
       const px = a[0] + (b[0] - a[0]) * t, py = a[1] + (b[1] - a[1]) * t, pz = a[2] + (b[2] - a[2]) * t;
       P.beam(k, 'metal_dark', [px - 0.6 * M, 0, pz], [px - 0.4 * M, py - 0.6 * M, pz], 0.3 * M);
       P.beam(k, 'metal_dark', [px + 0.6 * M, 0, pz], [px + 0.4 * M, py - 0.6 * M, pz], 0.3 * M);
+    }
+    // Absetz-/Rückladegerät auf dem Kohlelager
+    if (P.D1(k)) {
+      k.box('paint_yellow', 7.0 * M, 0, 3.2 * M, 1.4 * M, 3.2 * M, 1.4 * M);
+      P.beam(k, 'paint_yellow', [7.0 * M, 3.0 * M, 3.2 * M], [4.6 * M, 1.4 * M, 6.4 * M], 0.5 * M);
+      P.beam(k, 'paint_yellow', [7.0 * M, 3.0 * M, 3.2 * M], [8.6 * M, 2.4 * M, 1.0 * M], 0.4 * M);
+      k.box('metal_dark', 8.6 * M, 1.6 * M, 1.0 * M, 1.2 * M, 1.2 * M, 1.2 * M);
+      k.add('paint_yellow', new THREE.CylinderGeometry(1.0 * M, 1.0 * M, 0.5 * M, P.segs(k, 12)), { x: 4.5 * M, y: 1.4 * M, z: 6.5 * M, rz: Math.PI / 2, ry: -0.9 });
     }
     // Umspannwerk vorne links, Mast, Pförtner
     P.substation(k, -6.6 * M, 8.2 * M, 6 * M, 3.2 * M, { n: 1, gantry: false });
@@ -191,8 +203,9 @@ registerArch('gas', {
     }
     // Luftkondensator auf Stützen
     const ax = 5.6 * M, az = -5.4 * M, aw = 7.6 * M, ad = 7 * M, ay = 6.5 * M;
-    if (k.detail > 0) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) k.box('metal_dark', ax - aw / 2 + 0.4 * M + (i * (aw - 0.8 * M)) / 2, 0, az - ad / 2 + 0.4 * M + (j * (ad - 0.8 * M)) / 2, 0.4 * M, ay, 0.4 * M);
-    else k.box('metal_dark', ax, 0, az, aw * 0.8, ay, ad * 0.8);
+    if (k.detail > 0) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) k.box('concrete', ax - aw / 2 + 0.4 * M + (i * (aw - 0.8 * M)) / 2, 0, az - ad / 2 + 0.4 * M + (j * (ad - 0.8 * M)) / 2, 0.32 * M, ay, 0.32 * M);
+    else k.box('concrete', ax, 0, az, aw * 0.8, ay, ad * 0.8);
+    if (P.D2(k)) for (const s of [-1, 1]) { P.beam(k, 'concrete', [ax - aw / 2 + 0.4 * M, 0.5 * M, az + s * (ad / 2 - 0.4 * M)], [ax, ay - 0.2 * M, az + s * (ad / 2 - 0.4 * M)], 0.2 * M); P.beam(k, 'concrete', [ax + aw / 2 - 0.4 * M, 0.5 * M, az + s * (ad / 2 - 0.4 * M)], [ax, ay - 0.2 * M, az + s * (ad / 2 - 0.4 * M)], 0.2 * M); }
     k.box('metal_panel_grey', ax, ay, az, aw, 0.7 * M, ad);
     for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) P.fanUnit(k, ax - 1.8 * M + i * 3.6 * M, ay + 0.7 * M, az - 2.3 * M + j * 2.3 * M, 1 * M, { h: 0.5 * M });
     k.prism('metal_corrugated', [[-ad / 2, 0], [ad / 2, 0], [0, 3 * M]], aw * 0.96, { x: ax, y: ay + 1.3 * M, z: az, ry: Math.PI / 2 });
@@ -469,7 +482,7 @@ registerArch('district_heating', {
     // Wärmespeicher
     const sx = 5.6 * M, sz = -4.2 * M;
     P.tank(k, sx, sz, 3.6 * M, 20 * M, { mat: v ? 'metal_corrugated_green' : 'metal_panel_blue', roof: 'cone', coneK: 0.18, rail: true, ringsAt: [0.25, 0.5, 0.75], ringMat: 'metal_light' });
-    if (P.D1(k)) { P.signBox(k, 'STADTWAERME', sx, 16 * M, sz + 3.62 * M, 0, { px: 0.16 * M, bg: 'paint_white', fg: v ? 'paint_green' : 'paint_blue', frame: false, d: 0.05 * M }); }
+    P.textArc(k, 'FERNWAERME', sx, 16.5 * M, sz, 3.6 * M, 0.35, 0.22 * M, 'paint_white');
     // Fernwärmeleitung mit Dehnungsbogen über die Zufahrt
     const r = 0.38 * M;
     for (const off of [0, 1.1 * M]) {

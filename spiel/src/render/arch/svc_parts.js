@@ -231,7 +231,7 @@ export function bikeRack(k, x, z, ry = 0, n = 4) {
 // ---------- Zäune und Mauern
 export function fence(k, x0, z0, x1, z1, o = {}) {
   if (!D1(k)) return;
-  const h = o.h ?? 2 * M, mat = o.mat || 'chain_fence', post = o.post || 'metal_dark';
+  const h = o.h ?? 2 * M, mat = o.mat || 'chain_fence', post = o.post || (o.mat && o.mat !== 'chain_fence' ? o.mat : 'chain_fence');
   const len = Math.hypot(x1 - x0, z1 - z0);
   if (len < 1e-4) return;
   const ry = Math.atan2(x1 - x0, z1 - z0), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
@@ -243,7 +243,7 @@ export function fence(k, x0, z0, x1, z1, o = {}) {
   }
   if (D2(k)) {
     const n = Math.max(1, Math.round(len / (o.step ?? 3 * M)));
-    for (let i = 0; i <= n; i++) { const t = i / n; k.box(post, x0 + (x1 - x0) * t, 0, z0 + (z1 - z0) * t, 0.08 * M, h + 0.05 * M, 0.08 * M); }
+    for (let i = 0; i <= n; i++) { const t = i / n; k.box(post, x0 + (x1 - x0) * t, 0, z0 + (z1 - z0) * t, 0.07 * M, h + 0.05 * M, 0.07 * M); }
     if (o.wire) k.box('metal_light', cx, h + 0.15 * M, cz, 0.25 * M, 0.25 * M, len, { ry });
   }
 }
@@ -392,6 +392,11 @@ export function rollerDoor(k, x, z, ry, w, h, o = {}) {
   const g = new G(k, x, z, ry, o.y0 || 0);
   const fr = o.frame || 'concrete_dark';
   g.box(fr, 0, 0, -0.02 * M, w + 0.4 * M, h + 0.25 * M, 0.14 * M);
+  if (o.open) {
+    g.box('rubber', 0, 0, 0.0 * M, w, h, 0.1 * M);
+    g.box(o.mat || 'metal_panel_grey', 0, h - 0.45 * M, 0.08 * M, w, 0.45 * M, 0.12 * M);
+    return;
+  }
   g.box(o.mat || 'metal_panel_grey', 0, 0, 0.04 * M, w, h, 0.08 * M);
   if (!D2(k)) return;
   if (o.glassRow) g.quad('glass_window', 0, h * 0.72, 0.13 * M, w * 0.9, h * 0.13, { lit: k.rng() });
@@ -504,7 +509,7 @@ export function sphereTank(k, x, z, r, o = {}) {
   }
   if (D2(k)) {
     k.cyl('metal_light', x, cy - 0.15 * M, z, r + 0.05 * M, 0.3 * M, { seg: segs(k, 18), open: true });
-    beam(k, 'metal_dark', [x + r * 1.4, 0, z], [x + r * 0.15, cy + r * 0.98, z], 0.45 * M, { d: 0.08 * M });
+    if (o.stair !== false) beam(k, 'metal_dark', [x + r * 1.4, 0, z], [x + r * 0.15, cy + r * 0.98, z], 0.45 * M, { d: 0.08 * M });
   }
 }
 // Hochsilo mit Trichter auf Stützen
@@ -700,6 +705,19 @@ export function text(k, str, x, y, z, ry, px, mat = 'paint_white') {
     cx += (gl[0].length + 1) * px;
   }
 }
+// Schrift um einen Zylinder (Tank) herum, Mitte bei Winkel a0 (0 = +z), Radius r
+export function textArc(k, str, cx, y, cz, r, a0, px, mat = 'paint_white') {
+  if (!D1(k)) return;
+  const total = textWidth(str, px);
+  let s = -total / 2;
+  for (const ch of str.toUpperCase()) {
+    const gl = FONT[ch] || FONT[' '];
+    const gw = gl[0].length * px;
+    const a = a0 + (s + gw / 2) / r;
+    text(k, ch, cx + Math.sin(a) * (r + 0.04 * M), y, cz + Math.cos(a) * (r + 0.04 * M), a, px, mat);
+    s += gw + px;
+  }
+}
 // Schild mit Schrift: Tafel (bg) mit Rahmen, Text (fg). Rückseite flach an der Wand bei z.
 export function sign(k, str, x, y, z, ry = 0, o = {}) {
   const px = o.px ?? 0.18 * M;
@@ -723,12 +741,25 @@ function wheels(g, xs, zs, r, w = 0.25 * M) {
   if (g.detail < 2) return;
   for (const z of zs) for (const s of [-1, 1]) g.pipe('rubber', [s * xs - w / 2, r, z], [s * xs + w / 2, r, z], r, { seg: 8, open: false });
 }
+// Fahrerhaus: Kasten, umlaufendes Glasband, Stoßfänger (lokal, Front nach +z)
+function cabin(g, zc, L, w, h, y0, mat, o = {}) {
+  g.box(mat, 0, y0, zc, w, h, L);
+  if (g.detail >= 1) g.box('glass_window', 0, y0 + h * (o.gy ?? 0.52), zc + 0.06 * M, w + 0.04 * M, h * (o.gh ?? 0.34), L - 0.25 * M, { lit: 0 });
+  if (g.detail >= 1) g.box('metal_dark', 0, y0 - 0.1 * M, zc + L / 2 - 0.1 * M, w + 0.04 * M, 0.5 * M, 0.3 * M);
+  if (g.detail >= 2) for (const s of [-1, 1]) g.box('emissive_warm', s * (w / 2 - 0.3 * M), y0 + 0.3 * M, zc + L / 2 + 0.01 * M, 0.35 * M, 0.2 * M, 0.04 * M);
+}
+// Fahrwerk: dunkler Unterbau (Detail 1) bzw. Räder (Detail 2)
+function chassis(g, len, w, zs, r, zc = 0) {
+  g.box('metal_dark', 0, r * 0.4, zc, w - 0.5 * M, r * 1.3, len);
+  if (g.detail >= 2) wheels(g, w / 2 - 0.2 * M, zs, r, 0.35 * M);
+  else for (const z of zs) g.box('rubber', 0, 0, z, w - 0.1 * M, r * 2, r * 1.9);
+}
 export function car(k, x, z, ry, color = 'paint_red') {
   if (!D1(k)) return;
   const g = new G(k, x, z, ry);
   g.box(color, 0, 0.3 * M, 0, 1.75 * M, 0.62 * M, 4.3 * M);
   g.box(color, 0, 0.92 * M, -0.25 * M, 1.55 * M, 0.55 * M, 2.2 * M);
-  if (D2(k)) g.box('glass_window', 0, 0.95 * M, -0.25 * M, 1.58 * M, 0.42 * M, 2.05 * M, { lit: 0 });
+  g.box('glass_window', 0, 0.95 * M, -0.25 * M, 1.58 * M, 0.42 * M, 2.05 * M, { lit: 0 });
   wheels(g, 0.78 * M, [-1.35 * M, 1.35 * M], 0.32 * M);
 }
 export function van(k, x, z, ry, color = 'paint_white', o = {}) {
@@ -737,8 +768,9 @@ export function van(k, x, z, ry, color = 'paint_white', o = {}) {
   const L = o.len ?? 5.2 * M;
   g.box(color, 0, 0.35 * M, -0.3 * M, 1.95 * M, 2.0 * M, L - 0.8 * M);
   g.box(color, 0, 0.35 * M, L / 2 - 0.6 * M, 1.9 * M, 1.25 * M, 1.2 * M);
-  if (D2(k)) g.box('glass_window', 0, 1.25 * M, L / 2 - 0.85 * M, 1.92 * M, 0.75 * M, 0.5 * M, { lit: 0, rx: -0.35 });
-  if (o.stripe && D1(k)) g.box(o.stripe, 0, 1.0 * M, -0.3 * M, 1.98 * M, 0.3 * M, L - 0.85 * M);
+  g.box('glass_window', 0, 1.25 * M, L / 2 - 0.9 * M, 1.98 * M, 0.7 * M, 0.9 * M, { lit: 0 });
+  if (D2(k)) g.box('glass_window', 0, 1.3 * M, L / 2 - 0.5 * M, 1.8 * M, 0.75 * M, 0.5 * M, { lit: 0, rx: -0.45 });
+  if (o.stripe) g.box(o.stripe, 0, 0.95 * M, -0.3 * M, 1.98 * M, 0.3 * M, L - 0.85 * M);
   if (o.lights) { g.box(o.lights, 0, 2.35 * M, L / 2 - 1.2 * M, 1.2 * M, 0.18 * M, 0.3 * M); if (D2(k)) g.box(o.lights, 0, 2.35 * M, -L / 2 + 0.3 * M, 1.4 * M, 0.15 * M, 0.2 * M); }
   wheels(g, 0.85 * M, [-L / 2 + 1.0 * M, L / 2 - 1.1 * M], 0.36 * M);
 }
@@ -749,59 +781,64 @@ export function policeCar(k, x, z, ry) {
   g.box('paint_blue', 0, 0.55 * M, 0, 1.78 * M, 0.28 * M, 4.32 * M);
   g.box('emissive_cool', 0, 1.47 * M, -0.2 * M, 1.0 * M, 0.14 * M, 0.3 * M);
 }
+// Löschfahrzeug (HLF) bzw. mit Drehleiter (ladder: true)
 export function fireTruck(k, x, z, ry, o = {}) {
   if (!D1(k)) return;
   const g = new G(k, x, z, ry);
-  const L = o.len ?? 8.5 * M;
-  g.box('paint_red', 0, 0.45 * M, L / 2 - 1.1 * M, 2.45 * M, 2.4 * M, 2.2 * M);
-  g.box('paint_red', 0, 0.45 * M, -1.1 * M, 2.5 * M, 2.55 * M, L - 2.2 * M);
-  g.box('paint_white', 0, 1.0 * M, -1.1 * M, 2.53 * M, 0.25 * M, L - 2.25 * M);
-  if (D2(k)) {
-    g.box('glass_window', 0, 1.7 * M, L / 2 - 0.05 * M, 2.2 * M, 0.9 * M, 0.08 * M, { lit: 0 });
-    for (const s of [-1, 1]) for (let i = 0; i < 3; i++) g.box('metal_light', s * 1.26 * M, 1.4 * M, -L / 2 + 1.0 * M + i * 1.6 * M, 0.04 * M, 1.4 * M, 1.4 * M);
+  const L = o.len ?? 8.5 * M, W = 2.5 * M;
+  chassis(g, L - 1.2 * M, W, [-L / 2 + 1.4 * M, -L / 2 + 2.7 * M, L / 2 - 1.3 * M], 0.5 * M);
+  cabin(g, L / 2 - 1.1 * M, 2.2 * M, W, 2.35 * M, 0.55 * M, 'paint_red');
+  g.box('paint_red', 0, 0.6 * M, -1.15 * M, W, 2.7 * M, L - 2.3 * M);
+  g.box('paint_white', 0, 1.2 * M, -1.15 * M, W + 0.03 * M, 0.22 * M, L - 2.35 * M);
+  g.box('paint_white', 0, 0.62 * M, L / 2 - 0.02 * M, W * 0.6, 0.15 * M, 0.06 * M);
+  if (D2(k)) for (const s of [-1, 1]) for (let i = 0; i < 3; i++) g.box('metal_light', s * (W / 2 + 0.01 * M), 1.5 * M, -L / 2 + 0.9 * M + i * ((L - 2.6 * M) / 3), 0.04 * M, 1.6 * M, (L - 2.8 * M) / 3 - 0.15 * M);
+  if (o.ladder) {
+    g.cyl('metal_dark', 0, 3.3 * M, -L / 2 + 1.3 * M, 0.8 * M, 0.4 * M, { seg: 10 });
+    for (const s of [-1, 1]) g.box('metal_light', s * 0.55 * M, 3.7 * M, 0.2 * M, 0.14 * M, 0.35 * M, L - 0.6 * M);
+    if (D2(k)) for (let i = 0; i < 9; i++) g.box('metal_light', 0, 3.75 * M, -L / 2 + 1.2 * M + i * ((L - 1.6 * M) / 8), 1.1 * M, 0.06 * M, 0.08 * M);
+  } else {
+    g.box('metal_light', 0, 3.3 * M, -1.6 * M, 2.0 * M, 0.3 * M, L - 3.6 * M);
+    if (D2(k)) g.box('metal_dark', 0.6 * M, 3.6 * M, -1.2 * M, 0.4 * M, 0.08 * M, L - 4.2 * M);
   }
-  if (o.ladder !== false) {
-    g.box('metal_light', 0, 3.0 * M, -0.8 * M, 1.4 * M, 0.35 * M, L - 1.5 * M);
-    if (D2(k)) for (let i = 0; i < 8; i++) g.box('metal_dark', 0, 3.36 * M, -L / 2 + 0.8 * M + i * ((L - 1.8 * M) / 7), 1.3 * M, 0.04 * M, 0.08 * M);
-  }
-  g.box('emissive_cool', 0, 2.85 * M, L / 2 - 1.3 * M, 1.6 * M, 0.16 * M, 0.3 * M);
-  wheels(g, 1.05 * M, [-L / 2 + 1.4 * M, -L / 2 + 2.6 * M, L / 2 - 1.3 * M], 0.5 * M, 0.35 * M);
+  g.box('emissive_cool', 0, 2.9 * M, L / 2 - 1.3 * M, 1.6 * M, 0.16 * M, 0.3 * M);
+  if (D2(k)) for (const s of [-1, 1]) g.box('emissive_cool', s * 1.0 * M, 3.3 * M, -L / 2 + 0.2 * M, 0.3 * M, 0.2 * M, 0.2 * M);
 }
 export function ambulance(k, x, z, ry) {
   van(k, x, z, ry, 'paint_white', { len: 6.2 * M, stripe: 'paint_red', lights: 'emissive_cool' });
 }
-// Lastwagen: Zugmaschine + Auflieger (body: Material des Aufbaus)
+// Lastwagen: Fahrerhaus + Aufbau/Auflieger (body: Material des Aufbaus, false = nur Pritsche)
 export function truck(k, x, z, ry, o = {}) {
   if (!D1(k)) return;
   const g = new G(k, x, z, ry);
-  const L = o.len ?? 12 * M, cab = o.cab || 'paint_white';
-  g.box(cab, 0, 0.6 * M, L / 2 - 1.1 * M, 2.45 * M, 2.4 * M, 2.2 * M);
-  if (D2(k)) g.box('glass_window', 0, 1.85 * M, L / 2 - 0.02 * M, 2.2 * M, 0.9 * M, 0.06 * M, { lit: 0 });
-  g.box('metal_dark', 0, 0.4 * M, -0.2 * M, 2.0 * M, 0.5 * M, L - 0.6 * M);
-  if (o.body !== false) g.box(o.body || 'metal_panel_white', 0, 1.0 * M, -1.25 * M, 2.5 * M, o.bodyH ?? 2.7 * M, L - 2.6 * M);
-  if (o.stripe && D1(k)) g.box(o.stripe, 0, 1.6 * M, -1.25 * M, 2.53 * M, 0.5 * M, L - 2.7 * M);
-  wheels(g, 1.0 * M, [-L / 2 + 1.0 * M, -L / 2 + 2.3 * M, L / 2 - 1.3 * M], 0.5 * M, 0.35 * M);
+  const L = o.len ?? 12 * M, cab = o.cab || 'paint_white', W = 2.5 * M;
+  chassis(g, L - 0.6 * M, W, [-L / 2 + 1.0 * M, -L / 2 + 2.3 * M, L / 2 - 1.3 * M], 0.5 * M, -0.1 * M);
+  cabin(g, L / 2 - 1.1 * M, 2.2 * M, 2.45 * M, 2.5 * M, 0.6 * M, cab);
+  g.box('metal_dark', 0, 0.85 * M, -1.25 * M, 2.4 * M, 0.25 * M, L - 2.6 * M);
+  if (o.body !== false) g.box(o.body || 'metal_panel_white', 0, 1.1 * M, -1.25 * M, W, o.bodyH ?? 2.7 * M, L - 2.6 * M);
+  if (o.stripe) g.box(o.stripe, 0, 1.6 * M, -1.25 * M, W + 0.03 * M, 0.5 * M, L - 2.7 * M);
 }
+// Müllwagen (Hecklader, orange, gewölbter Aufbau)
 export function garbageTruck(k, x, z, ry) {
   if (!D1(k)) return;
   const g = new G(k, x, z, ry);
-  g.box('paint_orange', 0, 0.55 * M, 2.6 * M, 2.45 * M, 2.3 * M, 2.0 * M);
-  if (D2(k)) g.box('glass_window', 0, 1.7 * M, 3.62 * M, 2.2 * M, 0.85 * M, 0.06 * M, { lit: 0 });
-  g.box('paint_orange', 0, 0.6 * M, -0.9 * M, 2.5 * M, 2.6 * M, 4.8 * M);
-  g.box('metal_dark', 0, 0.6 * M, -3.6 * M, 2.4 * M, 2.4 * M, 0.8 * M);
-  g.box('paint_white', 0, 1.6 * M, -0.9 * M, 2.53 * M, 0.25 * M, 4.7 * M);
-  wheels(g, 1.0 * M, [-2.2 * M, 2.6 * M], 0.5 * M, 0.35 * M);
+  chassis(g, 6.8 * M, 2.5 * M, [-2.2 * M, -1.0 * M, 2.6 * M], 0.5 * M);
+  cabin(g, 2.65 * M, 1.9 * M, 2.5 * M, 2.2 * M, 0.55 * M, 'paint_orange', { gy: 0.5, gh: 0.38 });
+  g.box('paint_orange', 0, 0.65 * M, -0.85 * M, 2.5 * M, 1.7 * M, 4.6 * M);
+  g.pipe('paint_orange', [0, 2.3 * M, -3.1 * M], [0, 2.3 * M, 1.45 * M], 1.24 * M, { seg: segs(k, 12), open: false });
+  g.box('metal_dark', 0, 0.75 * M, -3.5 * M, 2.4 * M, 2.6 * M, 0.9 * M, { rx: 0.12 });
+  if (D2(k)) for (let i = 0; i < 4; i++) g.box(i % 2 ? 'paint_white' : 'paint_red', -0.9 * M + i * 0.6 * M, 1.0 * M, -3.98 * M, 0.3 * M, 1.4 * M, 0.04 * M);
+  g.box('paint_white', 0, 1.6 * M, -0.85 * M, 2.53 * M, 0.22 * M, 4.5 * M);
+  g.box('emissive_warm', 0, 2.75 * M, 2.9 * M, 0.5 * M, 0.2 * M, 0.3 * M);
 }
 // Tanklastzug
 export function tanker(k, x, z, ry, o = {}) {
   if (!D1(k)) return;
   const g = new G(k, x, z, ry);
   const L = o.len ?? 11 * M;
-  g.box(o.cab || 'paint_white', 0, 0.6 * M, L / 2 - 1.1 * M, 2.45 * M, 2.4 * M, 2.2 * M);
-  if (D2(k)) g.box('glass_window', 0, 1.85 * M, L / 2 - 0.02 * M, 2.2 * M, 0.9 * M, 0.06 * M, { lit: 0 });
-  g.box('metal_dark', 0, 0.4 * M, -0.2 * M, 2.0 * M, 0.5 * M, L - 0.6 * M);
-  g.pipe(o.body || 'tank_white', [0, 2.1 * M, -L / 2 + 0.3 * M], [0, 2.1 * M, L / 2 - 2.4 * M], 1.15 * M, { seg: segs(k, 12), open: false });
-  wheels(g, 1.0 * M, [-L / 2 + 1.0 * M, -L / 2 + 2.3 * M, L / 2 - 1.3 * M], 0.5 * M, 0.35 * M);
+  chassis(g, L - 0.6 * M, 2.5 * M, [-L / 2 + 1.0 * M, -L / 2 + 2.3 * M, L / 2 - 1.3 * M], 0.5 * M, -0.1 * M);
+  cabin(g, L / 2 - 1.1 * M, 2.2 * M, 2.45 * M, 2.5 * M, 0.6 * M, o.cab || 'paint_white');
+  g.pipe(o.body || 'tank_white', [0, 2.2 * M, -L / 2 + 0.3 * M], [0, 2.2 * M, L / 2 - 2.4 * M], 1.15 * M, { seg: segs(k, 12), open: false });
+  if (D2(k)) g.box('metal_dark', 0, 3.3 * M, -1.2 * M, 0.5 * M, 0.15 * M, L - 4 * M);
 }
 // Güterwagen auf Gleis (Länge entlang lokal z): kind 'flat' (mit Containern) | 'box' | 'tank' | 'hopper'
 export function wagon(k, x, z, ry, kind = 'box', o = {}) {
@@ -809,7 +846,10 @@ export function wagon(k, x, z, ry, kind = 'box', o = {}) {
   const L = o.len ?? 14 * M;
   g.box('metal_dark', 0, 0.5 * M, 0, 2.6 * M, 0.6 * M, L);
   if (D2(k)) for (const s of [-1, 1]) g.box('metal_dark', 0, 0, s * (L / 2 - 2 * M), 2.2 * M, 0.6 * M, 2.6 * M);
-  if (kind === 'flat') {
+  if (kind === 'flat' && L < 12.6 * M) {
+    const [ax, az] = g.p(0, 0);
+    container(k, ax, 1.1 * M, az, ry, o.mat || pick(k.rng, ['container_red', 'container_blue', 'container_green', 'container_yellow']));
+  } else if (kind === 'flat') {
     const [ax, az] = g.p(0, -L / 4 + 0.1 * M), [bx, bz] = g.p(0, L / 4 - 0.1 * M);
     container(k, ax, 1.1 * M, az, ry, o.mat || pick(k.rng, ['container_red', 'container_blue', 'container_green', 'container_yellow']));
     container(k, bx, 1.1 * M, bz, ry, o.mat2 || pick(k.rng, ['container_red', 'container_blue', 'container_green', 'metal_panel_grey']));

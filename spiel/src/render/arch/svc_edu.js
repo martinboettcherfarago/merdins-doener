@@ -251,7 +251,7 @@ registerArch('highschool', {
     // Schulhof
     hoop(k, 0.4 * M, -1.6 * M, 0);
     pingpong(k, 0.6 * M, 3.4 * M, 0);
-    for (const [x, z] of [[-1.6, 7.6], [2.4, 7.4], [-9, 7.4]]) P.tree(k, x * M, z * M, 0.8);
+    for (const [x, z] of [[-1.6, 7.6], [2.4, 7.4], [-8.4, 7.4]]) P.tree(k, x * M, z * M, 0.8);
     P.bikeRack(k, -1.6 * M, 9.2 * M, 0, 6); P.bikeRack(k, 4.6 * M, 9.2 * M, 0, 5);
     P.bench(k, 0.4 * M, 6.0 * M, 0);
     P.lamp(k, 1.4 * M, 8.6 * M, 4 * M);
