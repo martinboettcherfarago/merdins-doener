@@ -577,7 +577,7 @@ export class Batch {
     this.inst = inst; this.mtx = mtx; this.col = col;
   }
   begin() { this.n = 0; }
-  // Stellung: Position, Gierwinkel (Front +z → Fahrtrichtung), Neigung (Nase hoch positiv), Rollen, Skalierung
+  // Stellung: Position, Gierwinkel (Front +z → Fahrtrichtung), Neigung (Euler-X in Reihenfolge YXZ, negativ = Nase hoch), Rollen, Skalierung
   push(x, y, z, yaw, pitch, roll, sx, sy, sz, r, g, b, seed, flags, pal = 0, w = 0) {
     if (this.n >= this.cap) {
       if (this.cap >= MAXCAP) return -1;
@@ -585,7 +585,7 @@ export class Batch {
     }
     const i = this.n++;
     const cy = Math.cos(yaw), syw = Math.sin(yaw);
-    const p = -pitch, cp = Math.cos(p), sp = Math.sin(p);
+    const p = pitch, cp = Math.cos(p), sp = Math.sin(p);
     // Ry * Rx
     let a0x = cy, a0y = 0, a0z = -syw;
     let a1x = syw * sp, a1y = cp, a1z = cy * sp;

@@ -4,7 +4,7 @@
 //   Sattelzüge mit nachlaufendem Auflieger.
 // TransitView: Pulsbahn – Hochbahn-Trassen auf Pfeilern, Stationen, Züge aus Führerstands- und Mittelwagen, Fahrgäste.
 import * as THREE from 'three';
-import { TRANSIT, T } from '../config.js';
+import { TRANSIT, T, R } from '../config.js';
 import { VT } from '../sim/traffic.js';
 import { LINE_COLORS, linePose } from '../sim/transit.js';
 import { MODELS, vehicleGeometry, carPaint, carType } from './vehicles_models.js';
@@ -55,11 +55,12 @@ export class Fleet {
     for (const b of this.list) b.begin();
   }
   // Gibt den quadrierten Kameraabstand zurück oder -1 (außerhalb des Bildes)
-  add(id, x, y, z, yaw, pitch, roll, col, seed, flags, pal = 0, sz = 1) {
+  add(id, x, y, z, yaw, pitch, roll, col, seed, flags, pal = 0, sz = 1, uni = false) {
     const m = MODELS[id];
     if (!m) return -1;
     this.sph.center.set(x, y + m.hei * 0.5, z);
-    this.sph.radius = Math.max(m.len * sz, m.wid, m.hei) * 0.6 + 0.15;
+    const sw = uni ? sz : 1;
+    this.sph.radius = Math.max(m.len * sz, m.wid * sw, m.hei * sw) * 0.6 + 0.15;
     if (!this.frustum.intersectsSphere(this.sph)) return -1;
     const dx = x - this.cam.x, dy = y - this.cam.y, dz = z - this.cam.z;
     const d2 = dx * dx + dy * dy + dz * dz;
@@ -68,10 +69,10 @@ export class Fleet {
     _c.setHex(col);
     if (lod === 0 && m.far) {
       const b = this.batch('far_' + m.far, 0);
-      if (b) b.push(x, y, z, yaw, pitch, roll, m.wid, m.hei, m.len * sz, _c.r, _c.g, _c.b, seed, flags, pal);
+      if (b) b.push(x, y, z, yaw, pitch, roll, m.wid * sw, m.hei * sw, m.len * sz, _c.r, _c.g, _c.b, seed, flags, pal);
     } else {
       const b = this.batch(id, Math.max(1, lod));
-      if (b) b.push(x, y, z, yaw, pitch, roll, 1, 1, sz, _c.r, _c.g, _c.b, seed, flags, pal);
+      if (b) b.push(x, y, z, yaw, pitch, roll, sw, sw, sz, _c.r, _c.g, _c.b, seed, flags, pal);
     }
     return d2;
   }
@@ -137,7 +138,8 @@ const KIND = {
   police: (r, u) => (u < 0.8 ? 'police' : 'police_van'),
   fire: (r, u) => (u < 0.75 ? 'fire' : 'fire_ladder'),
   ambulance: ONE('ambulance'), garbage: ONE('garbage'), hearse: ONE('hearse'), snowplow: ONE('snowplow'), tanker: ONE('tanker'),
-  train_loco: (r) => (r.len && r.len < 1.4 ? 'train_loco_s' : 'train_loco'), train_wagon: ONE('train_wagon'),
+  train_loco: (r) => (r.len && r.len < 0.85 ? 'train_power_s' : r.len && r.len < 1.4 ? 'train_loco_s' : 'train_loco'),
+  train_wagon: (r) => (r.len && r.len < 1.3 ? 'train_wagon_s' : 'train_wagon'),
   cargo_wagon: (r, u) => (u < 0.45 ? 'cargo_container' : u < 0.7 ? 'cargo_box' : u < 0.85 ? 'cargo_tank' : 'cargo_hopper') + (r.len && r.len < 1.3 ? '_s' : ''),
   ship_cargo: (r) => (r.len && r.len < 3.5 ? 'ship_barge' : 'ship_cargo'), ferry: ONE('ferry'), boat: ONE('boat'), sailboat: ONE('sailboat'), plane: ONE('plane'),
   helicopter: ONE('helicopter'), ship_cruise: ONE('ship_cruise'), metro: ONE('metro_mid'), minibus: ONE('minibus'),
@@ -145,20 +147,21 @@ const KIND = {
 const KIND_COLOR = {
   bus: 0xd9472f, tram: 0xc8342b, train_loco: 0xc1121c, train_wagon: 0xc1121c, ship_cargo: 0x1f3b63, ferry: 0x2f6db3,
   ship_cruise: 0x1f3b63, plane: 0x2f6db3, helicopter: 0xd8261c, boat: 0x2f6db3, sailboat: 0x1f3b63, cargo_wagon: 0x2f6db3,
-  truck: 0xf2f2ee, van: 0xf2f2ee, tanker: 0xf2f2ee, metro: 0xe8543f, minibus: 0xf2f2ee,
+  truck: 0xf2f2ee, van: 0xf2f2ee, tanker: 0xf2f2ee, metro: 0xe8543f, minibus: 0xf2f2ee, taxi: 0xe9dcb8,
 };
 const EMERGENCY = { police: 1, fire: 1, ambulance: 1 };
 const AMBERS = { garbage: 1, snowplow: 1 };
 const RAILK = { train_loco: 1, train_wagon: 1, cargo_wagon: 1, tram: 1, metro: 1 };
-const SCALABLE = { tram: 1, train_loco: 1, train_wagon: 1, cargo_wagon: 1, ship_cargo: 1, ferry: 1, ship_cruise: 1, boat: 1, metro: 1 };
+const SCALABLE = { tram: 1, train_loco: 1, train_wagon: 1, cargo_wagon: 1, metro: 1 };
+const UNIFORM = { plane: 1, ferry: 1, ship_cruise: 1, ship_cargo: 1, boat: 1, sailboat: 1, helicopter: 1 };
 const TRUCK_CABS = [0xf2f2ee, 0xf2f2ee, 0xb8302a, 0x22406e, 0x3a3f45, 0xe8b52c, 0x2f7a4f, 0x6f747a, 0x8a3c2e];
 const BOX_PAL = [0, 0, 0, 0, 1, 1, 6, 2, 3, 4, 5, 7];
 
 // Lichtpositionen (lokal) → Welt
 function toWorld(out, lx, ly, lz, x, y, z, cy, sy, cp, sp) {
-  // Ry(yaw) * Rx(-pitch)
-  const yy = ly * cp + lz * sp;
-  const zz = -ly * sp + lz * cp;
+  // Ry(yaw) * Rx(pitch)
+  const yy = ly * cp - lz * sp;
+  const zz = ly * sp + lz * cp;
   out[0] = x + lx * cy + zz * sy;
   out[1] = y + yy;
   out[2] = z - lx * sy + zz * cy;
@@ -177,18 +180,21 @@ export class VehicleView {
     this.v3 = [0, 0, 0];
     this.warned = false;
     this.glowR2 = (70 * (QUAL[engine.settings && engine.settings.quality] ?? 1)) ** 2;
+    // S3: G10 zeichnet alle Arten aus renderables selbst (Platzhalter entfallen)
+    this.drawsRenderables = true;
+    this.tramLast = new Map();
   }
 
   // Fahrbahnhöhe an Rasterposition (gx, gz in Feldern), mit weichen Rampen zu Brücken
   roadY(gx, gz) {
     const g = this.g, W = g.W, H = g.H;
+    const rv = this.e.roads;
+    if (rv && typeof rv.surfaceY === 'function') return rv.surfaceY(gx - W / 2, gz - H / 2);
     const ix = Math.floor(gx), iz = Math.floor(gz);
     const th = (x, z) => {
       if (x < 0 || z < 0 || x >= W || z >= H) return 0.012;
       const i = z * W + x;
       if (!g.road[i]) return null;
-      const rv = this.e.roads;
-      if (rv && typeof rv.surfaceY === 'function') return rv.surfaceY(i);
       return g.world.terrain[i] === T.WATER ? 0.24 : 0.012;
     };
     const h0 = th(ix, iz) ?? 0.012;
@@ -224,7 +230,11 @@ export class VehicleView {
     for (let i = 0; i < cars.length; i++) this.drawCar(cars[i]);
     let list = null;
     try { list = g.renderables ? g.renderables() : null; } catch (e) { if (!this.warned) { console.error('renderables fehlgeschlagen', e); this.warned = true; } }
-    if (list) for (let i = 0; i < list.length; i++) this.drawRenderable(list[i], i);
+    if (list) {
+      this.tramLast.clear();
+      for (const r of list) if (r.kind === 'tram' && r.segment !== undefined && r.id !== undefined) { const key = Math.floor(r.id / 4); this.tramLast.set(key, Math.max(this.tramLast.get(key) || 0, r.segment)); }
+      for (let i = 0; i < list.length; i++) this.drawRenderable(list[i], i);
+    }
     // Lichter der Pulsbahn (aus dem letzten Bild)
     const tv = this.e.transit;
     if (tv && tv.glowList && L > 0.05) for (const q of tv.glowList) this.glow.add(q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7] * L);
@@ -240,7 +250,7 @@ export class VehicleView {
     const beacon = (flags & F.BEACON) !== 0;
     if (L < 0.08 && !beacon && !(flags & F.BRAKE)) return;
     if (d2 > this.glowR2) return;
-    const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(-pitch), sp = Math.sin(-pitch);
+    const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
     const v = this.v3, G = this.glow;
     // Lichter wachsen mit dem Abstand, damit nächtliche Verkehrsströme aus der Ferne lesbar bleiben
     const grow = 1 + Math.sqrt(d2) * 0.045;
@@ -299,11 +309,19 @@ export class VehicleView {
       default: model = 'car_compact';
     }
     const W = g.W, H = g.H;
-    const gx = c.x + W / 2, gz = c.z + H / 2;
     const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+    // Allee und Autobahn: zwei Spuren je Richtung (Versatz nach Fahrzeug-ID)
+    let cx = c.x, cz = c.z;
+    const p0 = c.path[Math.min(c.piece, c.path.length - 1)];
+    const rt = g.road[p0];
+    if (rt === R.AVENUE || rt === R.HIGHWAY) {
+      const lane = (hashf(id * 53 + 9) < 0.55 ? -1 : 1) * 0.09;
+      cx += -fz * lane; cz += fx * lane;
+    }
+    const gx = cx + W / 2, gz = cz + H / 2;
     const y = this.roadY(gx, gz);
     const yA = this.roadY(gx + fx * 0.16, gz + fz * 0.16), yB = this.roadY(gx - fx * 0.16, gz - fz * 0.16);
-    const pitch = Math.atan2(yA - yB, 0.32);
+    const pitch = -Math.atan2(yA - yB, 0.32);
     // Blinker vor Kurven, Bremslicht im Stau
     const p = c.path, k = c.piece, n = p.length - 1;
     const turnAt = (j) => {
@@ -318,29 +336,40 @@ export class VehicleView {
     if (tn < 0) flags |= F.LEFT; else if (tn > 0) flags |= F.RIGHT;
     const tile = p[Math.min(k, n)];
     if ((g.congestion && g.congestion[tile] > 0.85) || (tn && c.s < 0.3)) flags |= F.BRAKE;
+    // Rot an der nächsten Ampel → Bremslicht
+    const rv = this.e.roads;
+    if (k < n && c.s > 0.35 && rv && typeof rv.signalAt === 'function') {
+      const nt = p[k + 1], sig = rv.signalAt(nt);
+      if (sig) {
+        const alongX = Math.abs(fx) > Math.abs(fz);
+        const st = alongX ? sig.ew : sig.ns;
+        if (st === 'red' || st === 'yellow' || st === 'redyellow') flags |= F.BRAKE;
+      }
+    }
     const m = MODELS[model];
-    const d2 = this.fleet.add(model, c.x, y, c.z, c.yaw, pitch, 0, col, seed, flags, pal);
-    if (d2 >= 0) this.lightsFor(m, c.x, y, c.z, c.yaw, pitch, d2, flags, seed);
-    if (trailer) this.drawTrailer(c, trailer, y, col, pal, seed, flags);
+    const d2 = this.fleet.add(model, cx, y, cz, c.yaw, pitch, 0, col, seed, flags, pal);
+    if (d2 >= 0) this.lightsFor(m, cx, y, cz, c.yaw, pitch, d2, flags, seed);
+    if (trailer) this.drawTrailer(c, cx, cz, trailer, y, col, pal, seed, flags);
   }
 
   // Auflieger folgt der Spur der Zugmaschine
-  drawTrailer(c, trailer, y, col, pal, seed, flags) {
+  drawTrailer(c, px0, pz0, trailer, y, col, pal, seed, flags) {
+    const cpos = { x: px0, z: pz0 };
     let h = this.hist.get(c.id);
     if (!h) { h = { xs: new Float32Array(48), zs: new Float32Array(48), n: 0, head: -1, seen: 0 }; this.hist.set(c.id, h); }
     h.seen = this.frameNo;
     const N = 48;
-    if (h.n === 0 || Math.hypot(c.x - h.xs[h.head], c.z - h.zs[h.head]) > 0.04) {
-      if (h.n > 0 && Math.hypot(c.x - h.xs[h.head], c.z - h.zs[h.head]) > 1.5) h.n = 0; // Sprung (neue Fahrt)
+    if (h.n === 0 || Math.hypot(cpos.x - h.xs[h.head], cpos.z - h.zs[h.head]) > 0.04) {
+      if (h.n > 0 && Math.hypot(cpos.x - h.xs[h.head], cpos.z - h.zs[h.head]) > 1.5) h.n = 0; // Sprung (neue Fahrt)
       h.head = (h.head + 1) % N;
-      h.xs[h.head] = c.x; h.zs[h.head] = c.z;
+      h.xs[h.head] = cpos.x; h.zs[h.head] = cpos.z;
       h.n = Math.min(N, h.n + 1);
     }
     const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
-    const kx = c.x - fx * 0.17, kz = c.z - fz * 0.17; // Königszapfen
+    const kx = cpos.x - fx * 0.17, kz = cpos.z - fz * 0.17; // Königszapfen
     // Punkt im Abstand S hinter der Zugmaschine entlang der Spur
     const S = 1.2;
-    let px = c.x, pz = c.z, acc = 0, ax = 0, az = 0, found = false;
+    let px = cpos.x, pz = cpos.z, acc = 0, ax = 0, az = 0, found = false;
     for (let j = 0; j < h.n; j++) {
       const idx = (h.head - j + N) % N;
       const qx = h.xs[idx], qz = h.zs[idx];
@@ -363,31 +392,47 @@ export class VehicleView {
     const kind = r.kind;
     const pickFn = KIND[kind];
     const u = r.variant !== undefined ? hashf(r.variant * 13 + 1) : hashf((r.id ?? i) * 7 + (kind ? kind.length : 0));
-    const model = pickFn ? pickFn(r, u) : (MODELS[kind] ? kind : 'car_compact');
+    let model = pickFn ? pickFn(r, u) : (MODELS[kind] ? kind : 'car_compact');
+    let yaw = r.yaw || 0;
+    let lead = kind === 'train_loco' || kind === 'tram' || !!r.lead;
+    // Straßenbahn aus Teilen: 0 = Kopf, letztes = gedrehter Kopf, dazwischen Mittelteile
+    if (kind === 'tram' && r.segment !== undefined) {
+      const last = this.tramLast.get(r.id !== undefined ? Math.floor(r.id / 4) : -1) ?? 0;
+      if (r.segment === 0) model = 'tram_head';
+      else if (r.segment === last) { model = 'tram_head'; yaw += Math.PI; lead = false; }
+      else { model = 'tram_mid'; lead = false; }
+    }
     const m = MODELS[model];
     if (!m) return;
     let col = r.color;
     if (col === undefined || col === null) col = kind === 'car' ? carPaint(hashf((r.id ?? i) * 13 + 5)) : (KIND_COLOR[kind] ?? 0xf2f2ee);
     if (typeof col === 'string') col = parseInt(col.replace('#', ''), 16) || 0xffffff;
-    let flags = 0;
-    if (EMERGENCY[kind] && r.lights !== false) flags |= F.BEACON;
-    if (AMBERS[kind] && r.lights !== false) flags |= F.BEACON;
+    let flags = 0, roll = r.roll || 0;
+    const siren = r.siren !== undefined ? !!r.siren : r.lights !== false;
+    if ((EMERGENCY[kind] || AMBERS[kind]) && siren) flags |= F.BEACON;
     if (r.lights === true) flags |= F.LIGHTS;
-    if (RAILK[kind]) flags |= F.RAIL | (kind === 'train_loco' || kind === 'tram' || r.lead ? F.LEAD : 0);
+    if (RAILK[kind]) flags |= F.RAIL | (lead ? F.LEAD : 0);
     if (r.brake) flags |= F.BRAKE;
-    const sz = SCALABLE[kind] && r.len ? r.len / m.len : 1;
+    if (r.wreck) { _c.setHex(col).multiplyScalar(0.5); col = _c.getHex(); roll += 0.07; flags |= F.DARK; }
+    let sz = 1, uni = false;
+    if (r.len) {
+      if (UNIFORM[kind]) { sz = r.len / m.len; uni = true; }
+      else if (SCALABLE[kind] || (kind === 'bus' && r.len > 1.4)) sz = r.len / m.len;
+      if (sz > 0.85 && sz < 1.15 && !uni) sz = 1;
+    }
     let y = r.y;
     if (y === undefined || y === null) y = this.roadY(r.x + this.g.W / 2, r.z + this.g.H / 2);
-    const yaw = r.yaw || 0, pitch = r.pitch || 0, roll = r.roll || 0;
+    const pitch = r.pitch || 0;
     const seed = hashf((r.id ?? i) * 31 + 3);
     const pal = r.pal ?? Math.floor(u * 8);
-    const d2 = this.fleet.add(model, r.x, y, r.z, yaw, pitch, roll, col, seed, flags, pal, sz);
-    if (d2 >= 0 && !m.rail) this.lightsFor(m, r.x, y, r.z, yaw, pitch, d2, flags, seed, sz);
-    else if (d2 >= 0 && m.rail && this.L > 0.08) {
-      // Bahn: weißer Spitzen-, roter Schlusslicht-Schein
-      const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(-pitch), sp = Math.sin(-pitch);
+    const d2 = this.fleet.add(model, r.x, y, r.z, yaw, pitch, roll, col, seed, flags, pal, sz, uni);
+    if (d2 < 0) return;
+    if (!m.rail) this.lightsFor(m, r.x, y, r.z, yaw, pitch, d2, flags, seed, sz);
+    else if (this.L > 0.08 && (flags & F.LEAD)) {
+      const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
       for (const h of m.head) for (const s of [1, -1]) {
-        if (flags & F.LEAD) { toWorld(this.v3, h[0] * s, h[1], h[2] * sz, r.x, y, r.z, cy, sy, cp, sp); this.glow.add(this.v3[0], this.v3[1], this.v3[2], 0.08, 1, 0.92, 0.75, 0.5 * this.L); }
+        toWorld(this.v3, h[0] * s, h[1], h[2] * sz, r.x, y, r.z, cy, sy, cp, sp);
+        this.glow.add(this.v3[0], this.v3[1], this.v3[2], 0.08, 1, 0.92, 0.75, 0.5 * this.L);
       }
     }
   }

@@ -192,7 +192,7 @@ carDef('car_coupe', 'coupe');
 
 // Taxi: Limousine in Hellelfenbein mit Dachschild
 carDef('taxi', 'sedan', {
-  color: 0xe9dcb8, part: P.GLOSS,
+  color: 0xffffff, part: P.PAINT,
   extra: (k, d, S, info) => {
     const z = (info.roofZ0 + info.roofZ1) / 2;
     k.box(-0.03, info.roofY, z - 0.012, 0.03, info.roofY + 0.016, z + 0.012, 0xffd54a, P.SIGN);

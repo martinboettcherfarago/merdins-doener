@@ -920,7 +920,7 @@ class LifeView {
       planes: true, contrails: !w || (w.cloud || 0) < 0.85,
       calm: !w || ((w.wind || 0) < 0.5 && (w.rain || 0) < 0.1 && (w.fog || 0) < 0.4),
       near2: (13 * Math.sqrt(q)) ** 2, mid2: (Math.min(52, 30 + 12 * q)) ** 2,
-      swY: e.roads && e.roads.sidewalkY !== undefined ? e.roads.sidewalkY - 0.012 : 0.012,
+      swY: e.roads && typeof e.roads.surfaceY === 'function' ? 0.014 : 0.012,
       yAt: (x, z) => (e.vehicles ? e.vehicles.roadY(x + g.W / 2, z + g.H / 2) : 0.012),
     });
     this.sph.radius = 0.15;

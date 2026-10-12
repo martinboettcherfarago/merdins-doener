@@ -330,3 +330,82 @@ def('train_loco_s', {
     for (const z of [-0.3, 0.3]) bogie(k, d, z, 0.125);
   },
 });
+
+// ---------------------------------------------------------------- Kurze Fahrzeuge für Systeme mit kleinem Maßstab (S3)
+// Straßenbahn-Teile (len 1.15): Kopfteil mit Führerstand (+z) und Mittelteil; das Schlussteil ist ein gedrehtes Kopfteil.
+function tramSection(k, d, L2, cabF) {
+  const WH = 0xf1efe8;
+  const zf = cabF ? L2 - 0.07 : L2 - 0.012, zb = -L2 + 0.012;
+  k.extrudeZ(TSEC, zb, zf, WH, P.GLOSS, { edge: (i) => (i === 0 ? false : i >= 3 && i <= 5 ? { c: 0xd5d8db, p: P.PLASTIC } : undefined), capF: { c: 0x3a3e44, p: P.PLASTIC }, capB: { c: 0x3a3e44, p: P.PLASTIC } });
+  if (cabF) {
+    const zA = zf, zE = L2;
+    k.prism([[zA, 0.04], [zE, 0.04], [zE, 0.12], [zA + 0.035, 0.29], [zA, 0.305]], TW, 0.09, 0xffffff, P.PAINT, {
+      yb: 0.262, yt: 0.305,
+      edge: (i, nz, ny, a, b) => {
+        if (Math.abs(a[0] - zA) < 1e-6 && Math.abs(b[0] - zA) < 1e-6) return false;
+        if (ny < -0.9) return false;
+        if (Math.min(a[1], b[1]) >= 0.119) return Math.max(a[1], b[1]) > 0.3 ? undefined : { c: C.GLASS, p: P.GLASS };
+        return undefined;
+      },
+    });
+    for (const s of [1, -1]) {
+      k.rectZ(1, zE + 0.0015, s > 0 ? 0.05 : -0.085, s > 0 ? 0.085 : -0.05, 0.06, 0.078, C.HEAD, P.HEAD);
+      k.rectZ(1, zE + 0.0015, s > 0 ? 0.09 : -0.11, s > 0 ? 0.11 : -0.09, 0.06, 0.078, C.RED, P.TAIL);
+    }
+    k.rectZ(1, zA + 0.037, -0.06, 0.06, 0.265, 0.283, C.SIGN, P.SIGN);
+  } else k.box(-0.1, 0.045, L2 - 0.012, 0.1, 0.29, L2 + 0.032, 0x2a2d31, P.PLASTIC);
+  k.box(-0.1, 0.045, -L2 - 0.032, 0.1, 0.29, -L2 + 0.012, 0x2a2d31, P.PLASTIC);
+  const dz = cabF ? -0.12 : 0;
+  for (const s of [1, -1]) {
+    k.rectX(s, TW + 0.0012, 0.045, 0.1, zb, zf, 0xffffff, P.PAINT);
+    for (const [a, b] of [[zb + 0.03, dz - 0.07], [dz + 0.07, zf - 0.02]]) if (b > a) k.rectX(s, TW + 0.0016, 0.115, 0.255, a, b, C.CABIN, P.CABIN);
+    k.rectX(s, TW + 0.002, 0.045, 0.262, dz - 0.062, dz + 0.062, 0x3a3e44, P.PLASTIC);
+    k.rectX(s, TW + 0.0026, 0.05, 0.256, dz - 0.058, dz - 0.002, C.CABIN, P.CABIN);
+    k.rectX(s, TW + 0.0026, 0.05, 0.256, dz + 0.002, dz + 0.058, C.CABIN, P.CABIN);
+  }
+  k.box(-0.11, 0.0, zb + 0.02, 0.11, 0.04, zf - 0.02, 0x30343a, P.PLASTIC, { top: false });
+  if (cabF) {
+    k.box(-0.07, 0.305, -0.3, 0.07, 0.318, -0.14, 0x9aa0a6, P.PLASTIC);
+    if (d >= 2) {
+      k.group({ y: 0.318, z: -0.22, rx: -0.5 }, () => k.box(-0.006, 0, -0.005, 0.006, 0.006, 0.12, C.DARK, P.PLASTIC));
+      k.box(-0.06, 0.37, -0.13, 0.06, 0.376, -0.12, C.DARK, P.PLASTIC);
+    }
+  } else if (d >= 2) k.box(-0.05, 0.305, -0.08, 0.05, 0.322, 0.08, 0xc9cdd1, P.PLASTIC);
+}
+def('tram_head', { len: 1.15, wid: 0.24, hei: 0.34, far: 'box', beam: true, head: [[0.07, 0.07, 0.575]], tail: [[0.1, 0.07, 0.575]], build: (k, d) => tramSection(k, d, 0.575, true) });
+def('tram_mid', { len: 1.15, wid: 0.24, hei: 0.31, far: 'box', build: (k, d) => tramSection(k, d, 0.575, false) });
+
+// Kurzer Triebkopf (len 0.7) und kurzer Reisezugwagen (len 0.6)
+def('train_power_s', {
+  len: 0.7, wid: 0.3, hei: 0.4,
+  head: [[0.08, 0.11, 0.35]],
+  build: (k, d) => {
+    const col = { c: 0xffffff, p: P.PAINT };
+    k.extrudeZ(LSEC, -0.34, 0.2, col.c, col.p, { edge: (i) => (i === 0 ? false : i >= 3 && i <= 5 ? { c: 0x9aa0a6, p: P.PLASTIC } : undefined), capF: { c: 0x3a3e44, p: P.PLASTIC }, capB: { c: 0x2a2d31, p: P.PLASTIC } });
+    locoCab(k, d, 0.2, 0.35, col);
+    for (const s of [1, -1]) {
+      k.rectX(s, LW + 0.0012, 0.1, 0.12, -0.34, 0.33, 0x2a2d31, P.PLASTIC);
+      if (d >= 2) k.rectX(s, LW + 0.0014, 0.2, 0.29, -0.28, 0.1, 0x3a3e44, P.PLASTIC);
+    }
+    k.box(-0.13, 0.03, -0.33, 0.13, 0.06, 0.33, 0x30343a, P.PLASTIC, { top: false });
+    for (const z of [-0.2, 0.2]) bogie(k, d, z, 0.13);
+    k.box(-0.06, 0.37, -0.25, 0.06, 0.385, -0.05, 0x9aa0a6, P.PLASTIC);
+  },
+});
+def('train_wagon_s', {
+  len: 0.6, wid: 0.29, hei: 0.4,
+  build: (k, d) => {
+    const WW = 0.145;
+    const sec = [[-WW, 0.07], [WW, 0.07], [WW, 0.3], [0.138, 0.34], [0.11, 0.36], [-0.11, 0.36], [-0.138, 0.34], [-WW, 0.3]];
+    k.extrudeZ(sec, -0.29, 0.29, 0xffffff, P.PAINT, { edge: (i) => (i === 0 ? false : i >= 3 && i <= 5 ? { c: 0xb9bdc1, p: P.PLASTIC } : undefined), capF: { c: 0x3a3e44, p: P.PLASTIC }, capB: { c: 0x3a3e44, p: P.PLASTIC } });
+    for (const s of [1, -1]) {
+      k.rectX(s, WW + 0.0012, 0.17, 0.28, -0.2, 0.2, C.CABIN, P.CABIN);
+      k.rectX(s, WW + 0.0012, 0.12, 0.14, -0.28, 0.28, 0x2a2d31, P.PLASTIC);
+      if (d >= 2) for (const z of [-0.07, 0.07]) k.rectX(s, WW + 0.0018, 0.17, 0.28, z - 0.006, z + 0.006, 0xd5d8db, P.GLOSS);
+      for (const z of [-0.245, 0.245]) k.rectX(s, WW + 0.0016, 0.08, 0.29, z - 0.03, z + 0.03, 0x7d838a, P.PLASTIC);
+    }
+    for (const z of [-0.29, 0.29]) k.box(-0.09, 0.08, Math.min(z, z + Math.sign(z) * 0.02), 0.09, 0.32, Math.max(z, z + Math.sign(z) * 0.02), 0x2a2d31, P.PLASTIC);
+    k.box(-0.13, 0.03, -0.28, 0.13, 0.07, 0.28, 0x30343a, P.PLASTIC, { top: false });
+    for (const z of [-0.17, 0.17]) bogie(k, d, z, 0.13);
+  },
+});
