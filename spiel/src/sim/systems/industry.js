@@ -1109,6 +1109,11 @@ registerSystem({
     const reset = (b) => { if (b && b.key === 'cargo_harbor' && g.ext.industry) g.ext.industry._ships = null; };
     g.on('buildingAdded', reset);
     g.on('buildingRemoved', reset);
+    // Die Wochenkarte „Konjunktur" belebt auch den Weltmarkt
+    g.on('cardChosen', (c) => {
+      const st = g.ext.industry;
+      if (st && c && c.id === 'boom') { st.cycle.shock += 0.3; st.cycle.value = clamp(st.cycle.value + 0.3, -1, 1); }
+    });
   },
   step(g, minutes) {
     const st = g.ext.industry;
