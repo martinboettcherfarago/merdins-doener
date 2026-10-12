@@ -346,7 +346,7 @@ export class B {
     const [bx, bz] = Q(-0.3);
     this.box(color, bx, 1.0, bz, 2.6, 1.3, 3.2, r2);
     if (this.d >= 1) { const [cx, cz] = Q(0.6, -0.6); this.box('trim_dark', cx, 2.3, cz, 1.0, 1.3, 1.2, r2); this.box(color, cx, 3.6, cz, 1.05, 0.1, 1.25, r2); }
-    const [p0x, p0z] = Q(1.0, 0.4), [p1x, p1z] = Q(3.6, 0.4), [p2x, p2z] = Q(5.2, 0.4);
+    const [p0x, p0z] = Q(1.0, 0.4), [p1x, p1z] = Q(2.9, 0.4), [p2x, p2z] = Q(3.9, 0.4);
     this.beam(color, [p0x, 1.9, p0z], [p1x, 4.6, p1z], 0.45, 0.6);
     this.beam(color, [p1x, 4.6, p1z], [p2x, 1.4, p2z], 0.35, 0.45);
     if (this.d >= 1) this.box('metal_dark', p2x, 0.5, p2z, 1.1, 0.95, 0.9, r2);

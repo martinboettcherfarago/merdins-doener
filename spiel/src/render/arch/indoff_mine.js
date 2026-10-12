@@ -152,7 +152,7 @@ function steinbruch(b) {
   b.take(0, -Z + 0.2 + (td * tiers) / 2, W, td * tiers, 0.4);
   // Geröllhaufen am Fuß
   for (let i = 0; i < (wide ? 3 : 2); i++) { const p = b.plan.find(3.0, 3.0, { prefer: 'back', pad: 0 }); if (p) pile(b, p[0], p[1], 1.4, 1.1, rock); }
-  b.put(7.2, 3.6, { prefer: 'back' }, (px, pz, ry) => b.excavator(px, pz, ry, b.pick(['paint_yellow', 'paint_orange']), 0.4));
+  b.put(9.0, 3.6, { prefer: 'back' }, (px, pz, ry) => b.excavator(px, pz, ry, b.pick(['paint_yellow', 'paint_orange']), 0));
   // Brecher und Förderband ab Stufe 2
   if (L >= 2) {
     const p = b.plan.find(4.2, 3.6, { prefer: 'right', pad: 0.2 });
@@ -241,23 +241,24 @@ function stollen(b) {
   const L = b.L;
   b.lot('dirt', 0.08);
   const rock = b.pick(['rock', 'stone_grey', 'stone_dark']);
-  // Hügel
-  const hr = Math.min(W, D) * 0.48 + (wide && deep ? 2 : 0), hzc = -Z + 0.2;
-  b.dome(rock, 0, 0, hzc, Math.min(hr, X + 2), 0.55 + L * 0.05, { seg: 14 });
-  if (b.d >= 1) { b.dome('grass_dry', -X * 0.3, 0, hzc - 0.5, hr * 0.7, 0.6 + L * 0.05, { seg: 10 }); b.tree(-X + 2.0, -Z + 2.0, 0.8, 'nadel'); b.tree(X - 2.0, -Z + 2.4, 0.9, 'nadel'); }
+  // Hügel: vordere Halbkuppel, hinten bündig mit der Grundstückskante
+  const hr = Math.min(X - 0.3, (deep ? 7.5 : 5.2)), sy = 0.6 + L * 0.05, hzc = -Z + 0.3;
+  const half = (mat, x, z, r, k) => { const s2 = b.seg(14); const g = new THREE.SphereGeometry(r, s2, Math.max(3, s2 >> 2), 0, PI, 0, HP); g.scale(1, k, 1); b.g(mat, g, x, 0, z, {}); };
+  half(rock, 0, hzc, hr, sy);
+  if (b.d >= 1) { half('grass_dry', -hr * 0.25, hzc, hr * 0.62, sy * 1.25); b.tree(-X + 2.0, -Z + 1.6, 0.7, 'nadel'); b.tree(X - 2.0, -Z + 1.8, 0.8, 'nadel'); }
   // Mundloch(e)
-  const portals = wide ? [-X / 2, X / 2] : [0];
-  const pz = hzc + Math.min(hr, X + 2) * 0.74;
+  const portals = wide ? [-X / 2, X / 2].map((v) => clamp(v, -hr * 0.55, hr * 0.55)) : [0];
+  const pz = hzc + hr * Math.sqrt(Math.max(0.05, 1 - (2.0 / (hr * sy)) ** 2)) - 0.6;
   portals.forEach((px, i) => {
     if (i > 0 && L < 2) return;
     b.box('stone_grey', px, 0, pz, 3.4, 3.6, 1.0);
     b.box('metal_dark', px, 0, pz + 0.05, 2.0, 2.6, 1.0);
-    if (b.d >= 1) { b.prism('stone_grey', [[-1.9, 0], [1.9, 0], [1.7, 0.7], [-1.7, 0.7]], 1.1, px, 3.6, pz, 0); for (const s of [-1, 1]) b.box('wood_dark', px + s * 1.05, 0, pz + 0.55, 0.25, 2.7, 0.25); b.box('wood_dark', px, 2.6, pz + 0.55, 2.4, 0.25, 0.25); }
+    if (b.d >= 1) { b.prism('stone_grey', [[-1.9, 0], [1.9, 0], [1.7, 0.7], [-1.7, 0.7]], 1.1, px, 3.6, pz, 0); for (const sg of [-1, 1]) b.box('wood_dark', px + sg * 1.05, 0, pz + 0.55, 0.25, 2.7, 0.25); b.box('wood_dark', px, 2.6, pz + 0.55, 2.4, 0.25, 0.25); }
     rails(b, px, pz + 0.6, px, Z - 0.6);
-    for (let k = 0; k < 1 + Math.min(2, L); k++) cart(b, px, pz + 2.4 + k * 1.7, 0, b.pick(['stone_dark', 'rust', 'rock']));
+    for (let k = 0; k < 1 + Math.min(2, L); k++) { const cz = pz + 2.0 + k * 1.7; if (cz < Z - 1.0) cart(b, px, cz, 0, b.pick(['stone_dark', 'rust', 'rock'])); }
     b.take(px, (pz + Z) / 2, 1.9, Z - pz, 0.2);
   });
-  b.take(0, hzc + hr * 0.35, Math.min(W, 2 * hr), hr * 0.9, 0.2);
+  b.take(0, hzc + hr / 2, 2 * hr, hr, 0.2);
   // Verladebunker (Tipple) über dem Gleis ab Stufe 2
   if (L >= 2) {
     const tx = portals[0], tz = Z - 3.0;
@@ -267,7 +268,7 @@ function stollen(b) {
   }
   // Schuppen und Halde
   const p = b.plan.find(4.0, 3.2, { prefer: 'right', pad: 0.2 });
-  if (p) { const H = b.hall({ x: p[0], z: p[1], sx: 3.8, sz: 3.0, h: 3.0, wall: 'wood_planks', roof: 'gable', roofMat: 'metal_corrugated', pitch: 25, ridge: 'x', ribs: false, plinthH: 0.2 }); b.door(H.f.front, 0, { mat: 'wood_dark' }); }
+  if (p) { const H = b.hall({ x: p[0], z: p[1], sx: 3.8, sz: 3.0, h: 3.0, wall: 'wood_planks', roof: 'gable', roofMat: 'metal_corrugated', pitch: 25, ridge: 'x', ribs: false, plinthH: 0.2 }); b.door(H.f.front, 0, { mat: 'wood_dark', canopy: false }); }
   if (L >= 3) { const r = 1.8 + L * 0.5; const q = b.plan.find(2 * r, 2 * r, { prefer: 'right', pad: 0 }); if (q) heap(b, q[0], q[1], r, r * 0.7, 'stone_dark'); }
   if (wide || deep) b.putTruck({ type: 'rigid', load: 'tipper', fill: 'stone_dark' }, { prefer: 'front' });
   b.lamp(X - 0.5, Z - 0.5, 5);
