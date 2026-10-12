@@ -211,11 +211,13 @@ registerArch('lighthouse', {
     }
     // Laternenhaus
     kit.cyl('metal_dark', 0, GY + 0.35 * M, -0.5 * M, R1 * 0.85, 0.8 * M, { seg });
-    kit.cyl('glass_skylight', 0, GY + 1.15 * M, -0.5 * M, R1 * 0.8, 2.6 * M, { seg, lit: 1 });
-    if (detail > 0) for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2;
-      kit.box('metal_dark', Math.sin(a) * R1 * 0.81, GY + 1.15 * M, -0.5 * M + Math.cos(a) * R1 * 0.81, 0.1 * M, 2.6 * M, 0.1 * M, { ry: a });
+    // Laternenhaus: nur Sprossen (die drehende Optik bleibt sichtbar), unten ein Glasring
+    kit.cyl('glass_skylight', 0, GY + 1.15 * M, -0.5 * M, R1 * 0.8, 0.5 * M, { seg, lit: 1 });
+    for (let k = 0; k < (detail === 0 ? 4 : 10); k++) {
+      const a = (k / (detail === 0 ? 4 : 10)) * Math.PI * 2;
+      kit.box('metal_dark', Math.sin(a) * R1 * 0.81, GY + 1.15 * M, -0.5 * M + Math.cos(a) * R1 * 0.81, 0.12 * M, 2.6 * M, 0.12 * M, { ry: a });
     }
+    if (detail > 0) kit.cyl('metal_dark', 0, GY + 2.4 * M, -0.5 * M, R1 * 0.82, 0.08 * M, { seg, open: true });
     kit.cyl('metal_dark', 0, GY + 3.75 * M, -0.5 * M, R1 * 0.95, 0.25 * M, { seg });
     lathe(kit, 'roof_copper', 0, GY + 4.0 * M, -0.5 * M, [[R1 * 0.95, 0], [R1 * 0.7, 0.8 * M], [0.4 * M, 1.6 * M], [0.15 * M, 2.0 * M]], seg);
     kit.sphere('metal_dark', 0, GY + 6.1 * M, -0.5 * M, 0.25 * M, { seg: 6 });

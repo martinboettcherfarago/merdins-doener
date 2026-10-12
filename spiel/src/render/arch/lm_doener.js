@@ -42,6 +42,8 @@ registerArch('doener', {
     kit.box(GOLD, 0, G1 - 0.05 * M, ZC, BW + 0.3 * M, 0.18 * M, BD + 0.3 * M);
     kit.box(GOLD, 0, H, ZC, BW + 0.4 * M, 0.22 * M, BD + 0.4 * M);
     kit.box(DARK, 0, H + 0.22 * M, ZC, BW + 0.2 * M, 0.55 * M, BD + 0.2 * M);
+    // Markenname auf der Attika
+    text(kit, NEON, 'MÊRDÎNS', 0, H + 0.3 * M, ZF + 0.16 * M, 0, 0.36 * M, { depth: 0.05 * M });
     // Zinnen-Ornament auf der Attika (Palast)
     if (detail > 0) {
       const n = 9;
@@ -72,6 +74,8 @@ registerArch('doener', {
       kit.box(FRAME, 0, 0.45 * M, ZF + 0.06 * M, sfW + 0.3 * M, 0.14 * M, 0.12 * M);
       kit.box(FRAME, 0, 0.5 * M + sfH, ZF + 0.06 * M, sfW + 0.3 * M, 0.14 * M, 0.12 * M);
     }
+    // Türkis-weiß gestreifter Sockel unter dem Schaufenster (wie die Theke im Laden)
+    if (detail === 2) for (let k = 0; k < 30; k++) kit.box(k % 2 ? 'paint_white' : 'roof_copper', -sfW / 2 + 0.1 * M + k * ((sfW - 1.4 * M) / 30), 0.08 * M, ZF + 0.08 * M, (sfW - 1.4 * M) / 30, 0.36 * M, 0.04 * M);
     // Blende mit Schriftzug
     kit.box(GOLD, 0, 3.2 * M, ZF + 0.12 * M, BW - 1.2 * M, 0.52 * M, 0.2 * M);
     text(kit, DARK, 'DÖNERPALAST', 0, 3.27 * M, ZF + 0.24 * M, 0, 0.36 * M, { depth: 0.06 * M, weight: 1 });
@@ -165,6 +169,7 @@ registerArch('doener', {
     if (detail === 2) {
       for (const [x, z] of [[-2.6, 2.4], [0.4, 2.6], [3.0, 2.4]]) for (const a of [0.4, 3.5]) person(kit, (x + Math.cos(a) * 0.75) * M, ZF + (z + Math.sin(a) * 0.75) * M, { sit: true, y0: 0.05 * M });
       for (let k = 0; k < 4; k++) person(kit, (2.9 - k * 0.15) * M, ZF + (0.9 + k * 0.6) * M, { ry: Math.PI });
+      person(kit, 1.9 * M, ZF + 0.5 * M, { shirt: 'paint_yellow' });
     }
     if (detail === 2) { tree(kit, -4.4 * M, -4.2 * M, 0.7, 'round'); lamp(kit, 4.6 * M, ZF + 4.6 * M, 3.8 * M, { style: 'old', head: NEON }); }
     const res = kit.build();
@@ -174,7 +179,7 @@ registerArch('doener', {
       const seg = detail === 2 ? 18 : detail === 1 ? 10 : 7;
       // Fleischkegel: breit oben, schmal unten, leicht unregelmäßig
       const prof = [[0.45, 0], [0.62, 0.3], [0.78, 0.9], [0.92, 1.6], [1.02, 2.3], [1.08, 2.9], [1.02, 3.3], [0.75, 3.55], [0.3, 3.7], [0.05, 3.72]];
-      k.add('wood_planks', new THREE.LatheGeometry(prof.map(([r, h]) => new THREE.Vector2(r * S, h * S)), seg), {});
+      k.add('dirt', new THREE.LatheGeometry(prof.map(([r, h]) => new THREE.Vector2(r * S, h * S)), seg), {});
       // Angegrillte Kruste (dunkle Streifen) und Käsekragen
       if (detail > 0) {
         k.add('bark', new THREE.LatheGeometry([[0.94, 1.7], [1.05, 2.4], [1.1, 2.95], [1.04, 3.3]].map(([r, h]) => new THREE.Vector2(r * S + 0.02 * S, h * S)), seg, 0.3, 1.2), {});

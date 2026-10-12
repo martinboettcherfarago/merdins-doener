@@ -453,7 +453,7 @@ export function addAnim(ctx, res, pivot, axis, speed, draw) {
   const r = k.build();
   if (!r.meshes.length) return;
   res.anim = res.anim || [];
-  for (const m of r.meshes) res.anim.push({ geometry: m.geometry, material: m.material, pivot: [...pivot], axis, speed });
+  for (const m of r.meshes) res.anim.push({ geometry: m.geometry, material: m.material, pivot: [...pivot], axis, speed, local: true });
   res.triangles += r.triangles;
   res.height = Math.max(res.height, pivot[1] + r.height);
   for (const l of r.lights) res.lights.push({ ...l, x: l.x + pivot[0], y: l.y + pivot[1], z: l.z + pivot[2] });
