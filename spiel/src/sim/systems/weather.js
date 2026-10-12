@@ -757,4 +757,6 @@ registerSystem({
     exportForecast(g);
   },
   renderables(g) { return plowRenderables(g); },
+  // Für Skripte und Werkzeuge: g.system('weather').set(g, 'snow', { snowCover: 0.8 })
+  set: setWeatherNow, force: forceDay, calendar,
 });

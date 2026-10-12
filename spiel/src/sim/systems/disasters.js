@@ -124,6 +124,8 @@ function vuln(b, type) {
 }
 
 const budgetMul = (g) => g.serviceBudget.safety ?? 1;
+// Strom- und Wasserbauten werden zuerst repariert und nur durch direkte Treffer zerstört
+const isUtility = (b) => !b.zone && BUILDINGS[b.key] && (BUILDINGS[b.key].cat === 'power' || BUILDINGS[b.key].cat === 'water');
 const disasterCenters = (g) => { const out = []; for (const b of g.buildings.values()) if (b.key === 'disaster_center' && b.construct >= 1 && !b.abandoned) out.push(b); return out; };
 
 // ---------- Felder: Sirenen, Schutz, Schäden in der Nachbarschaft
@@ -198,10 +200,12 @@ function warnFactor(g, a, b) {
   return Math.min(0.95, f);
 }
 
-export function destroyBuilding(g, b, a) {
+export function destroyBuilding(g, b, a, direct = false) {
   const st = g.ext.disasters;
   if (!g.buildings.has(b.id)) return;
   if (isLandmark(b)) { damageBuilding(g, b, 1, a); return; }
+  // Dienstgebäude halten viel aus: meist nur schwer beschädigt
+  if (!b.zone && !direct && rnd(st) < (isUtility(b) ? 0.85 : 0.55)) { damageBuilding(g, b, 0.85 + rnd(st) * 0.15, a); return; }
   const occ = b.zone ? b.occ : 0;
   const wf = warnFactor(g, a, b);
   const trapped = Math.round(occ * 0.14 * (1 - wf));
@@ -216,7 +220,9 @@ export function destroyBuilding(g, b, a) {
   if (!b.zone) st.ruins.push({ key: b.key, x: b.x, y: b.y, rot: b.rot, day: g.day(), cause: a ? a.type : 'unknown', name: BUILDINGS[b.key]?.name || b.key });
   delete st.repairs[b.id];
   addDamageField(g, b, 1);
+  st._removing = b.id;
   g.removeBuilding(b, { rubble: true });
+  st._removing = 0;
   for (let yy = b.y; yy < b.y + b.h; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) {
     const i = yy * g.W + xx;
     g.rubble[i] = RUBBLE_DAYS;
@@ -371,7 +377,7 @@ function dailyPlanning(g, day) {
   const st = g.ext.disasters;
   const mul = enabled(g);
   if (!mul || g.sandboxNoEvents) return;
-  if (day < 21 || g.stats.pop < 400 || day < st.cooldown) return;
+  if (day < 30 || g.stats.pop < 800 || day < st.cooldown) return;
   if (st.planned.some((p) => !p.aftershock) || st.active.some((a) => a.type !== 'wildfire' || a.data.burning?.length > 0)) return;
   const popScale = g.stats.pop < 1000 ? 0.6 : g.stats.pop < 3000 ? 0.85 : 1;
   if (rnd(st) > (mul / 16) * popScale) return;
@@ -697,7 +703,7 @@ function impactMeteor(g, a) {
   const rc = a.r;
   const list = buildingsNear(g, a.x, a.y, rc * 2.7);
   for (const [b, d] of list) {
-    if (d <= rc) destroyBuilding(g, b, a);
+    if (d <= rc) destroyBuilding(g, b, a, true);
     else if (rnd(st) < 0.85 * (1 - (d - rc) / (rc * 1.7))) {
       damageBuilding(g, b, 0.3 + 0.6 * (1 - (d - rc) / (rc * 1.7)), a);
       if (d < rc * 1.8 && rnd(st) < 0.35 && g.buildings.has(b.id)) g.igniteBuilding(b);
@@ -733,7 +739,7 @@ function stepWildfire(g, a) {
   const scorched = new Set(st.scorch.filter((_, k) => k % 2 === 0));
   for (const [i, h] of map) {
     const x = i % g.W, y = (i / g.W) | 0;
-    const ext = 0.04 + g.cov.fire[i] * 0.25 + rain * 0.8 + (g.cov.disaster ? g.cov.disaster[i] * 0.15 : 0) + (a.prep.teams ? 0.08 : 0) + Math.min(0.12, (g.time - a.t0) / 1440 * 0.04);
+    const ext = 0.05 + g.cov.fire[i] * 0.3 + rain * 0.8 + (g.cov.disaster ? g.cov.disaster[i] * 0.15 : 0) + (a.prep.teams ? 0.08 : 0) + Math.min(0.25, ((g.time - a.t0) / 1440) * 0.08);
     if (rnd(st) < ext) { map.delete(i); st.scorch.push(i, 3); continue; }
     for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
       if (!ox && !oy) continue;
@@ -743,11 +749,11 @@ function stepWildfire(g, a) {
       if (map.has(n) || scorched.has(n)) continue;
       if (g.world.trees[n]) {
         const align = Math.cos(Math.atan2(oy, ox) - wdir);
-        const p = 0.16 * (0.5 + a.intensity * 0.5) * (0.35 + dry) * (g.world.trees[n] / 3 + 0.3) * (1 + 0.9 * align * wind) * brk * (1 - rain) / (ox && oy ? 1.4 : 1);
-        if (rnd(st) < p && map.size + add.length < 120) add.push(n);
-      } else if (g.bld[n] && !ox !== !oy && rnd(st) < 0.07) {
+        const p = 0.11 * (0.5 + a.intensity * 0.5) * (0.3 + dry) * (g.world.trees[n] / 3 + 0.3) * (1 + 0.9 * align * wind) * brk * (1 - rain) / (ox && oy ? 1.4 : 1);
+        if (rnd(st) < p && map.size + add.length < 70 && a.data.burned + map.size + add.length < 220) add.push(n);
+      } else if (g.bld[n] && !ox !== !oy && rnd(st) < 0.05) {
         const b = g.buildings.get(g.bld[n]);
-        if (b && !b.burning && !b.abandoned) ignite.push(b);
+        if (b && b.zone && !b.burning && !b.abandoned) ignite.push(b);
       }
     }
     const life = 4 + (g.world.trees[i] || 1);
@@ -791,10 +797,11 @@ export function strike(g, x, y, manual = false) {
   emit('disaster', { type: 'lightning', phase: 'start', x, y, radius: 0.6, intensity: 1, id: s.seed, name: DISASTERS.lightning.name });
   const mul = manual ? 1 : enabled(g);
   if (!mul) return s;
-  if (hit === 'building' && target && rnd(st) < 0.25 * Math.min(1.4, mul) * (target.zone ? 1 : 0.6)) {
+  const early = !manual && (g.milestone < 1 || g.day() < 10);
+  if (hit === 'building' && target && !early && rnd(st) < 0.15 * Math.min(1.4, mul) * (target.zone ? 1 : 0.5)) {
     g.igniteBuilding(target);
     g.news('disaster', 'Blitzeinschlag! Ein Gebäude hat Feuer gefangen.', 'bad', target);
-  } else if (hit === 'tree' && (g.ext.weather?.dry || 0) > 0.45 && (g.ext.weather?.rain || 0) < 0.25 && rnd(st) < 0.3 * mul && !st.active.some((a) => a.type === 'wildfire') && !st.planned.some((a) => a.type === 'wildfire')) {
+  } else if (hit === 'tree' && !early && (g.ext.weather?.dry || 0) > 0.45 && (g.ext.weather?.rain || 0) < 0.25 && rnd(st) < 0.3 * mul && !st.active.some((a) => a.type === 'wildfire') && !st.planned.some((a) => a.type === 'wildfire')) {
     const a = planDisaster(g, 'wildfire', { x, y, lead: 0, intensity: 0.5, noWeather: true });
     if (a) { a.known = true; a.cause = 'lightning'; }
   }
@@ -890,7 +897,7 @@ function stepRepairs(g, minutes) {
     if (!b) { delete st.repairs[id]; continue; }
     if (b.abandoned) { delete st.repairs[id]; b.construct = 1; continue; }
     const i = b.y * g.W + b.x;
-    let speed = (0.55 + 1.7 * (cd ? cd[i] : 0) + (rec.teams ? 0.4 : 0)) * bud;
+    let speed = (0.55 + 1.7 * (cd ? cd[i] : 0) + (rec.teams ? 0.4 : 0)) * bud * (isUtility(b) ? 1.6 : 1);
     if (w.temp < -3 || w.snow > 0.3) speed *= 0.75;
     if (!g.sandbox && g.money < -20000) speed *= 0.5;
     rec.left -= (minutes / 60) * speed;
@@ -1024,10 +1031,11 @@ function dailyAftermath(g) {
   st.mud = mud;
   st.craters = st.craters.filter((c) => { c.days--; return c.days > 0; });
   // Automatischer Wiederaufbau mit Katastrophenschutz
-  if (st.autoRebuild && g.hasBuilt('disaster_center')) {
+  if (st.autoRebuild) {
+    const center = g.hasBuilt('disaster_center');
     for (let k = st.ruins.length - 1; k >= 0; k--) {
       const r = st.ruins[k];
-      if (g.day() - r.day < 1) continue;
+      if (g.day() - r.day < (center ? 1 : 2)) continue;
       let clear = true;
       const [w, h] = g.footprint(r.key, r.rot);
       for (let yy = r.y; yy < r.y + h; yy++) for (let xx = r.x; xx < r.x + w; xx++) if (g.rubble[yy * g.W + xx]) clear = false;
@@ -1183,6 +1191,13 @@ registerSystem({
   init(g) {
     INTERNAL.delete(g);
     g.ext.disasters = freshState(g);
+    // Brennt ein Dienstgebäude nieder (Kern-Brandlogik), kann es über die Versicherung wiederaufgebaut werden
+    g.on('buildingRemoved', (b) => {
+      const st = g.ext.disasters;
+      if (!st || b.zone || !b.burning || st._removing === b.id || isLandmark(b) || b.key === 'station' || !BUILDINGS[b.key]) return;
+      st.ruins.push({ key: b.key, x: b.x, y: b.y, rot: b.rot, day: g.day(), cause: 'fire', name: BUILDINGS[b.key].name });
+      g.news('disaster', `${BUILDINGS[b.key].name} ist abgebrannt. Wiederaufbau im Panel „Wetter & Katastrophenschutz".`, 'bad', b);
+    });
   },
   step(g, minutes) {
     const st = g.ext.disasters, w = g.ext.weather || {};
@@ -1226,4 +1241,6 @@ registerSystem({
   serialize,
   load,
   renderables,
+  // Für Skripte, Tests und Werkzeuge: g.system('disasters').trigger(g, 'tornado', { x, y, intensity })
+  trigger: triggerDisaster, plan: planDisaster, prep: doPrep, rebuild: rebuildRuin, strike,
 });
