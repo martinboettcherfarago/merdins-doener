@@ -386,7 +386,7 @@ class Birds {
     const sea = ctx.waterNear && Math.random() < 0.5;
     const n = sea ? 4 + Math.floor(Math.random() * 6) : 8 + Math.floor(Math.random() * 18);
     const a = Math.random() * Math.PI * 2;
-    const r = ctx.radius * (0.6 + Math.random() * 0.5);
+    const r = Math.min(ctx.radius, 30) * (0.3 + Math.random() * 0.6);
     const f = {
       x: ctx.cx + Math.cos(a) * r, z: ctx.cz + Math.sin(a) * r, y: 1.6 + Math.random() * 2.6,
       vx: 0, vz: 0, tx: 0, tz: 0, sea, life: 25 + Math.random() * 40, speed: sea ? 0.9 : 1.3 + Math.random() * 0.6,
@@ -403,7 +403,7 @@ class Birds {
   update(dt, ctx) {
     const want = ctx.birdTarget;
     this.timer -= dt;
-    if (this.flocks.length < want && this.timer <= 0) { this.newFlock(ctx); this.timer = 2 + Math.random() * 4; }
+    if (this.flocks.length < want && this.timer <= 0) { this.newFlock(ctx); this.timer = this.flocks.length < 2 ? 0.4 : 2 + Math.random() * 4; }
     let w = 0;
     for (const f of this.flocks) {
       f.life -= dt;
@@ -415,7 +415,7 @@ class Birds {
       f.y += Math.sin(f.life * 0.3) * dt * 0.15;
       for (const b of f.birds) { b.a += dt * b.w * (f.sea ? 0.35 : 0.6); b.ph += dt * b.fr * (f.sea ? (b.glide > 0.5 ? 0.25 : 0.7) : 1); }
       const ddx = f.x - ctx.cx, ddz = f.z - ctx.cz;
-      if (f.life > 0 && ddx * ddx + ddz * ddz < (ctx.radius * 2.2) ** 2 && want > 0) this.flocks[w++] = f;
+      if (f.life > 0 && ddx * ddx + ddz * ddz < (Math.max(ctx.radius, 24) * 2.4) ** 2 && want > 0) this.flocks[w++] = f;
     }
     this.flocks.length = w;
   }

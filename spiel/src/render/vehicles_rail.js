@@ -249,49 +249,84 @@ function flatFrame(k, d, L2) {
   for (const z of [-L2 + 0.25, L2 - 0.25]) bogie(k, d, z, 0.12);
   if (d >= 2) for (const z of [-L2, L2]) k.box(-0.12, 0.06, Math.min(z, z + Math.sign(z) * 0.02), 0.12, 0.1, Math.max(z, z + Math.sign(z) * 0.02), C.DARK, P.PLASTIC);
 }
-const CONTAINER = [0x2f6db3, 0xb8302a, 0x2f7a4f, 0xd59a2a, 0x6b6f75, 0x8a3c2e, 0x1f3b63, 0xe6e2d8];
-def('cargo_container', {
-  len: 1.8, wid: 0.26, hei: 0.37, far: 'plain',
-  build: (k, d) => {
-    flatFrame(k, d, 0.9);
-    for (const [z, ci] of [[-0.44, 0], [0.44, 1]]) {
-      const pp = ci === 0 ? P.PAINT : P.PAINT2;
-      k.box(-0.122, 0.11, z - 0.42, 0.122, 0.37, z + 0.42, 0xffffff, pp);
-      if (d >= 2) {
-        for (let q = z - 0.4; q < z + 0.4; q += 0.035) for (const s of [1, -1]) k.rectX(s, 0.1232, 0.118, 0.362, q, q + 0.012, 0xc4c4c4, pp);
-        k.rectZ(1, z + 0.421, -0.115, 0.115, 0.118, 0.362, 0xa8a8a8, pp);
-        k.rectZ(-1, z - 0.421, -0.115, 0.115, 0.118, 0.362, 0xa8a8a8, pp);
-        for (const s of [1, -1]) k.rectZ(s, z + s * 0.4215, -0.004, 0.004, 0.118, 0.362, 0x707070, pp);
+// Güterwagen in zwei Längen (lang 1.8, kurz 0.9 – für Systeme mit kurzen Zügen)
+for (const [suf, L2] of [['', 0.9], ['_s', 0.45]]) {
+  def('cargo_container' + suf, {
+    len: L2 * 2, wid: 0.26, hei: 0.37, far: 'plain',
+    build: (k, d) => {
+      flatFrame(k, d, L2);
+      const boxes = L2 > 0.6 ? [[-L2 / 2 + 0.01, 0], [L2 / 2 - 0.01, 1]] : [[0, 0]];
+      const hl = L2 > 0.6 ? L2 / 2 - 0.03 : L2 - 0.04;
+      for (const [z, ci] of boxes) {
+        const pp = ci === 0 ? P.PAINT : P.PAINT2;
+        k.box(-0.122, 0.11, z - hl, 0.122, 0.37, z + hl, 0xffffff, pp);
+        if (d >= 2) {
+          for (let q = z - hl + 0.02; q < z + hl - 0.02; q += 0.035) for (const s of [1, -1]) k.rectX(s, 0.1232, 0.118, 0.362, q, q + 0.012, 0xc4c4c4, pp);
+          k.rectZ(1, z + hl + 0.001, -0.115, 0.115, 0.118, 0.362, 0xa8a8a8, pp);
+          k.rectZ(-1, z - hl - 0.001, -0.115, 0.115, 0.118, 0.362, 0xa8a8a8, pp);
+          for (const s of [1, -1]) k.rectZ(s, z + s * (hl + 0.0015), -0.004, 0.004, 0.118, 0.362, 0x707070, pp);
+        }
       }
+    },
+  });
+  def('cargo_box' + suf, {
+    len: L2 * 2, wid: 0.28, hei: 0.4, far: 'plain',
+    build: (k, d) => {
+      flatFrame(k, d, L2);
+      const sec = [[-0.14, 0.11], [0.14, 0.11], [0.14, 0.36], [0.1, 0.4], [-0.1, 0.4], [-0.14, 0.36]];
+      k.extrudeZ(sec, -L2 + 0.02, L2 - 0.02, 0x8a3a2c, P.PLASTIC, { edge: (i) => (i === 0 ? false : i >= 2 && i <= 4 ? { c: 0x9aa0a6, p: P.PLASTIC } : undefined) });
+      if (d >= 2) for (const s of [1, -1]) for (let z = -L2 + 0.1; z < L2 - 0.05; z += 0.2) k.rectX(s, 0.1412, 0.12, 0.35, z - 0.004, z + 0.004, 0x5a2a22, P.PLASTIC);
+    },
+  });
+  def('cargo_tank' + suf, {
+    len: L2 * 2, wid: 0.27, hei: 0.4, far: 'plain',
+    build: (k, d) => {
+      flatFrame(k, d, L2);
+      k.cyl('z', [0, 0.255, 0], 0.135, L2 * 2 - 0.1, d >= 2 ? 14 : 8, 0x2b2e33, P.GLOSS, { ry: 1.0 });
+      if (d >= 2) {
+        k.cyl('y', [0, 0.39, 0], 0.035, 0.03, 8, 0x3a3e44, P.PLASTIC);
+        for (const s of [1, -1]) k.rectX(s, 0.1365, 0.25, 0.29, -L2 * 0.35, L2 * 0.35, 0xf2a01e, P.GLOSS);
+      }
+    },
+  });
+  def('cargo_hopper' + suf, {
+    len: L2 * 2, wid: 0.28, hei: 0.36, far: 'plain',
+    build: (k, d) => {
+      flatFrame(k, d, L2);
+      const e = L2 - 0.02, m = L2 * 0.7;
+      k.prism([[-e, 0.36], [-e, 0.2], [-m, 0.11], [m, 0.11], [e, 0.2], [e, 0.36]].reverse(), 0.14, 0.14, 0x5d6a74, P.PLASTIC, {});
+      k.rectY(0.335, -0.13, 0.13, -e + 0.02, e - 0.02, 0x1e1e1f, P.PLASTIC);
+      if (d >= 2) for (const s of [1, -1]) for (let z = -e + 0.1; z < e - 0.05; z += 0.3) k.rectX(s, 0.1412, 0.12, 0.36, z - 0.006, z + 0.006, 0x4a555e, P.PLASTIC);
+    },
+  });
+}
+
+// Rangierlok (kurz, Mittelführerhaus), für kurze Güterzüge
+def('train_loco_s', {
+  len: 1.0, wid: 0.29, hei: 0.44,
+  head: [[0.07, 0.15, 0.5]], tail: [[0.1, 0.15, -0.5]],
+  build: (k, d) => {
+    k.box(-0.135, 0.07, -0.48, 0.135, 0.11, 0.48, 0x2a2d31, P.PLASTIC);
+    k.box(-0.11, 0.11, -0.47, 0.11, 0.33, 0.12, 0xffffff, P.PAINT);
+    k.box(-0.11, 0.11, 0.34, 0.11, 0.3, 0.47, 0xffffff, P.PAINT);
+    k.box(-0.14, 0.11, 0.12, 0.14, 0.43, 0.34, 0xffffff, P.PAINT);
+    k.box(-0.15, 0.43, 0.1, 0.15, 0.45, 0.36, 0x3a3e44, P.PLASTIC);
+    for (const s of [1, -1]) k.rectX(s, 0.1412, 0.3, 0.4, 0.14, 0.32, C.GLASS, P.GLASS);
+    k.rectZ(1, 0.3412, -0.12, 0.12, 0.3, 0.4, C.GLASS, P.GLASS);
+    k.rectZ(-1, 0.1188, -0.12, 0.12, 0.34, 0.4, C.GLASS, P.GLASS);
+    for (const sgn of [1, -1]) {
+      const z = sgn * 0.47 + sgn * 0.0015;
+      for (const s of [1, -1]) {
+        k.rectZ(sgn, z, s > 0 ? 0.05 : -0.08, s > 0 ? 0.08 : -0.05, 0.14, 0.16, C.HEAD, P.HEAD);
+        k.rectZ(sgn, z, s > 0 ? 0.085 : -0.105, s > 0 ? 0.105 : -0.085, 0.14, 0.16, C.RED, P.TAIL);
+      }
+      if (d >= 2) for (const s of [1, -1]) k.cyl('z', [s * 0.09, 0.09, sgn * 0.5], 0.02, 0.04, 6, 0x3a3e44, P.CHROME);
     }
-  },
-});
-def('cargo_box', {
-  len: 1.8, wid: 0.28, hei: 0.4, far: 'plain',
-  build: (k, d) => {
-    flatFrame(k, d, 0.9);
-    const sec = [[-0.14, 0.11], [0.14, 0.11], [0.14, 0.36], [0.1, 0.4], [-0.1, 0.4], [-0.14, 0.36]];
-    k.extrudeZ(sec, -0.88, 0.88, 0x8a3a2c, P.PLASTIC, { edge: (i) => (i === 0 ? false : i >= 2 && i <= 4 ? { c: 0x9aa0a6, p: P.PLASTIC } : undefined) });
-    if (d >= 2) for (const s of [1, -1]) for (let z = -0.8; z < 0.85; z += 0.2) k.rectX(s, 0.1412, 0.12, 0.35, z - 0.004, z + 0.004, 0x5a2a22, P.PLASTIC);
-  },
-});
-def('cargo_tank', {
-  len: 1.6, wid: 0.27, hei: 0.4, far: 'plain',
-  build: (k, d) => {
-    flatFrame(k, d, 0.8);
-    k.cyl('z', [0, 0.255, 0], 0.135, 1.5, d >= 2 ? 14 : 8, 0x2b2e33, P.GLOSS, { ry: 1.0 });
     if (d >= 2) {
-      k.cyl('y', [0, 0.39, 0], 0.035, 0.03, 8, 0x3a3e44, P.PLASTIC);
-      for (const s of [1, -1]) k.rectX(s, 0.1365, 0.25, 0.29, -0.3, 0.3, 0xf2a01e, P.GLOSS);
+      for (const s of [1, -1]) k.rectX(s, 0.1112, 0.17, 0.3, -0.42, 0.08, 0x2a2d31, P.PLASTIC);
+      k.cyl('y', [0.05, 0.36, -0.3], 0.018, 0.06, 6, 0x2a2d31, P.PLASTIC);
+      for (let x = -0.13; x <= 0.13; x += 0.03) k.box(x - 0.004, 0.07, -0.48, x + 0.004, 0.12, -0.475, 0xf2c21a, P.GLOSS);
     }
-  },
-});
-def('cargo_hopper', {
-  len: 1.4, wid: 0.28, hei: 0.36, far: 'plain',
-  build: (k, d) => {
-    flatFrame(k, d, 0.7);
-    k.prism([[-0.68, 0.36], [-0.68, 0.2], [-0.5, 0.11], [0.5, 0.11], [0.68, 0.2], [0.68, 0.36]].reverse(), 0.14, 0.14, 0x5d6a74, P.PLASTIC, {});
-    k.rectY(0.335, -0.13, 0.13, -0.66, 0.66, 0x1e1e1f, P.PLASTIC);
-    if (d >= 2) for (const s of [1, -1]) for (let z = -0.6; z < 0.65; z += 0.3) k.rectX(s, 0.1412, 0.12, 0.36, z - 0.006, z + 0.006, 0x4a555e, P.PLASTIC);
+    for (const z of [-0.3, 0.3]) bogie(k, d, z, 0.125);
   },
 });

@@ -329,3 +329,32 @@ for (let v = 0; v < BALLOON_COLS.length; v++) {
     },
   });
 }
+
+// Binnenschiff (Gütermotorschiff) mit Containern, Steuerhaus am Heck – für kurze Frachtschiffe (len < 3.5)
+def('ship_barge', {
+  len: 2.6, wid: 0.46, hei: 0.5,
+  build: (k, d) => {
+    const L = 2.6, W = 0.46;
+    hullBands(k, L, W, 0.1, [[0.1, 0x2a2d31, P.PLASTIC], [0.07, 0xffffff, P.PAINT], [0.0, 0x9a2c22, P.PLASTIC], [-0.1, 0x9a2c22, P.PLASTIC]], { deck: 0x4a4f55, transom: 0.95, keelX: 0.9, n: 4 });
+    k.box(-0.21, 0.1, -0.85, 0.21, 0.13, 1.05, 0x3a3e44, P.PLASTIC);
+    let h = 3;
+    for (let bay = 0; bay < 6; bay++) for (let row = 0; row < 2; row++) for (let t = 0; t < (bay % 3 === 1 ? 1 : 2); t++) {
+      h = (h * 1103515245 + 12345) & 0x7fffffff;
+      const col = BOX_COLS[(h >> 5) % BOX_COLS.length];
+      const z = 0.92 - bay * 0.3, x = row ? 0.1 : -0.1;
+      k.box(x - 0.096, 0.13 + t * 0.105, z - 0.142, x + 0.096, 0.13 + t * 0.105 + 0.1, z + 0.142, col, P.PLASTIC);
+    }
+    k.box(-0.2, 0.1, -1.28, 0.2, 0.22, -0.98, 0xf4f4ef, P.GLOSS);
+    for (const s of [1, -1]) k.rectX(s, 0.2012, 0.14, 0.19, -1.25, -1.01, C.CABIN, P.CABIN);
+    k.box(-0.12, 0.22, -1.2, 0.12, 0.33, -1.03, 0xf4f4ef, P.GLOSS);
+    for (const s of [1, -1]) k.rectX(s, 0.1212, 0.25, 0.31, -1.18, -1.05, C.GLASS, P.GLASS);
+    k.rectZ(1, -1.0288, -0.11, 0.11, 0.25, 0.31, C.GLASS, P.GLASS);
+    k.box(-0.13, 0.33, -1.21, 0.13, 0.345, -1.02, 0x2a2d31, P.PLASTIC);
+    if (d >= 2) {
+      k.cyl('y', [0, 0.42, -1.1], 0.006, 0.16, 6, 0xd9dcdf, P.CHROME);
+      k.box(-0.004, 0.22, -1.3, 0.004, 0.4, -1.29, 0xffffff, P.PAINT);
+      k.box(-0.15, 0.1, 1.15, 0.15, 0.14, 1.22, 0x2a2d31, P.PLASTIC);
+    }
+    navLights(k, L, W, 0.34, 0.5);
+  },
+});

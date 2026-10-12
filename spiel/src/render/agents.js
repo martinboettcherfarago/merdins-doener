@@ -132,14 +132,14 @@ const ONE = (id) => () => id;
 const KIND = {
   car: (r, u) => carType(u),
   van: (r, u) => (u < 0.5 ? 'van' : 'van_box'),
-  truck: (r, u) => (u < 0.6 ? 'truck_box' : 'tanker'),
+  truck: (r, u) => (r.freight ? (u < 0.75 ? 'truck_box' : 'tanker') : u < 0.6 ? 'truck_box' : 'tanker'),
   bus: ONE('bus'), tram: ONE('tram'), taxi: ONE('taxi'),
   police: (r, u) => (u < 0.8 ? 'police' : 'police_van'),
   fire: (r, u) => (u < 0.75 ? 'fire' : 'fire_ladder'),
   ambulance: ONE('ambulance'), garbage: ONE('garbage'), hearse: ONE('hearse'), snowplow: ONE('snowplow'), tanker: ONE('tanker'),
-  train_loco: ONE('train_loco'), train_wagon: ONE('train_wagon'),
-  cargo_wagon: (r, u) => (u < 0.45 ? 'cargo_container' : u < 0.7 ? 'cargo_box' : u < 0.85 ? 'cargo_tank' : 'cargo_hopper'),
-  ship_cargo: ONE('ship_cargo'), ferry: ONE('ferry'), boat: ONE('boat'), sailboat: ONE('sailboat'), plane: ONE('plane'),
+  train_loco: (r) => (r.len && r.len < 1.4 ? 'train_loco_s' : 'train_loco'), train_wagon: ONE('train_wagon'),
+  cargo_wagon: (r, u) => (u < 0.45 ? 'cargo_container' : u < 0.7 ? 'cargo_box' : u < 0.85 ? 'cargo_tank' : 'cargo_hopper') + (r.len && r.len < 1.3 ? '_s' : ''),
+  ship_cargo: (r) => (r.len && r.len < 3.5 ? 'ship_barge' : 'ship_cargo'), ferry: ONE('ferry'), boat: ONE('boat'), sailboat: ONE('sailboat'), plane: ONE('plane'),
   helicopter: ONE('helicopter'), ship_cruise: ONE('ship_cruise'), metro: ONE('metro_mid'), minibus: ONE('minibus'),
 };
 const KIND_COLOR = {
@@ -242,15 +242,16 @@ export class VehicleView {
     if (d2 > this.glowR2) return;
     const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(-pitch), sp = Math.sin(-pitch);
     const v = this.v3, G = this.glow;
-    const near = d2 < 400 ? 1 : 0.7;
+    // Lichter wachsen mit dem Abstand, damit nächtliche Verkehrsströme aus der Ferne lesbar bleiben
+    const grow = 1 + Math.sqrt(d2) * 0.045;
     if (L >= 0.08) {
       for (const h of m.head) for (const s of [1, -1]) {
         toWorld(v, h[0] * s, h[1], h[2] * sz, x, y, z, cy, sy, cp, sp);
-        G.add(v[0], v[1], v[2], 0.06 * near + 0.02, 1.0, 0.9, 0.72, 0.5 * L);
+        G.add(v[0], v[1], v[2], 0.055 * grow, 1.0, 0.9, 0.72, 0.5 * L);
       }
       for (const t of m.tail) for (const s of [1, -1]) {
         toWorld(v, t[0] * s, t[1], t[2] * sz, x, y, z, cy, sy, cp, sp);
-        G.add(v[0], v[1], v[2], 0.045, 1.0, 0.08, 0.04, (flags & F.BRAKE ? 0.75 : 0.42) * L);
+        G.add(v[0], v[1], v[2], 0.04 * grow, 1.0, 0.08, 0.04, (flags & F.BRAKE ? 0.75 : 0.42) * L);
       }
       if (m.beam && m.head.length && d2 < this.fleet.mid2) {
         const hz = m.head[0][2] * sz;
@@ -508,6 +509,7 @@ export class TransitView {
     mesh.castShadow = mesh.receiveShadow = true;
     this.group.add(mesh);
     this.trackTris = geo.userData.triangles;
+    this.archList = null;
     if (useArch && archPlace.length) this.placeArchStations(archPlace);
     // Ringe
     for (const r of this.rings.values()) this.ringGroup.remove(r);
@@ -572,31 +574,63 @@ export class TransitView {
       k.box(xa - 0.04, H - 0.02, zt - 0.12, xa, H + 0.035, zt - 0.02, CON, P.PLASTIC);
       const xs = -spread - 0.6;
       k.box(xs, 0.0, -zt, xs + 0.16, H + 0.32, -zt + 0.2, 0xcfcac0, P.PLASTIC);
-      for (let yy = 0.3; yy < H; yy += 0.3) k.rectX(-1, -xs + 0.0012, yy, yy + 0.16, -zt + 0.03, -zt + 0.17, 0x9fb8c8, P.CABIN);
+      for (let yy = 0.3; yy < H; yy += 0.3) k.rectX(-1, -xs + 0.0012, yy, yy + 0.16, -zt + 0.03, -zt + 0.17, 0x7f98a8, P.GLASS);
       k.box(xs + 0.16, H - 0.02, -zt + 0.04, -spread - 0.4, H + 0.035, -zt + 0.16, CON, P.PLASTIC);
       k.box(xs - 0.005, H + 0.32, -zt - 0.005, xs + 0.165, H + 0.35, -zt + 0.205, ROOF, P.PLASTIC);
     });
   }
 
-  // Stationen aus dem Architektur-Baustein von G6 (falls registriert)
+  // Stationen aus dem Architektur-Baustein von G6 (Modell-z = Fahrtrichtung), drei Detailstufen nach Kameraabstand
   placeArchStations(list) {
-    let res = null;
-    try { res = buildArch('station', 1, 0, 1, 1, { trackHeight: this.H }, 2); } catch (e) { console.warn('Station-Baustein fehlgeschlagen', e); }
-    if (!res || !res.meshes) return;
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3();
-    for (const part of res.meshes) {
-      const mesh = new THREE.InstancedMesh(part.geometry, getMaterial(part.material), list.length);
-      list.forEach(([x, z, yaw], i) => { q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw); p.set(x, 0, z); m4.compose(p, q, s); mesh.setMatrixAt(i, m4); });
-      mesh.castShadow = !mesh.material.transparent;
-      mesh.receiveShadow = true;
-      mesh.frustumCulled = false;
-      this.group.add(mesh);
+    this.archList = list;
+    this.archLods = [];
+    for (const detail of [2, 1, 0]) {
+      let res = null;
+      try { res = buildArch('station', 1, 0, 1, 1, { trackHeight: this.H }, detail); } catch (e) { console.warn('Station-Baustein fehlgeschlagen', e); }
+      if (!res || !res.meshes) { this.archLods.push(null); continue; }
+      const meshes = res.meshes.map((part) => {
+        const mesh = new THREE.InstancedMesh(part.geometry, getMaterial(part.material), list.length);
+        mesh.castShadow = !mesh.material.transparent;
+        mesh.receiveShadow = true;
+        mesh.frustumCulled = false;
+        mesh.count = 0;
+        this.group.add(mesh);
+        return mesh;
+      });
+      this.archLods.push(meshes);
     }
+    this.archTimer = 0;
+    this.updateArchLods(true);
+  }
+
+  updateArchLods(force) {
+    if (!this.archList || !this.archLods) return;
+    if (!force && --this.archTimer > 0) return;
+    this.archTimer = 20;
+    const cam = this.e.camera.position;
+    const m4 = this.m4, q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+    const counts = [0, 0, 0];
+    for (const [x, z, yaw] of this.archList) {
+      const d = Math.hypot(x - cam.x, this.H - cam.y, z - cam.z);
+      let lod = d < 16 ? 0 : d < 50 ? 1 : 2;
+      while (lod < 2 && !this.archLods[lod]) lod++;
+      while (lod > 0 && !this.archLods[lod]) lod--;
+      const set = this.archLods[lod];
+      if (!set) continue;
+      q.setFromAxisAngle(up, yaw); p.set(x, 0, z); m4.compose(p, q, s);
+      const i = counts[lod]++;
+      for (const mesh of set) mesh.setMatrixAt(i, m4);
+    }
+    this.archLods.forEach((set, lod) => {
+      if (!set) return;
+      for (const mesh of set) { mesh.count = counts[lod]; mesh.visible = counts[lod] > 0; mesh.instanceMatrix.needsUpdate = true; }
+    });
   }
 
   frame(time, night) {
     const g = this.g, tr = g.transit;
     if (tr.version !== this.version) this.rebuild();
+    this.updateArchLods(false);
     const H = this.H;
     const fl = this.fleet;
     fl.begin();
