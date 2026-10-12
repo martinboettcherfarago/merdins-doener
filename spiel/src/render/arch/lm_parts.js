@@ -286,19 +286,20 @@ export function glassRail(kit, pts, y0, h = 1.0 * M, o = {}) {
 // Straßenlaterne mit Nachtlicht
 export function lamp(kit, x, z, h = 4.5 * M, o = {}) {
   if (kit.detail === 0) return;
-  const pole = o.pole || 'metal_dark';
-  kit.cyl(pole, x, 0, z, 0.07 * M, h, { seg: 6 });
-  if (o.style === 'globe') kit.sphere(o.head || 'emissive_warm', x, h + 0.2 * M, z, 0.28 * M, { seg: 8 });
+  const pole = o.pole || 'metal_dark', y0 = o.y0 || 0;
+  kit.cyl(pole, x, y0, z, 0.07 * M, h, { seg: 6 });
+  const top = y0 + h;
+  if (o.style === 'globe') kit.sphere(o.head || 'emissive_warm', x, top + 0.2 * M, z, 0.28 * M, { seg: 8 });
   else if (o.style === 'old') {
-    kit.cyl(pole, x, h - 0.1 * M, z, 0.22 * M, 0.08 * M, { seg: 6 });
-    kit.cyl(o.head || 'emissive_warm', x, h - 0.02 * M, z, 0.18 * M, 0.45 * M, { seg: 6, rTop: 0.24 * M });
-    kit.cone(pole, x, h + 0.43 * M, z, 0.3 * M, 0.25 * M, { seg: 6 });
+    kit.cyl(pole, x, top - 0.1 * M, z, 0.22 * M, 0.08 * M, { seg: 6 });
+    kit.cyl(o.head || 'emissive_warm', x, top - 0.02 * M, z, 0.18 * M, 0.45 * M, { seg: 6, rTop: 0.24 * M });
+    kit.cone(pole, x, top + 0.43 * M, z, 0.3 * M, 0.25 * M, { seg: 6 });
   } else {
     const ry = o.ry || 0, dx = Math.sin(ry) * 0.5 * M, dz = Math.cos(ry) * 0.5 * M;
-    beam(kit, pole, [x, h, z], [x + dx, h + 0.05 * M, z + dz], 0.06 * M);
-    kit.box(o.head || 'emissive_warm', x + dx, h - 0.08 * M, z + dz, 0.35 * M, 0.08 * M, 0.35 * M);
+    beam(kit, pole, [x, top, z], [x + dx, top + 0.05 * M, z + dz], 0.06 * M);
+    kit.box(o.head || 'emissive_warm', x + dx, top - 0.08 * M, z + dz, 0.35 * M, 0.08 * M, 0.35 * M);
   }
-  kit.light(x, h, z, o.color ?? 0xffd79a, o.size ?? 0.35);
+  kit.light(x, top, z, o.color ?? 0xffd79a, o.size ?? 0.35);
 }
 
 // Parkbank
@@ -467,7 +468,7 @@ export function car(kit, x, z, ry, color, o = {}) {
   const [cx, cz] = f.at(0, -0.2 * M);
   kit.box(o.glass || 'glass_window', cx, y0 + 0.95 * M, cz, W * 0.86, 0.5 * M, L * 0.5, { ry, lit: 0 });
   kit.box(color, cx, y0 + 1.42 * M, cz, W * 0.84, 0.05 * M, L * 0.46, { ry });
-  if (o.taxi) { kit.box('emissive_warm', cx, y0 + 1.47 * M, cz, 0.6 * M, 0.15 * M, 0.25 * M, { ry }); }
+  if (o.taxi) { kit.box(o.signMat || 'emissive_warm', cx, y0 + 1.47 * M, cz, 0.6 * M, 0.15 * M, 0.25 * M, { ry }); }
   if (kit.detail < 2) return;
   for (const s of [-1, 1]) for (const t of [-1, 1]) {
     const [wx, wz] = f.at(s * W * 0.47, t * L * 0.32);
@@ -485,12 +486,12 @@ export function bus(kit, x, z, ry, color = 'paint_yellow', o = {}) {
   // Fensterband an beiden Seiten und Frontscheibe
   for (const s of [-1, 1]) {
     const [wx, wz] = f.at(s * (W / 2 + 0.01 * M), -0.3 * M);
-    kit.box('glass_window', wx, y0 + 1.25 * M, wz, 0.03 * M, 1.3 * M, L * 0.86, { ry, lit: 0.2 });
+    kit.box(o.glass || 'glass_window', wx, y0 + 1.25 * M, wz, 0.03 * M, 1.3 * M, L * 0.86, { ry, lit: 0.2 });
   }
   const [fx, fz] = f.at(0, L / 2 + 0.01 * M);
-  kit.box('glass_window', fx, y0 + 0.95 * M, fz, W * 0.9, 1.75 * M, 0.04 * M, { ry, lit: 0.2 });
+  kit.box(o.glass || 'glass_window', fx, y0 + 0.95 * M, fz, W * 0.9, 1.75 * M, 0.04 * M, { ry, lit: 0.2 });
   const [bx, bz] = f.at(0, L / 2 + 0.03 * M);
-  kit.box('emissive_warm', bx, y0 + 2.75 * M, bz, W * 0.6, 0.18 * M, 0.03 * M, { ry });
+  kit.box(o.signMat || 'emissive_warm', bx, y0 + 2.75 * M, bz, W * 0.6, 0.18 * M, 0.03 * M, { ry });
   if (kit.detail < 2) return;
   for (const s of [-1, 1]) for (const t of [-0.32, 0.3]) {
     const [wx, wz] = f.at(s * W * 0.45, t * L);
@@ -566,10 +567,10 @@ export function plane(kit, x, y0, z, ry, s = 1, o = {}) {
     // Fensterband und Cockpit
     for (const sd of [-1, 1]) {
       const [wx, wz] = P(sd * (R * 0.98), 0);
-      kit.box('glass_window', wx, yC + R * 0.15, wz, 0.04 * M, 0.35 * M * s, L * 0.6, { ry, lit: 0.3 });
+      kit.box(o.glass || 'glass_window', wx, yC + R * 0.15, wz, 0.04 * M, 0.35 * M * s, L * 0.6, { ry, lit: 0.3 });
     }
     const [kx, kz] = P(0, L / 2 - 2.6 * M * s);
-    kit.box('glass_window', kx, yC + R * 0.35, kz, R * 1.2, 0.5 * M * s, 1.2 * M * s, { ry, rx: -0.4, lit: 0 });
+    kit.box(o.glass || 'glass_window', kx, yC + R * 0.35, kz, R * 1.2, 0.5 * M * s, 1.2 * M * s, { ry, rx: -0.4, lit: 0 });
     // Fahrwerk
     for (const [u, w] of [[0, L / 2 - 5 * M * s], [-2.5 * M * s, -1 * M * s], [2.5 * M * s, -1 * M * s]]) {
       const [gx, gz] = P(u, w);
