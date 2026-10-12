@@ -1,5 +1,3 @@
-// Architektur: Wahrzeichen. Schlüssel: Wahrzeichen.
-// Startfassung ohne eigene Modelle – die Ansicht nutzt bis dahin die einfachen Ersatzmodelle.
-// Bausteine werden mit registerArch(key, { variants, build(ctx) }) angemeldet (siehe residential.js).
-import { registerArch } from './index.js';
-void registerArch;
+// Architektur: Wahrzeichen (Besitzer: G6). Jedes Wahrzeichen ist ein Postkartenmotiv (≤ 45 000 Dreiecke).
+// Die Bausteine liegen in eigenen Dateien lm_*.js und melden sich dort mit registerArch() an.
+import './lm_doener.js';
