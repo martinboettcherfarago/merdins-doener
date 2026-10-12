@@ -184,6 +184,9 @@ export const ACHIEVEMENTS = [
   { id: 'seasons', cat: 'people', tier: 2, name: 'Vier Jahreszeiten', desc: 'Frühling, Sommer, Herbst und Winter erlebt.', goal: 4, v: (g, F, C) => C.seasons.length, req: (g) => typeof g.ext.weather?.season === 'string' },
   { id: 'districts', cat: 'people', tier: 1, name: 'Kiezgefühl', desc: 'Vier Bezirke mit eigenem Namen.', goal: 4, v: (g) => g.ext.districts?.list?.length || 0, req: (g) => Array.isArray(g.ext.districts?.list) },
   { id: 'disaster', cat: 'people', tier: 2, name: 'Krisenfest', desc: 'Eine Katastrophe überstanden.', goal: 1, v: (g, F, C) => C.disasters },
+  { id: 'disaster3', cat: 'people', tier: 3, name: 'Fels in der Brandung', desc: 'Drei Katastrophen überstanden.', goal: 3, v: (g, F, C) => C.disasters },
+  { id: 'winterhappy', cat: 'people', tier: 2, name: 'Wintermärchen', desc: 'Im verschneiten Winter mindestens 70 % Glück – bei mindestens 1.000 Einwohnern.', goal: 1, v: (g, F, C) => (C.winterHappy ? 1 : 0), req: (g) => typeof g.ext.weather?.season === 'string' },
+  { id: 'buslines', cat: 'transit', tier: 2, name: 'Busnetz', desc: 'Drei Buslinien in Betrieb.', goal: 3, v: (g) => g.ext.transport?.lines?.length || 0, req: (g) => Array.isArray(g.ext.transport?.lines) },
   // --- Kultur
   { id: 'landmark1', cat: 'culture', tier: 1, name: 'Postkartenmotiv', desc: 'Das erste Wahrzeichen steht.', goal: 1, v: (g, F) => F.landmarks },
   { id: 'landmarks5', cat: 'culture', tier: 2, name: 'Sehenswürdigkeiten', desc: 'Fünf Wahrzeichen.', goal: 5, v: (g, F) => F.landmarks },
@@ -216,7 +219,7 @@ function freshCounters() {
     maxPop: 0, maxMoney: 0, minMoney: 0, maxNet: 0, maxTourism: 0, maxRiders: 0, maxAbandoned: 0,
     happyStreak: 0, lowTaxStreak: 0, loansRepaid: 0, lastLoans: 0, deepDebt: false, comeback: false,
     fires: 0, demolished: 0, events: 0, disasters: 0, policies: [], seasons: [], trees: 0,
-    dayFlow: 1, worstFlow: 1, scenarioWins: 0, bestStars: 0, pixel: false, nightowl: false, questsDone: 0, questsFailed: 0,
+    dayFlow: 1, worstFlow: 1, scenarioWins: 0, bestStars: 0, pixel: false, nightowl: false, questsDone: 0, questsFailed: 0, winterHappy: false,
   };
 }
 
@@ -301,6 +304,7 @@ function updateCounters(g) {
   for (const id of g.policies) if (!C.policies.includes(id)) C.policies.push(id);
   const season = g.ext.weather?.season;
   if (typeof season === 'string' && !C.seasons.includes(season)) C.seasons.push(season);
+  if (season === 'winter' && (g.ext.weather.snowCover || 0) > 0.4 && s.pop >= 1000 && s.happiness >= 70) C.winterHappy = true;
   // Tagesmittel des Verkehrsflusses
   const d = st.day;
   if (d.flowN > 0) {
@@ -1030,11 +1034,12 @@ function connectToNetwork(g, fromTiles) {
   const prev = new Int32Array(N).fill(-1);
   const heap = new MinHeap();
   const target = (i) => g.road[i] && g.roadComp[i] === g.outsideComp && g.outsideComp >= 0;
+  const from = new Set(fromTiles);
   for (const i of fromTiles) { dist[i] = 0; heap.push(i, 0); }
   let hit = -1;
   while (heap.size) {
     const k = heap.pop();
-    if (target(k) && !fromTiles.includes(k)) { hit = k; break; }
+    if (target(k) && !from.has(k)) { hit = k; break; }
     const x = k % W, y = (k / W) | 0;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const nx = x + dx, ny = y + dy;
@@ -1050,7 +1055,7 @@ function connectToNetwork(g, fromTiles) {
   }
   if (hit < 0) return false;
   const path = [];
-  for (let k = prev[hit]; k >= 0 && !fromTiles.includes(k); k = prev[k]) if (!g.road[k]) path.push(k);
+  for (let k = prev[hit]; k >= 0 && !from.has(k); k = prev[k]) if (!g.road[k]) path.push(k);
   if (path.length) roadTiles(g, path, R.STREET, true);
   return true;
 }

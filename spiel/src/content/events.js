@@ -28,6 +28,7 @@ export const FOLLOWUPS = {
     g.news('event', 'Von Katze Pixel fehlt weiter jede Spur. Die Nachbarschaft hält die Augen offen.', 'info');
     if (chance(g, 0.5)) later(g, 4 + Math.floor(g.rng() * 5), 'pixelFound');
   },
+  eduBack(g, d) { g.mods.edu /= d.f || 1; },
   ufoReveal(g) { g.news('event', 'Auflösung: Das „UFO" war ein Wetterballon der Volkshochschule. Die Souvenirs verkaufen sich trotzdem prächtig.', 'good'); g.addEffect('tourismAdd', 40, 3, 'UFO-Souvenirs'); },
   doenerStays(g) {
     if (g.hasBuilt('doener') || g.landmarkVouchers.has('doener')) return;
@@ -64,7 +65,7 @@ const NEW_EVENTS = [
     id: 'ufo', title: 'Lichter am Himmel', minPop: 400,
     text: 'Dutzende Bürger melden seltsame Lichter über dem Stadtrand. Die Zeitung titelt „Besuch aus dem All?". Ein Professor will messen, ein Wirt will feiern.',
     options: [
-      { label: 'Wissenschaftlich untersuchen', hint: (g) => `−${fmtMoney(sc(g, 1500))}, Bildung wächst 7 Tage schneller`, apply: (g) => { money(g, -sc(g, 1500)); g.addEffect('happy', 1, 4, 'Forschergeist'); later(g, 3, 'ufoReveal'); } },
+      { label: 'Wissenschaftlich untersuchen', hint: (g) => `−${fmtMoney(sc(g, 1500))}, Bildung wächst 7 Tage lang 15 % schneller`, apply: (g) => { money(g, -sc(g, 1500)); g.mods.edu *= 1.15; later(g, 7, 'eduBack', { f: 1.15 }); later(g, 3, 'ufoReveal'); } },
       { label: 'UFO-Festival ausrufen', hint: (g) => `−${fmtMoney(sc(g, 3000))}, +180 Touristen für 5 Tage`, apply: (g) => { money(g, -sc(g, 3000)); g.addEffect('tourismAdd', 180, 5, 'UFO-Festival'); later(g, 5, 'ufoReveal'); } },
       { label: 'Kein Kommentar', hint: () => 'Die Gerüchte bleiben', apply: () => {} },
     ],
@@ -211,7 +212,7 @@ const NEW_EVENTS = [
     id: 'meteors', title: 'Sternschnuppennacht', minPop: 500,
     text: 'Heute Nacht erreicht der Meteorstrom seinen Höhepunkt. Sternfreunde bitten darum, die Straßenlaternen für zwei Stunden auszuschalten.',
     options: [
-      { label: 'Licht aus!', hint: () => 'Glück +4 für 2 Tage, Gewerbe −20 % Steuer an diesen Tagen', apply: (g) => { g.addEffect('happy', 4, 2, 'Sternschnuppen'); g.addEffect('comTax', -0.2, 2, 'Dunkle Nacht'); } },
+      { label: 'Licht aus!', hint: () => 'Glück +4 und Gewerbesteuer −20 % für 2 Tage', apply: (g) => { g.addEffect('happy', 4, 2, 'Sternschnuppen'); g.addEffect('comTax', -0.2, 2, 'Dunkle Nacht'); } },
       { label: 'Sicherheit geht vor', hint: () => 'Nichts passiert', apply: () => {} },
     ],
   },
@@ -316,7 +317,7 @@ const NEW_EVENTS = [
     id: 'speedcams', title: 'Blitzer-Debatte', minPop: 1000,
     text: 'Die Polizei schlägt neue Blitzer an den Hauptstraßen vor. „Abzocke!", rufen die einen. „Endlich!", die anderen.',
     options: [
-      { label: 'Mehr Blitzer', hint: () => '+Einnahmen für 10 Tage, Glück −2', apply: (g) => { g.addEffect('incomeAdd', Math.round(60 + g.stats.pop * 0.03), 10, 'Blitzer'); g.addEffect('happy', -2, 10, 'Blitzer'); } },
+      { label: 'Mehr Blitzer', hint: (g) => `+${fmtMoney(Math.round(60 + g.stats.pop * 0.03))} pro Tag für 10 Tage, Glück −2`, apply: (g) => { g.addEffect('incomeAdd', Math.round(60 + g.stats.pop * 0.03), 10, 'Blitzer'); g.addEffect('happy', -2, 10, 'Blitzer'); } },
       { label: 'Lieber Tempo-30-Schilder', hint: () => 'Glück +2 für 5 Tage', apply: (g) => g.addEffect('happy', 2, 5, 'Keine Blitzer') },
     ],
   },
@@ -412,7 +413,7 @@ const NEW_EVENTS = [
     id: 'exportdeal', title: 'Großauftrag aus Übersee', minPop: 1500, cond: (g) => g.hasBuilt('cargo_rail') || g.hasBuilt('cargo_harbor'),
     text: 'Ein Konzern aus Übersee will für ein Jahr alles kaufen, was deine Fabriken liefern können. Das heißt aber: Lkw rund um die Uhr.',
     options: [
-      { label: 'Annehmen', hint: (g) => `+${fmtMoney(sc(g, 15000))}, Glück −2 für 7 Tage (Lärm)`, apply: (g) => { money(g, sc(g, 15000)); g.addEffect('happy', -2, 7, 'Lkw-Lärm'); g.addEffect('indDemand', 20, 7, 'Großauftrag'); } },
+      { label: 'Annehmen', hint: (g) => `+${fmtMoney(sc(g, 15000))}, Industrie +20, Glück −2 für 7 Tage wegen Lkw-Lärm`, apply: (g) => { money(g, sc(g, 15000)); g.addEffect('happy', -2, 7, 'Lkw-Lärm'); g.addEffect('indDemand', 20, 7, 'Großauftrag'); } },
       { label: 'Ablehnen', hint: () => 'Nichts passiert', apply: () => {} },
     ],
   },
