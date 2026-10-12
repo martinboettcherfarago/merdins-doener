@@ -126,7 +126,7 @@ registerArch('fire', {
     k.box(wall, hx, 0, hz, hw, hh, hd);
     k.box('stone_grey', hx, 0, hz, hw + 0.12 * M, 0.4 * M, hd + 0.12 * M);
     bayDoors(k, hx, hz, hw, hd, 2, 3.2 * M, 3.8 * M, { frame: v ? 'paint_red' : 'trim_stone', open: [0] });
-    if (P.D1(k)) { k.band(v ? 'paint_red' : 'trim_stone', hx, hz, hw, hd, hh - 0.6 * M, 0.6 * M, 0.06 * M); P.signBox(k, 'FEUERWEHR', hx, hh - 0.0 * M, hz + hd / 2 + 0.05 * M, 0, { px: 0.12 * M, bg: 'paint_red', frame: 'trim_dark' }); }
+    if (P.D1(k)) { k.band(v ? 'paint_red' : 'trim_stone', hx, hz, hw, hd, hh - 0.6 * M, 0.6 * M, 0.06 * M); P.signBox(k, 'FEUERWEHR', hx - 0.6 * M, hh - 0.0 * M, hz + hd / 2 + 0.05 * M, 0, { px: 0.105 * M, bg: 'paint_red', frame: 'trim_dark' }); }
     k.windows('left', hx, hz, hw, hd, 0, 1, FLOOR * 1.4, { frame: 'window_frame_white', spacing: 2.4 * M, winH: 1.2 * M });
     k.flatRoof('roof_flat_membrane', v ? 'paint_red' : 'trim_stone', hx, hh, hz, hw, hd, { parapet: 0.4 * M });
     // Sozialtrakt mit Schlauchturm
@@ -135,7 +135,6 @@ registerArch('fire', {
     hoseTower(k, 3.6 * M, -3.6 * M, 2.4 * M, 13 * M, wall, { roof: v ? 'flat' : 'hip' });
     P.text(k, '112', 3.6 * M, 9.6 * M, -3.6 * M + 1.24 * M, 0, 0.2 * M, 'paint_white');
     P.fireTruck(k, hx - 1.9 * M, 1.2 * M, 0, { len: 7.4 * M });
-    if (P.D1(k)) k.box('emissive_red', hx, hh + 0.4 * M, hz + hd / 2 - 0.3 * M, 0.5 * M, 0.3 * M, 0.3 * M);
     P.lamp(k, 4.4 * M, 4.4 * M, 4 * M);
     return P.finish(k);
   },
@@ -281,14 +280,14 @@ registerArch('townhall', {
     k.cyl('roof_copper', bx, th + 6 * M, tz, 0.7 * M, 1.4 * M, { seg: 8 });
     k.cone('roof_copper', bx, th + 7.4 * M, tz, 0.9 * M, 3.4 * M, { seg: 8 });
     if (P.D1(k)) { k.cyl('paint_yellow', bx, th + 10.8 * M, tz, 0.04 * M, 1.4 * M, { seg: 4 }); k.sphere('paint_yellow', bx, th + 11 * M, tz, 0.25 * M, { seg: 6 }); }
-    P.text(k, 'RATHAUS', bx, fh * 3 - 0.6 * M, tz + ts / 2 + 0.06 * M, 0, 0.16 * M, 'trim_dark');
+    P.text(k, 'RATHAUS', bx, 12.6 * M, tz + ts / 2 + 0.06 * M, 0, 0.16 * M, 'trim_dark');
     // Platz mit Brunnen, Fahnen und Bäumen
     const fz = 6.6 * M;
     k.cyl('stone_grey', 5.8 * M, 0, fz, 2.2 * M, 0.6 * M, { seg: P.segs(k, 16) });
     k.cyl('water_pool', 5.8 * M, 0, fz, 1.9 * M, 0.62 * M, { seg: P.segs(k, 16) });
     k.cyl('stone_grey', 5.8 * M, 0.6 * M, fz, 0.35 * M, 1.6 * M, { seg: 8 });
     if (P.D1(k)) k.cyl('stone_grey', 5.8 * M, 2.2 * M, fz, 0.9 * M, 0.25 * M, { seg: 10 });
-    for (const s of [-1, 1]) for (let i = 0; i < 2; i++) P.flagpole(k, s * (3 + i * 1.3) * M, 4.3 * M, 9 * M, ['paint_red', 'paint_yellow', 'paint_blue', 'paint_white'][i + (s > 0 ? 2 : 0)]);
+    for (const s of [-1, 1]) for (let i = 0; i < 2; i++) P.flagpole(k, s * (3.8 + i * 1.3) * M, 3.9 * M, 9 * M, ['paint_red', 'paint_yellow', 'paint_blue', 'paint_white'][i + (s > 0 ? 2 : 0)]);
     for (const x of [-8.4, -5.6, 8.4]) P.tree(k, x * M, 8.6 * M, 0.7);
     for (const x of [-7, 3]) P.bench(k, x * M, 7.4 * M, Math.PI);
     P.lamp(k, -3 * M, 8.4 * M, 4 * M, { globe: true }); P.lamp(k, 3 * M, 8.4 * M, 4 * M, { globe: true });

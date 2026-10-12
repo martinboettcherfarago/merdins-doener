@@ -74,24 +74,25 @@ registerArch('watertower', {
       P.steps(k, 0, 3.0 * M, 2 * M, 2);
     } else if (v === 1) {
       // Pilzförmiger Betonwasserturm
-      k.cyl('concrete', 0, 0, 0, 2.2 * M, 0.8 * M, { seg: P.segs(k, 16) });
-      k.cyl('concrete_panel', 0, 0.8 * M, 0, 1.6 * M, 15.5 * M, { seg: P.segs(k, 16), rTop: 1.4 * M });
-      const prof = [[1.4, 16], [2.4, 17.2], [4.0, 18.6], [4.9, 19.8], [5.0, 21.6], [4.6, 22.6], [3.2, 23.4], [0.01, 23.8]].map(([r, y]) => [r * M, y * M]);
+      k.cyl('concrete', 0, 0, 0, 2.0 * M, 0.8 * M, { seg: P.segs(k, 16) });
+      k.cyl('concrete_panel', 0, 0.8 * M, 0, 1.45 * M, 12.6 * M, { seg: P.segs(k, 16), rTop: 1.25 * M });
+      const prof = [[1.25, 13], [2.2, 14.1], [3.6, 15.3], [4.4, 16.4], [4.5, 18.0], [4.1, 18.9], [2.9, 19.6], [0.01, 20.0]].map(([r, y]) => [r * M, y * M]);
       P.lathe(k, 'concrete_panel', 0, 0, 0, prof, P.segs(k, 24));
-      if (P.D1(k)) { k.cyl('trim_dark', 0, 20.6 * M, 0, 5.03 * M, 0.6 * M, { seg: P.segs(k, 24), open: true }); for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; k.box('concrete', Math.sin(a) * 1.5 * M, 0.8 * M, Math.cos(a) * 1.5 * M, 0.25 * M, 15 * M, 0.2 * M, { ry: a }); } }
-      if (P.D2(k)) { for (const [x, h] of [[-1, 4], [1.2, 3]]) { k.cyl('metal_light', x * M, 23.4 * M, 0, 0.08 * M, h * M, { seg: 5 }); } k.light(0, 24 * M, 0, 0xff3a2a, 0.25); }
-      P.door(k, 0, 1.6 * M, 0, { w: 1.2 * M, h: 2.3 * M, y0: 0.8 * M, mat: 'metal_dark', frame: 'concrete_dark' });
-      P.steps(k, 0, 1.6 * M, 1.8 * M, 4);
+      if (P.D1(k)) { k.cyl('trim_dark', 0, 17.1 * M, 0, 4.53 * M, 0.55 * M, { seg: P.segs(k, 24), open: true }); for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; k.box('concrete', Math.sin(a) * 1.35 * M, 0.8 * M, Math.cos(a) * 1.35 * M, 0.22 * M, 12.2 * M, 0.2 * M, { ry: a }); } }
+      if (P.D2(k)) { for (const [x, h] of [[-1, 3.4], [1.1, 2.6]]) { k.cyl('metal_light', x * M, 19.6 * M, 0, 0.08 * M, h * M, { seg: 5 }); } k.light(0, 20.2 * M, 0, 0xff3a2a, 0.25); }
+      P.door(k, 0, 1.45 * M, 0, { w: 1.2 * M, h: 2.3 * M, y0: 0.8 * M, mat: 'metal_dark', frame: 'concrete_dark' });
+      P.steps(k, 0, 1.45 * M, 1.8 * M, 4);
     } else {
       // Kugelbehälter auf Stützen
-      k.cyl('concrete', 0, 0, 0, 3.2 * M, 0.5 * M, { seg: P.segs(k, 16) });
-      k.cyl('tank_white', 0, 0.5 * M, 0, 0.7 * M, 15 * M, { seg: P.segs(k, 10) });
-      P.sphereTank(k, 0, 0, 4.4 * M, { y: 18.5 * M, legs: 6, mat: 'tank_white', legMat: 'tank_white', stair: false });
+      const cy = 15 * M, R = 3.9 * M;
+      k.cyl('concrete', 0, 0, 0, 3.0 * M, 0.5 * M, { seg: P.segs(k, 16) });
+      k.cyl('tank_white', 0, 0.5 * M, 0, 0.65 * M, cy - 3 * M, { seg: P.segs(k, 10) });
+      P.sphereTank(k, 0, 0, R, { y: cy, legs: 6, mat: 'tank_white', legMat: 'tank_white', stair: false });
       if (P.D1(k)) {
-        k.cyl('paint_blue', 0, 17.8 * M, 0, 4.42 * M, 1.4 * M, { seg: P.segs(k, 24), open: true });
-        for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.2, b = a + Math.PI / 3; P.beam(k, 'tank_white', [Math.cos(a) * 4.3 * M, 8 * M, Math.sin(a) * 4.3 * M], [Math.cos(b) * 4.3 * M, 8 * M, Math.sin(b) * 4.3 * M], 0.18 * M); }
-        P.textArc(k, 'WASSER', 0, 18.5 * M, 0, 4.43 * M, 0.5, 0.2 * M, 'paint_white');
-        P.textArc(k, 'WASSER', 0, 18.5 * M, 0, 4.43 * M, 0.5 + Math.PI, 0.2 * M, 'paint_white');
+        k.cyl('paint_blue', 0, cy - 0.7 * M, 0, R + 0.02 * M, 1.4 * M, { seg: P.segs(k, 24), open: true });
+        for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.2, b = a + Math.PI / 3; P.beam(k, 'tank_white', [Math.cos(a) * R * 0.98, 6.5 * M, Math.sin(a) * R * 0.98], [Math.cos(b) * R * 0.98, 6.5 * M, Math.sin(b) * R * 0.98], 0.18 * M); }
+        P.textArc(k, 'WASSER', 0, cy, 0, R + 0.03 * M, 0.5, 0.19 * M, 'paint_white');
+        P.textArc(k, 'WASSER', 0, cy, 0, R + 0.03 * M, 0.5 + Math.PI, 0.19 * M, 'paint_white');
       }
       k.box('plaster_white', 0, 0, 2.6 * M, 2.4 * M, 2.6 * M, 1.6 * M);
       P.door(k, 0, 3.4 * M, 0, { w: 1 * M, h: 2.1 * M, mat: 'metal_dark' });
@@ -274,16 +275,26 @@ registerArch('landfill', {
     P.heap(k, 'grass', -3 * M, -4.4 * M, 9.5 * M, 6 * M, 4.9 * M, { y0: 0.01 * M, ridgeK: 0.6 });
     P.heap(k, 'dirt', 4.4 * M, -1 * M, 9 * M, 9.6 * M, 3.4 * M, { ridgeK: 0.7 });
     if (P.D1(k)) {
-      const cols = ['paint_blue', 'paint_red', 'paint_yellow', 'canvas_white', 'metal_light', 'paint_green', 'wood_planks', 'metal_dark', 'paint_orange'];
-      const n = P.D2(k) ? 70 : 22;
+      const cols = ['paint_blue', 'paint_red', 'paint_yellow', 'canvas_white', 'canvas_white', 'rubber', 'metal_light', 'paint_green', 'wood_planks', 'rubber', 'paint_orange', 'plaster_pink'];
+      const n = P.D2(k) ? 90 : 30;
       for (let i = 0; i < n; i++) {
         const t = k.rng(), u = k.rng() - 0.5;
-        const x = 4.4 * M + u * 7 * M, z = -1 * M + (t - 0.5) * 7.4 * M;
-        const hx = 1 - Math.abs(u) * 2, hz = 1 - Math.abs(t - 0.5) * 2;
-        const y = Math.max(0, Math.min(hx, hz)) * 3.4 * M;
-        k.box(pick(k.rng, cols), x, y - 0.1 * M, z, (0.3 + k.rng() * 0.6) * M, (0.2 + k.rng() * 0.3) * M, (0.3 + k.rng() * 0.6) * M, { ry: k.rng() * 3 });
+        const x = 4.4 * M + u * 8 * M, z = -1 * M + (t - 0.5) * 8.6 * M;
+        const hx = 1 - Math.abs(u) * 9 / 9 * 2, hz = 1 - Math.abs(t - 0.5) * 2;
+        const y = Math.max(0, Math.min(hx * 1.3, hz * 1.4, 1)) * 3.4 * M;
+        const s = (0.5 + k.rng() * 0.8) * M;
+        k.box(pick(k.rng, cols), x, y - 0.25 * M, z, s, s * 0.7, s * (0.8 + k.rng() * 0.6), { ry: k.rng() * 3, rx: (k.rng() - 0.5) * 0.6 });
       }
     }
+    // Möwen kreisen über dem Schüttkörper
+    P.anim(k, [4 * M, 9 * M, -1 * M], 'y', 0.45, (s) => {
+      for (let i = 0; i < 5; i++) {
+        const a = i * 1.3, r = (2.5 + (i % 3) * 1.4) * M, y = (i % 2) * 1.2 * M;
+        const g = new P.G(s, Math.cos(a) * r, Math.sin(a) * r, -a);
+        for (const sd of [-1, 1]) g.box('paint_white', sd * 0.32 * M, y, 0, 0.6 * M, 0.06 * M, 0.25 * M, { rz: sd * 0.35 });
+        g.box('paint_white', 0, y - 0.05 * M, 0, 0.14 * M, 0.12 * M, 0.45 * M);
+      }
+    });
     // Planierraupe auf dem Schüttkörper
     if (P.D1(k)) {
       const g = new P.G(k, 4.6 * M, -0.4 * M, 0.5, 2.6 * M);

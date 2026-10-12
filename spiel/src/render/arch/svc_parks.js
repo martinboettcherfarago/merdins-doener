@@ -270,7 +270,7 @@ registerArch('skatepark', {
   variants: 2,
   build(ctx) {
     const k = ctx.kit, [W, D] = dims(ctx), v = ctx.variant;
-    P.lot(k, W, D, 'concrete');
+    P.lot(k, W, D, 'asphalt');
     const qp = (x, z, ry, len, R = 1.8 * M, deck = 1.0 * M) => {
       const n = k.detail >= 2 ? 6 : 3, prof = [[-deck, 0], [R, 0]];
       for (let i = 1; i <= n; i++) { const t = (i / n) * Math.PI / 2; prof.push([R - R * Math.sin(t), R - R * Math.cos(t)]); }
@@ -279,7 +279,7 @@ registerArch('skatepark', {
       if (P.D1(k)) { const g = new P.G(k, x, z, ry); g.pipe('metal_light', [0, R + 0.05 * M, -len / 2], [0, R + 0.05 * M, len / 2], 0.06 * M, { seg: 5 }); }
     };
     qp(0, -D / 2 + 1.3 * M, -Math.PI / 2, W - 1.2 * M);
-    qp(-W / 2 + 1.3 * M, 0.6 * M, 0, 6 * M, 1.4 * M);
+    qp(W / 2 - 1.3 * M, 0.6 * M, Math.PI, 6 * M, 1.4 * M);
     // Funbox mit Rampen und Rail
     const fx = 1.2 * M, fz = 1.2 * M;
     k.box('concrete_panel', fx, 0, fz, 2.4 * M, 0.6 * M, 2.0 * M);
@@ -287,16 +287,16 @@ registerArch('skatepark', {
     if (P.D1(k)) { P.pipe(k, 'metal_light', [fx - 1 * M, 0.95 * M, fz], [fx + 1 * M, 0.95 * M, fz], 0.05 * M, { seg: 5 }); for (const s of [-1, 1]) k.box('metal_light', fx + s * 0.9 * M, 0.6 * M, fz, 0.06 * M, 0.35 * M, 0.06 * M); }
     if (P.D1(k)) { P.pipe(k, 'metal_light', [2.2 * M, 0.45 * M, 3.8 * M], [-1.8 * M, 0.45 * M, 3.8 * M], 0.05 * M, { seg: 5 }); for (const x of [-1.6, 2.0]) k.box('metal_dark', x * M, 0, 3.8 * M, 0.06 * M, 0.45 * M, 0.06 * M); }
     // Graffitiwand
-    const gx = 4.4 * M;
+    const gx = -4.4 * M;
     k.box('concrete', gx, 0, 0, 0.4 * M, 2.4 * M, 6 * M);
     if (P.D1(k)) {
       const cols = ['neon_pink', 'paint_yellow', 'paint_green', 'paint_blue', 'paint_orange', 'neon_cyan'];
-      for (let i = 0; i < (P.D2(k) ? 12 : 5); i++) k.box(pick(k.rng, cols), gx - 0.22 * M, (0.3 + k.rng() * 1.4) * M, (k.rng() - 0.5) * 5 * M, 0.04 * M, (0.5 + k.rng() * 0.6) * M, (0.8 + k.rng() * 1.4) * M);
-      if (v === 0) P.text(k, 'SKATE', gx - 0.24 * M, 1.4 * M, 0, -Math.PI / 2, 0.18 * M, 'neon_pink');
+      for (let i = 0; i < (P.D2(k) ? 12 : 5); i++) k.box(pick(k.rng, cols), gx + 0.22 * M, (0.3 + k.rng() * 1.4) * M, (k.rng() - 0.5) * 5 * M, 0.04 * M, (0.5 + k.rng() * 0.6) * M, (0.8 + k.rng() * 1.4) * M);
+      if (v === 0) P.text(k, 'SKATE', gx + 0.25 * M, 1.4 * M, 0, Math.PI / 2, 0.18 * M, 'neon_pink');
     }
-    P.bench(k, 3.2 * M, 4.2 * M, Math.PI); P.bin(k, -0.8 * M, 4.3 * M);
-    P.lamp(k, -4.2 * M, 4.2 * M, 4 * M);
-    P.tree(k, 3.8 * M, -4.0 * M, 0.6);
+    P.bench(k, 2.2 * M, 4.3 * M, Math.PI); P.bin(k, -0.8 * M, 4.3 * M);
+    P.lamp(k, 4.3 * M, 4.3 * M, 4 * M);
+    P.tree(k, -3.8 * M, 4.0 * M, 0.6);
     return P.finish(k);
   },
 });
@@ -331,7 +331,7 @@ registerArch('dog_park', {
     if (P.D1(k)) { k.box('metal_dark', -4.0 * M, 0, 3.0 * M, 0.08 * M, 1.0 * M, 0.08 * M); k.box('paint_green', -4.0 * M, 0.8 * M, 3.1 * M, 0.4 * M, 0.5 * M, 0.3 * M); }
     P.bench(k, -4.1 * M, -0.6 * M, Math.PI / 2); P.bench(k, -2.0 * M, 4.1 * M, Math.PI);
     P.tree(k, -3.6 * M, -3.8 * M, 0.9); P.tree(k, 3.8 * M, 3.8 * M, 0.75, { leaf: 'leaves_light' });
-    P.fenceRect(k, 0, 0, W - 0.5 * M, D - 0.5 * M, { h: 1.3 * M, mat: 'metal_dark', gate: 1.4 * M, gateX: -1 * M, step: 2 * M });
+    P.fenceRect(k, 0, 0, W - 0.5 * M, D - 0.5 * M, { h: 1.3 * M, mat: 'wood_planks', gate: 1.4 * M, gateX: -1 * M, step: 2 * M, gatePosts: false });
     return P.finish(k);
   },
 });
