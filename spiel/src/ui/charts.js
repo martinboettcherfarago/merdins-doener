@@ -80,10 +80,31 @@ export function drawLineChart(canvas, values, opts = {}) {
   ctx.lineWidth = 2.2;
   ctx.lineJoin = 'round';
   ctx.stroke();
+  if (opts.hover !== undefined && opts.hover !== null && values[opts.hover] !== undefined) {
+    const i = opts.hover, hx = X(i), hy = Y(values[i]);
+    ctx.strokeStyle = 'rgba(29,35,48,0.35)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(hx, padT); ctx.lineTo(hx, h - padB); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.stroke();
+    const txt = (opts.label ? opts.label(i) + ' · ' : '') + (opts.fmt ? opts.fmt(values[i]) : nf(values[i]));
+    ctx.font = '700 12px "Barlow Condensed", Barlow, sans-serif';
+    const tw = ctx.measureText(txt).width + 14;
+    const bx = Math.max(padL, Math.min(w - padR - tw, hx - tw / 2)), by = Math.max(0, hy - 30);
+    ctx.fillStyle = '#1d2330'; roundRect(ctx, bx, by, tw, 20, 6); ctx.fill();
+    ctx.fillStyle = '#f6f2ea'; ctx.textAlign = 'left'; ctx.fillText(txt, bx + 7, by + 14);
+    return;
+  }
   const lx = X(n - 1), ly = Y(values[n - 1]);
   ctx.fillStyle = '#f6f2ea';
   ctx.beginPath(); ctx.arc(lx, ly, 4.5, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
+}
+
+// Index des Werts unter der x-Position (CSS-Pixel im Canvas) – passend zu drawLineChart
+export function chartIndexAt(canvas, x, n) {
+  const w = canvas.clientWidth || 300, padL = 44, padR = 8;
+  if (n <= 1) return 0;
+  return Math.max(0, Math.min(n - 1, Math.round(((x - padL) / (w - padL - padR)) * (n - 1))));
 }
 
 // Säulendiagramm. bars: [{ label, value, color }], opts: fmt, max

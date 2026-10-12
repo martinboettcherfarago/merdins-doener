@@ -6,6 +6,9 @@ import { fmtMoney } from './util.js';
 import { LINE_COLORS } from './sim/transit.js';
 import { TOOLS } from './registry.js';
 
+// Auf Touch-Geräten keine Zeiger-Kurzinfo
+const e2e = (inp) => inp.lastMove && inp.lastMove.pointerType === 'touch';
+
 export class Input {
   constructor(engine, ui, audio) {
     this.e = engine;
@@ -240,7 +243,7 @@ export class Input {
       else if (st) ov.select({ x: st.x, y: st.y, w: 1, h: 1, station: true });
       else { const sb = this.ui.selectedBox(); ov.select(sb && !sb.flat ? sb : null); }
       this.e.canvas.style.cursor = b || st ? 'pointer' : '';
-      this.ui.tooltip(null);
+      this.ui.tooltip(this.hoverInfo(b, st), this.mouse, true);
     } else if (k === 'place') {
       const key = this.tool.key;
       const def = BUILDINGS[key];
@@ -284,6 +287,23 @@ export class Input {
       else if (k === 'dezone') this.ui.tooltip('Zonen entfernen · Fläche aufziehen', this.mouse, true);
       else this.ui.tooltip('Abreißen · Fläche aufziehen', this.mouse, true);
     }
+  }
+
+  // Kurzinfo für den Zeiger-Tooltip im Auswahlmodus
+  hoverInfo(b, st) {
+    if (e2e(this)) return null;
+    if (st) return `${st.name} · ${st.waiting.length} wartend`;
+    if (!b) return null;
+    if (b.zone) {
+      const names = { 1: ['', 'Häuschen', 'Einfamilienhaus', 'Stadthaus', 'Wohnblock', 'Wohnturm'], 2: ['', 'Kiosk', 'Ladenzeile', 'Kaufhaus', 'Geschäftshaus', 'Einkaufsturm'], 3: ['', 'Werkstatt', 'Fabrik', 'Werk', 'Großwerk', 'Hightech-Werk'], 4: ['', 'Kanzlei', 'Bürohaus', 'Bürokomplex', 'Büroturm', 'Wolkenkratzer'] };
+      const spec = { farm: 'Bauernhof', mine: 'Bergwerk', forest: 'Forstbetrieb', oil: 'Ölfeld' }[b.spec];
+      const nm = spec || (names[b.zone] || [])[b.level] || ZONE_INFO[b.zone].name;
+      if (b.abandoned) return `${nm} · verlassen`;
+      if (b.construct < 1) return `${nm} · im Bau ${Math.round(b.construct * 100)} %`;
+      return `${nm} · ${b.occ}/${b.cap} ${b.zone === 1 ? 'Bewohner' : 'Jobs'} · ${Math.round(b.happy)} % Glück`;
+    }
+    const d = BUILDINGS[b.key];
+    return d ? d.name + (b.construct < 1 ? ` · im Bau ${Math.round(b.construct * 100)} %` : '') : null;
   }
 
   buildingHeight(b) {

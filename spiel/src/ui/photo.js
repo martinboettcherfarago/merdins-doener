@@ -41,6 +41,8 @@ export class PhotoMode {
     if (e.effects) e.effects.showIcons = false;
     if (ui.view !== 'none') ui.setView('none');
     e.overlay.select(null); e.overlay.hideGhost(); e.overlay.hideRadius();
+    // Zonenflächen stören auf Fotos
+    if (e.overlay.zones) { this.saved.zonesVisible = e.overlay.zones.visible; e.overlay.zones.visible = false; }
     rig.minDist = 0.7;
     rig.enabled = false;
     e.camera.near = 0.04; e.camera.updateProjectionMatrix();
@@ -65,6 +67,7 @@ export class PhotoMode {
     rig.goal.dist = Math.max(rig.minDist, rig.goal.dist);
     e.camera.fov = s.fov; e.camera.near = s.near; e.camera.updateProjectionMatrix();
     e.photoFx = null;
+    if (e.overlay.zones && s.zonesVisible !== undefined) e.overlay.zones.visible = s.zonesVisible;
     e.canvas.style.filter = '';
     document.getElementById('app').classList.remove('photo');
     if (this.el) { this.el.remove(); this.el = null; }

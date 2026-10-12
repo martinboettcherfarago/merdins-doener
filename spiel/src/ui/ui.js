@@ -582,7 +582,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     for (const o of list) {
       if (o.group !== last && o.id !== 'none' && last !== null) html += '<div class="sep"></div>';
       last = o.group;
-      html += `<button data-view="${o.id}" data-tip="${esc(o.id === 'none' ? 'Normale Ansicht' : o.name)}" data-tip-desc="${esc(o.id === 'none' ? 'Infoansicht ausschalten' : (VIEW_GROUPS.find((g) => g.id === o.group) || {}).name || '')}" ${o.id === 'none' ? 'data-key="V"' : ''} data-tip-pos="right" aria-label="${esc(o.name)}">${iconAny(o.icon, 'layers', 19)}</button>`;
+      html += `<button data-view="${o.id}" data-tip="${esc(o.id === 'none' ? 'Normale Ansicht' : o.name)}" data-tip-desc="${esc(o.id === 'none' ? 'Infoansicht ausschalten' : o.text || (VIEW_GROUPS.find((g) => g.id === o.group) || {}).name || '')}" ${o.id === 'none' ? 'data-key="V"' : ''} data-tip-pos="right" aria-label="${esc(o.name)}">${iconAny(o.icon, 'layers', 19)}</button>`;
     }
     this.el.views.innerHTML = html;
     const two = list.length > 11;

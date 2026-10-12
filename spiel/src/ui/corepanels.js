@@ -5,7 +5,7 @@ import { BUDGET_LINES } from '../registry.js';
 import { fmt, fmtMoney, fmtShort, clamp } from '../util.js';
 import { LINE_COLORS, LINE_COLOR_NAMES } from '../sim/transit.js';
 import { icon } from './icons.js';
-import { drawLineChart, svgSpark, barsHTML, meterHTML, svgDonut } from './charts.js';
+import { drawLineChart, svgSpark, barsHTML, meterHTML, svgDonut, chartIndexAt } from './charts.js';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -93,7 +93,10 @@ const stats = {
     const h = ui.g.history, k = ui.chartKey;
     const vals = h.map((e) => e[k] ?? 0);
     const col = { pop: '#4fae67', money: '#c98a0c', net: '#2f8fe0', happy: '#f06fae', riders: '#e8543f', flow: '#5d6470' }[k];
-    drawLineChart(c, vals, { color: col, zero: k === 'net' || k === 'money', startLabel: h.length ? `Tag ${h[0].d}` : '', endLabel: h.length ? `Tag ${h[h.length - 1].d}` : '', fmt: (v) => (Math.abs(v) >= 10000 ? fmtShort(v) : Math.round(v).toLocaleString('de-DE')) + (k === 'happy' || k === 'flow' ? ' %' : '') });
+    const opts = { color: col, zero: k === 'net' || k === 'money', startLabel: h.length ? `Tag ${h[0].d}` : '', endLabel: h.length ? `Tag ${h[h.length - 1].d}` : '', fmt: (v) => (Math.abs(v) >= 10000 ? fmtShort(v) : Math.round(v).toLocaleString('de-DE')) + (k === 'happy' || k === 'flow' ? ' %' : ''), label: (i) => `Tag ${h[i].d}` };
+    drawLineChart(c, vals, opts);
+    c.onpointermove = (e) => { const r = c.getBoundingClientRect(); drawLineChart(c, vals, { ...opts, hover: chartIndexAt(c, e.clientX - r.left, vals.length) }); };
+    c.onpointerleave = () => drawLineChart(c, vals, opts);
   },
   click(ui, act, el) { if (act === 'chart') ui.chartKey = el.dataset.k; return true; },
 };
