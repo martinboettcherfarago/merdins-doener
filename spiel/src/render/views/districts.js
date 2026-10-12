@@ -151,7 +151,7 @@ class DistrictView {
       const X0 = x + ox, X1 = x + 1 + ox, Z0 = y + oz, Z1 = y + 1 + oz;
       const h00 = cornerH(g, x, y) + BORDER_Y, h10 = cornerH(g, x + 1, y) + BORDER_Y, h01 = cornerH(g, x, y + 1) + BORDER_Y, h11 = cornerH(g, x + 1, y + 1) + BORDER_Y;
       // Fläche
-      const fa = [r, gg, b, 0.2];
+      const fa = [r, gg, b, 0.3];
       quad(fp, fc, fi, [X0, h00 - 0.004, Z0], [X1, h10 - 0.004, Z0], [X1, h11 - 0.004, Z1], [X0, h01 - 0.004, Z1], fa, fa, fa, fa);
       // Ränder: Kanten, an denen der Nachbar zu einem anderen Bezirk gehört
       const edges = [
@@ -250,6 +250,7 @@ class DistrictView {
     this.border.visible = D.list.length > 0;
     this.labelTimer -= dt;
     if (this.labelTimer <= 0) { this.labelTimer = 2; this.updateLabelTexts(false); }
+    this.refreshTints(dt);
     const cam = this.e.camera;
     const dist = this.e.rig.cur.dist;
     const show = Math.max(this.fade, Math.min(1, Math.max(0, (dist - 13) / 9)));
@@ -265,6 +266,20 @@ class DistrictView {
       sp.material.opacity = show;
       sp.visible = show > 0.03;
     }
+  }
+
+  // Übergangslösung (Bitte an G9): setTint() färbt bisher nur Kisten-Gebäude, nicht die Prototyp-Gebäude.
+  // Solange eine Infoansicht aktiv ist, frischen wir deren Farben selbst auf.
+  refreshTints(dt) {
+    const bv = this.e.buildings;
+    if (!bv || !bv.protoInst || typeof bv.update !== 'function' || bv.tintsProtos) return;
+    const mode = this.e.overlay.mode;
+    this.tintTimer = (this.tintTimer || 0) - dt;
+    if (mode === this.lastMode && (mode === 'none' || this.tintTimer > 0)) return;
+    this.lastMode = mode;
+    this.tintTimer = 2;
+    const g = this.g;
+    for (const id of bv.protoInst.keys()) { const b = g.buildings.get(id); if (b) bv.update(b); }
   }
 
   dispose() {
