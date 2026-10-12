@@ -1,9 +1,18 @@
-// Materialbibliothek: Alle Gebäude, Straßen und Objekte holen ihre Materialien per Namen.
+// Materialbibliothek (Besitzer G2): Alle Gebäude, Straßen und Objekte holen ihre Materialien per Namen.
 // Die Liste der Namen ist der Vertrag zwischen Architektur-Bausteinen und dem Textur-System.
-// Diese Fassung arbeitet mit Farben; das Textur-System (render/textures.js) ersetzt sie durch
-// prozedurale PBR-Texturen, ohne dass sich die Namen ändern.
+//
+// getMaterial(name) liefert für jeden undurchsichtigen Baustoff ein texturiertes PBR-Material (Farbe, Normale,
+// Rauheit, Verdeckung aus den prozeduralen Textur-Arrays, siehe textures.js / tex_shader.js). Die Texturen werden
+// in Weltkoordinaten projiziert (1 Kachel = 4 m), das uv-Attribut wird nicht gebraucht. Alle Baustoffe zeigen
+// Schnee (shared.uSnow), Nässe (shared.uWet), Herbstlaub (shared.uAutumn) und Schmutz am Wandfuß.
+// Glas (glass_*, door_glass, lod_windows) bleibt ein eigenes Material: nachts beleuchtete Fenster über aLit und
+// Instanzposition, tagsüber Himmels- und Häuserspiegelung (ohne Umgebungskarte) bzw. scene.environment (G1).
+// Leuchtende Materialien und Wasser sind ebenfalls eigene Materialien.
+// Für eigene Shader: getTexture(name) und getSurfaceArrays() aus textures.js.
 import * as THREE from 'three';
 import { shared } from './materials.js';
+import { getSurfaceArrays, buildParamTexture, setTextureDefs } from './textures.js';
+import { makeSurfaceMaterial } from './tex_shader.js';
 
 // name: [Farbe, Rauheit, Metall, Optionen]
 export const MATERIAL_DEFS = {
@@ -51,20 +60,54 @@ export const MATERIAL_DEFS = {
   container_red: [0xa8402f, 0.7, 0.3], container_blue: [0x2f5f9a, 0.7, 0.3], container_green: [0x3f7a4a, 0.7, 0.3], container_yellow: [0xd4a32a, 0.7, 0.3],
   tank_white: [0xe6e6e1, 0.5, 0.4], pipe_metal: [0x8c9399, 0.4, 0.8], rust: [0x8a4b2f, 0.9, 0.2], tarmac: [0x55585d, 0.95, 0], runway_marking: [0xf0f0ea, 0.8, 0],
   rail_track: [0x5a4a3c, 0.9, 0.3], ballast: [0x7d776e, 0.97, 0], water_canal: [0x3f8fb0, 0.1, 0.2, { water: true }], hay: [0xd7b866, 0.95, 0], log_wood: [0x8b6a48, 0.9, 0],
+  // Ergänzungen G2: Kopfsteinpflaster, Biberschwanz, Reetdach, Brettschalungsbeton, Klinker, Kiesweg, Wiese, Waldboden, Gitterrost, Holzdeck
+  cobblestone: [0x8d8a84, 0.8, 0], roof_tiles_beaver: [0xa4503c, 0.85, 0], roof_thatch: [0x8a7448, 0.95, 0], concrete_board: [0xb3afa6, 0.9, 0],
+  brick_clinker: [0x6b3a2e, 0.75, 0], gravel_path: [0xb8ab92, 0.95, 0], meadow: [0x8fb162, 0.95, 0], forest_floor: [0x6a5638, 0.97, 0],
+  metal_grating: [0x7d8388, 0.5, 0.7], wood_deck: [0x9a7655, 0.8, 0],
+  // Wünsche G5/G6: schwarzer und petrolfarbener Lack, Klärbecken-Wasser, Milchglas (nachts beleuchtet wie Fenster)
+  paint_black: [0x26272a, 0.55, 0], paint_teal: [0x2f7f80, 0.6, 0],
+  water_sewage: [0x5f6a3e, 0.2, 0.1, { water: true }], glass_frosted: [0xb7c6cc, 0.45, 0.05, { glass: true }],
 };
 
 const cache = new Map();
+
+// Tagsüber: Spiegelung von Himmel und Häuserkante (nur ohne Umgebungskarte; mit scene.environment übernimmt
+// MeshStandardMaterial die echte Spiegelung), leichte Unterschiede pro Scheibe, manche mit hellen Vorhängen.
+const GLASS_DAY = (strength, curtain) => `
+{
+  float nkD = smoothstep(0.0, 1.0, uNight);
+  float pv = fract(vLit * 13.71), pc = fract(vLit * 5.37);
+  diffuseColor.rgb *= 0.78 + 0.44 * pv;
+  ${curtain ? '' : 'if (pc < 0.28) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.62, 0.57, 0.48), 0.45 * (1.0 - nkD));'}
+  #ifndef USE_ENVMAP
+  vec3 vdir = normalize(vViewPosition);
+  vec3 rW = inverseTransformDirection(reflect(-vdir, normal), viewMatrix);
+  ${curtain ? 'rW = normalize(rW + vec3(fract(vLit * 91.3) - 0.5, 0.0, fract(vLit * 47.7) - 0.5) * 0.05);' : ''}
+  float fres = pow(1.0 - clamp(dot(normal, vdir), 0.0, 1.0), 4.0);
+  vec3 sky = mix(vec3(0.16, 0.17, 0.18), vec3(0.66, 0.74, 0.82), smoothstep(-0.3, 0.02, rW.y));
+  sky = mix(sky, vec3(0.3, 0.47, 0.74), smoothstep(0.06, 0.75, rW.y));
+  float az = atan(rW.z, rW.x) * 7.0;
+  float sk = 0.02 + 0.13 * fract(sin(floor(az) * 43.13) * 1753.37) * step(0.25, fract(sin(floor(az * 2.3) * 17.7) * 931.1));
+  sky = mix(sky, vec3(0.2, 0.22, 0.25) + 0.05 * step(0.5, fract(az * 3.0)), step(rW.y, sk) * step(-0.02, rW.y));
+  float refl = (0.1 + 0.8 * fres) * (1.0 - 0.9 * nkD) * ${strength};
+  totalEmissiveRadiance += sky * refl;
+  diffuseColor.rgb *= 1.0 - 0.5 * refl;
+  #endif
+}`;
 
 // Glas: zufällig beleuchtete Fenster in der Nacht. aLit (pro Scheibe) + Instanz-Hash entscheiden.
 function patchGlass(mat, opts) {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uNight = shared.uNight;
+    shader.uniforms.uTime = shared.uTime;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>
 attribute float aLit;
 varying float vLit;
-varying vec3 vWorldP;`)
+varying vec3 vWorldP;
+varying float vGY;`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
+vGY = transformed.y;
 vec3 ip = vec3(0.0);
 #ifdef USE_INSTANCING
 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
@@ -74,16 +117,26 @@ vWorldP = ip;`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform float uNight;
+uniform float uTime;
 varying float vLit;
-varying vec3 vWorldP;`)
+varying vec3 vWorldP;
+varying float vGY;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+${GLASS_DAY(opts.curtain ? '1.15' : opts.shop ? '0.8' : '1.0', !!opts.curtain)}
 float nightK = smoothstep(0.0, 1.0, uNight);
 float on = step(1.0 - nightK * ${opts.curtain ? '0.45' : opts.shop ? '0.9' : '0.62'}, vLit);
 vec3 warm = mix(vec3(1.0, 0.76, 0.45), vec3(0.82, 0.9, 1.0), step(0.85, fract(vLit * 7.13)));
-totalEmissiveRadiance += on * warm * (0.35 + 1.25 * nightK) * ${opts.shop ? '1.3' : '1.0'};
+// Raumtiefe: Lage im Geschoss (3 m) – oben Deckenlicht heller, tagsüber Sturzschatten
+float fy = fract(vGY / 0.3);
+diffuseColor.rgb *= mix(1.0, 0.62, smoothstep(0.62, 0.8, fy) * (1.0 - nightK));
+float lampK = 0.72 + 0.5 * smoothstep(0.3, 0.78, fy);
+// wenige Fenster mit flackerndem Fernsehlicht
+float tv = step(0.93, fract(vLit * 3.71));
+warm = mix(warm, vec3(0.55, 0.7, 1.0) * (0.75 + 0.25 * sin(uTime * 7.0 + vLit * 40.0) * sin(uTime * 2.3)), tv);
+totalEmissiveRadiance += on * warm * lampK * (0.35 + 1.25 * nightK) * ${opts.shop ? '1.3' : '1.0'};
 diffuseColor.rgb *= 1.0 - 0.5 * nightK;`);
   };
-  mat.customProgramCacheKey = () => 'glass' + (opts.curtain ? 'c' : '') + (opts.shop ? 's' : '');
+  mat.customProgramCacheKey = () => 'glass3' + (opts.curtain ? 'c' : '') + (opts.shop ? 's' : '');
 }
 
 function patchLodWindows(mat) {
@@ -113,11 +166,13 @@ if (abs(fc.x - 0.5) > 0.24 || abs(fc.y - 0.55) > 0.3) discard;
 float nk = smoothstep(0.0, 1.0, uNight);
 vec2 cid = floor(vCell);
 float hh = fract(sin(dot(cid + vSeed * 31.7, vec2(41.3, 289.1))) * 15731.743);
+float vLit = hh;
+${GLASS_DAY('0.9', false)}
 float on = step(1.0 - nk * 0.62, hh);
-totalEmissiveRadiance += on * mix(vec3(1.0, 0.76, 0.45), vec3(0.82, 0.9, 1.0), step(0.85, hh)) * (0.35 + 1.25 * nk);
+totalEmissiveRadiance += on * mix(vec3(1.0, 0.76, 0.45), vec3(0.82, 0.9, 1.0), step(0.85, hh)) * (0.72 + 0.5 * smoothstep(0.3, 0.8, fc.y)) * (0.35 + 1.25 * nk);
 diffuseColor.rgb *= 1.0 - 0.5 * nk;`);
   };
-  mat.customProgramCacheKey = () => 'lodwin';
+  mat.customProgramCacheKey = () => 'lodwin2';
 }
 
 function patchEmissive(mat, dayLevel) {
@@ -131,25 +186,47 @@ totalEmissiveRadiance *= ${dayLevel.toFixed(2)} + (1.0 - ${dayLevel.toFixed(2)})
   mat.customProgramCacheKey = () => 'emis' + dayLevel;
 }
 
-// Optionaler Ersatz durch das Textur-System
+// Sondermaterialien (eigene Shader): Glas, Leuchtendes, Fernansichts-Fenster, Wasser. Alles andere sind Baustoffe.
+export const isSpecialMaterial = (name) => { const o = (MATERIAL_DEFS[name] || [])[3] || {}; return !!(o.glass || o.emissive || o.lodWindows || o.water); };
+export const MATERIAL_NAMES = Object.keys(MATERIAL_DEFS);
+// Reihenfolge = Index in der Parameter-Tabelle und im Atlas (atlas.js: ATLAS_INDEX)
+export const SURFACE_NAMES = MATERIAL_NAMES.filter((n) => !isSpecialMaterial(n));
+export const SURFACE_INDEX = Object.fromEntries(SURFACE_NAMES.map((n, i) => [n, i]));
+setTextureDefs(MATERIAL_DEFS);
+
+let params = null;
+// Parameter-Tabelle aller Baustoffe (für tex_shader.js / atlas.js)
+export function surfaceParams() { if (!params) params = buildParamTexture(SURFACE_NAMES, MATERIAL_DEFS); return params; }
+export function surfaceMaterial(index, attribute = false) {
+  return makeSurfaceMaterial({ attribute, index, params: surfaceParams(), arrays: getSurfaceArrays() });
+}
+
+// Optionaler Ersatz durch eine eigene Fabrik (gibt null zurück → Standardweg)
 let factory = null;
 export function setMaterialFactory(fn) { factory = fn; cache.clear(); }
+
+function specialMaterial(name) {
+  const def = MATERIAL_DEFS[name];
+  const [color, roughness, metalness, opts = {}] = def;
+  const m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
+  if (opts.glass) patchGlass(m, opts);
+  if (opts.emissive) { m.emissive = new THREE.Color(opts.emissive); m.emissiveIntensity = 1; patchEmissive(m, opts.emissiveDay ?? 0.35); }
+  if (opts.water) { m.transparent = true; m.opacity = 0.85; }
+  if (opts.lodWindows) patchLodWindows(m);
+  return m;
+}
 
 export function getMaterial(name) {
   if (cache.has(name)) return cache.get(name);
   let m = factory ? factory(name, MATERIAL_DEFS[name]) : null;
   if (!m) {
-    const def = MATERIAL_DEFS[name] || [0xff00ff, 0.8, 0];
-    const [color, roughness, metalness, opts = {}] = def;
-    m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
-    if (opts.glass) patchGlass(m, opts);
-    if (opts.emissive) { m.emissive = new THREE.Color(opts.emissive); m.emissiveIntensity = 1; patchEmissive(m, opts.emissiveDay ?? 0.35); }
-    if (opts.water) { m.transparent = true; m.opacity = 0.85; }
-    if (opts.lodWindows) patchLodWindows(m);
+    if (!MATERIAL_DEFS[name]) {
+      // Unbekannter Name: auffällig, aber nicht kaputt (Ersatz-Baustoff in Magenta)
+      m = new THREE.MeshStandardMaterial({ color: 0xff00ff, roughness: 0.8 });
+    } else if (isSpecialMaterial(name)) m = specialMaterial(name);
+    else m = surfaceMaterial(SURFACE_INDEX[name]);
   }
   m.name = name;
   cache.set(name, m);
   return m;
 }
-
-export const MATERIAL_NAMES = Object.keys(MATERIAL_DEFS);
