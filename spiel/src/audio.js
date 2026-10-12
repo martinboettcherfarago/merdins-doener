@@ -22,20 +22,25 @@
 // Echo im Tempo. Effektklänge (Bauen, Abriss, Meilenstein, Karten, Katastrophen, Sirene, Bus, Flugzeug …)
 // stehen im Akkord der Musik und können räumlich sein ({ x, y } Feld oder { wx, wz } Welt).
 //
-// MISCHUNG (Pegel vor dem Gesamtregler, gemessen per OfflineAudioContext, siehe audio/selftest.js)
-// - Musik ≈ −24 dBFS RMS (Fläche leise, Arpeggio-Spitzen ≈ −14 dBFS), Nacht −1,5 dB.
-// - Umgebung ≈ −30 dBFS RMS in belebter Nahsicht, −36 dBFS ruhig; Regen/Sturm bis ≈ −24 dBFS.
-// - Oberfläche ≈ −24 dBFS Spitze (Klick), Bauen ≈ −12 dBFS, Meilenstein/Katastrophe ≈ −6 dBFS.
-// - Große Ereignisse ducken Musik und Umgebung kurz. Summe → Hochpass 28 Hz → Limiter (−9 dBFS,
-//   10:1, 3 ms), damit nichts übersteuert. Hall: Saal (3,2 s) für Musik, Straßenraum (1,1 s) für
-//   Effekte und Umgebung; die Sendewege hängen hinter den Reglern (Musik 0 = auch kein Musikhall).
+// MISCHUNG (Pegel bei Reglern 1/1/1 vor dem Limiter, gemessen per OfflineAudioContext, audio/selftest.js)
+// - Musik ≈ −18 dBFS RMS (B-Teil −17, Nacht −19, Menü −21). Stimmen im Tag-B-Teil: Fläche −23,
+//   Bass −25, Arpeggio −27, Melodie −27, Pulsbahn −26, Streicher −35 dBFS RMS.
+// - Umgebung: belebte Straße/Industrie ≈ −24, Wohngebiet am Morgen/Wald/Ufer ≈ −31, Übersicht −30,
+//   Winternacht −37, Sommernacht −34, Sturm −19 dBFS RMS. Jedes Klangbett ist auf −24 dBFS bei
+//   Pegel 1 geeicht; Einzelereignisse (Vögel, Hupe, Hammer …) liegen mit Spitzen bei −20 … −35 dBFS.
+// - Effekte (Spitze): Klick −23, Bauen −13, Straße −10, Abriss −11, Meilenstein −9, Katastrophe −3.
+// - Im Spiel mit Standardreglern (0,7/0,7/0,8) gemessen: −22 … −29 dBFS RMS, Spitzen ≤ −5 dBFS.
+// - Große Ereignisse ducken Musik und Umgebung kurz. Summe → Hochpass 28 Hz → Limiter (−4 dBFS,
+//   12:1, 2 ms) → weiches Sicherheitsnetz (höchstens 0,98), damit nie etwas übersteuert. Hall: Saal
+//   (3,2 s) für Musik, Straßenraum (1,1 s) für Effekte und Umgebung; die Sendewege hängen hinter den
+//   Reglern (Musik 0 = auch kein Musikhall).
 // - Regler aus app.settings: volume (gesamt), music, sfx (Effekte und Umgebung), muted; optional
 //   ambience (0..1, Umgebung relativ zu Effekten), quality ('low' = kürzere Hallräume).
 //
 // LEISTUNG
 // Dauerklänge sind fest verdrahtete Knoten (nur Pegel werden nachgeführt) und schlafen nach einigen
 // Sekunden Stille. Einzelereignisse sind begrenzt: Umgebung 10, Effekte 16, Musik 26 gleichzeitige
-// Stimmen; jeder Effektname hat eine Mindestpause. Der Hörort wird 5×/s ausgewertet (< 0,5 ms).
+// Stimmen; jeder Effektname hat eine Mindestpause. Der Hörort wird 5×/s ausgewertet (≈ 0,4–0,7 ms).
 // Taktgeber per setInterval mit 0,3 s Vorausplanung, damit die Musik auch im Menü und bei
 // ruckelnder Bildrate sauber läuft; im Hintergrund-Tab wird der Kontext angehalten.
 //
@@ -47,7 +52,8 @@
 //   thunder storm siren disaster quake explosion meteor tornado flood (+ Aliasse fanfare, cash, ui).
 //   Ereignisbus (registry.js): emit('sound', name, opts) · emit('disaster', {type, phase, x, y,
 //   intensity}) · emit('busStop', {x, y}) · emit('plane', {x, y}) · emit('achievement') · emit('season', s).
-//   Prüfen: window.__stadtpuls.audio.stats() und await window.__stadtpuls.audio.selfTest().
+//   Prüfen: window.__stadtpuls.audio.stats(), await window.__stadtpuls.audio.selfTest() (im Browser)
+//   und node src/audio/logiktest.js (ohne Browser: 40 min Musik, alle Szenen und Effekte, NaN-Prüfung).
 import { on as onBus } from './registry.js';
 import { BUILDINGS } from './config.js';
 import { clamp } from './audio/core.js';
