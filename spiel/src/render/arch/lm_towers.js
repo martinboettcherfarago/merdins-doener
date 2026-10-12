@@ -96,9 +96,9 @@ registerArch('skytower', {
     kit.box('metal_panel_white', 0, 0.5 * M, 0, 17.9 * M, POD - 0.5 * M, 13.7 * M);
     kit.box('metal_panel_white', 0, POD, 0.6 * M, 19.6 * M, 0.6 * M, 15.4 * M);
     if (detail > 0) {
-      kit.box('emissive_cool', 0, POD - 0.05 * M, 8.2 * M, 16 * M, 0.08 * M, 0.25 * M);
+      kit.box('neon_cyan', 0, POD - 0.05 * M, 8.2 * M, 16 * M, 0.08 * M, 0.25 * M);
       text(kit, 'metal_light', 'PULSTURM', 0, POD + 0.08 * M, 8.32 * M, 0, 0.42 * M, { depth: 0.05 * M });
-      kit.box('glass_shop', 0, 0.5 * M, 6.95 * M, 4.0 * M, 3.0 * M, 0.08 * M, { lit: 0.98 });
+      kit.box('glass_curtain_blue', 0, 0.5 * M, 6.95 * M, 4.0 * M, 3.0 * M, 0.08 * M, { lit: 0.99 });
     }
     // --- Turmschaft: Geschosse verdreht und verjüngt
     const steps = detail === 0 ? 8 : FLOORS;
@@ -132,12 +132,12 @@ registerArch('skytower', {
     const top = corners[corners.length - 1], RY = TWIST;
     const DK = y;
     kit.box('metal_panel_white', 0, DK, 0, W1 + 4.0 * M, 0.6 * M, W1 + 4.0 * M, { ry: RY });
-    kit.box('glass_curtain_dark', 0, DK + 0.6 * M, 0, W1 - 0.4 * M, 4.0 * M, W1 - 0.4 * M, { ry: RY, lit: 0.9 });
+    kit.box('glass_curtain_blue', 0, DK + 0.6 * M, 0, W1 - 0.4 * M, 4.0 * M, W1 - 0.4 * M, { ry: RY, lit: 0.95 });
     kit.box('metal_panel_white', 0, DK + 4.6 * M, 0, W1 + 1.0 * M, 0.4 * M, W1 + 1.0 * M, { ry: RY });
     if (detail > 0) {
       const hw = (W1 + 4.0 * M) / 2 - 0.15 * M;
       const pts = [[-hw, -hw], [hw, -hw], [hw, hw], [-hw, hw], [-hw, -hw]].map(([u, w]) => [Math.cos(RY) * u + Math.sin(RY) * w, -Math.sin(RY) * u + Math.cos(RY) * w]);
-      glassRail(kit, pts, DK + 0.6 * M, 1.3 * M);
+      glassRail(kit, pts, DK + 0.6 * M, 1.3 * M, { glass: 'glass_curtain_blue' });
       // Fernrohre auf der Plattform
       if (detail === 2) for (let k = 0; k < 4; k++) {
         const a = RY + (k * Math.PI) / 2;
@@ -165,7 +165,7 @@ registerArch('skytower', {
     // --- Platzgestaltung
     if (detail > 0) {
       for (const x of [-8.6, -2.8, 2.8, 8.6]) tree(kit, x * M, 9.0 * M, 0.75, 'round');
-      for (const s of [-1, 1]) { lamp(kit, s * 5.8 * M, 9.2 * M, 4.4 * M); bench(kit, s * 1.6 * M, 9.4 * M, Math.PI); }
+      for (const s of [-1, 1]) { lamp(kit, s * 5.8 * M, 9.2 * M, 4.4 * M, { head: 'neon_cyan', color: 0x9fefff }); bench(kit, s * 1.6 * M, 9.4 * M, Math.PI); }
     }
     return kit.build();
   },

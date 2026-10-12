@@ -53,7 +53,7 @@ registerArch('stadium', {
       kit.box(L, 0, ly, 0, lw, 0.02 * M, FD);
       torus(kit, L, 0, ly + 0.01 * M, 0, 1.8 * M, 0.06 * M, { rx: Math.PI / 2, tubular: 28, radial: 3 });
       // Ersatzbänke
-      for (const s of [-1, 1]) kit.box('glass_skylight', s * 2.4 * M, 0.1 * M, FD / 2 + 0.75 * M, 2.6 * M, 0.7 * M, 0.5 * M, { lit: 0 });
+      for (const s of [-1, 1]) kit.box('glass_curtain_dark', s * 2.4 * M, 0.1 * M, FD / 2 + 0.75 * M, 2.6 * M, 0.7 * M, 0.5 * M, { lit: 0 });
     }
     // --- Tribünen: Unterrang und Oberrang (flach schattiert, damit die Stufen lesbar bleiben)
     const nStep = detail === 2 ? 9 : detail === 1 ? 5 : 2;
@@ -102,17 +102,17 @@ registerArch('stadium', {
     for (const s of [-1, 1]) {
       const [ex, ez] = [s * 5.0 * M, AZ * 0.97];
       kit.box('metal_dark', ex, 0, ez + 0.4 * M, 3.4 * M, 3.2 * M, 1.0 * M);
-      kit.box('glass_shop', ex, 0.1 * M, ez + 0.92 * M, 3.0 * M, 2.6 * M, 0.04 * M, { lit: 0.9 });
+      kit.box('glass_curtain_dark', ex, 0.1 * M, ez + 0.92 * M, 3.0 * M, 2.6 * M, 0.04 * M, { lit: 0.99 });
       kit.box('paint_red', ex, 3.2 * M, ez + 0.6 * M, 3.8 * M, 0.5 * M, 1.6 * M);
     }
     text(kit, 'paint_white', 'STADION', 0, 5.6 * M, AZ * 1.04 + 0.4 * M, 0, 1.0 * M, { depth: 0.1 * M });
     if (detail > 0) {
       kit.box('paint_red', 0, 5.4 * M, AZ * 1.04 + 0.2 * M, 8.0 * M, 1.4 * M, 0.25 * M);
-      hut(kit, -10.5 * M, 12.6 * M, 0, 2.6 * M, 1.8 * M, 2.4 * M, { wall: 'paint_red', roof: 'roof_metal_grey', counter: true, awning: 'awning_red' });
-      hut(kit, 10.5 * M, 12.6 * M, 0, 2.6 * M, 1.8 * M, 2.4 * M, { wall: 'paint_red', roof: 'roof_metal_grey', counter: true, awning: 'awning_red' });
+      hut(kit, -10.5 * M, 12.6 * M, 0, 2.6 * M, 1.8 * M, 2.4 * M, { wall: 'paint_red', roof: 'roof_metal_grey', counter: true, awning: 'awning_red', glass: 'glass_curtain_dark' });
+      hut(kit, 10.5 * M, 12.6 * M, 0, 2.6 * M, 1.8 * M, 2.4 * M, { wall: 'paint_red', roof: 'roof_metal_grey', counter: true, awning: 'awning_red', glass: 'glass_curtain_dark' });
       for (const x of [-8, -6.5, 6.5, 8]) flag(kit, x * M, 14.2 * M, 7.0 * M, Math.abs(x) > 7 ? 'paint_red' : 'paint_white');
       for (const [x, z] of [[-13.6, -13.6], [13.6, -13.6], [-13.8, 9.0], [13.8, 9.0], [-13.8, -4], [13.8, -4]]) tree(kit, x * M, z * M, 0.8, 'round');
-      for (const s of [-1, 1]) { lamp(kit, s * 13.4 * M, 13.4 * M, 5.0 * M); lamp(kit, s * 3.0 * M, 14.2 * M, 5.0 * M); }
+      for (const s of [-1, 1]) { lamp(kit, s * 13.4 * M, 13.4 * M, 5.0 * M, { head: 'emissive_cool' }); lamp(kit, s * 3.0 * M, 14.2 * M, 5.0 * M, { head: 'emissive_cool' }); }
     }
     return kit.build();
   },
@@ -131,7 +131,7 @@ registerArch('arena', {
       const pts = [];
       const n = detail === 2 ? 40 : 20;
       for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2; pts.push([Math.sin(a) * AX * 1.11, CZ + Math.cos(a) * AZ * 1.11]); }
-      glassRail(kit, pts, 1.2 * M, 1.0 * M);
+      glassRail(kit, pts, 1.2 * M, 1.0 * M, { glass: 'glass_curtain_blue' });
     }
     // Körper: Metallfassade mit Glasfuge und LED-Medienband
     ellLathe(kit, 'metal_panel_grey', [[1.0, 1.2 * M], [1.0, 3.6 * M]], AX, AZ, seg, { z: CZ });
@@ -149,7 +149,7 @@ registerArch('arena', {
     // Kuppeldach mit Rippen
     ellLathe(kit, 'metal_panel_white', [[1.0, 8.2 * M], [0.92, 9.8 * M], [0.75, 11.0 * M], [0.5, 11.8 * M], [0.2, 12.2 * M], [0.01, 12.25 * M]], AX, AZ, seg, { z: CZ });
     if (detail > 0) {
-      ellLathe(kit, 'glass_skylight', [[0.28, 12.18 * M], [0.01, 12.32 * M]], AX, AZ, 16, { z: CZ, lit: 0.8 });
+      ellLathe(kit, 'glass_curtain_blue', [[0.28, 12.18 * M], [0.01, 12.32 * M]], AX, AZ, 16, { z: CZ, lit: 0.8 });
       const nr = detail === 2 ? 24 : 12;
       for (let i = 0; i < nr; i++) {
         const a = (i / nr) * Math.PI * 2;

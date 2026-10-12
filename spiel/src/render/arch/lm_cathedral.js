@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { obox, beam, slab, archOutline, archWindow, roseWindow, face, tube, lamp, bench, tree, flat } from './lm_parts.js';
+import { obox, beam, slab, archOutline, archRing, archWindow, roseWindow, face, tube, lamp, bench, tree, flat } from './lm_parts.js';
 
 const STONE = 'stone_sandstone', DARKSTONE = 'stone_dark', ROOF = 'roof_slate';
 
@@ -62,10 +62,8 @@ function portal(kit, x, z, ry, w, h) {
   const steps = kit.detail === 2 ? 4 : kit.detail === 1 ? 2 : 1;
   for (let k = 0; k < steps; k++) {
     const ww = w + (steps - 1 - k) * 0.55 * M, hh = h + (steps - 1 - k) * 0.5 * M;
-    const outer = archOutline(ww + 0.5 * M, hh + 0.4 * M, 'pointed', 10);
-    const inner = archOutline(ww, hh, 'pointed', 10);
     const [px, pz] = f.at(0, (steps - k) * 0.22 * M);
-    slab(kit, k % 2 ? DARKSTONE : STONE, outer, 0.45 * M, { x: px, y: 0, z: pz, ry }, [inner]);
+    slab(kit, k % 2 ? DARKSTONE : STONE, archRing(ww, hh, 0.25 * M, 'pointed', 10), 0.45 * M, { x: px, y: 0, z: pz, ry });
   }
   const [dx, dz] = f.at(0, 0.05 * M);
   slab(kit, DARKSTONE, archOutline(w, h, 'pointed', 10), 0.1 * M, { x: dx, y: 0, z: dz, ry });

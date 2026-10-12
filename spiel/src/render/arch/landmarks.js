@@ -6,3 +6,6 @@ import './lm_castle.js';
 import './lm_ferris.js';
 import './lm_towers.js';
 import './lm_venues.js';
+import './lm_culture.js';
+import './lm_gardens.js';
+import './lm_historic.js';

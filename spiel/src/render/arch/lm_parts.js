@@ -105,6 +105,20 @@ export function archOutline(w, h, kind = 'round', n = 8) {
   return pts;
 }
 
+// Bogenrahmen als einfaches Polygon (U-Form ohne Loch): Laibungsbreite t
+export function archRing(w, h, t, kind = 'round', n = 10) {
+  const hw = w / 2;
+  const inner = archOutline(w, h, kind, n).slice(2).reverse();
+  const outer = archOutline(w + t * 2, h + t, kind, n).slice(2);
+  return [[-hw - t, 0], [-hw, 0], ...inner, [hw, 0], [hw + t, 0], ...outer];
+}
+// Fläche über einem Bogen bis zur Höhe top (für Tordurchfahrten)
+export function archSpandrel(w, h, top, kind = 'round', n = 10) {
+  const hw = w / 2;
+  const arc = archOutline(w, h, kind, n).slice(2).reverse();
+  return [[hw, top], [-hw, top], ...arc];
+}
+
 // Fassaden-Rahmen: liefert Weltpunkte relativ zu einer Wandfläche bei (cx, cz) mit Blickrichtung ry.
 // u = entlang der Wand (rechts beim Draufschauen), w = nach außen.
 export function face(cx, cz, ry) {
@@ -134,9 +148,10 @@ export function archWindow(kit, x, y0, z, ry, w, h, o = {}) {
   const t = o.t ?? 0.25 * M, d = o.depth ?? 0.18 * M;
   const f = face(x, z, ry);
   if (kit.detail === 0) {
-    if (o.lod === false) return;
-    const [gx, gz] = f.at(0, 0.03 * M);
-    slab(kit, glass, archOutline(w, h, kind, 4), 0.02 * M, { x: gx, y: y0, z: gz, ry, lit: kit.rng() });
+    if (o.lod === false || h < (o.lodMin ?? 3.0 * M)) return;
+    const [gx, gz] = f.at(0, 0.04 * M);
+    const shp = new THREE.Shape(archOutline(w, h, kind, 4).map(([a, b]) => new THREE.Vector2(a, b)));
+    kit.add(glass, new THREE.ShapeGeometry(shp, 2), { x: gx, y: y0, z: gz, ry, lit: o.lit ?? kit.rng() });
     return;
   }
   const outer = archOutline(w + t * 2, h + t * 2, kind, kind === 'rect' ? 1 : 10).map(([a, b]) => [a, b - t]);
@@ -418,7 +433,7 @@ export function hut(kit, x, z, ry, w, d, h, o = {}) {
   const f = face(x, z, ry);
   if (o.counter) {
     const [cx, cz] = f.at(0, d / 2 + 0.02 * M);
-    kit.box('glass_shop', cx, h * 0.38, cz, w * 0.7, h * 0.4, 0.04 * M, { ry, lit: 0.95 });
+    kit.box(o.glass || 'glass_shop', cx, h * 0.38, cz, w * 0.7, h * 0.4, 0.04 * M, { ry, lit: 0.95 });
     const [ax, az] = f.at(0, d / 2 + 0.45 * M);
     kit.box(o.awning || 'awning_striped', ax, h * 0.8, az, w * 0.85, 0.06 * M, 0.9 * M, { ry, rx: 0.25 });
   } else if (o.door !== false) {
