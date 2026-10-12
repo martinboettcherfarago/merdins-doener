@@ -26,9 +26,9 @@ import { Kit, M, FLOOR, pick, range } from './arch/kit.js';
 const COS = [1, 0, -1, 0], SIN = [0, 1, 0, -1];
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const LOD_TICK = 0.3;
-const LOD_NEAR = 12.5, LOD_MID = 27; // Kameraabstand für Detail 2 bzw. 1 (Qualität „medium")
+const LOD_NEAR = 12.5, LOD_MID = 25; // Kameraabstand für Detail 2 bzw. 1 (Qualität „medium")
 const LOD_SCALE = { low: 0.65, medium: 1, high: 1.3, ultra: 1.7 };
-const MAX_D2 = 70, MAX_D1 = 240; // höchstens so viele Gebäude in Detail 2 bzw. ≥ 1
+const MAX_D2 = 70, MAX_D1 = 160; // höchstens so viele Gebäude in Detail 2 bzw. ≥ 1
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
 
@@ -144,6 +144,7 @@ function stack(kit, x, z, r, h, mat = 'concrete', o = {}) {
   if (o.smoke !== false) kit.smoke(x, h + 0.02, z, o.steam ? 'steam' : 'smoke', o.amount || 1);
 }
 function coolingTower(kit, x, z, r, h, seg = 20) {
+  if (kit.detail === 0) seg = Math.min(seg, 12);
   const pts = [];
   for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push(new THREE.Vector2(r * (0.6 + 0.4 * ((t - 0.7) / 0.7) ** 2), t * h)); }
   kit.add('concrete', new THREE.LatheGeometry(pts, seg), { x, y: 0, z });
@@ -153,9 +154,10 @@ function coolingTower(kit, x, z, r, h, seg = 20) {
   kit.smoke(x, h, z, 'steam', 2.5);
 }
 function tank(kit, x, z, r, h, mat = 'tank_white', o = {}) {
-  kit.cyl(mat, x, 0, z, r, h, { seg: o.seg || 16 });
-  if (o.dome !== false) kit.dome(o.domeMat || mat, x, h, z, r, { seg: o.seg || 16, sy: 0.35 });
-  if (o.ring) kit.cyl('metal_dark', x, h * 0.5, z, r * 1.02, 0.15 * M, { seg: o.seg || 16 });
+  const seg = kit.detail === 0 ? 8 : o.seg || 16;
+  kit.cyl(mat, x, 0, z, r, h, { seg });
+  if (o.dome !== false) kit.dome(o.domeMat || mat, x, h, z, r, { seg, sy: 0.35 });
+  if (o.ring && kit.detail > 0) kit.cyl('metal_dark', x, h * 0.5, z, r * 1.02, 0.15 * M, { seg });
 }
 function chainFence(kit, c, W, D, o = {}) {
   if (c.detail < 1) return;
@@ -321,7 +323,7 @@ fb('ind', 4, (c) => {
     if (L === 1) roof(kit, 'gable', 'metal_corrugated', 0, h, z0, bw, bd, { wall, ridge: 'x', h: 0.12 });
     else roof(kit, 'saw', 'metal_corrugated_red', 0, h, z0, bw, bd, { h: 0.16 });
     kit.box('concrete_panel', bw / 2 - 0.15, 0, z0 + bd / 2 + 0.08, 0.26, 0.28, 0.16);
-    if (D2(c)) truck(kit, rng, -W * 0.18, D / 2 - 0.12, Math.PI / 2);
+    if (D2(c)) truck(kit, rng, W > 1 ? -W * 0.18 : 0, D / 2 - 0.12, Math.PI / 2);
     if (L === 2) stack(kit, -bw / 2 + 0.08, z0 - bd / 2 + 0.08, 0.04, 0.85, 'brick_red', {});
     return kit.build();
   }
@@ -371,7 +373,8 @@ fb('farm', 4, (c) => {
 fb('mine', 4, (c) => {
   const { kit, rng, level: L, W, D } = c;
   ground(kit, W, D, 'gravel', 0.01);
-  kit.cone('rock', -W * 0.22, 0, D * 0.15, 0.3 * Math.min(W, D) + 0.03 * L, 0.24 + L * 0.05, { seg: 7 });
+  const hr = Math.min(0.28 * Math.min(W, D), 0.3) + 0.015 * L;
+  kit.cone('rock', -W / 2 + hr + 0.04, 0, D / 2 - hr - 0.06, hr, 0.24 + L * 0.05, { seg: 7 });
   const hx = W * 0.22, hz = -D * 0.18, h = 0.65 + L * 0.12;
   for (const [dx, dz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) kit.box('metal_dark', hx + dx * 0.08, 0, hz + dz * 0.08, 0.025, h, 0.025, { rx: dz * 0.05, rz: -dx * 0.05 });
   if (c.detail >= 1) for (let y = 0.15; y < h; y += 0.15) kit.box('metal_dark', hx, y, hz, 0.17, 0.012, 0.17);
@@ -390,10 +393,10 @@ fb('forest', 4, (c) => {
   roof(kit, 'shed', 'metal_corrugated', 0, 0.26, -D * 0.2, W * 0.6, D * 0.32, { h: 0.06 });
   const piles = 2 + Math.min(3, L);
   for (let p = 0; p < piles; p++) {
-    const px = -W / 2 + 0.18 + (p % 3) * 0.28, pz = D * 0.18 + Math.floor(p / 3) * 0.2;
+    const px = -W / 2 + 0.16 + (p % 3) * 0.24, pz = D * 0.12 + Math.floor(p / 3) * 0.17;
     for (let r = 0; r < 3; r++) for (let k = 0; k < 3 - r; k++) kit.cyl('log_wood', px - 0.03 * (2 - r) + k * 0.06, 0.03 + r * 0.05, pz, 0.025, 0.24, { seg: 7, rx: Math.PI / 2 });
   }
-  if (D2(c)) for (let i = 0; i < 4; i++) kit.tree(W / 2 - 0.1, -D / 2 + 0.15 + i * 0.22, range(rng, 0.9, 1.3), { leaf: 'leaves_dark' });
+  if (D2(c)) for (let i = 0; i < Math.round(D * 3); i++) kit.tree(W / 2 - 0.2, -D / 2 + 0.2 + i * 0.28, range(rng, 0.85, 1.15), { leaf: 'leaves_dark' });
   return kit.build();
 });
 
@@ -473,7 +476,7 @@ function parkBase(c, o) {
     path(kit, 0, 0, 0.1, D - 0.05, 'gravel');
     if (W >= 2 || D >= 2 || rng() < 0.5) path(kit, 0, 0, W - 0.05, 0.1, 'gravel');
   }
-  const n = o.trees ?? Math.round(3 * W * D);
+  const n = Math.round((o.trees ?? 3 * W * D) * (c.detail === 0 ? 0.45 : 1));
   for (let i = 0; i < n; i++) {
     const x = (rng() - 0.5) * (W - 0.25), z = (rng() - 0.5) * (D - 0.25);
     if (Math.abs(x) < 0.1 || Math.abs(z) < 0.1) continue;
@@ -551,7 +554,8 @@ fb('fusion nuclear', 1, (c) => {
   ground(kit, W, D, 'concrete', 0.01);
   if (key === 'nuclear') {
     coolingTower(kit, -0.75, -0.7, 0.6, 1.8, 24); coolingTower(kit, 0.65, -0.7, 0.6, 1.8, 24);
-    kit.cyl('concrete_panel', -0.4, 0, 0.65, 0.42, 0.55, { seg: 24 }); kit.dome('concrete_panel', -0.4, 0.55, 0.65, 0.42, { seg: 24, sy: 0.7 });
+    const sg = c.detail ? 24 : 12;
+    kit.cyl('concrete_panel', -0.4, 0, 0.65, 0.42, 0.55, { seg: sg }); kit.dome('concrete_panel', -0.4, 0.55, 0.65, 0.42, { seg: sg, sy: 0.7 });
     kit.box('metal_panel_grey', 0.65, 0, 0.6, 0.9, 0.5, 0.6);
     roof(kit, 'flat', null, 0.65, 0.5, 0.6, 0.9, 0.6, { clutter: 3 });
   } else {
@@ -622,7 +626,7 @@ fb('pump sewage_outlet flood_barrier ferry_pier', 1, (c) => {
   kit.windows('front', 0, -0.1, 0.5, 0.4, 0.05, 1, 0.24, { winW: 1.4 * M, winH: 1.4 * M, spacing: 2.4 * M });
   kit.door(0.15, -0.1, 0.4, { w: 1.2 * M, step: false });
   roof(kit, key === 'pump' ? 'gable' : 'flat', 'roof_tiles_red', 0, 0.32, -0.1, 0.5, 0.4, { wall, ridge: 'x', h: 0.12 });
-  kit.cyl('pipe_metal', 0.3, 0.06, 0.3, 0.05, 0.4, { seg: 10, rx: Math.PI / 2 });
+  kit.cyl('pipe_metal', 0.3, 0.06, 0.2, 0.05, 0.22, { seg: 10, rx: Math.PI / 2 });
   return kit.build();
 });
 fb('waterworks sewage_plant', 1, (c) => {
@@ -1393,6 +1397,8 @@ export class BuildingView {
   constructor(engine) {
     this.e = engine;
     this.g = engine.game;
+    this.defs = BUILDINGS; // für Werkzeuge/Prüfskripte
+    states.clear();
     const g = this.g;
     this.root = new THREE.Group();
     this.root.name = 'Gebäude';
@@ -1437,8 +1443,11 @@ export class BuildingView {
     this.dustBuf.points.renderOrder = 7;
     this.root.add(this.dustBuf.points);
     this.dust = [];
+    // Beim Start steht die Kamera noch nicht: alles zuerst in Detail 0, der erste Takt verfeinert
+    this.initial = true;
     for (const b of g.buildings.values()) this.add(b);
     this._work(Infinity);
+    this.initial = false;
     this.lastFrame = performance.now();
   }
 
@@ -1775,6 +1784,7 @@ export class BuildingView {
     return Math.sqrt(dx * dx + dy * dy + dz * dz) - rec.radius * 0.45;
   }
   _wantFor(rec) {
+    if (this.initial) return 0;
     const [t2, t1] = this._thresholds();
     const d = this._distance(rec);
     rec.dist = d;
@@ -1928,7 +1938,7 @@ export class BuildingView {
     this.protoMgr.flush();
     this.batch.flush(1);
     this.sites.flush(1);
-    states.upload();
+    states.upload(this.e.renderer);
   }
 
   heightOf(b) {

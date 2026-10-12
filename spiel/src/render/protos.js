@@ -63,6 +63,17 @@ export class StateTable {
     this.tex = tex;
     this.uniform.value = tex;
     this.dirty = false;
+    this.fresh = true; // nächster Upload komplett
+    this.rlo = Infinity; this.rhi = -1;
+  }
+  _row(s, k) { const r = (s * TPS + k) >> 10; if (r < this.rlo) this.rlo = r; if (r > this.rhi) this.rhi = r; this.dirty = true; }
+  // Neue Ansicht (neues Spiel, neue Leinwand): alle Plätze freigeben, beim nächsten Upload alles laden
+  clear() {
+    this.top = 2;
+    this.free = [];
+    for (let s = 0; s < this.cap; s++) this.reset(s);
+    this.setv(SLOT_HIDDEN, 2, 0, 0); this.setv(SLOT_HIDDEN, 2, 2, 0);
+    this.fresh = true;
   }
   alloc() {
     const s = this.free.length ? this.free.pop() : this.top++;
@@ -82,23 +93,35 @@ export class StateTable {
     d[o] = 1; d[o + 1] = 1; d[o + 2] = 1; // Einfärbung weiß, Stärke 0
     d[o + 4] = 1; // Fensterlicht an
     d[o + 8] = 1; d[o + 10] = 1; // sichtbar
-    this.dirty = true;
+    this._row(s, 0); this._row(s, 3);
   }
   get(s, k, i) { return this.data[s * 16 + k * 4 + i]; }
   setv(s, k, i, v) {
     const j = s * 16 + k * 4 + i;
-    if (this.data[j] !== v) { this.data[j] = v; this.dirty = true; }
+    if (this.data[j] !== v) { this.data[j] = v; this._row(s, k); }
   }
   set4(s, k, a, b, c, d) {
     const j = s * 16 + k * 4, t = this.data;
     if (t[j] !== a || t[j + 1] !== b || t[j + 2] !== c || t[j + 3] !== d) {
-      t[j] = a; t[j + 1] = b; t[j + 2] = c; t[j + 3] = d; this.dirty = true;
+      t[j] = a; t[j + 1] = b; t[j + 2] = c; t[j + 3] = d; this._row(s, k);
     }
   }
-  upload() {
+  // Lädt nur die geänderten Zeilen hoch (texSubImage2D über copyTextureToTexture), beim ersten Mal alles.
+  upload(renderer) {
     if (!this.dirty) return;
-    this.tex.needsUpdate = true;
+    if (this.fresh || !renderer || !renderer.copyTextureToTexture) {
+      this.tex.needsUpdate = true; // komplett (erstes Mal, neue Größe oder ohne Renderer)
+    } else if (this.rhi >= this.rlo) {
+      const rows = this.rhi - this.rlo + 1;
+      this._src = this._src || { isDataTexture: true, image: { data: null, width: TEXW, height: 1 } };
+      this._src.image.data = this.data.subarray(this.rlo * TEXW * 4, (this.rhi + 1) * TEXW * 4);
+      this._src.image.height = rows;
+      this._pos = this._pos || new THREE.Vector2();
+      renderer.copyTextureToTexture(this._pos.set(0, this.rlo), this._src, this.tex);
+    }
+    this.fresh = false;
     this.dirty = false;
+    this.rlo = Infinity; this.rhi = -1;
   }
 }
 
