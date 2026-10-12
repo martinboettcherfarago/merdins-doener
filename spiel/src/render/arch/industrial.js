@@ -5,7 +5,9 @@ import { registerArch } from './index.js';
 import { buildInd } from './indoff_ind.js';
 import { buildFarm } from './indoff_farm.js';
 import { buildOil } from './indoff_oil.js';
+import { buildMine } from './indoff_mine.js';
 
 registerArch('ind', { variants: 6, build: buildInd });
 registerArch('farm', { variants: 6, build: buildFarm });
 registerArch('oil', { variants: 6, build: buildOil });
+registerArch('mine', { variants: 6, build: buildMine });
