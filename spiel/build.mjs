@@ -42,7 +42,7 @@ if (watch) {
     const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
     const fonts = html.match(/<link href="https:\/\/fonts\.googleapis\.com[^>]+>/)[0];
     const body = html.split('<body>')[1].split('</body>')[0].replace(/<script src="dist\/stadtpuls\.js"><\/script>/, '');
-    const page = `<title>Stadtpuls</title>\n<meta name="description" content="3D-Städtebau- und Verkehrsspiel im Browser.">\n${fonts}\n<style>\n${css}\n</style>\n${body.trim()}\n<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>\n<script>\n${js}\n</script>\n`;
+    const page = `<title>Stadtpuls</title>\n<meta name="description" content="3D-Städtebau- und Verkehrsspiel im Browser.">\n${fonts}\n<style>\n${css}\n</style>\n${body.trim()}\n<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>\n<script>window.STADTPULS_EMBED = true;</script>\n<script>\n${js}\n</script>\n`;
     writeFileSync(out, page);
     console.log('Artifact-Seite geschrieben:', out, (page.length / 1024).toFixed(0), 'KB');
   }

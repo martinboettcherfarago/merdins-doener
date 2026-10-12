@@ -592,7 +592,7 @@ ${linesHtml || '<p style="color:var(--ink-2);line-height:1.5">Noch keine Linie. 
     }).join('');
     return `
 <div class="sec"><h3>Spielstand</h3>${slots}
-  <div class="acts" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn small ghost" data-act="export">Als Datei exportieren</button><button class="btn small ghost" data-act="copy">In Zwischenablage</button><button class="btn small ghost" data-act="tomenu">Hauptmenü</button></div>
+  <div class="acts" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">${window.STADTPULS_EMBED ? '' : '<button class="btn small ghost" data-act="export">Als Datei exportieren</button>'}<button class="btn small ghost" data-act="copy">In Zwischenablage</button><button class="btn small ghost" data-act="tomenu">Hauptmenü</button></div>
   <p style="font-size:12px;color:var(--ink-3);margin:8px 0 0">Automatisch gespeichert wird jeden Spieltag.</p>
 </div>
 <div class="sec"><h3>Klang</h3>
