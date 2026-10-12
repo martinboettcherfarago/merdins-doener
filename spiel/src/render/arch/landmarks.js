@@ -3,3 +3,5 @@
 import './lm_doener.js';
 import './lm_cathedral.js';
 import './lm_castle.js';
+import './lm_ferris.js';
+import './lm_towers.js';
