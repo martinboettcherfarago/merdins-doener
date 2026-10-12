@@ -1,6 +1,7 @@
 // Infoansichten (Wärmekarten), Zonenflächen, Bauvorschau, Auswahl, Radien.
 import * as THREE from 'three';
 import { ZONE_INFO, T, RES, TRANSIT } from '../config.js';
+import { OVERLAYS_EXTRA } from '../registry.js';
 
 export const OVERLAYS = [
   { id: 'none', name: 'Normal' },
@@ -20,6 +21,8 @@ export const OVERLAYS = [
   { id: 'transit', name: 'Pulsbahn', field: 'cov:transit' },
   { id: 'resources', name: 'Rohstoffe' },
 ];
+
+export const allOverlays = () => [...OVERLAYS, ...OVERLAYS_EXTRA];
 
 const GOOD = [new THREE.Color(0xe5483c), new THREE.Color(0xf2c230), new THREE.Color(0x45c46b)];
 function ramp(v, bad, out) {
@@ -137,7 +140,7 @@ export class OverlayView {
 
   setMode(mode) {
     this.mode = mode;
-    const def = OVERLAYS.find((o) => o.id === mode);
+    const def = allOverlays().find((o) => o.id === mode);
     this.plane.visible = !!(def && (def.field || mode === 'resources'));
     this.e.roads.setTrafficTint(mode === 'traffic');
     if (def && def.building) this.e.buildings.setTint((b) => this.buildingColor(b, mode));
@@ -160,12 +163,17 @@ export class OverlayView {
       if (!b.zone) return c.setHex(0xd9d4cc);
       return ramp(b.happy / 100, false, c);
     }
+    const ext = OVERLAYS_EXTRA.find((o) => o.id === mode);
+    if (ext && typeof ext.building === 'function') {
+      const v = ext.building(this.g, b);
+      return v === null || v === undefined ? c.setHex(0xd9d4cc) : c.setHex(v);
+    }
     return null;
   }
 
   refresh() {
     const g = this.g;
-    const def = OVERLAYS.find((o) => o.id === this.mode);
+    const def = allOverlays().find((o) => o.id === this.mode);
     if (!def) return;
     if (def.building) { this.e.buildings.setTint((b) => this.buildingColor(b, this.mode)); return; }
     if (this.mode === 'traffic') { this.e.roads.setTrafficTint(true); return; }
@@ -180,8 +188,9 @@ export class OverlayView {
         else d[i * 4 + 3] = 0;
       }
     } else {
-      const [src, key] = def.field.split(':');
-      const arr = g[src][key];
+      let key = '', arr;
+      if (typeof def.field === 'function') arr = def.field(g);
+      else { const parts = def.field.split(':'); key = parts[1]; arr = g[parts[0]][key]; }
       const sc = def.scale || 1;
       for (let i = 0; i < g.N; i++) {
         const t = g.world.terrain[i];

@@ -9,7 +9,7 @@ export const DAY = 1440;
 export const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 export const T = { GRASS: 0, WATER: 1, SAND: 2, ROCK: 3 };
-export const RES = { NONE: 0, FERTILE: 1, ORE: 2 };
+export const RES = { NONE: 0, FERTILE: 1, ORE: 2, OIL: 3 };
 
 export const Z = { NONE: 0, RES: 1, COM: 2, IND: 3, OFF: 4 };
 export const ZONE_INFO = {
@@ -110,9 +110,20 @@ export const CATEGORIES = [
   { id: 'services', name: 'Dienste' },
   { id: 'education', name: 'Bildung' },
   { id: 'parks', name: 'Parks' },
+  { id: 'industry', name: 'Logistik' },
+  { id: 'transport', name: 'Verkehr' },
   { id: 'transit', name: 'Pulsbahn' },
+  { id: 'safety', name: 'Schutz' },
   { id: 'landmarks', name: 'Wahrzeichen' },
 ];
+
+// Maße der Straßen in Welteinheiten (1 = 10 m). Vertrag zwischen Straßen-Ansicht und Fahrzeugen.
+export const ROAD_GEOM = {
+  1: { width: 0.42, lanes: 2, laneOffset: 0.11, sidewalk: 0.29 },
+  2: { width: 0.6, lanes: 2, laneOffset: 0.16, sidewalk: 0.2 },
+  3: { width: 0.84, lanes: 4, laneOffset: 0.24, sidewalk: 0.08, median: 0.1 },
+  4: { width: 0.92, lanes: 4, laneOffset: 0.27, sidewalk: 0.04, median: 0.06 },
+};
 
 // Pulsbahn (Hochbahn) – Kosten und Werte.
 export const TRANSIT = {

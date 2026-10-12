@@ -6,6 +6,11 @@ import { Input } from './input.js';
 import { UI } from './ui/ui.js';
 import { Menu } from './ui/menu.js';
 import { Audio } from './audio.js';
+import { runGallery } from './render/gallery.js';
+import './sim/systems/index.js';
+import './render/views/index.js';
+import './ui/panels/index.js';
+import './input/index.js';
 
 const LS = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -199,6 +204,8 @@ function alertBox(msg) {
 }
 
 function boot(hotData) {
+  const params = new URLSearchParams(location.search);
+  if (params.has('gallery')) { document.getElementById('menu').hidden = true; runGallery(params); return; }
   if (!webglOk()) {
     document.getElementById('menu').innerHTML = '<div class="loading">Dein Browser unterstützt kein WebGL – Stadtpuls braucht 3D-Grafik.</div>';
     return;

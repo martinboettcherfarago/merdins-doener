@@ -1,9 +1,15 @@
 // Gemeinsame Materialien und Shader-Erweiterungen (Fenster, Wasserwellen).
 import * as THREE from 'three';
 
+// Gemeinsame Uniforms aller Shader. uSnow: Schneedecke 0..1, uWet: Nässe 0..1,
+// uSeason: Jahreszeit 0..1 (0 = Frühlingsanfang), uAutumn: Herbstfärbung 0..1. Gesetzt von der Licht-/Wetter-Ansicht.
 export const shared = {
   uNight: { value: 0 },
   uTime: { value: 0 },
+  uSnow: { value: 0 },
+  uWet: { value: 0 },
+  uSeason: { value: 0.3 },
+  uAutumn: { value: 0 },
 };
 
 // Gebäudematerial: prozedurale Fenster auf allen Seitenflächen, nachts beleuchtet.

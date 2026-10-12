@@ -1,6 +1,7 @@
 // Zonen-Simulation: Nachfrage, Wachstum, Belegung, Stufenaufstieg, Verfall, Brände, Bildung.
 import { LEVELS, Z, T, RES, TRANSIT, MILESTONES } from '../config.js';
 import { clamp } from '../util.js';
+import { DEMAND_MODIFIERS, CAPACITY_MODIFIERS } from '../registry.js';
 
 const LEVEL_GATE = [2, 2, 3, 4, 5, 5, 5, 5];
 
@@ -11,10 +12,11 @@ export function maxLevelAt(g, x, y) {
   return m;
 }
 
-export function capacityOf(b) {
-  let c = LEVELS[b.zone].cap[b.level];
+export function capacityOf(b, g) {
+  let c = LEVELS[b.zone].cap[b.level] * (b.w || 1) * (b.h || 1);
   if (b.spec) c = Math.round(c * 1.2);
-  return c;
+  if (g) for (const fn of CAPACITY_MODIFIERS) c = fn(g, b, c);
+  return Math.round(c);
 }
 
 // Kennzahlen der Stadt aufsummieren.
@@ -107,6 +109,8 @@ export function updateDemand(g) {
   d[2] = clamp(C, -100, 100);
   d[3] = clamp(I, -100, 100);
   d[4] = clamp(O, -100, 100);
+  for (const fn of DEMAND_MODIFIERS) fn(g, d);
+  for (let z = 1; z <= 4; z++) d[z] = clamp(d[z], -100, 100);
 }
 
 // Neue Gebäude auf freien Zonenfeldern.
@@ -120,10 +124,39 @@ export function growthStep(g) {
       g.growAcc[z] -= 1;
       tries++;
       const t = pickCandidate(g, z);
-      if (t >= 0) g.spawnZoneBuilding(t, z);
+      if (t >= 0) {
+        const [w, h] = chooseFootprint(g, t, z);
+        g.spawnZoneBuilding(t, z, w, h);
+      }
     }
     g.growAcc[z] = Math.min(g.growAcc[z], 3);
   }
+}
+
+// Grundstücke zusammenlegen: Gewerbe, Industrie und Büros wachsen gern auf 2×1 oder 2×2 Feldern,
+// Wohnen gelegentlich als 2×1-Reihe. Alle Felder müssen frei, gleich gezont und bebaubar sein.
+const FOOTPRINTS = {
+  1: [[2, 1, 0.14], [1, 2, 0.14]],
+  2: [[2, 2, 0.18], [2, 1, 0.2], [1, 2, 0.2]],
+  3: [[2, 2, 0.35], [2, 1, 0.2], [1, 2, 0.2]],
+  4: [[2, 2, 0.3], [2, 1, 0.18], [1, 2, 0.18]],
+};
+export function lotFree(g, i, z) {
+  if (i < 0 || i >= g.N) return false;
+  if (g.zone[i] !== z || g.bld[i] || g.road[i] || g.stationAt[i] || g.rubble[i]) return false;
+  const ter = g.world.terrain[i];
+  return ter !== T.WATER && ter !== T.ROCK;
+}
+export function chooseFootprint(g, t, z) {
+  const x = t % g.W, y = (t / g.W) | 0;
+  for (const [w, h, p] of FOOTPRINTS[z] || []) {
+    if (g.rng() > p) continue;
+    if (x + w > g.W || y + h > g.H) continue;
+    let ok = true;
+    for (let yy = y; yy < y + h && ok; yy++) for (let xx = x; xx < x + w; xx++) if (!lotFree(g, yy * g.W + xx, z)) { ok = false; break; }
+    if (ok) return [w, h];
+  }
+  return [1, 1];
 }
 
 function pickCandidate(g, z) {

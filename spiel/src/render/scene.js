@@ -8,6 +8,7 @@ import { BuildingView } from './buildings.js';
 import { VehicleView, TransitView } from './agents.js';
 import { OverlayView } from './overlay.js';
 import { EffectsView } from './effects.js';
+import { VIEWS } from '../registry.js';
 
 const KEYS = [
   [0, 0x0c1430, 0x1f2a4a, 0x0a0f22],
@@ -98,6 +99,8 @@ gl_FragColor = vec4(c, 1.0); }`,
     this.transit = new TransitView(this);
     this.overlay = new OverlayView(this);
     this.effects = new EffectsView(this);
+    this.views = [];
+    for (const V of VIEWS) { try { this.views.push(new V(this)); } catch (e) { console.error('Ansicht fehlgeschlagen', V.name, e); } }
 
     this.dirty = { trees: false, zones: false, roads: false, terrainColors: false, overlay: false };
     this.bindGame();
@@ -124,6 +127,7 @@ gl_FragColor = vec4(c, 1.0); }`,
 
   dispose() {
     for (const u of this.unbind) u();
+    for (const v of this.views) if (v.dispose) { try { v.dispose(); } catch (e) { console.error(e); } }
     this.renderer.dispose();
   }
 
@@ -215,6 +219,7 @@ gl_FragColor = vec4(c, 1.0); }`,
     this.effects.endLights();
     this.transit.frame(this.time, night);
     this.effects.frame(dt, simDt, this.time, night);
+    for (const v of this.views) if (v.frame) v.frame(dt, simDt, this.time, night);
     this.renderer.render(this.scene, this.camera);
   }
 }

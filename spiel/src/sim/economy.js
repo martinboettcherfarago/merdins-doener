@@ -1,5 +1,6 @@
 // Haushalt: Steuern, Unterhalt, Fahrgeld, Tourismus, Kredite.
 import { BUILDINGS, ROADS, TAX_RATE, TRANSIT, POLICIES, Z, T, R } from '../config.js';
+import { BUDGET_LINES } from '../registry.js';
 
 export function computeBudget(g) {
   const inc = { res: 0, com: 0, ind: 0, off: 0, tourism: 0, fares: 0 };
@@ -16,7 +17,7 @@ export function computeBudget(g) {
     } else {
       const d = BUILDINGS[b.key];
       if (b.key === 'station') continue;
-      exp.services += d.upkeep * g.upkeepMul();
+      exp.services += d.upkeep * g.upkeepMul() * (g.serviceBudget[d.cat] ?? 1);
     }
   }
   inc.tourism = g.stats.tourism * 0.55;
@@ -36,6 +37,10 @@ export function computeBudget(g) {
   for (const p of POLICIES) if (g.policies.has(p.id)) exp.policies += p.cost * (g.stats.pop / 100);
   // Kredite (Zinsen anteilig pro Tag)
   for (const l of g.loans) exp.loans += l.weekly / 7;
+  for (const l of BUDGET_LINES) {
+    const v = l.amount(g) || 0;
+    if (l.kind === 'income') inc[l.id] = (inc[l.id] || 0) + v; else exp[l.id] = (exp[l.id] || 0) + v;
+  }
   const income = Object.values(inc).reduce((a, b) => a + b, 0);
   const expense = Object.values(exp).reduce((a, b) => a + b, 0);
   return { inc, exp, income, expense, net: income - expense };

@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { Z, BUILDINGS, TRANSIT } from '../config.js';
 import { mulberry32 } from '../util.js';
 import { makeBuildingMaterial } from './materials.js';
+import { ProtoManager } from './protos.js';
+import { archKeyFor, frontFootprint } from './arch/all.js';
 
 // ---------- Geometrien
 function gableGeo() {
@@ -514,6 +516,8 @@ export class BuildingView {
     this.c = new THREE.Color();
     this.emitters = new Map(); // id → [{x,y,z,type}]
     this.constructing = new Set();
+    this.protoMgr = new ProtoManager(engine.scene);
+    this.protoInst = new Map(); // id → {proto, slot, b}
     for (const b of this.g.buildings.values()) this.add(b);
   }
 
@@ -524,6 +528,7 @@ export class BuildingView {
 
   add(b) {
     this.remove(b);
+    if (this.addProto(b)) return;
     const parts = composeBuilding(b);
     const rec = { parts: [], b };
     const [ox, oz] = this.origin(b);
@@ -624,7 +629,37 @@ export class BuildingView {
     }
   }
 
+  // Prototyp-Pfad: Modell aus dem Architektur-Register, instanziert
+  addProto(b) {
+    const key = archKeyFor(b);
+    const def = BUILDINGS[b.key];
+    const [fw, fd] = frontFootprint(b, def && def.size);
+    const proto = this.protoMgr.get(key, b.level || 1, b.variant, fw, fd, { zone: b.zone, spec: b.spec });
+    if (!proto) return false;
+    const slot = this.protoMgr.alloc(proto);
+    const rec = { proto, slot, b };
+    this.protoInst.set(b.id, rec);
+    const [ox, oz] = this.origin(b);
+    const rot = this.protoRot(b);
+    const cs = Math.cos(rot), sn = Math.sin(rot);
+    const em = proto.emitters.map((e) => ({ x: ox + e.x * cs + e.z * sn, y: e.y, z: oz - e.x * sn + e.z * cs, type: e.type, amount: e.amount || 1 }));
+    if (em.length) this.emitters.set(b.id, em);
+    this.addAnimated(b);
+    this.update(b);
+    return true;
+  }
+  protoRot(b) {
+    if (b.zone) return b.rot * (Math.PI / 2);
+    return (b.rot || 0) * (Math.PI / 2);
+  }
+  heightOf(b) {
+    const r = this.protoInst.get(b.id);
+    return r ? r.proto.height : null;
+  }
+
   remove(b) {
+    const pr = this.protoInst.get(b.id);
+    if (pr) { this.protoMgr.release(pr.proto, pr.slot); this.protoInst.delete(b.id); }
     const rec = this.inst.get(b.id);
     if (rec) {
       for (const p of rec.parts) p.pool.release(p.idx);
@@ -642,6 +677,25 @@ export class BuildingView {
 
   // Matrizen und Farben eines Gebäudes aktualisieren (Bauzustand, verlassen, Brand, Einfärbung)
   update(b) {
+    const pr = this.protoInst.get(b.id);
+    if (pr) {
+      const building = b.construct < 1;
+      if (building) this.constructing.add(b.id); else this.constructing.delete(b.id);
+      const ys = building ? Math.max(0.04, b.construct) : 1;
+      const [ox, oz] = this.origin(b);
+      this.q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.protoRot(b));
+      this.v.set(ox, 0, oz);
+      this.s.set(1, ys, 1);
+      this.m4.compose(this.v, this.q, this.s);
+      const tintCol = this.tint ? this.tint(b) : null;
+      const c = this.c.setRGB(1, 1, 1);
+      if (tintCol) c.copy(tintCol);
+      else if (b.abandoned) c.setRGB(0.45, 0.42, 0.4);
+      else if (b.burning) c.setRGB(0.4, 0.36, 0.34);
+      else if (building) c.setRGB(1.15, 1.1, 1.0);
+      this.protoMgr.set(pr.proto, pr.slot, this.m4, c);
+      return;
+    }
     const rec = this.inst.get(b.id);
     if (!rec) return;
     const prog = b.construct;
@@ -682,6 +736,7 @@ export class BuildingView {
       if (obj.userData.nightOnly) obj.userData.nightOnly.visible = night > 0.3;
     }
     for (const p of Object.values(this.pools)) p.flush();
+    this.protoMgr.flush();
   }
 }
 

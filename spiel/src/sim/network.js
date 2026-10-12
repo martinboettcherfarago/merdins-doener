@@ -55,7 +55,7 @@ export function rebuildNetwork(g) {
 
 export function updateBuildingAccess(g, b) {
   const { W, H, road } = g;
-  if (b.zone) {
+  if (b.zone && b.w * b.h === 1) {
     const i = b.y * W + b.x;
     b.access = g.access[i];
   } else if (b.key === 'station') {
@@ -73,6 +73,13 @@ export function updateBuildingAccess(g, b) {
         if (road[j] && road[j] !== R.HIGHWAY) { best = j; break; }
       }
     }
+    if (best < 0 && b.zone) {
+      // Zusammengelegte Grundstücke: Zufahrt über eines der Felder (max. 2 Felder entfernt)
+      for (let yy = b.y; yy < b.y + b.h && best < 0; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) {
+        const a = g.access[yy * W + xx];
+        if (a >= 0) { best = a; break; }
+      }
+    }
     b.access = best;
   }
   b.comp = b.access >= 0 ? g.roadComp[b.access] : -1;
@@ -80,7 +87,7 @@ export function updateBuildingAccess(g, b) {
   // Ausrichtung zur Straße
   if (b.zone && b.access >= 0) {
     const ax = b.access % W, ay = (b.access / W) | 0;
-    const dx = ax - b.x, dy = ay - b.y;
+    const dx = ax + 0.5 - (b.x + b.w / 2), dy = ay + 0.5 - (b.y + b.h / 2);
     if (Math.abs(dx) >= Math.abs(dy)) b.rot = dx > 0 ? 1 : 3;
     else b.rot = dy > 0 ? 0 : 2;
   }

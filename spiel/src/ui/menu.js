@@ -3,6 +3,7 @@ import { MAP_TYPES, MAP_SIZES, DIFFICULTIES } from '../config.js';
 import { cityName, mulberry32, fmt } from '../util.js';
 import { logo } from './icons.js';
 import { esc } from './ui.js';
+import { MENU_SECTIONS } from '../registry.js';
 
 export class Menu {
   constructor(app) {
@@ -43,6 +44,7 @@ export class Menu {
       <div class="field"><label>Schwierigkeit</label><div class="seg">${DIFFICULTIES.map((d) => `<button data-act="diff" data-v="${d.id}" class="${d.id === o.difficulty ? 'on' : ''}">${d.name}</button>`).join('')}</div><div class="seg-hint">${esc(df.desc)}</div></div>
       <div class="acts"><button class="btn big go" data-act="start">Stadt gründen</button><button class="btn big ghost" data-act="preview">Karte ansehen</button></div>
     </div>
+    ${MENU_SECTIONS.map((sec) => { try { return sec.render(this); } catch (e) { console.error(e); return ''; } }).join('')}
     <div class="card"><h3>Spielstand aus Datei</h3><input type="file" id="m-file" accept=".json,application/json"><p class="seg-hint" style="margin:8px 0 0">Exportierte Stände (.json) lassen sich hier wieder laden.</p></div>
     <div class="foot">Rechte Maus verschiebt, Mausrad zoomt, Q/E dreht. Ein Spieltag dauert 30 Sekunden. · Das Konzept steht in <code>spiel/docs/</code>.</div>
   </div>
@@ -61,6 +63,7 @@ export class Menu {
     if (!b) return;
     const o = this.opts;
     const act = b.dataset.act;
+    for (const sec of MENU_SECTIONS) if (sec.click && sec.click(this, act, b)) return;
     if (act === 'start') {
       o.name = (o.name || '').trim() || 'Neustadt';
       this.app.newGame({ ...o });

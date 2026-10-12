@@ -1,6 +1,10 @@
 // Partikel (Rauch, Dampf, Feuer, Baustaub), Problem-Symbole über Gebäuden, nächtliche Lichter.
 import * as THREE from 'three';
 import { makeGlowTexture, makePointsMaterial, PointBuffer } from './materials.js';
+import { ICONS, BUILDING_PROBLEMS } from '../registry.js';
+
+// Index im Symbol-Atlas für registrierte Symbole (ab 8)
+export const ICON_INDEX = {};
 
 function makeSmokeTexture() {
   const c = document.createElement('canvas');
@@ -21,7 +25,7 @@ function makeSmokeTexture() {
 function makeIconAtlas() {
   const S = 128;
   const c = document.createElement('canvas');
-  c.width = S * 4; c.height = S * 2;
+  c.width = S * 8; c.height = S * 4;
   const ctx = c.getContext('2d');
   const badge = (cx, cy, col) => {
     ctx.fillStyle = 'rgba(20,24,32,0.85)';
@@ -29,7 +33,7 @@ function makeIconAtlas() {
     ctx.strokeStyle = col; ctx.lineWidth = 7;
     ctx.beginPath(); ctx.arc(cx, cy, 50, 0, Math.PI * 2); ctx.stroke();
   };
-  const cell = (i) => [(i % 4) * S + S / 2, Math.floor(i / 4) * S + S / 2];
+  const cell = (i) => [(i % 8) * S + S / 2, Math.floor(i / 8) * S + S / 2];
   // 0 Strom
   let [x, y] = cell(0); badge(x, y, '#f2c230');
   ctx.fillStyle = '#f2c230';
@@ -71,6 +75,16 @@ function makeIconAtlas() {
   [x, y] = cell(7); badge(x, y, '#f06fae');
   ctx.fillStyle = '#ffffff';
   for (const dx of [-16, 0, 16]) { ctx.beginPath(); ctx.arc(x + dx, y - 10, 8, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(x + dx - 7, y, 14, 22); }
+  // Registrierte Symbole (bis zu 24 weitere)
+  ICONS.slice(0, 24).forEach((icon, k) => {
+    const idx = 8 + k;
+    ICON_INDEX[icon.id] = idx;
+    [x, y] = cell(idx);
+    badge(x, y, icon.color || '#ffffff');
+    ctx.save();
+    try { icon.draw(ctx, x, y, 40); } catch (e) { console.error('Symbol', icon.id, e); }
+    ctx.restore();
+  });
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.flipY = false;
@@ -122,9 +136,9 @@ void main() {
 uniform sampler2D uTex;
 varying float vIcon;
 void main() {
-  float col = mod(vIcon, 4.0);
-  float row = floor(vIcon / 4.0);
-  vec2 uv = (vec2(col, row) + gl_PointCoord) / vec2(4.0, 2.0);
+  float col = mod(vIcon, 8.0);
+  float row = floor(vIcon / 8.0);
+  vec2 uv = (vec2(col, row) + gl_PointCoord) / vec2(8.0, 4.0);
   vec4 t = texture2D(uTex, uv);
   if (t.a < 0.05) discard;
   gl_FragColor = t;
@@ -177,6 +191,12 @@ void main() {
         else if (!b.watered && b.noWater > 0) put(b, ICON.WATER);
         else if (b.problemGarbage) put(b, ICON.GARBAGE);
         else if (b.happy < 25) put(b, ICON.SAD);
+        else {
+          for (const fn of BUILDING_PROBLEMS) {
+            const id = fn(g, b);
+            if (id && ICON_INDEX[id] !== undefined) { put(b, ICON_INDEX[id]); break; }
+          }
+        }
       }
       for (const st of g.transit.stations.values()) {
         if (st.waiting.length > 14) {

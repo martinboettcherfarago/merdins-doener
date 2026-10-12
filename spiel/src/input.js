@@ -2,6 +2,7 @@
 import { BUILDINGS, ROADS, ZONE_INFO, TRANSIT, T } from './config.js';
 import { fmtMoney } from './util.js';
 import { LINE_COLORS } from './sim/transit.js';
+import { TOOLS } from './registry.js';
 
 export class Input {
   constructor(engine, ui, audio) {
@@ -40,6 +41,7 @@ export class Input {
 
   setTool(tool) {
     this.cancelDrag();
+    if (this.tool && TOOLS[this.tool.kind] && TOOLS[this.tool.kind].cancel) TOOLS[this.tool.kind].cancel(this);
     this.tool = tool || { kind: 'select' };
     this.lineStops = [];
     const ov = this.e.overlay;
@@ -57,6 +59,7 @@ export class Input {
 
   key(e) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if (TOOLS[this.tool.kind] && TOOLS[this.tool.kind].key && TOOLS[this.tool.kind].key(this, e)) return;
     if (e.code === 'Escape') {
       if (this.drag) this.cancelDrag();
       else if ((this.tool.kind === 'line' || this.tool.kind === 'extend') && this.lineStops.length) { this.lineStops = []; this.e.overlay.showLinePreview(null); }
@@ -86,6 +89,7 @@ export class Input {
     }
     if (!t || t.i < 0) return;
     const k = this.tool.kind;
+    if (TOOLS[k]) { if (TOOLS[k].down) TOOLS[k].down(this, t, e); return; }
     if (k === 'road' || k === 'zone' || k === 'dezone' || k === 'bulldoze') {
       this.drag = { sx: t.x, sy: t.y, ex: t.x, ey: t.y };
       this.e.canvas.setPointerCapture(e.pointerId);
@@ -106,6 +110,7 @@ export class Input {
     this.hover = t;
     this.mouse = { x: e.clientX, y: e.clientY };
     if (!t) { this.ui.tooltip(null); return; }
+    if (TOOLS[this.tool.kind]) { const T2 = TOOLS[this.tool.kind]; if (T2.move) T2.move(this, t, e); if (T2.hover) T2.hover(this, t); return; }
     if (this.drag) {
       if (t.i >= 0 || this.tool.kind !== 'road') {
         this.drag.ex = Math.max(0, Math.min(this.g.W - 1, t.x));
@@ -137,6 +142,7 @@ export class Input {
     if (this.e.rig.pinching) return;
     const t = this.e.pickTile(e.clientX, e.clientY);
     const k = this.tool.kind;
+    if (TOOLS[k]) { if (TOOLS[k].up && t) TOOLS[k].up(this, t, e); return; }
     if (this.drag) {
       this.applyDrag();
       this.cancelDrag();

@@ -4,9 +4,12 @@ import {
   CLEAR_TREE_COST, ZONE_COST, BUILDINGS, MILESTONES, TRANSIT, LOANS, DIFFICULTIES, POLICIES,
 } from '../config.js';
 import { Emitter, mulberry32, clamp, typedToB64, b64ToTyped, hash2, fmtMoney } from '../util.js';
+import '../content/index.js';
+import './systems/index.js';
 import { generateWorld } from './world.js';
 import { rebuildNetwork, updateBuildingAccess, PathCache } from './network.js';
-import { computeUtilities, computeCoverage, computeFields, computeHappiness, SERVICE_TYPES } from './services.js';
+import { computeUtilities, computeCoverage, computeFields, computeHappiness, allServiceTypes } from './services.js';
+import { SYSTEMS, BUDGET_LINES } from '../registry.js';
 import { aggregate, updateDemand, growthStep, constructionStep, dailyBuildings, hourlyFires, checkMilestones, capacityOf, maxLevelAt } from './city.js';
 import { computeBudget, dailyEconomy, weeklyLoans } from './economy.js';
 import { Traffic } from './traffic.js';
@@ -17,7 +20,7 @@ export class Game extends Emitter {
   constructor(opts) {
     super();
     const { size = 96, seed = 12345, mapType = 'river', difficulty = 'normal', name = 'Neustadt' } = opts;
-    this.opts = { size, seed, mapType, difficulty, name };
+    this.opts = { ...opts, size, seed, mapType, difficulty, name };
     this.name = name;
     this.world = generateWorld(size, seed, mapType);
     const W = (this.W = size), H = (this.H = size), N = (this.N = W * H);
@@ -34,7 +37,7 @@ export class Game extends Emitter {
     this.congestion = new Float32Array(N);
     this.transitPenalty = new Uint8Array(N);
     this.cov = {};
-    for (const t of [...SERVICE_TYPES, 'park', 'transit', 'lvBonus', 'happyBonus', 'comBoost', 'resBoost']) this.cov[t] = new Float32Array(N);
+    for (const t of [...allServiceTypes(), 'park', 'transit', 'lvBonus', 'happyBonus', 'comBoost', 'resBoost']) this.cov[t] = new Float32Array(N);
     this.nearestFac = { fire: new Int32Array(N), police: new Int32Array(N), garbage: new Int32Array(N) };
     this.fields = { pollution: new Float32Array(N), noise: new Float32Array(N), crime: new Float32Array(N), landValue: new Float32Array(N) };
     this.compCount = 0;
@@ -58,6 +61,7 @@ export class Game extends Emitter {
     this.lastDay = 0;
     this.speed = 1;
     this.taxes = { 1: 10, 2: 10, 3: 10, 4: 10 };
+    this.serviceBudget = {}; // Kategorie → 0,5 … 1,5 (Budgetregler), Standard 1
     this.policies = new Set();
     this.milestone = this.sandbox ? MILESTONES.length - 1 : 0;
     this.mods = { upkeep: 1, power: 1, water: 1, edu: 1, fire: 1, trainSpeed: 1, pollution: 1 };
@@ -92,8 +96,18 @@ export class Game extends Emitter {
     if (this.sandbox) this.transit.linesMax = 10;
     rebuildNetwork(this);
     computeFields(this);
+    this.ext = {};
+    for (const s of SYSTEMS) if (s.init) s.init(this);
     this.lastBudget = computeBudget(this);
   }
+
+  // Alle Fahrzeuge/Objekte, die Erweiterungssysteme darstellen lassen wollen (Busse, Schiffe, Flugzeuge …)
+  renderables() {
+    const out = [];
+    for (const s of SYSTEMS) if (s.renderables) { const r = s.renderables(this); if (r && r.length) for (const x of r) out.push(x); }
+    return out;
+  }
+  system(id) { return SYSTEMS.find((s) => s.id === id) || null; }
 
   // ---------- Zeit
   day() { return Math.floor(this.time / DAY); }
@@ -332,7 +346,9 @@ export class Game extends Emitter {
       const res = this.world.resource[i];
       if (zone === Z.IND && res === RES.FERTILE) b.spec = 'farm';
       else if (zone === Z.IND && res === RES.ORE) b.spec = 'mine';
-      b.cap = capacityOf(b);
+      else if (zone === Z.IND && res === RES.OIL) b.spec = 'oil';
+      else if (zone === Z.IND && this.world.forest && this.world.forest[i]) b.spec = 'forest';
+      b.cap = capacityOf(b, this);
     }
     updateBuildingAccess(this, b);
     this.buildings.set(b.id, b);
@@ -340,12 +356,18 @@ export class Game extends Emitter {
     return b;
   }
 
-  spawnZoneBuilding(t, z) {
-    this.zoneFree[z].delete(t);
-    this._zoneDirty();
-    if (this.world.trees[t]) { this.world.trees[t] = 0; this.emit('treesChanged'); }
+  // Neues Zonengebäude; w×h > 1 legt mehrere Grundstücke zusammen (Kaufhäuser, Hallen, Wohnblöcke).
+  spawnZoneBuilding(t, z, w = 1, h = 1) {
     const x = t % this.W, y = (t / this.W) | 0;
-    const b = this.makeBuilding({ key: 'zone', zone: z, x, y, w: 1, h: 1, level: 1 });
+    let trees = false;
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
+      const i = yy * this.W + xx;
+      this.zoneFree[z].delete(i);
+      if (this.world.trees[i]) { this.world.trees[i] = 0; trees = true; }
+    }
+    this._zoneDirty();
+    if (trees) this.emit('treesChanged');
+    const b = this.makeBuilding({ key: 'zone', zone: z, x, y, w, h, level: 1 });
     this.dirty.util = true;
     return b;
   }
@@ -353,7 +375,7 @@ export class Game extends Emitter {
   setBuildingLevel(b, level) {
     const up = level > b.level;
     b.level = level;
-    b.cap = capacityOf(b);
+    b.cap = capacityOf(b, this);
     if (b.occ > b.cap) b.occ = b.cap;
     b.construct = up ? 0.35 : 1;
     this.emit('buildingRebuilt', b);
@@ -609,6 +631,7 @@ export class Game extends Emitter {
       this.lastDay = day;
       this.daily(day);
     }
+    for (const s of SYSTEMS) if (s.step) s.step(this, minutes);
     this.emit('step');
   }
 
@@ -626,6 +649,7 @@ export class Game extends Emitter {
     hourlyFires(this);
     if (h % 6 === 0) this.pathCache.clear();
     if (this.rng() < 0.2) chatter(this);
+    for (const s of SYSTEMS) if (s.hourly) s.hourly(this, h);
     this.emit('hour', h);
   }
 
@@ -664,6 +688,7 @@ export class Game extends Emitter {
     checkMilestones(this);
     maybeEvent(this);
     if (day % 7 === 0) this.weekly();
+    for (const s of SYSTEMS) if (s.daily) s.daily(this, day);
     this.emit('day', day);
   }
 
@@ -674,6 +699,7 @@ export class Game extends Emitter {
     this.weekIncome = 0;
     this.weekExpense = 0;
     if (this.milestone >= 1) offerCards(this);
+    for (const s of SYSTEMS) if (s.weekly) s.weekly(this);
     this.emit('week');
   }
 
@@ -693,9 +719,10 @@ export class Game extends Emitter {
       road: typedToB64(this.road), zone: typedToB64(this.zone), rubble: typedToB64(this.rubble), trees: typedToB64(this.world.trees),
       buildings: bl, nextId: this.nextId,
       time: this.time, money: this.money, speed: this.speed, taxes: this.taxes, policies: [...this.policies], milestone: this.milestone,
-      mods: this.mods, effects: this.effects, loans: this.loans, cardCount: this.cardCount, cardsTaken: this.cardsTaken,
+      mods: this.mods, serviceBudget: this.serviceBudget, effects: this.effects, loans: this.loans, cardCount: this.cardCount, cardsTaken: this.cardsTaken,
       vouchers: [...this.landmarkVouchers], nextEventDay: this.nextEventDay, lastEventId: this.lastEventId, debtDays: this.debtDays,
       history: this.history, news: this.newsLog.slice(-30), transit: this.transit.serialize(), savedAt: Date.now(),
+      ext: Object.fromEntries(SYSTEMS.filter((s) => s.serialize).map((s) => [s.id, s.serialize(this)])),
       pop: this.stats.pop,
     };
   }
@@ -716,13 +743,13 @@ export class Game extends Emitter {
         abandoned: !!abandoned, abandonedDays, burning: 0, extinguishAt: 0, noPower: 0, noWater: 0, noRoad: 0, unhappyDays: 0, upCount: 0,
         spec: spec || null, access: -1, comp: -1, connected: false, crime: 0, transitShare: 0, load: 0,
       };
-      if (zone) b.cap = capacityOf(b);
+      if (zone) b.cap = capacityOf(b, g);
       for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) g.bld[yy * g.W + xx] = id;
       g.buildings.set(id, b);
     }
     Object.assign(g, {
       time: data.time, money: data.money, speed: data.speed || 1, taxes: data.taxes, policies: new Set(data.policies), milestone: data.milestone,
-      mods: { ...g.mods, ...data.mods }, effects: data.effects || [], loans: data.loans || [], cardCount: data.cardCount || {}, cardsTaken: data.cardsTaken || [],
+      mods: { ...g.mods, ...data.mods }, serviceBudget: data.serviceBudget || {}, effects: data.effects || [], loans: data.loans || [], cardCount: data.cardCount || {}, cardsTaken: data.cardsTaken || [],
       landmarkVouchers: new Set(data.vouchers || []), nextEventDay: data.nextEventDay || 5, lastEventId: data.lastEventId, debtDays: data.debtDays || 0,
       history: data.history || [], newsLog: data.news || [],
     });
@@ -735,6 +762,7 @@ export class Game extends Emitter {
     g._zoneDirty();
     rebuildNetwork(g);
     g.transit.load(data.transit);
+    for (const sys of SYSTEMS) if (sys.load && data.ext && data.ext[sys.id] !== undefined) sys.load(g, data.ext[sys.id]);
     aggregate(g);
     computeUtilities(g);
     computeCoverage(g);

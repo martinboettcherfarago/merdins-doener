@@ -2,7 +2,8 @@
 import { BUILDINGS, CATEGORIES, ZONE_INFO, ROADS, R, Z, MILESTONES, POLICIES, LOANS, TRANSIT, TAX_RATE, LEVELS, T, RES, SPEEDS } from '../config.js';
 import { fmt, fmtMoney, fmtShort, clamp } from '../util.js';
 import { icon, logo } from './icons.js';
-import { OVERLAYS } from '../render/overlay.js';
+import { allOverlays } from '../render/overlay.js';
+import { PANELS, TRAY_ITEMS, INSPECTORS } from '../registry.js';
 import { LINE_COLORS, LINE_COLOR_NAMES } from '../sim/transit.js';
 import { cardById, EVENTS } from '../sim/progress.js';
 import { happinessFactors } from '../sim/services.js';
@@ -101,12 +102,13 @@ export class UI {
     <button data-panel="policies" title="Verordnungen">${icon('policies')}</button>
     <button data-panel="transit" title="Pulsbahn">${icon('transit')}</button>
     <button data-panel="news" title="Stadtfunk">${icon('news')}<span class="dot" id="u-newsdot" hidden></span></button>
+    ${[...PANELS].sort((a, b) => (a.order || 50) - (b.order || 50)).map((p) => `<button data-panel="${p.id}" title="${esc(p.title)}">${p.icon && p.icon.startsWith('<') ? p.icon : icon(p.icon || 'layers')}</button>`).join('')}
     <button data-panel="settings" title="Optionen, Hilfe, Speichern">${icon('settings')}</button>
   </div>
 </div>
 <div class="ticker" id="u-ticker" hidden><span class="pip" id="u-tickpip"></span><span class="who" id="u-tickwho"></span><span class="txt" id="u-ticktxt"></span></div>
 <div class="sign views" id="u-views">
-  ${OVERLAYS.map((o, i) => `${i === 1 || i === 13 ? '<div class="sep"></div>' : ''}<button data-view="${o.id}" title="${o.name}">${icon(VIEW_ICON[o.id] || 'eye', 19)}</button>`).join('')}
+  ${allOverlays().map((o, i) => `${i === 1 || i === 13 ? '<div class="sep"></div>' : ''}<button data-view="${o.id}" title="${o.name}">${o.icon && o.icon.startsWith('<') ? o.icon : icon(VIEW_ICON[o.id] || o.icon || 'eye', 19)}</button>`).join('')}
 </div>
 <div class="sign legend" id="u-legend" hidden></div>
 <div class="sign tutorial" id="u-tutorial" hidden></div>
@@ -266,9 +268,10 @@ export class UI {
         if (d.water) facts.push(`${d.water} m³`);
         if (d.service) facts.push(`Radius ${d.service.radius}`);
         if (d.upkeep) facts.push(`${fmtMoney(d.upkeep * g.upkeepMul())}/Tag`);
-        items.push({ kind: 'place', key, name: d.name, cost: fmtMoney(g.buildingCost(key)), desc, facts: facts.join(' · '), color: CAT_COLOR[cat], locked, tag: d.landmark && g.landmarkVouchers.has(key) ? '−50 %' : '' });
+        items.push({ kind: 'place', key, name: d.name, cost: fmtMoney(g.buildingCost(key)), desc, facts: facts.join(' · '), color: CAT_COLOR[cat] || '#7a8294', locked, tag: d.landmark && g.landmarkVouchers.has(key) ? '−50 %' : '' });
       }
     }
+    for (const t of TRAY_ITEMS) if (t.cat === cat) { const it = t.item(g); if (it) items.push(it); }
     return items;
   }
   renderTray() {
@@ -294,6 +297,7 @@ export class UI {
     else if (ds.kind === 'place') input.setTool({ kind: 'place', key: ds.key });
     else if (ds.kind === 'line') input.setTool({ kind: 'line' });
     else if (ds.kind === 'panel') this.openPanel(ds.panel);
+    else if (ds.kind === 'tool') input.setTool({ kind: ds.key, ...(ds.type ? { type: ds.type } : {}) });
     this.renderTray();
   }
   toolChanged(tool) {
@@ -314,7 +318,7 @@ export class UI {
     this.autoTransitView = auto;
     this.app.engine.overlay.setMode(id);
     for (const b of this.el.views.querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === id);
-    const def = OVERLAYS.find((o) => o.id === id);
+    const def = allOverlays().find((o) => o.id === id);
     if (id === 'none' || !def) { this.el.legend.hidden = true; return; }
     const bad = def.bad;
     const ramp = id === 'resources' ? 'linear-gradient(90deg,#78be46,#966e5a)' : `linear-gradient(90deg, ${bad ? '#45c46b, #f2c230, #e5483c' : '#e5483c, #f2c230, #45c46b'})`;
@@ -450,13 +454,16 @@ export class UI {
 
   renderPanel() {
     if (!this.panel) return;
-    const fn = { budget: this.pBudget, stats: this.pStats, policies: this.pPolicies, transit: this.pTransit, news: this.pNews, settings: this.pSettings }[this.panel];
+    const ext = PANELS.find((p) => p.id === this.panel);
+    const fn = ext ? () => ext.render(this) : { budget: this.pBudget, stats: this.pStats, policies: this.pPolicies, transit: this.pTransit, news: this.pNews, settings: this.pSettings }[this.panel];
     const titles = { budget: 'Haushalt', stats: 'Statistik', policies: 'Verordnungen', transit: 'Pulsbahn', news: 'Stadtfunk', settings: 'Optionen & Hilfe' };
-    const body = fn.call(this);
+    let body = '';
+    try { body = fn.call(this); } catch (e) { console.error('Panel', this.panel, e); body = `<p>Fehler im Panel: ${esc(e.message)}</p>`; }
     const scroll = this.el.panel.querySelector('.body')?.scrollTop || 0;
-    this.el.panel.innerHTML = `<header><h2>${titles[this.panel]}</h2><button class="close" data-act="close">${icon('close', 18)}</button></header><div class="body">${body}</div>`;
+    this.el.panel.innerHTML = `<header><h2>${esc(ext ? ext.title : titles[this.panel])}</h2><button class="close" data-act="close">${icon('close', 18)}</button></header><div class="body">${body}</div>`;
     this.el.panel.querySelector('.body').scrollTop = scroll;
     if (this.panel === 'stats') this.drawCharts();
+    if (ext && ext.afterRender) ext.afterRender(this);
   }
 
   pBudget() {
@@ -637,6 +644,13 @@ ${linesHtml || '<p style="color:var(--ink-2);line-height:1.5">Noch keine Linie. 
     const g = this.g, act = b.dataset.act;
     this.app.audio.play('click');
     const res = (r) => { if (r && r.ok === false && r.msg) this.toast(r.msg, 'bad'); };
+    const ext = PANELS.find((p) => p.id === this.panel);
+    if (ext && act !== 'close') {
+      if (ext.click) ext.click(this, act, b);
+      this.renderPanel();
+      this.refreshHUD();
+      return;
+    }
     switch (act) {
       case 'close': this.closePanels(); return;
       case 'loan': if (g.takeLoan(+b.dataset.i)) { this.toast('Kredit aufgenommen.', 'good'); this.app.audio.play('money'); } break;
@@ -734,6 +748,9 @@ ${linesHtml || '<p style="color:var(--ink-2);line-height:1.5">Noch keine Linie. 
       html = `<div class="stripe" style="background:#9bc887"></div><header><div class="grow"><h2>${ter}${res ? ' · ' + res : ''}</h2><div class="sub">Feld ${i % g.W}, ${Math.floor(i / g.W)}${g.zone[i] ? ' · Zone ' + ZONE_INFO[g.zone[i]].name : ''}</div></div><button class="close" data-act="close">${icon('close', 16)}</button></header>
 <div class="body"><div class="kv"><span>Bodenwert</span><span class="v">${Math.round(g.fields.landValue[i])}</span><span>Verschmutzung</span><span class="v">${Math.round(g.fields.pollution[i] * 100)} %</span><span>Lärm</span><span class="v">${Math.round(g.fields.noise[i] * 100)} %</span>${g.world.trees[i] ? '<span>Wald</span><span class="v">ja</span>' : ''}</div>
 ${g.zone[i] && !g.bld[i] ? `<p style="font-size:12.5px;color:var(--ink-2);margin:8px 0 0">${g.access[i] < 0 ? 'Keine Straße in Reichweite (max. 2 Felder).' : g.roadComp[g.access[i]] !== g.outsideComp ? 'Die Straße ist nicht mit der Autobahn verbunden.' : g.demand[g.zone[i]] <= 4 ? 'Wartet auf Nachfrage.' : 'Bereit zum Bebauen.'}</p>` : ''}</div>`;
+    }
+    for (const fn of INSPECTORS) {
+      try { const extra = fn(this, s); if (extra) html = html.replace(/<\/div>\s*$/, extra + '</div>'); } catch (e) { console.error(e); }
     }
     this.el.insp.innerHTML = html;
     this.el.insp.hidden = false;

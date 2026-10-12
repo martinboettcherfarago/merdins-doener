@@ -204,8 +204,10 @@ export function generateWorld(size, seed, type) {
     if (terrain[i] !== T.GRASS && terrain[i] !== T.SAND) continue;
     const fert = f(nD, x, y, 9);
     const ore = f(nE, x, y, 6);
+    const oil = f(nA, x + 300, y + 300, 10);
     if (rockDist[i] <= 4 && ore > 0.52) resource[i] = RES.ORE;
     else if (fert > 0.63 && rockDist[i] > 3 && terrain[i] === T.GRASS) resource[i] = RES.FERTILE;
+    else if (oil > 0.7 && rockDist[i] > 5 && waterDist[i] > 2) resource[i] = RES.OIL;
   }
 
   // Autobahn
@@ -290,5 +292,8 @@ export function generateWorld(size, seed, type) {
     }
   }
 
-  return { W, H, seed, type, terrain, trees, resource, vh, waterDist, highway, entry: highway[0], highwayEnd: highway[highway.length - 1], highwayY };
+  // Ursprünglicher Wald (für Forstwirtschaft, bleibt nach dem Roden erhalten)
+  const forest = new Uint8Array(N);
+  for (let i = 0; i < N; i++) if (trees[i] >= 2) forest[i] = 1;
+  return { W, H, seed, type, terrain, trees, resource, vh, forest, waterDist, highway, entry: highway[0], highwayEnd: highway[highway.length - 1], highwayY };
 }

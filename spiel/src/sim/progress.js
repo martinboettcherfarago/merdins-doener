@@ -184,7 +184,7 @@ export function resolveEvent(g, optIndex) {
 }
 
 // --- Stadtfunk: Bürger melden sich zu Wort
-const CHATTER = [
+export const CHATTER = [
   { when: (g) => g.stats.unpowered > 2, texts: ['Schon wieder kein Strom! Mein Kühlschrank taut ab. #Stromausfall', 'Kerzenlicht ist romantisch, aber nicht jeden Abend. Wann kommt der Strom?', 'Ohne Strom kein WLAN. Ohne WLAN kein Leben.'] },
   { when: (g) => g.stats.unwatered > 2, texts: ['Kein Wasser aus dem Hahn. Ich dusche jetzt mit Mineralwasser.', 'Die Wasserversorgung reicht nicht. Bitte mehr Pumpwerke!'] },
   { when: (g) => g.stats.garbageProb > 3, texts: ['Vor meinem Haus stapeln sich die Mülltüten. Es riecht…', 'Die Müllabfuhr war seit Tagen nicht da. #Müllberg'] },

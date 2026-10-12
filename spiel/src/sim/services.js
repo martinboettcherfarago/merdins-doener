@@ -2,8 +2,10 @@
 // Umweltfelder (Verschmutzung, Lärm, Kriminalität, Bodenwert) und Glück.
 import { BUILDINGS, LEVELS, ROADS, R, T, Z, RES } from '../config.js';
 import { clamp, hash2 } from '../util.js';
+import { SERVICE_TYPES_EXTRA, HAPPINESS_FACTORS, LANDVALUE_TERMS } from '../registry.js';
 
 export const SERVICE_TYPES = ['police', 'fire', 'health', 'garbage', 'edu'];
+export const allServiceTypes = () => [...SERVICE_TYPES, ...SERVICE_TYPES_EXTRA];
 
 export function bDef(b) { return b.zone ? null : BUILDINGS[b.key]; }
 
@@ -87,7 +89,7 @@ export function computeCoverage(g) {
   const zoneBlds = [];
   for (const b of g.buildings.values()) if (b.zone && !b.abandoned) zoneBlds.push(b);
 
-  for (const type of SERVICE_TYPES) {
+  for (const type of allServiceTypes()) {
     const cov = g.cov[type];
     cov.fill(0);
     bestD.fill(1e9);
@@ -113,7 +115,8 @@ export function computeCoverage(g) {
     const eff = facs.map((f, fi) => {
       const s = bDef(f).service;
       const capMul = type === 'garbage' ? 1 + g.eff('garbageCov') : type === 'health' ? 1 + g.eff('healthCov') : 1;
-      let e = demand[fi] <= 0 ? 1 : Math.min(1, (s.capacity * capMul) / demand[fi]);
+      const bud = g.serviceBudget[bDef(f).cat] ?? 1;
+      let e = demand[fi] <= 0 ? 1 : Math.min(1, (s.capacity * capMul * bud) / demand[fi]);
       if (!f.powered) e *= 0.45;
       if (!f.connected) e *= 0.25;
       f.load = demand[fi] / s.capacity;
@@ -270,6 +273,7 @@ export function computeFields(g) {
       if (y > 0 && road[i - W]) rb = Math.max(rb, ROADS[road[i - W]].lv);
       if (y < H - 1 && road[i + W]) rb = Math.max(rb, ROADS[road[i + W]].lv);
       v += rb;
+      for (const term of LANDVALUE_TERMS) v += term(g, i);
       lv[i] = clamp(v, 0, 100);
     }
   }
@@ -312,6 +316,10 @@ export function happinessFactors(g, b, out) {
   if (ev) h += f('Ereignisse', ev);
   if (b.burning) h += f('Feuer!', -30);
   if (b.problemGarbage) h += f('Müllberge', -4);
+  for (const fn of HAPPINESS_FACTORS) {
+    const r = fn(g, b, i);
+    if (r) h += f(r[0], r[1]);
+  }
   return clamp(h, 0, 100);
 }
 
