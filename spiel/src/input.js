@@ -70,6 +70,7 @@ export class Input {
       if (this.drag) this.cancelDrag();
       else if ((this.tool.kind === 'line' || this.tool.kind === 'extend') && this.lineStops.length) { this.lineStops = []; this.e.overlay.showLinePreview(null); }
       else if (this.tool.kind !== 'select') this.setTool({ kind: 'select' });
+      else if (this.ui.cat) this.ui.closeTray();
       else this.ui.closePanels();
     } else if (e.code === 'KeyR' && this.tool.kind === 'place') {
       this.rot = (this.rot + 1) % 4;

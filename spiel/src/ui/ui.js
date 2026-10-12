@@ -5,15 +5,15 @@
 //   ui.inspect(sel), ui.setView(id), ui.tooltip(text, mouse, ok), ui.refreshHUD(), ui.openModal(html, onClick), ui.queueModal(fn),
 //   ui.focusTile(x, y, dist?), ui.notify({ title, text, mood, where, icon }), ui.openTray(cat), ui.closeTray()
 // Panels (registerPanel) dürfen zusätzlich input(ui, el, e), change(ui, el, e), badge(ui) → Zahl|Text, group, color haben.
-import { BUILDINGS, ZONE_INFO, ROADS, MILESTONES } from '../config.js';
+import { BUILDINGS, ZONE_INFO, ROADS, MILESTONES, CATEGORIES } from '../config.js';
 import { fmt, fmtMoney, fmtShort, clamp } from '../util.js';
-import { PANELS, TOOLS } from '../registry.js';
+import { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, emit, on as onBus } from '../registry.js';
 import { cardById } from '../sim/progress.js';
 import { icon, iconAny, logo } from './icons.js';
 import { toolbarCategories, lineById, viewList, VIEW_GROUPS, dockPanels, PANEL_GROUPS, catMeta } from './meta.js';
 import { CORE_PANELS } from './corepanels.js';
 import { inspectorHTML, inspectorClick } from './inspector.js';
-import { catalogItems, searchCatalog, cardHTML, detailHTML, isActive, bindThumbSwap } from './catalog.js';
+import { catalogItems, searchCatalog, cardHTML, detailHTML, isActive, bindThumbSwap, allCatalogItems, freshCats } from './catalog.js';
 import { pumpThumbs, thumbsPending } from './thumbs.js';
 import { Notifier, problems } from './notify.js';
 import { Advisor, tutorialSteps, adviceLevel } from './advisor.js';
@@ -26,6 +26,7 @@ import { showLoader, hideLoader, loaderVisible, setLoader, painted } from './loa
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const itemKey = (it) => `${it.kind}:${it.key || it.type || it.zone || it.panel || ''}`;
 const SEASON = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' };
 
 // Zustand, der einen Neustart der Ansicht überlebt (Grafik-Einstellungen übernehmen)
@@ -80,6 +81,7 @@ export class UI {
     this.cache = { roads: 0 };
     this.search = '';
     this.hoverItem = null;
+    this.recent = [];
     this.setTab = 'grafik';
     this.gfxSnap = gfxSnapshot(app.settings);
     this.hudHidden = false;
@@ -93,6 +95,9 @@ export class UI {
     bindTips();
     setTipsEnabled(app.settings.tooltips !== false);
     this.refreshBadges();
+    this.unbus = [onBus('ui:rebuild', () => this.rebuild())];
+    // Für Prüfskripte (tools/shot.mjs --eval): Register erreichbar machen
+    window.__stadtpulsReg = { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, CATEGORIES, emit };
     if (restore) this.applyRestore();
   }
 
@@ -118,8 +123,8 @@ export class UI {
     <button class="stat opt opt-wide" data-stat="jobs" data-tip="Arbeitsmarkt" data-tip-desc="Arbeitslosenquote und Arbeitsplätze"><span class="k">Arbeitslos</span><span class="v" id="u-unemp"></span><span class="d" id="u-jobs"></span></button>
     <button class="stat opt opt-wide" data-stat="transit" data-tip="Pulsbahn" data-tip-desc="Fahrgäste heute und Verkehrsfluss"><span class="k">Pulsbahn</span><span class="v" id="u-riders"></span><span class="d" id="u-flow"></span></button>
   </div>
-  <div class="sign demand" data-tip="Nachfrage" data-tip-desc="Wohnen, Gewerbe, Industrie, Büro – über der Linie wird gebaut.">
-    ${[1, 2, 3, 4].map((z) => `<div class="col"><div class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></div><div class="lbl" style="color:${zoneCol(z)}">${ZONE_INFO[z].short}</div></div>`).join('')}
+  <div class="sign demand">
+    ${[1, 2, 3, 4].map((z) => `<div class="col" id="u-demc${z}" data-tip="Nachfrage ${ZONE_INFO[z].name}" data-tip-pos="bottom"><div class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></div><div class="lbl" style="color:${zoneCol(z)}">${ZONE_INFO[z].short}</div></div>`).join('')}
   </div>
   <div class="spacer"></div>
   <div class="sign clock">
@@ -205,7 +210,17 @@ export class UI {
     on(this.el.ticker, 'click', () => this.openPanel('news'));
     on(this.el.toolhint, 'click', (e) => this.toolHintClick(e));
     on(this.el.probs, 'click', (e) => { const b = e.target.closest('[data-prob]'); if (b) { const p = problems(this.g).find((x) => x.id === b.dataset.prob); if (p) { this.app.audio.play('click'); this.runAction(p); } } });
-    on(this.el.panel, 'pointerdown', () => { this.panelBusy = true; });
+    on(this.el.panel, 'pointerdown', (e) => {
+      this.panelBusy = true;
+      if (this.mobile() && e.target.closest('header') && !e.target.closest('button')) this.swipe = { y: e.clientY, id: e.pointerId };
+    });
+    on(this.el.panel, 'pointermove', (e) => {
+      if (!this.swipe || this.swipe.id !== e.pointerId) return;
+      const dy = Math.max(0, e.clientY - this.swipe.y);
+      this.el.panel.style.transform = dy ? `translateY(${dy}px)` : '';
+      if (dy > 110) { this.swipe = null; this.el.panel.style.transform = ''; this.closePanels(); }
+    });
+    on(this.el.panel, 'pointerup', () => { this.swipe = null; this.el.panel.style.transform = ''; });
     this.onUp = () => { this.panelBusy = false; };
     window.addEventListener('pointerup', this.onUp);
     on(this.el.panel, 'click', (e) => this.panelClick(e));
@@ -215,6 +230,7 @@ export class UI {
     on(this.el.bubble, 'click', (e) => this.advisor.bubbleClick(e));
     on(this.el.tutorial, 'click', (e) => {
       if (e.target.closest('[data-act=hidetut]')) { this.tutorialHidden = true; this.app.settings.tutorialDone = true; this.app.saveSettings(); this.el.tutorial.hidden = true; return; }
+      if (e.target.closest('[data-act=tuttoggle]')) { this.tutOpen = !this.tutOpen; this.refreshTutorial(); return; }
       const li = e.target.closest('[data-step]');
       if (li) { const st = tutorialSteps(this.g, this)[+li.dataset.step]; if (st && st[2]) this.runAction(st[2]); }
     });
@@ -239,6 +255,7 @@ export class UI {
     window.removeEventListener('resize', this.onResize);
     if (this.photo.active) this.photo.exit();
     for (const u of this.unbind || []) u();
+    for (const u of this.unbus || []) u();
     this.notes.dispose();
     this.advisor.dispose();
     if (this.minimap) this.minimap.dispose();
@@ -255,7 +272,7 @@ export class UI {
     const g = this.g;
     this.unbind = [
       g.on('news', (n) => this.onNews(n)),
-      g.on('milestone', (i) => { this.notes.push({ title: 'Meilenstein', text: `${MILESTONES[i].name} erreicht!`, mood: 'good', icon: 'trophy', kind: 'milestone' }); this.queueModal(() => this.showMilestone(i)); if (this.cat) this.renderTray(); }),
+      g.on('milestone', (i) => { setTimeout(() => this.markFresh(), 0); this.notes.push({ title: 'Meilenstein', text: `${MILESTONES[i].name} erreicht!`, mood: 'good', icon: 'trophy', kind: 'milestone' }); this.queueModal(() => this.showMilestone(i)); if (this.cat) this.renderTray(); }),
       g.on('cards', (ids) => this.queueModal(() => this.showCards(ids))),
       g.on('event', (ev) => this.queueModal(() => this.showEvent(ev))),
       g.on('bankrupt', () => this.queueModal(() => this.showBankrupt())),
@@ -265,6 +282,16 @@ export class UI {
   }
 
   mobile() { return window.innerWidth <= 760; }
+
+  // Register neu einlesen (falls Module nach dem Start Panels, Kategorien oder Ansichten ergänzen)
+  rebuild() {
+    this.renderToolbar();
+    this.renderViews();
+    this.renderDock();
+    this.markPanelButtons();
+    this.refreshBadges();
+    requestAnimationFrame(() => this.updateTrackNav());
+  }
 
   // ---------- Kopfzeile, Werkzeuge der Kopfzeile
   setSpeed(s) {
@@ -324,6 +351,9 @@ export class UI {
       el.style.height = hgt + '%';
       el.style.bottom = v >= 0 ? '50%' : `${50 - hgt}%`;
       el.style.opacity = v >= 0 ? 1 : 0.45;
+      const col = el.parentElement.parentElement;
+      const d = `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(Math.round(v))} · ${v > 40 ? 'stark gefragt' : v > 8 ? 'gefragt' : v < -8 ? 'Überangebot' : 'ausgeglichen'}`;
+      if (col.dataset.tipDesc !== d) col.dataset.tipDesc = d;
     }
     // Wetter (falls ein Wetter-System läuft)
     const w = g.ext && g.ext.weather;
@@ -375,6 +405,19 @@ export class UI {
 ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" style="--lc:${L.color}" data-line="${gr.line}"><i class="rail"></i>${gr.cats.map(stop).join('')}</div>`; }).join('')}
 <div class="lg term"><button class="cat danger" data-tool="bulldoze" data-tip="Abriss" data-tip-desc="Fläche aufziehen zum Abreißen" data-key="B" aria-label="Abriss"><span class="stop">${icon('bulldoze', 21)}</span><span class="lbl">Abriss</span></button></div>`;
     this.markToolButtons();
+    this.markFresh();
+  }
+  // Punkt an Haltestellen mit neu freigeschalteten Gebäuden (bis die Kategorie geöffnet wurde)
+  markFresh() {
+    const fresh = freshCats(this);
+    const seen = this.seenFresh || (this.seenFresh = new Map());
+    for (const b of this.el.cats.querySelectorAll('.cat[data-cat]')) {
+      const c = b.dataset.cat;
+      const on = fresh.has(c) && seen.get(c) !== this.g.milestone;
+      let d = b.querySelector('.nd');
+      if (on && !d) { d = document.createElement('span'); d.className = 'nd'; b.querySelector('.stop').appendChild(d); }
+      else if (!on && d) d.remove();
+    }
   }
   updateTrackNav() {
     const t = this.el.cats;
@@ -387,6 +430,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
 
   openTray(cat) {
     this.cat = cat;
+    if (this.seenFresh || freshCats(this).has(cat)) { (this.seenFresh || (this.seenFresh = new Map())).set(cat, this.g.milestone); this.markFresh(); }
     if (cat !== '__search') this.search = '';
     this.hoverItem = null;
     for (const b of this.el.cats.querySelectorAll('.cat')) b.classList.toggle('on', b.dataset.cat === cat);
@@ -432,11 +476,17 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     if (!strip) return;
     const q = this.search.trim();
     const isSearch = this.cat === '__search' || !!q;
-    const list = q ? searchCatalog(this, q) : this.cat === '__search' ? [] : this.trayItems(this.cat);
+    let list;
+    if (q) list = searchCatalog(this, q);
+    else if (this.cat === '__search') {
+      // ohne Suchbegriff: zuletzt benutzte Einträge
+      const all = allCatalogItems(this);
+      list = this.recent.map((k) => all.find((it) => itemKey(it) === k)).filter(Boolean);
+    } else list = this.trayItems(this.cat);
     this.trayList = list;
     const t = this.app.input ? this.app.input.tool : { kind: 'select' };
     const sl = strip.scrollLeft;
-    strip.innerHTML = list.length ? list.map((it, i) => cardHTML(it, i, isActive(it, t), isSearch)).join('') : `<div class="empty strip-empty">${q ? `Nichts gefunden für „${esc(q)}".` : 'Tippe einen Namen, z. B. „Schule", „Park" oder „Strom".'}</div>`;
+    strip.innerHTML = list.length ? list.map((it, i) => cardHTML(it, i, isActive(it, t), isSearch)).join('') : `<div class="empty strip-empty">${q ? `Nichts gefunden für „${esc(q)}".` : 'Tippe einen Namen, z. B. „Schule", „Park" oder „Strom". Hier erscheint auch, was du zuletzt gebaut hast.'}</div>`;
     strip.scrollLeft = sl;
     const cnt = document.getElementById('u-traycount');
     if (cnt) cnt.textContent = list.length ? `${list.length} ${list.length === 1 ? 'Eintrag' : 'Einträge'}` : '';
@@ -457,6 +507,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   }
   pickItem(it) {
     if (it.locked) { this.toast(it.built ? 'Gibt es schon in deiner Stadt.' : it.locked, 'bad'); this.app.audio.play('error'); return; }
+    const k = itemKey(it);
+    if (it.kind !== 'panel') this.recent = [k, ...this.recent.filter((x) => x !== k)].slice(0, 10);
     const input = this.app.input;
     if (it.kind === 'road') input.setTool({ kind: 'road', type: +it.type });
     else if (it.kind === 'zone') input.setTool({ kind: 'zone', zone: +it.zone });
@@ -581,7 +633,13 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const firstOpen = steps.findIndex((s) => !s[0]);
     if (firstOpen < 0) { this.el.tutorial.hidden = true; return; }
     const done = steps.filter((s) => s[0]).length;
-    const html = `<h4><span>Erste Schritte</span><span class="tprog num">${done} / ${steps.length}</span><button class="close" data-act="hidetut" data-tip="Ausblenden" data-tip-fast="1" aria-label="Ausblenden">${icon('close', 15)}</button></h4><ol>${steps.map((s, i) => `<li class="${s[0] ? 'done' : i === firstOpen ? 'now' : ''}" ${s[2] && !s[0] ? `data-step="${i}"` : ''}>${esc(s[1])}</li>`).join('')}</ol>`;
+    const open = !!this.tutOpen;
+    const cur = steps[firstOpen];
+    const line = `<div class="tline">${steps.map((s, i) => `<i class="${s[0] ? 'done' : i === firstOpen ? 'now' : ''}" data-tip="${esc(s[1])}" data-tip-fast="1"></i>`).join('')}</div>`;
+    const body = open
+      ? `<ol>${steps.map((s, i) => `<li class="${s[0] ? 'done' : i === firstOpen ? 'now' : ''}" ${s[2] && !s[0] ? `data-step="${i}"` : ''}>${esc(s[1])}</li>`).join('')}</ol>`
+      : `<div class="tnow" ${cur[2] ? `data-step="${firstOpen}"` : ''}><span class="tn num">${firstOpen + 1}</span><span class="tt">${esc(cur[1])}</span>${cur[2] ? `<span class="tgo">${icon('arrowR', 14, 2.4)}</span>` : ''}</div>`;
+    const html = `<h4><span>Erste Schritte</span><span class="tprog num">${done} / ${steps.length}</span><button class="close" data-act="tuttoggle" data-tip="${open ? 'Weniger' : 'Alle Schritte'}" data-tip-fast="1" aria-label="Aufklappen">${icon(open ? 'chevronD' : 'chevronU', 15)}</button><button class="close" data-act="hidetut" data-tip="Ausblenden" data-tip-fast="1" aria-label="Ausblenden">${icon('close', 15)}</button></h4>${line}${body}`;
     if (html !== this._tutHtml) { this._tutHtml = html; this.el.tutorial.innerHTML = html; }
     this.el.tutorial.hidden = false;
   }
@@ -776,7 +834,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
 
   // ---------- Minikarte, Übersicht (Handy), Oberfläche ausblenden
   toggleMinimap(v, silent = false) {
-    if (v === undefined) v = this.el.mini.hidden;
+    if (v === undefined) v = this.el.mini.hidden || (this.mobile() && !this.el.mini.classList.contains('force'));
+    this.el.mini.classList.toggle('force', v && this.mobile());
     this.minimap.setVisible(v);
     this.el.mmopen.hidden = v || this.mobile();
     this.root.classList.toggle('mm-off', !v);

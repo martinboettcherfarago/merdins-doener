@@ -123,6 +123,15 @@ function inspService(ui, b) {
   if (d.tourism) facts.push(['Touristen', `${d.tourism} / Tag`]);
   if (d.park) facts.push(['Erholung', `Radius ${d.parkRadius}`]);
   if (d.jobs) facts.push(['Arbeitsplätze', fmt(d.jobs)]);
+  if (d.sewage) facts.push(['Abwasser', fmt(d.sewage)]);
+  if (d.heat) facts.push(['Fernwärme', fmt(d.heat)]);
+  if (d.cargo) facts.push(['Frachtkapazität', fmt(d.cargo)]);
+  if (d.storage) facts.push(['Lager', fmt(d.storage)]);
+  if (d.buses || d.trams || d.taxis) facts.push(['Fahrzeuge', fmt(d.buses || d.trams || d.taxis)]);
+  if (d.shelterCap) facts.push(['Schutzplätze', fmt(d.shelterCap)]);
+  if (d.warnRadius) facts.push(['Warnradius', `${d.warnRadius} Felder`]);
+  if (d.stationCapacity) facts.push(['Kapazität', `${d.stationCapacity} Fahrgäste`]);
+  if (d.lv) facts.push(['Bodenwert', `${d.lv > 0 ? '+' : '−'}${Math.abs(d.lv)} im Umkreis ${d.lvRadius || 0}`]);
   facts.push(['Unterhalt', `${fmtMoney(d.upkeep * g.upkeepMul() * (g.serviceBudget[d.cat] ?? 1))} / Tag`]);
   const cm = catMeta(d.cat);
   const col = cm.color;

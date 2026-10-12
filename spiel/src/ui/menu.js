@@ -58,6 +58,7 @@ export class Menu {
     const o = this.opts;
     const mt = MAP_TYPES.find((m) => m.id === o.mapType) || MAP_TYPES[0];
     const df = DIFFICULTIES.find((d) => d.id === o.difficulty) || DIFFICULTIES[1];
+    if (this.formOpen === undefined) this.formOpen = !auto;
     const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'gerade eben' : m < 60 ? `vor ${m} Min.` : m < 1440 ? `vor ${Math.round(m / 60)} Std.` : new Date(t).toLocaleDateString('de-DE'); };
     this.root.innerHTML = `
 <div class="menu${this.previewing ? ' previewing' : ''}">
@@ -65,8 +66,10 @@ export class Menu {
     <div class="brand">${logo(64)}<div><h1>Stadtpuls</h1><div class="tag">Städtebau im Takt der Hochbahn</div></div></div>
     <p class="lede">Baue eine Stadt, die im Takt schlägt. Zonen, Strom und Wasser, Feuerwehr und Schulen – und eine Hochbahn über den Dächern, deren Züge bei jeder Ankunft einen Ton spielen.</p>
     ${auto ? `<div class="card continue"><div class="cc-line"><i></i><i></i><i></i></div><div class="eyebrow">Weiterspielen</div><div class="cc-row"><div class="grow"><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE')}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}">Laden</button></div>`).join('')}</div>` : ''}</div>` : ''}
-    <div class="card newcity">
-      <h3>Neue Stadt gründen</h3>
+    <div class="card newcity${this.formOpen ? '' : ' closed'}">
+      <button class="nc-head" data-act="toggleform" aria-expanded="${this.formOpen}"><h3>Neue Stadt gründen</h3>${auto ? `<span class="nc-chev">${icon(this.formOpen ? 'chevronU' : 'chevronD', 18, 2.4)}</span>` : ''}</button>
+      ${this.formOpen ? '' : `<p class="nc-sub">Eigene Landschaft, Größe und Schwierigkeit wählen.</p>`}
+      <div class="nc-form">
       <div class="field"><label for="m-name">Name der Stadt</label><div class="inline"><input type="text" id="m-name" maxlength="28" value="${esc(o.name)}"><button class="btn ghost" data-act="rname" style="flex:none" data-tip="Zufälliger Name">Würfeln</button></div></div>
       <div class="field"><label>Landschaft</label><div class="maps">${MAP_TYPES.map((m) => `<button data-act="map" data-v="${m.id}" class="mapbtn${m.id === o.mapType ? ' on' : ''}"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">${MAP_ART[m.id] || ''}</svg><span>${esc(m.name)}</span></button>`).join('')}</div><div class="seg-hint">${esc(mt.desc)}</div></div>
       <div class="inline">
@@ -74,7 +77,8 @@ export class Menu {
         <div class="field"><label for="m-seed">Startwert</label><div class="inline"><input type="number" id="m-seed" value="${o.seed}" min="0" max="999999"><button class="btn ghost" data-act="rseed" style="flex:none" data-tip="Neue Karte würfeln" aria-label="Neue Karte">↻</button></div></div>
       </div>
       <div class="field"><label>Schwierigkeit</label><div class="seg">${DIFFICULTIES.map((d) => `<button data-act="diff" data-v="${d.id}" class="${d.id === o.difficulty ? 'on' : ''}">${d.name}</button>`).join('')}</div><div class="seg-hint">${esc(df.desc)}</div></div>
-      <div class="acts"><button class="btn big go" data-act="start">Stadt gründen ${icon('arrowR', 16, 2.4)}</button><button class="btn big ghost" data-act="preview">${icon('map', 16)} Karte ansehen</button></div>
+      <div class="acts"><button class="btn big go" data-act="start">Stadt gründen ${icon('arrowR', 16, 2.4)}</button><button class="btn big ghost" data-act="preview">${icon('map', 16)} ${this.previewing ? 'Beispielstadt' : 'Karte ansehen'}</button></div>
+      </div>
     </div>
     ${MENU_SECTIONS.map((sec) => { try { return sec.render(this); } catch (e) { console.error(e); return ''; } }).join('')}
     <div class="menu-foot">
@@ -110,6 +114,7 @@ export class Menu {
     if (act === 'slot') { const k = +b.dataset.k; this.launch('Spielstand wird geladen', `Platz ${k}`, () => this.app.loadSlot(k)); return; }
     if (act === 'settings') { this.openSettings(); return; }
     if (act === 'keys') { this.openModal(keysHTML(), (ev, close) => { if (ev.target.closest('[data-act=ok]') || ev.target.classList.contains('backdrop')) close(); }); return; }
+    if (act === 'toggleform') { if (!this.app.slotMeta('auto')) return; this.formOpen = !this.formOpen; this.render(); return; }
     if (act === 'rname') { o.name = cityName(mulberry32(Date.now() & 0xffff)); }
     if (act === 'map') { o.mapType = b.dataset.v; this.preview(); }
     if (act === 'diff') o.difficulty = b.dataset.v;

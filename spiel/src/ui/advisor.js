@@ -46,6 +46,9 @@ export const ADVISOR_RULES = [
   { id: 'milestone', when: (g) => { const n = MILESTONES[g.milestone + 1]; return n && g.stats.pop >= n.pop * 0.85 && g.stats.pop < n.pop ? { prio: 1, text: `Nur noch ${fmt(n.pop - g.stats.pop)} Einwohner bis „${n.name}".`, act: null } : null; } },
 ];
 
+// Hinweise, die „Erste Schritte" schon abdeckt (keine Blase, solange die Liste sichtbar ist)
+const TUTORIAL_COVERED = new Set(['start-road', 'start-zone', 'power-none', 'water-none', 'transit', 'res-demand', 'com-demand', 'ind-demand']);
+
 export function tutorialSteps(g, ui) {
   let res = 0, other = 0;
   for (let i = 0; i < g.N; i++) { if (g.zone[i] === 1) res++; else if (g.zone[i] === 2 || g.zone[i] === 3) other++; }
@@ -71,6 +74,7 @@ export class Advisor {
     this.external = new Map();
     this.bubble = null;
     this.timer = 1.5;
+    this.nextAt = performance.now() + 6000;
     this.unbind = [on('advice', (a) => { if (a && a.id && a.text) this.external.set(a.id, { ...a, until: ui.g.time + (a.minutes ?? 720) }); })];
   }
   dispose() { for (const u of this.unbind) u(); }
@@ -102,7 +106,9 @@ export class Advisor {
     const ui = this.ui, g = ui.g;
     ui.refreshBadges();
     if (!ui.app.settings.advisor || ui.photo.active || ui.modalOpen() || this.bubble || ui.mobile()) return;
-    const cand = this.list.find((a) => (a.prio || 1) >= 2 && !(this.snoozed.get(a.id) > g.time) && !(g.time - (this.seen.get(a.id) ?? -1e9) < 1440 * 2));
+    if (performance.now() < this.nextAt) return;
+    const tut = ui.el.tutorial && !ui.el.tutorial.hidden;
+    const cand = this.list.find((a) => (a.prio || 1) >= 2 && !(tut && TUTORIAL_COVERED.has(a.id)) && !(this.snoozed.get(a.id) > g.time) && !(g.time - (this.seen.get(a.id) ?? -1e9) < 1440 * 2));
     if (cand) this.showBubble(cand);
   }
 
@@ -117,7 +123,7 @@ export class Advisor {
     clearTimeout(this.hideT);
     this.hideT = setTimeout(() => this.hideBubble(), 16000);
   }
-  hideBubble() { clearTimeout(this.hideT); this.bubble = null; if (this.ui.el.bubble) this.ui.el.bubble.hidden = true; }
+  hideBubble() { clearTimeout(this.hideT); this.bubble = null; this.nextAt = performance.now() + 45000; if (this.ui.el.bubble) this.ui.el.bubble.hidden = true; }
   bubbleClick(e) {
     const b = e.target.closest('[data-act]');
     if (!b || !this.bubble) return;

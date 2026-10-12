@@ -65,6 +65,16 @@ export function thumbSpecFor(it) {
 }
 
 // Alle Einträge einer Kategorie
+const countCache = new WeakMap();
+function builtCounts(g) {
+  const c = countCache.get(g);
+  if (c && c.t === g.time && c.n === g.buildings.size) return c.m;
+  const m = new Map();
+  for (const b of g.buildings.values()) if (!b.zone) m.set(b.key, (m.get(b.key) || 0) + 1);
+  countCache.set(g, { t: g.time, n: g.buildings.size, m });
+  return m;
+}
+
 export function catalogItems(ui, cat) {
   const g = ui.g;
   const items = [];
@@ -87,13 +97,13 @@ export function catalogItems(ui, cat) {
   } else if (cat === 'transit') {
     const locked = g.isUnlocked('transit') ? null : g.lockReason('station');
     items.push({ cat, kind: 'line', name: 'Linie zeichnen', cost: `ab ${fmtMoney(TRANSIT.lineCost * g.costMul)}`, desc: 'Stationen nacheinander anklicken – leere Felder bekommen automatisch eine Station. Rechtsklick oder Enter beendet.', color: '#e8543f', locked, icon: 'line', facts: [['line', `${g.transit.lines.length} / ${g.transit.linesMax} Linien`]] });
-    items.push(placeItem(g, cat, 'station', meta));
+    items.push(placeItem(g, cat, 'station', meta, builtCounts(g)));
     items.push({ cat, kind: 'panel', panel: 'transit', name: 'Linien verwalten', cost: `${g.transit.lines.length} / ${g.transit.linesMax} Linien`, desc: 'Züge und Waggons einsetzen, Linien verlängern.', color: '#2f8fe0', locked, icon: 'settings', facts: [] });
-    for (const [key, d] of Object.entries(BUILDINGS)) if (d.cat === cat && key !== 'station') items.push(placeItem(g, cat, key, meta));
+    for (const [key, d] of Object.entries(BUILDINGS)) if (d.cat === cat && key !== 'station') items.push(placeItem(g, cat, key, meta, builtCounts(g)));
   } else {
     for (const [key, d] of Object.entries(BUILDINGS)) {
       if (d.cat !== cat || key === 'station') continue;
-      items.push(placeItem(g, cat, key, meta));
+      items.push(placeItem(g, cat, key, meta, builtCounts(g)));
     }
     // verfügbare zuerst, dann nach Freischaltung und Preis
     items.sort((a, b) => (!!a.locked - !!b.locked) || ((BUILDINGS[a.key]?.unlock ?? 0) - (BUILDINGS[b.key]?.unlock ?? 0)) || ((BUILDINGS[a.key]?.cost ?? 0) - (BUILDINGS[b.key]?.cost ?? 0)));
@@ -107,9 +117,10 @@ export function catalogItems(ui, cat) {
   return items;
 }
 
-function placeItem(g, cat, key, meta) {
+function placeItem(g, cat, key, meta, counts) {
   const d = BUILDINGS[key];
-  const built = d.unique && g.hasBuilt(key);
+  const n = key === 'station' ? g.transit.stations.size : counts ? counts.get(key) || 0 : 0;
+  const built = d.unique && (n > 0 || g.hasBuilt(key));
   const locked = g.isUnlocked(key) ? (built ? 'Schon gebaut' : null) : g.lockReason(key);
   const facts = [];
   if (d.power) facts.push(['power', `${fmt(d.power)} MW`]);
@@ -132,11 +143,21 @@ function placeItem(g, cat, key, meta) {
   const unlockMs = d.landmark ? d.unlock + 1 : d.unlock;
   return {
     cat, kind: 'place', key, name: d.name, cost: fmtMoney(g.buildingCost(key)), desc: d.desc, facts,
-    color: meta.color, locked, built, unique: !!d.unique, landmark: !!d.landmark,
+    color: meta.color, locked, built, unique: !!d.unique, landmark: !!d.landmark, count: d.unique ? 0 : n,
     tag: d.landmark && g.landmarkVouchers.has(key) && !built ? '−50 %' : '',
     fresh: !g.sandbox && unlockMs === g.milestone && unlockMs > 0 && !locked,
     unlockName: MILESTONES[unlockMs] ? MILESTONES[unlockMs].name : '',
   };
+}
+
+export function freshCats(ui) {
+  const g = ui.g, out = new Set();
+  if (g.sandbox || g.milestone <= 0) return out;
+  for (const [key, d] of Object.entries(BUILDINGS)) {
+    const ms = d.landmark ? d.unlock + 1 : d.unlock;
+    if (ms === g.milestone && g.isUnlocked(key)) out.add(d.cat);
+  }
+  return out;
 }
 
 export function allCatalogItems(ui) {
@@ -193,7 +214,7 @@ export function cardHTML(it, i, active, showCat = false) {
   const cm = catMeta(it.cat);
   const lockTxt = it.built ? 'Gebaut' : it.locked ? 'Gesperrt' : '';
   return `<button class="${cls.join(' ')}" data-i="${i}" data-kind="${it.kind}" data-type="${it.type || ''}" data-zone="${it.zone || ''}" data-key="${esc(it.key || '')}" data-panel="${esc(it.panel || '')}" ${it.locked ? 'data-locked="1"' : ''} style="--c:${it.color || cm.color}" aria-label="${esc(it.name)}">
-  <span class="pic">${pic(it)}${it.tag ? `<span class="tag">${esc(it.tag)}</span>` : it.fresh ? '<span class="tag new">Neu</span>' : ''}${lockTxt ? `<span class="lockbadge">${icon(it.built ? 'check' : 'lock', 12, 2.6)}${lockTxt}</span>` : ''}${typeof it.demand === 'number' ? `<span class="dem"><i style="height:${Math.max(4, Math.min(100, Math.abs(it.demand)))}%;${it.demand < 0 ? 'opacity:.4' : ''}"></i></span>` : ''}</span>
+  <span class="pic">${pic(it)}${it.tag ? `<span class="tag">${esc(it.tag)}</span>` : it.fresh ? '<span class="tag new">Neu</span>' : ''}${lockTxt ? `<span class="lockbadge">${icon(it.built ? 'check' : 'lock', 12, 2.6)}${lockTxt}</span>` : ''}${it.count ? `<span class="cnt num" title="In der Stadt">${it.count}×</span>` : ''}${typeof it.demand === 'number' ? `<span class="dem"><i style="height:${Math.max(4, Math.min(100, Math.abs(it.demand)))}%;${it.demand < 0 ? 'opacity:.4' : ''}"></i></span>` : ''}</span>
   <span class="meta">${showCat ? `<span class="ct" style="color:${cm.color}">${esc(cm.name)}</span>` : ''}<span class="n">${esc(it.name)}</span><span class="c">${esc(it.cost)}</span>${it.facts && it.facts.length ? `<span class="f">${factsHTML(it.facts, 1)}</span>` : ''}</span>
 </button>`;
 }

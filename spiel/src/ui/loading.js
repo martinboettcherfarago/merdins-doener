@@ -3,6 +3,7 @@
 // danach die Beispielstadt des Menüs. Beim Gründen/Laden einer Stadt zeigt showLoader() den Bildschirm erneut.
 import { MATERIAL_NAMES, getMaterial } from '../render/matlib.js';
 import { getAtlasMaterial } from '../render/atlas.js';
+import * as protos from '../render/protos.js';
 
 const TIPS = [
   'Strom und Wasser fließen durch das Straßennetz – getrennte Netze brauchen eigene Versorgung.',
@@ -60,6 +61,10 @@ export function showLoader(title, step = '') {
 export function setLoader(p, step) {
   const f = $('ld-fill');
   if (f) { f.style.animation = 'none'; f.style.transform = `scaleX(${Math.max(0.02, Math.min(1, p))})`; }
+  // Haltestellen der Ladelinie leuchten nach Fortschritt auf, die nächste pulsiert
+  const sts = document.querySelectorAll('#loader .ld-st');
+  const n = sts.length;
+  sts.forEach((st, k) => { const at = n > 1 ? k / (n - 1) : 0; st.classList.toggle('on', p >= at - 0.001); st.classList.toggle('next', p < at && (k === 0 || p >= (k - 1) / (n - 1))); });
   if (step !== undefined) { const s = $('ld-step'); if (s) s.textContent = step; }
 }
 
@@ -95,7 +100,15 @@ export async function bootSequence(app) {
     await painted();
   }
   try { getAtlasMaterial(); } catch (e) { console.warn(e); }
-  setLoader(0.62, 'Baukasten bereit · Beispielstadt wird errichtet');
+  // Optional (G9): protos.prewarm(onProgress) baut häufige Modelle vorab in einen Zwischenspeicher
+  const hook = 'prewarm';
+  const pre = protos[hook];
+  if (typeof pre === 'function') {
+    try {
+      await pre((p, text) => { setLoader(0.58 + 0.06 * Math.max(0, Math.min(1, p)), text || 'Gebäudemodelle'); return painted(); });
+    } catch (e) { console.warn(e); }
+  }
+  setLoader(0.64, 'Baukasten bereit · Beispielstadt wird errichtet');
   await painted();
   app.mode = 'menu';
   try { app.menuPreview(null); } catch (e) { console.error(e); }

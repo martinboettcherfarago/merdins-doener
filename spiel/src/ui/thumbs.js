@@ -15,6 +15,7 @@ export const THUMB_W = 256, THUMB_H = 192;
 const cache = new Map();      // Schlüssel → dataURL | '' (fehlgeschlagen)
 const queue = [];             // { id, spec, prio }
 const listeners = new Set();  // fn(id, url)
+const inflight = new Set();   // gerade in Arbeit
 let ctx = null;
 let busy = null;              // gerade im Aufbau (wartet auf compileAsync)
 
@@ -27,6 +28,7 @@ export function getThumb(spec, prio = 1) {
   const id = thumbId(spec);
   const c = cache.get(id);
   if (c !== undefined) return c || null;
+  if (inflight.has(id)) return null;
   const q = queue.find((x) => x.id === id);
   if (q) q.prio = Math.max(q.prio, prio);
   else queue.push({ id, spec, prio });
@@ -34,7 +36,7 @@ export function getThumb(spec, prio = 1) {
 }
 export const thumbFailed = (spec) => cache.get(thumbId(spec)) === '';
 export function onThumb(fn) { listeners.add(fn); return () => listeners.delete(fn); }
-export const thumbsPending = () => queue.length + (busy ? 1 : 0);
+export const thumbsPending = () => queue.length;
 export function clearThumbQueue() { queue.length = 0; }
 
 function setup(renderer) {
@@ -184,7 +186,7 @@ function prepare(c, item, model) {
   return pl;
 }
 
-function renderNow(c, item, model, pl) {
+function renderNow(c, item, model, pl, done) {
   const { renderer, scene, cam } = c;
   // Zustand sichern
   const st = {
@@ -222,7 +224,7 @@ function renderNow(c, item, model, pl) {
     model.userData.dispose && model.userData.dispose();
     pl.userData.dispose && pl.userData.dispose();
   }
-  if (!ok) return '';
+  if (!ok) { done(''); return; }
   // Pixel umdrehen (WebGL zählt von unten) und Vormultiplikation an Kanten aufheben
   const img = c.c2d.createImageData(THUMB_W, THUMB_H);
   const src = c.buf, dst = img.data, row = THUMB_W * 4;
@@ -239,12 +241,16 @@ function renderNow(c, item, model, pl) {
   }
   c.c2d.clearRect(0, 0, THUMB_W, THUMB_H);
   c.c2d.putImageData(img, 0, 0);
-  let url = c.canvas.toDataURL('image/webp', 0.9);
-  if (!url.startsWith('data:image/webp')) url = c.canvas.toDataURL('image/png');
-  return url;
+  // toBlob kopiert den Inhalt sofort; die Leinwand darf danach wiederverwendet werden
+  try {
+    c.canvas.toBlob((blob) => done(blob ? URL.createObjectURL(blob) : ''), 'image/webp', 0.9);
+  } catch (e) {
+    done(c.canvas.toDataURL('image/png'));
+  }
 }
 
 function finish(item, url) {
+  inflight.delete(item.id);
   cache.set(item.id, url);
   for (const fn of listeners) { try { fn(item.id, url); } catch (e) { console.error(e); } }
 }
@@ -256,7 +262,8 @@ export function pumpThumbs(engine) {
   if (!queue.length) return;
   queue.sort((a, b) => b.prio - a.prio);
   const item = queue.shift();
-  if (cache.has(item.id)) return;
+  if (cache.has(item.id) || inflight.has(item.id)) return;
+  inflight.add(item.id);
   const c = setup(engine.renderer);
   c.mainScene = engine.scene;
   let model = null;
@@ -264,17 +271,18 @@ export function pumpThumbs(engine) {
   if (!model) { finish(item, ''); return; }
   const pl = prepare(c, item, model);
   const ext = c.renderer.extensions;
-  if (!c.renderer.compileAsync || !(ext && ext.has && ext.has('KHR_parallel_shader_compile'))) { finish(item, renderNow(c, item, model, pl)); return; }
+  if (!c.renderer.compileAsync || !(ext && ext.has && ext.has('KHR_parallel_shader_compile'))) { renderNow(c, item, model, pl, (url) => finish(item, url)); return; }
   // Shader im Hintergrund übersetzen lassen (passend zum Rendertarget), dann zeichnen
   busy = item;
   const done = () => {
     busy = null;
     if (!ctx || ctx.renderer !== c.renderer || c.disposed) {
       c.scene.remove(model, pl); model.userData.dispose(); pl.userData.dispose();
+      inflight.delete(item.id);
       if (!cache.has(item.id)) queue.unshift(item);
       return;
     }
-    finish(item, renderNow(c, item, model, pl));
+    renderNow(c, item, model, pl, (url) => finish(item, url));
   };
   let p = null;
   const prev = c.renderer.getRenderTarget();
