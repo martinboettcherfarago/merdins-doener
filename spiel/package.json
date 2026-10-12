@@ -1,0 +1,16 @@
+{
+  "name": "stadtpuls",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stadtpuls – 3D-Städtebau- und Verkehrsspiel im Browser",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "test": "node test/sim-test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.20.2",
+    "three": "0.160.0"
+  }
+}
