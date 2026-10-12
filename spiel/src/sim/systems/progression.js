@@ -148,7 +148,13 @@ export const ACHIEVEMENTS = [
   { id: 'tourism1k', cat: 'money', tier: 2, name: 'Reiseziel', desc: '1.000 Touristen an einem Tag.', goal: 1000, v: (g, F, C) => C.maxTourism },
   { id: 'industry', cat: 'money', tier: 2, name: 'Werkbank der Region', desc: '1.500 Arbeitsplätze in der Industrie.', goal: 1500, v: (g) => g.stats.jobsByZone[3] },
   { id: 'chain', cat: 'money', tier: 1, name: 'Wertschöpfung', desc: 'Eine Verarbeitungsfabrik gebaut (Lebensmittel, Säge, Stahl oder Raffinerie).', goal: 1, v: (g, F) => PROCESSING.reduce((a, k) => a + (F.byKey[k] || 0), 0) },
-  { id: 'export', cat: 'money', tier: 2, name: 'Exportweltmeister', desc: 'Güterbahnhof und Frachthafen gebaut.', goal: 2, v: (g, F) => (has(F, 'cargo_rail') ? 1 : 0) + (has(F, 'cargo_harbor') ? 1 : 0) },
+  { id: 'export', cat: 'money', tier: 2, name: 'Tor zur Welt', desc: 'Güterbahnhof und Frachthafen gebaut.', goal: 2, v: (g, F) => (has(F, 'cargo_rail') ? 1 : 0) + (has(F, 'cargo_harbor') ? 1 : 0) },
+  // Wirtschaft von S1 (g.ext.industry) – nur, wenn das System die Felder liefert
+  { id: 'chain4', cat: 'money', tier: 2, name: 'Lieferkette', desc: 'Alle vier Verarbeitungsbetriebe: Lebensmittel, Säge, Stahl und Raffinerie.', goal: 4, v: (g, F) => PROCESSING.filter((k) => has(F, k)).length },
+  { id: 'exportchamp', cat: 'money', tier: 3, name: 'Exportweltmeister', desc: 'Exporterlöse von mindestens 2.000 € am Tag.', goal: 2000, v: (g, F, C) => C.maxExport, fmt: fmtMoney, req: (g) => typeof g.ext.industry?.lines?.export === 'number' },
+  { id: 'shelves', cat: 'money', tier: 2, name: 'Volle Regale', desc: 'Die Läden sind zu 99 % mit Waren versorgt – bei mindestens 50 Gewerbegebäuden.', goal: 1, v: (g, F) => (F.zoneCount[2] >= 50 && (g.ext.industry?.tot?.supplyCom || 0) >= 0.99 ? 1 : Math.min(0.95, F.zoneCount[2] / 50) * 0.9), hint: (g) => `Versorgung ${pct(g.ext.industry?.tot?.supplyCom || 0)}`, req: (g) => typeof g.ext.industry?.tot?.supplyCom === 'number' },
+  { id: 'harborcity', cat: 'money', tier: 2, name: 'Hafenstadt', desc: '1.500 Einheiten Fracht über den Hafen umgeschlagen.', goal: 1500, v: (g) => g.ext.industry?.tot?.harborUsed || 0, req: (g) => typeof g.ext.industry?.tot?.harborUsed === 'number' },
+  { id: 'recession', cat: 'money', tier: 3, name: 'Durch die Krise', desc: 'Eine Rezession überstanden, ohne ins Minus zu rutschen.', goal: 1, v: (g, F, C) => (C.recessionOk ? 1 : 0), hint: (g, F, C) => (C.inRecession ? 'Rezession läuft – Kasse im Plus halten!' : 'Wartet auf die nächste Rezession …'), req: (g) => typeof g.ext.industry?.cycle?.value === 'number' },
   // --- Verkehr
   { id: 'firstline', cat: 'transit', tier: 1, metro: true, name: 'Erste Fahrt', desc: 'Die erste Pulsbahn-Linie fährt.', goal: 1, v: (g, F) => F.lines },
   { id: 'lines5', cat: 'transit', tier: 2, metro: true, name: 'Liniennetz', desc: 'Fünf Pulsbahn-Linien gleichzeitig.', goal: 5, v: (g, F) => F.lines },
@@ -219,7 +225,7 @@ function freshCounters() {
     maxPop: 0, maxMoney: 0, minMoney: 0, maxNet: 0, maxTourism: 0, maxRiders: 0, maxAbandoned: 0,
     happyStreak: 0, lowTaxStreak: 0, loansRepaid: 0, lastLoans: 0, deepDebt: false, comeback: false,
     fires: 0, demolished: 0, events: 0, disasters: 0, policies: [], seasons: [], trees: 0,
-    dayFlow: 1, worstFlow: 1, scenarioWins: 0, bestStars: 0, pixel: false, nightowl: false, questsDone: 0, questsFailed: 0, winterHappy: false,
+    dayFlow: 1, worstFlow: 1, scenarioWins: 0, bestStars: 0, pixel: false, nightowl: false, questsDone: 0, questsFailed: 0, winterHappy: false, maxExport: 0, inRecession: false, recessionMin: 0, recessionOk: false,
   };
 }
 
@@ -305,6 +311,14 @@ function updateCounters(g) {
   const season = g.ext.weather?.season;
   if (typeof season === 'string' && !C.seasons.includes(season)) C.seasons.push(season);
   if (season === 'winter' && (g.ext.weather.snowCover || 0) > 0.4 && s.pop >= 1000 && s.happiness >= 70) C.winterHappy = true;
+  // Wirtschaft (S1): Exporterlöse und Konjunktur
+  const ind = g.ext.industry;
+  if (typeof ind?.lines?.export === 'number') C.maxExport = Math.max(C.maxExport, ind.lines.export);
+  const cyc = ind?.cycle?.value;
+  if (typeof cyc === 'number') {
+    if (cyc <= -0.5) { if (!C.inRecession) { C.inRecession = true; C.recessionMin = g.money; } C.recessionMin = Math.min(C.recessionMin, g.money); }
+    else if (C.inRecession && cyc >= 0) { C.inRecession = false; if (C.recessionMin >= 0) C.recessionOk = true; }
+  }
   // Tagesmittel des Verkehrsflusses
   const d = st.day;
   if (d.flowN > 0) {
@@ -1412,7 +1426,7 @@ function dailyQuests(g) {
   if (Q.recent.length > 6) Q.recent.shift();
   Q.next = g.day() + (Q.active.length >= 2 ? 4 : 2);
   const a = ADVISORS[t.who] || ADVISORS.bau;
-  g.pushNews({ kind: 'quest', author: `${a.role} ${a.name}`, text: `Neuer Auftrag: ${t.title} – ${t.text(q)} Frist: ${made.days} Tage. Belohnung: ${rewardText(q.reward)}.`, mood: 'info' });
+  g.pushNews({ kind: 'quest', author: `${a.role} ${a.name}`, text: `Neuer Auftrag: ${t.title} – ${t.text(q)} (${made.days} Tage)`, mood: 'info' });
   pushInbox(g, { type: 'quest', ok: false, title: t.title });
 }
 

@@ -137,7 +137,7 @@ const CSS = `
 .s5-hud .gl .bar i{display:block;height:100%;border-radius:2px}
 .s5-hud .tb{height:4px;border-radius:2px;background:var(--paper-3);margin-top:7px;overflow:hidden}
 .s5-hud .tb i{display:block;height:100%;border-radius:2px}
-.s5-hud.mini .gl,.s5-hud.mini .tb,.s5-hud.mini .warn{display:none}
+.s5-hud.mini .gl,.s5-hud.mini .tb,.s5-hud.mini .dt{display:none}
 .s5-hud .warn{margin-top:8px;padding:6px 8px;border-radius:9px;background:#f6dcd8;color:#9e2b23;font-weight:700;font-size:12px}
 .s5-hud .metro{display:flex;align-items:flex-end;gap:10px;margin-top:6px}
 .s5-hud .metro .sc{font-family:var(--f-num);font-weight:700;font-size:30px;line-height:.95}
@@ -165,7 +165,7 @@ const CSS = `
 .s5-modal .bigstars{font-size:40px;letter-spacing:6px;text-align:center;color:var(--l-yellow);margin:4px 0}
 .s5-modal .bigstars .off{color:var(--paper-3)}
 @media (max-width:760px){
-  .s5-hud{left:8px;right:8px;width:auto;top:calc(104px + var(--safe-t));padding:8px 11px}
+  .s5-hud{left:8px;right:auto;top:auto;bottom:calc(150px + var(--safe-b));width:min(270px,calc(100% - 16px));padding:8px 11px}
   .s5-banner{left:8px;right:8px;top:calc(60px + var(--safe-t))}
   .s5-modal .facts{grid-template-columns:repeat(2,1fr)}
 }
@@ -416,7 +416,8 @@ function nextBanner() {
 // ---------------------------------------------------------------------------------------------
 // Zielanzeige im Spiel (rechts oben, verschwindet, wenn ein Panel offen ist)
 // ---------------------------------------------------------------------------------------------
-let hudEl = null, hudGame = null, hudMini = false;
+let hudEl = null, hudGame = null, hudMini = null; // null = Standard (auf dem Handy eingeklappt)
+const isNarrow = () => typeof window !== 'undefined' && window.innerWidth <= 760;
 function renderHud(ui) {
   const g = ui.g;
   const hud = document.getElementById('hud');
@@ -432,15 +433,17 @@ function renderHud(ui) {
     hudEl.className = 'sign s5-hud';
     hudEl.addEventListener('click', (e) => {
       if (e.target.closest('[data-s5=open]')) { ui._s5tab = 'ziele'; ui.openPanel('progression'); return; }
-      hudMini = !hudMini;
+      hudMini = !(hudMini ?? isNarrow());
       renderHud(ui);
     });
     hud.appendChild(hudEl);
     hudGame = g;
   }
   const insp = ui.el?.insp && !ui.el.insp.hidden;
-  hudEl.style.display = ui.panel ? 'none' : '';
-  hudEl.classList.toggle('mini', hudMini || !!insp);
+  const tray = ui.el?.tray && !ui.el.tray.hidden;
+  const narrow = isNarrow();
+  hudEl.style.display = ui.panel || (narrow && (insp || tray)) ? 'none' : '';
+  hudEl.classList.toggle('mini', (hudMini ?? narrow) || !!insp);
   const sc = ss?.sc;
   let html;
   if (!active) {
@@ -462,7 +465,7 @@ ${m.worst > 0.15 ? `<div class="warn">⚠ ${esc(m.worstName)} läuft über: ${Ma
 <div class="gl">${ss.goals.map((r) => `<span class="ck${r.done ? ' ok' : ''}"></span><span class="lb" title="${esc(r.goal.label)}">${esc(r.goal.label)}</span><span class="vl">${esc(r.text)}</span><span class="bar"><i style="width:${clamp(r.progress, 0, 1) * 100}%;background:${r.done ? 'var(--good)' : sc.color}"></i></span>`).join('')}</div>
 ${sc.days ? `<div class="tb"><i style="width:${clamp(ss.elapsed / sc.days, 0, 1) * 100}%;background:${ss.left <= 5 ? 'var(--bad)' : 'var(--ink-3)'}"></i></div>` : ''}`;
   }
-  html += `<div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn small ghost" data-s5="open" style="height:24px;font-size:12px">Details</button></div>`;
+  html += `<div class="dt" style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn small ghost" data-s5="open" style="height:24px;font-size:12px">Details</button></div>`;
   if (hudEl._html !== html) { hudEl.innerHTML = html; hudEl._html = html; }
 }
 
