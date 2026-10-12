@@ -24,7 +24,7 @@ import { BUILDINGS, Z, TAX_RATE, T } from '../../config.js';
 import { clamp, WeightedList, fmtMoney } from '../../util.js';
 import { findPath } from '../network.js';
 import { VT } from '../traffic.js';
-import { GOODS, GOOD_KEYS, RAW_KEYS, INPUT_KEYS, RAW_OF_SPEC, SPEC_NAMES, ECON } from '../../content/industry.js';
+import { GOODS, GOOD_KEYS, RAW_KEYS, INPUT_KEYS, RAW_OF_SPEC, SPEC_NAMES, SPEC_HOWTO, ECON } from '../../content/industry.js';
 
 const DT = 1 / 24; // ein Takt = eine Spielstunde
 const TAU = Math.PI * 2;
@@ -129,7 +129,7 @@ const CYCLE_NEWS = {
 
 // ---------------------------------------------------------------- Zustand
 function rnd(st) { st.seed = (Math.imul(st.seed, 1664525) + 1013904223) >>> 0; return st.seed / 4294967296; }
-const emptyPool = () => ({ prod: 0, need: 0, local: 0, whIn: 0, whOut: 0, imp: 0, exp: 0, unsold: 0, short: 0 });
+const emptyPool = () => ({ prod: 0, need: 0, local: 0, whIn: 0, whOut: 0, imp: 0, exp: 0, expWh: 0, unsold: 0, short: 0 });
 const ZERO_ACC = () => ({ export: 0, local: 0, rawbuy: 0, market: 0, exportT: 0, importT: 0, unsoldT: 0, hours: 0 });
 
 function freshState(g) {
@@ -353,6 +353,8 @@ function tick(g, st) {
   const P = {};
   for (const k of GOOD_KEYS) P[k] = emptyPool();
   let rawBuy = 0, localRev = 0, marketRev = 0;
+  // Warenstrom-Verbindungen für das Diagramm im Wirtschaftsfenster (t/Tag)
+  const lk = { rawProc: 0, whProc: 0, impProc: 0, rawShop: 0, rawExp: 0, rawWh: 0, rawLeft: 0, procFac: 0, whFac: 0, procShop: 0, procExp: 0, procWh: 0, procLeft: 0, facShop: 0, facExp: 0, facWh: 0, facLeft: 0, impShop: 0, whShop: 0, whExp: 0 };
 
   // --- 2) Rohstoffe → Verarbeitung
   for (const k of RAW_KEYS) for (const { r } of raws[k]) P[k].prod += r.out;
@@ -381,6 +383,7 @@ function tick(g, st) {
     }
     P[k].local += local; P[k].imp += imp; P[k].short += short - imp;
     procGot[k] = need > 0 ? (local + wo + imp) / need : 0;
+    lk.rawProc += local; lk.whProc += wo; lk.impProc += imp;
   }
   for (const p of procs) {
     const ratio = procGot[p.d.input] || 0;
@@ -398,6 +401,7 @@ function tick(g, st) {
   let inAvail = 0;
   for (const k of INPUT_KEYS) inAvail += P[k].prod;
   let take = Math.min(inputNeed, inAvail);
+  lk.procFac = take;
   for (const k of INPUT_KEYS) {
     const share = inAvail > 0 ? (P[k].prod / inAvail) * take : 0;
     P[k].local += share; P[k].need += share;
@@ -405,7 +409,7 @@ function tick(g, st) {
   if (take < inputNeed) {
     for (const k of INPUT_KEYS) {
       const wo = whTake(W, k, inputNeed - take, ['balance', 'empty']);
-      P[k].whOut += wo; P[k].need += wo; take += wo;
+      P[k].whOut += wo; P[k].need += wo; take += wo; lk.whFac += wo;
     }
   }
   const boost = inputNeed > 0 ? take / inputNeed : 0;
@@ -443,10 +447,12 @@ function tick(g, st) {
     const imp = Math.min(short, Math.max(0, freightLeft));
     freightLeft -= imp; pool.imp += imp; short -= imp;
     pool.short += short;
-    return { local: local + fresh, wh: wo + wo2, imp, short, got: need - short };
+    return { local: local + fresh, fresh, wh: wo + wo2, imp, short, got: need - short };
   };
   const SG = supply('goods', needG);
   const SF = supply('food', needF, { k: 'crops', max: ECON.freshShare });
+  lk.facShop = SG.local; lk.procShop = SF.local - SF.fresh; lk.rawShop = SF.fresh;
+  lk.impShop = SG.imp + SF.imp; lk.whShop = SG.wh + SF.wh;
   // Verteilung nach Entfernung zur nächsten Bezugsquelle (Fabriken, Lager, Umschlag, Autobahn)
   if (shops.length) {
     const pts = [];
@@ -491,8 +497,9 @@ function tick(g, st) {
       const pool = P[k];
       const t = Math.min(Math.max(0, pool.prod - pool.local), want - got);
       pool.local += t; pool.need += t; got += t;
+      if (k === 'crops') lk.rawShop += t; else lk.procShop += t;
     }
-    if (got < want) { const wo = whTake(W, 'food', want - got, ['balance', 'empty']); P.food.whOut += wo; got += wo; }
+    if (got < want) { const wo = whTake(W, 'food', want - got, ['balance', 'empty']); P.food.whOut += wo; got += wo; lk.whShop += wo; }
     m.r.need = want; m.r.in = got; m.r.util = want > 0 ? got / want : 0; m.r.staff = staff;
     marketRev += got * ECON.marketFee;
   }
@@ -530,6 +537,7 @@ function tick(g, st) {
     }
     pool.whOut += rel;
     pool.exp = fromOffer + rel;
+    pool.expWh = rel;
     revBase += pool.exp * worldPrice(g, k) * st.prices[k];
     let left = offer[k] - fromOffer;
     if (left > 1e-6) { const put = whPut(W, k, left, ['balance', 'fill']); pool.whIn += put; left -= put; }
@@ -583,8 +591,12 @@ function tick(g, st) {
   // --- 7) Glätten, Kennzahlen, Tagessummen
   for (const k of GOOD_KEYS) {
     const f = st.flow[k], p = P[k];
-    for (const key in p) f[key] = f[key] + (p[key] - f[key]) * 0.35;
+    for (const key in p) f[key] = (f[key] || 0) + (p[key] - (f[key] || 0)) * 0.35;
+    const tier = GOODS[k].tier, pre = tier === 0 ? 'raw' : tier === 1 ? 'proc' : 'fac';
+    lk[pre + 'Exp'] += p.exp - p.expWh; lk.whExp += p.expWh; lk[pre + 'Wh'] += p.whIn; lk[pre + 'Left'] += p.unsold;
   }
+  const sl = st.links || (st.links = {});
+  for (const key in lk) sl[key] = (sl[key] || 0) + (lk[key] - (sl[key] || 0)) * 0.35;
   let prodInd = 0, unsoldInd = 0;
   for (const k of [...RAW_KEYS, 'goods']) { prodInd += P[k].prod; unsoldInd += P[k].unsold; }
   let supSum = 0, needSumAll = 0, locSum = 0, impSum = 0;
@@ -767,11 +779,11 @@ function daily(g, st) {
     if (p.zone || p.construct < 1) continue;
     const d = BUILDINGS[p.key];
     const r = st.rec.get(p.id);
-    if (d && d.output && r && r.cap > 0 && r.util < 0.25) say(g, st, 'idle' + p.id, 8, `${d.name}: kaum ${GOODS[d.input].name} zu verarbeiten. ${SPEC_NAMES[d.process] || 'Zulieferer'} in der Nähe ausweisen${st.buyRaw ? ' oder mehr Frachtkapazität für Zukäufe schaffen' : ' oder den Zukauf von Rohstoffen erlauben'}.`, 'info', p);
+    if (d && d.output && r && r.cap > 0 && r.util < 0.25) say(g, st, 'idle' + p.id, 8, `${d.name}: kaum ${GOODS[d.input].name} zu verarbeiten. ${SPEC_HOWTO[d.process] || 'Zulieferer ansiedeln'}${st.buyRaw ? ' oder mehr Frachtkapazität für Zukäufe schaffen' : ' oder den Zukauf von Rohstoffen erlauben'}.`, 'info', p);
   }
   // Verlauf
   const L = st.lines;
-  st.hist.push({ d: day, exp: Math.round(L.export), loc: Math.round(L.local), raw: Math.round(L.rawbuy), mkt: Math.round(L.market), cyc: +c.value.toFixed(2), sup: Math.round(t.supplyCom * 100), sal: Math.round((t.salesInd ?? 1) * 100), fr: Math.round((t.freightUse || 0) * 100), expT: Math.round(L.exportT || 0), impT: Math.round(L.importT || 0), stock: Math.round(t.stock || 0), dens: Math.round(L.density), cy: Math.round(L.cycle) });
+  st.hist.push({ d: day, exp: Math.round(L.export), loc: Math.round(L.local), raw: Math.round(L.rawbuy), mkt: Math.round(L.market), cyc: +c.value.toFixed(2), sup: Math.round(t.supplyCom * 100), sal: Math.round((t.salesInd ?? 1) * 100), fr: Math.round((t.freightUse || 0) * 100), expT: Math.round(L.exportT || 0), impT: Math.round(L.importT || 0), stock: Math.round(t.stock || 0), dens: Math.round(L.density), cy: Math.round(L.cycle), px: GOOD_KEYS.map((k) => +(st.market[k].idx * (1 + (st.market[k].shock || 0))).toFixed(2)) });
   if (st.hist.length > 160) st.hist.shift();
 }
 
@@ -1075,13 +1087,13 @@ registerSystem({
     return round({
       v: 1, seed: st.seed, market: st.market, prices: st.prices, buyRaw: st.buyRaw, cycle: st.cycle, dens: st.dens,
       applied: st.applied, perm: st.perm, wh: st.wh, flow: st.flow, tot: st.tot, acc: st.acc, lines: st.lines,
-      hist: st.hist, news: st.news, nextShock: st.nextShock, first: st.first, jobs: st.jobs, densAvg: st.densAvg, recs,
+      hist: st.hist, news: st.news, nextShock: st.nextShock, first: st.first, jobs: st.jobs, densAvg: st.densAvg, links: st.links, recs,
     });
   },
   load(g, d) {
     if (!d || d.v !== 1) return;
     const st = freshState(g);
-    for (const k of ['seed', 'buyRaw', 'cycle', 'dens', 'applied', 'perm', 'wh', 'tot', 'acc', 'lines', 'hist', 'news', 'nextShock', 'first', 'jobs', 'densAvg']) if (d[k] !== undefined) st[k] = d[k];
+    for (const k of ['seed', 'buyRaw', 'cycle', 'dens', 'applied', 'perm', 'wh', 'tot', 'acc', 'lines', 'hist', 'news', 'nextShock', 'first', 'jobs', 'densAvg', 'links']) if (d[k] !== undefined) st[k] = d[k];
     for (const k of GOOD_KEYS) {
       if (d.market && d.market[k]) Object.assign(st.market[k], d.market[k]);
       if (d.prices && d.prices[k] !== undefined) st.prices[k] = d.prices[k];

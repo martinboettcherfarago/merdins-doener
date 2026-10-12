@@ -28,6 +28,9 @@ export const RAW_KEYS = ['crops', 'wood', 'ore', 'oil'];
 export const INPUT_KEYS = ['timber', 'steel', 'plastics']; // Vorprodukte für Fabriken
 export const RAW_OF_SPEC = { farm: 'crops', forest: 'wood', mine: 'ore', oil: 'oil' };
 export const SPEC_NAMES = { farm: 'Bauernhof', forest: 'Forstbetrieb', mine: 'Bergwerk', oil: 'Ölförderung' };
+export const SPEC_PLURAL = { farm: 'Bauernhöfe', forest: 'Forstbetriebe', mine: 'Bergwerke', oil: 'Ölfelder' };
+export const SPEC_DATIVE = { farm: 'Bauernhöfen', forest: 'Forstbetrieben', mine: 'Bergwerken', oil: 'Ölfeldern' };
+export const SPEC_HOWTO = { farm: 'Industrie auf fruchtbarem Boden ausweisen', forest: 'Industrie im Wald ausweisen', mine: 'Industrie auf Erzvorkommen ausweisen', oil: 'Industrie auf Ölvorkommen ausweisen' };
 
 // Kennzahlen der Warenwirtschaft (alles in Tonnen pro Tag).
 export const ECON = {
