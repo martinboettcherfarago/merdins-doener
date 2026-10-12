@@ -5,3 +5,4 @@ import './lm_cathedral.js';
 import './lm_castle.js';
 import './lm_ferris.js';
 import './lm_towers.js';
+import './lm_venues.js';
