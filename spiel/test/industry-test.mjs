@@ -248,6 +248,91 @@ if (wh1) {
   check(g2.ext.industry.tot.exportT > 0 && !anyNaN({ tot: g2.ext.industry.tot }), 'Nach dem Laden läuft die Wirtschaft weiter');
   check(Math.abs(g2.mods.power - g.mods.power) < 1e-6, 'Budget-Faktoren werden beim Laden nicht doppelt angewandt');
 }
+// ---------------------------------------------------------------- Oberfläche headless rendern
+{
+  const { PANELS, INSPECTORS, BUILDING_PROBLEMS, OVERLAYS_EXTRA } = await import('../src/registry.js');
+  await import('../src/ui/panels/economy.js');
+  const panel = PANELS.find((p) => p.id === 'economy');
+  const fakeUi = { g, el: { insp: { addEventListener() {} }, panel: null }, view: 'none' };
+  let ok = !!panel, err = '';
+  if (panel) {
+    for (const tab of ['overview', 'goods', 'logistics', 'budgets', 'taxes']) {
+      try {
+        panel.click(fakeUi, 'eco-tab', { dataset: { k: tab } });
+        const html = panel.render(fakeUi);
+        if (!html || html.length < 500 || /undefined|NaN/.test(html)) { ok = false; err += ` ${tab}:${/NaN/.test(html) ? 'NaN' : /undefined/.test(html) ? 'undefined' : 'kurz'}`; }
+      } catch (e) { ok = false; err += ` ${tab}:${e.message}`; }
+    }
+  }
+  check(ok, `Panel „Wirtschaft" rendert alle Reiter ohne Fehler${err}`);
+  let insp = 0, inspErr = '';
+  for (const b of g.buildings.values()) {
+    for (const fn of INSPECTORS) {
+      try { const h = fn(fakeUi, { type: 'building', id: b.id }); if (h) { insp++; if (/NaN|undefined/.test(h)) inspErr = BUILDINGS[b.key]?.name || 'Zone ' + b.zone; } } catch (e) { inspErr = e.message; }
+    }
+  }
+  check(insp > 50 && !inspErr, `Inspektor-Abschnitte für ${insp} Gebäude${inspErr ? ' – Fehler bei ' + inspErr : ''}`);
+  const ov = OVERLAYS_EXTRA.find((o) => o.id === 'goods');
+  let colored = 0;
+  for (const b of g.buildings.values()) if (ov && ov.building(g, b) !== null) colored++;
+  check(colored > 50, `Infoansicht „Waren" färbt ${colored} Gebäude`);
+  void BUILDING_PROBLEMS;
+}
+
+// ---------------------------------------------------------------- Mangel-Szenario: viel Gewerbe, kaum Fracht
+console.log('\nMangel-Szenario (nach 20 Tagen: Generalstreik in den Fabriken, Frachtkapazität −85 %):');
+{
+  const m = new Game({ size: 64, seed: 99, mapType: 'river', difficulty: 'normal', name: 'Ladenstadt' });
+  m.money = 200000;
+  m.on('cards', (ids) => m.chooseCard(ids[0]));
+  m.on('event', () => m.resolveEvent(1));
+  const MW = m.W, my = m.world.highwayY, mx = m.world.highwayEnd % MW + 1;
+  const mi = (x, y) => y * MW + x;
+  const rd = (ax, ay, bx, by) => { if (ay === by) for (let x = ax; x <= bx; x++) m.buildRoad([mi(x, ay)], R.STREET); else for (let y = ay; y <= by; y++) m.buildRoad([mi(ax, y)], R.STREET); };
+  const zn = (ax, ay, bx, by, z) => { const t = []; for (let y = ay; y <= by; y++) for (let x = ax; x <= bx; x++) t.push(mi(x, y)); m.zoneTiles(t, z); };
+  const pl = (key, x, y) => { for (let d = 0; d < 8; d++) for (const [ox, oy] of [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d]]) if (m.placeBuilding(key, x + ox, y + oy).ok) return true; return false; };
+  rd(mx, my, mx + 24, my);
+  for (const x of [mx + 3, mx + 8, mx + 13, mx + 18, mx + 23]) rd(x, my - 10, x, my + 10);
+  rd(mx + 3, my - 10, mx + 23, my - 10); rd(mx + 3, my + 10, mx + 23, my + 10);
+  zn(mx + 4, my - 9, mx + 22, my - 1, Z.RES);
+  zn(mx + 4, my + 1, mx + 22, my + 9, Z.COM);
+  zn(mx + 4, my + 6, mx + 12, my + 9, Z.IND);
+  pl('coal', mx + 10, my + 11); pl('watertower', mx + 1, my - 3); pl('watertower', mx + 1, my + 3); pl('watertower', mx + 25, my - 4); pl('landfill', mx + 18, my + 11);
+  const s0 = { lv: 0 };
+  // 20 Tage normal wachsen lassen, dann Dauerstreik in den Fabriken und Frachtsperre
+  for (let d = 1; d <= 20; d++) for (let s = 0; s < 300; s++) m.update(0.1);
+  m.addEffect('ecoFreight', -0.85, 400, 'Test: Frachtsperre');
+  m.addEffect('ecoProd:factory', -1, 400, 'Test: Generalstreik');
+  for (let d = 1; d <= 14; d++) for (let s = 0; s < 300; s++) m.update(0.1);
+  const S2 = m.ext.industry, t2 = S2.tot;
+  let shortF = 0, n = 0, maxLv = 0;
+  for (const b of m.buildings.values()) {
+    if (b.zone !== Z.COM || b.abandoned || b.construct < 1) continue;
+    n++; maxLv = Math.max(maxLv, b.level);
+    const out = []; happinessFactors(m, b, out);
+    for (const [l, v] of out) if (l === 'Warenmangel') shortF += v;
+  }
+  void s0;
+  console.log(`  Einw ${m.stats.pop} · Läden ${n} · versorgt ${P2(t2.supplyCom)} · Import ${Math.round(t2.importT)} t von ${Math.round(t2.freightCap)} t Fracht · Nachfrage G ${m.demand[2].toFixed(0)} I ${m.demand[3].toFixed(0)}`);
+  check(t2.shortCom > 0.2, `Ohne Fracht und Industrie entsteht Warenmangel (${P2(t2.shortCom)} fehlen)`);
+  check(n > 0 && shortF / n < -2, `Warenmangel drückt das Glück im Gewerbe (Ø ${(shortF / Math.max(1, n)).toFixed(1)})`);
+  {
+    // Beitrag der Wirtschaft zur Nachfrage (ohne den Kern, der hier vom Arbeitskräftemangel dominiert wird)
+    const { DEMAND_MODIFIERS } = await import('../src/registry.js');
+    const dd = [0, 0, 0, 0, 0], d0 = [0, 0, 0, 0, 0];
+    for (const fn of DEMAND_MODIFIERS) fn(m, dd);
+    const keep = t2.shortCom; t2.shortCom = 0;
+    for (const fn of DEMAND_MODIFIERS) fn(m, d0);
+    t2.shortCom = keep;
+    console.log(`  Absatz ${P2(t2.salesInd)} · Mangel ${P2(t2.shortCom)} · Konjunktur ${S2.cycle.value.toFixed(2)} · Rohstoffe/Waren ${Math.round(t2.indProd)} t (ohne Fracht unverkäuflich)`);
+    check(dd[3] - d0[3] > 10 && dd[2] - d0[2] < -10, `Warenmangel weckt Nachfrage nach Industrie (+${(dd[3] - d0[3]).toFixed(0)}) und bremst neue Läden (${(dd[2] - d0[2]).toFixed(0)})`);
+    check(dd[3] < d0[3] + 25, `Unverkäufliche Ware dämpft die Industrienachfrage trotzdem (gesamt ${dd[3].toFixed(0)})`);
+  }
+  const msgs = m.newsLog.filter((x) => x.kind === 'economy').map((x) => x.text);
+  check(msgs.some((x) => /Läden bekommen nur|Warenmangel/.test(x)), 'Stadtfunk warnt vor dem Warenmangel');
+}
+function P2(v) { return Math.round((v || 0) * 100) + ' %'; }
+
 void T; void budgetOf;
 console.log(fails ? `\n${fails} Prüfung(en) fehlgeschlagen.` : '\nAlle Prüfungen bestanden.');
 process.exit(fails ? 1 : 0);
