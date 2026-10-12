@@ -28,7 +28,8 @@ const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const LOD_TICK = 0.3;
 const LOD_NEAR = 12.5, LOD_MID = 25; // Kameraabstand für Detail 2 bzw. 1 (Qualität „medium")
 const LOD_SCALE = { low: 0.65, medium: 1, high: 1.3, ultra: 1.7 };
-const MAX_D2 = 70, MAX_D1 = 160; // höchstens so viele Gebäude in Detail 2 bzw. ≥ 1
+const MAX_D2 = 60, MAX_D1 = 160; // höchstens so viele Gebäude in Detail 2 bzw. ≥ 1
+const MAX_PROTOS = 64; // höchstens so viele verschiedene Prototypen in Detail 1/2 (≈ Draw Calls nah)
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
 
@@ -92,14 +93,14 @@ function shopFront(kit, c, x, z, w, d, aw, signMat, o = {}) {
   const pw = (w - 0.4 * M) / n;
   for (let i = 0; i < n; i++) {
     const px = x - w / 2 + 0.2 * M + pw * (i + 0.5);
-    if (o.door !== false && i === Math.floor(n / 2)) { kit.box('door_glass', px, 0.1 * M, zf + 0.03 * M, Math.min(pw * 0.8, 1.6 * M), 2.3 * M, 0.06 * M, { lit: 0.99 }); continue; }
+    if (o.door !== false && i === Math.floor(n / 2)) { kit.box('glass_shop', px, 0.1 * M, zf + 0.03 * M, Math.min(pw * 0.8, 1.6 * M), 2.3 * M, 0.06 * M, { lit: 0.99 }); continue; }
     kit.box('glass_shop', px, 0.45 * M, zf + 0.03 * M, pw - 0.25 * M, gh - 0.9 * M, 0.06 * M, { lit: c.rng() });
   }
   if (c.detail >= 1) for (let i = 0; i <= n; i++) kit.box('metal_dark', x - w / 2 + 0.2 * M + pw * i, 0, zf + 0.06 * M, 0.14 * M, gh - 0.3 * M, 0.1 * M);
   kit.box('trim_stone', x, gh - 0.4 * M, zf + 0.04 * M, w + 0.06 * M, 0.35 * M, 0.16 * M);
   if (aw) kit.box(aw, x, gh - 0.55 * M, zf + 0.12 * M, w * 0.92, 0.07 * M, 1.3 * M, { rx: 0.38 });
   if (signMat) sign(kit, signMat, x + (o.signOff || 0), gh - 0.05 * M, zf + 0.12 * M, Math.min(w * 0.6, 5 * M), 0.65 * M);
-  if (c.detail >= 2 && o.lamps !== false) kit.light(x, gh - 0.8 * M, zf + 0.8 * M, 0xffd9a0, 0.35);
+  if (o.lamps !== false) kit.light(x, gh - 0.8 * M, zf + 0.8 * M, 0xffd9a0, 0.35);
 }
 function trees(kit, rng, list, s = 1) { for (const [x, z] of list) kit.tree(x, z, s * range(rng, 0.8, 1.15)); }
 function parking(kit, c, x, z, w, d, cars = true) {
@@ -115,19 +116,19 @@ function car(kit, rng, x, z, ry = 0) {
   const dx = Math.sin(ry), dz = Math.cos(ry);
   kit.box(col, x, 0.25 * M, z, 1.8 * M, 0.7 * M, 4.3 * M, { ry });
   kit.box(col, x - dx * 0.2 * M, 0.95 * M, z - dz * 0.2 * M, 1.6 * M, 0.55 * M, 2.2 * M, { ry });
-  kit.box('glass_window', x - dx * 0.2 * M, 1.0 * M, z - dz * 0.2 * M, 1.65 * M, 0.42 * M, 2.0 * M, { ry, lit: 0 });
+  kit.box('metal_dark', x - dx * 0.2 * M, 1.0 * M, z - dz * 0.2 * M, 1.65 * M, 0.42 * M, 2.0 * M, { ry });
   kit.box('rubber', x, 0, z, 1.85 * M, 0.35 * M, 3.0 * M, { ry });
 }
 function truck(kit, rng, x, z, ry = 0) {
   const col = pick(rng, ['paint_white', 'paint_blue', 'paint_red', 'paint_orange']);
   const dx = Math.sin(ry), dz = Math.cos(ry);
   kit.box(col, x + dx * 3.6 * M, 0.4 * M, z + dz * 3.6 * M, 2.4 * M, 2.4 * M, 2.0 * M, { ry });
-  kit.box('glass_window', x + dx * 4.62 * M, 1.6 * M, z + dz * 4.62 * M, 2.2 * M, 0.9 * M, 0.06 * M, { ry, lit: 0 });
+  kit.box('metal_dark', x + dx * 4.62 * M, 1.6 * M, z + dz * 4.62 * M, 2.2 * M, 0.9 * M, 0.06 * M, { ry });
   kit.box(pick(rng, ['container_red', 'container_blue', 'metal_panel_white', 'container_green']), x - dx * 1.2 * M, 0.5 * M, z - dz * 1.2 * M, 2.5 * M, 2.8 * M, 7 * M, { ry });
   kit.box('rubber', x, 0, z, 2.4 * M, 0.5 * M, 9 * M, { ry });
 }
 function lamp(kit, c, x, z, h = 4.5 * M) {
-  if (c.detail < 2) return;
+  if (c.detail < 2) { kit.light(x, h, z, 0xffd28a, 0.45); return; }
   kit.cyl('metal_dark', x, 0, z, 0.08 * M, h, { seg: 6 });
   kit.box('emissive_warm', x, h, z, 0.35 * M, 0.2 * M, 0.35 * M);
   kit.light(x, h, z, 0xffd28a, 0.45);
@@ -226,7 +227,7 @@ fb('com', 4, (c) => {
     kit.curtainWall('front', 0, z0, bw * 0.5, bd, FLOOR, (fl - 1) * FLOOR, { glass: 'glass_curtain_blue' });
     shopFront(kit, c, 0, z0, bw, bd, null, sg, { gh: 3 * M, signOff: bw * 0.3 });
     roof(kit, 'flat', null, 0, top, z0, bw, bd, { clutter: 4 });
-    kit.prism('glass_skylight', [[-0.25, 0], [0.25, 0], [0, 0.18]], bw * 0.7, { x: 0, y: top, z: z0, ry: Math.PI / 2 });
+    kit.prism('glass_curtain_blue', [[-0.25, 0], [0.25, 0], [0, 0.18]], bw * 0.7, { x: 0, y: top, z: z0, ry: Math.PI / 2 });
     sign(kit, sg, -bw * 0.3, top - 0.4, z0 + bd / 2 + 0.01, 0.7, 0.22);
     parking(kit, c, 0, D / 2 - (D - bd - 0.1) / 2 - 0.02, W - 0.2, D - bd - 0.2);
     return kit.build();
@@ -251,7 +252,7 @@ fb('com', 4, (c) => {
     const top = body(kit, 0, 0, bw, bd, fl, L === 4 ? pick(rng, ['concrete_panel', 'stone_sandstone', 'plaster_white', 'brick_yellow']) : wall, { skipGround: true, cornice: 'trim_stone', spacing: L === 4 ? 2.2 * M : 2.6 * M, winW: L === 4 ? 1.6 * M : 1.2 * M });
     shopFront(kit, c, 0, 0, bw, bd, L === 3 ? aw : null, sg, { gh: 3.6 * M });
     roof(kit, 'flat', null, 0, top, 0, bw, bd, { clutter: 3 });
-    if (L === 4) sign(kit, pick(rng, ['neon_cyan', 'neon_pink', 'sign_white']), bw / 2 - 0.05, top - 0.55, bd / 2 + 0.01, 0.3, 0.42);
+    if (L === 4) sign(kit, sg, bw / 2 - 0.05, top - 0.55, bd / 2 + 0.01, 0.3, 0.42);
     return kit.build();
   }
   // Stufe 5: Geschäftsturm auf Sockel
@@ -280,7 +281,7 @@ fb('off', 4, (c) => {
     const wall = pick(rng, ['plaster_white', 'concrete_panel', 'plaster_grey', 'brick_white']);
     const top = body(kit, 0, -0.04, bw, bd, fl, wall, { frame: 'window_frame_dark', winW: 2.0 * M, spacing: 2.6 * M, winH: 1.4 * M });
     for (let f = 1; f < fl; f++) kit.band('trim_dark', 0, -0.04, bw, bd, f * FLOOR - 0.12 * M, 0.25 * M, 0.06 * M);
-    kit.door(0, -0.04, bd, { canopy: 'metal_dark', w: 1.8 * M, mat: 'door_glass' });
+    kit.door(0, -0.04, bd, { canopy: 'metal_dark', w: 1.8 * M, mat: 'glass_shop' });
     roof(kit, 'flat', null, 0, top, -0.04, bw, bd, { clutter: 2 });
     if (D2(c)) { kit.tree(-W * 0.38, D * 0.4, 0.8); kit.hedge(W * 0.25, D * 0.42, W * 0.35, 0.06); }
     return kit.build();
@@ -306,7 +307,7 @@ fb('off', 4, (c) => {
       kit.light(0, top + 1.05, 0, 0xff3b30, 0.4);
     }
   } else roof(kit, 'flat', null, 0, top, 0, bw, bd, { clutter: 3 });
-  kit.door(0, 0, bd, { canopy: 'metal_dark', w: 2.4 * M, mat: 'door_glass' });
+  kit.door(0, 0, bd, { canopy: 'metal_dark', w: 2.4 * M, mat: 'glass_shop' });
   return kit.build();
 });
 
@@ -430,7 +431,7 @@ function civic(c, o) {
   const bw = (o.bw ?? 0.86) * W - 0.06, bd = (o.bd ?? 0.62) * D, z0 = o.z0 ?? -D / 2 + bd / 2 + 0.08;
   const wall = o.wall || 'plaster_white';
   const top = body(kit, 0, z0, bw, bd, o.floors || 2, wall, { frame: o.frame || 'window_frame_white', sill: true, cornice: o.cornice, winW: o.winW, spacing: o.spacing });
-  kit.door(0, z0, bd, { canopy: o.canopy || 'concrete', w: o.doorW || 1.8 * M, mat: o.doorMat || 'door_glass' });
+  kit.door(0, z0, bd, { canopy: o.canopy || 'concrete', w: o.doorW || 1.8 * M, mat: o.doorMat || 'door_wood' });
   if (o.band) kit.band(o.band, 0, z0, bw, bd, top - 0.55 * M, 0.35 * M, 0.04 * M);
   const rt = roof(kit, o.roof || 'flat', o.roofMat || 'roof_slate', 0, top, z0, bw, bd, { wall, ridge: 'x', clutter: o.clutter ?? 2 });
   if (o.signMat) sign(kit, o.signMat, 0, top - 0.06 - 0.5 * M, z0 + bd / 2 + 0.01, Math.min(bw * 0.5, 0.42), 0.07);
@@ -1543,7 +1544,10 @@ export class BuildingView {
       const c = COS[rec.k], s = SIN[rec.k];
       this.emitters.set(rec.id, p0.emitters.map((e) => ({ x: rec.ox + e.x * c + e.z * s, y: e.y, z: rec.oz - e.x * s + e.z * c, type: e.type, amount: e.amount || 1 })));
     }
-    rec.want = this._wantFor(rec);
+    // Zuerst im Bündel (Detail 0); nahe Gebäude stuft der nächste Takt (mit Obergrenzen) hoch
+    rec.want = 0;
+    if (!this.initial && this._wantFor(rec) > 0) this.lodT = Math.min(this.lodT, 0.03);
+    rec.want = 0;
     this.batch.add(rec.id, p0, rec.k, rec.ox, rec.oz, rec.slot);
     this.protoMgr.retain(p0);
     rec.inBatch = true;
@@ -1805,12 +1809,22 @@ export class BuildingView {
       rec.want = d < a2 ? 2 : d < a1 ? 1 : 0;
       arr.push(rec);
     }
-    // Obergrenzen: nur die nächsten Gebäude bekommen Detail 1/2 (nach Abstand sortiert)
+    // Obergrenzen: nur die nächsten Gebäude bekommen Detail 1/2 (nach Abstand sortiert), und höchstens
+    // MAX_PROTOS verschiedene Prototypen – Gebäude mit schon gezeigtem Prototyp kosten keinen Draw Call extra.
     const near = arr.filter((r) => r.want >= 1).sort((a, b) => a.dist - b.dist);
     let n2 = 0, n1 = 0;
+    const used = new Set();
+    const pm = this.protoMgr;
+    const fits = (rec, d) => {
+      const id = pm.idOf(rec.key, rec.level, rec.variant, rec.fw, rec.fd, d).id;
+      if (used.has(id)) return true;
+      if (used.size >= MAX_PROTOS) return false;
+      used.add(id);
+      return true;
+    };
     for (const rec of near) {
-      if (rec.want === 2 && n2 >= MAX_D2) rec.want = 1;
-      if (rec.want >= 1 && n1 >= MAX_D1) rec.want = 0;
+      if (rec.want === 2 && (n2 >= MAX_D2 || !fits(rec, 2))) rec.want = 1;
+      if (rec.want === 1 && (n1 >= MAX_D1 || !fits(rec, 1))) rec.want = 0;
       if (rec.want === 2) n2++;
       if (rec.want >= 1) n1++;
     }

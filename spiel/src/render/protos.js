@@ -217,6 +217,20 @@ const FRAG_EMIS = /* glsl */`
 totalEmissiveRadiance *= vG9S.x * (1.0 - 0.85 * vG9T.a);
 #ifdef G9_GLASS
 diffuseColor.rgb *= 1.0 - 0.55 * vG9S.y - 0.6 * vG9S.z;
+if (vG9S.y > 0.25) {
+  // verlassen: einzelne Fenster mit Brettern vernagelt
+  float g9b = g9Hash(floor(vG9P.xz * 8.0) + floor(vG9P.y * 3.4) * 7.31);
+  if (g9b > 0.5) {
+    float g9pl = 0.82 + 0.18 * step(0.22, fract(vG9P.y * 38.0 + g9b * 3.0));
+    float g9k = smoothstep(0.25, 0.8, vG9S.y);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.34, 0.26, 0.18) * g9pl, g9k);
+    #ifdef STANDARD
+    roughnessFactor = mix(roughnessFactor, 0.95, g9k);
+    metalnessFactor = mix(metalnessFactor, 0.0, g9k);
+    #endif
+    totalEmissiveRadiance *= 1.0 - g9k;
+  }
+}
 {
   float g9f = 0.55 + 0.45 * sin(uG9Time * 11.0 + vG9P.x * 9.0 + vG9P.y * 6.0) * sin(uG9Time * 6.7 + vG9P.z * 7.0);
   float g9w = g9Hash(floor(vG9P.xz * 7.0) + floor(vG9P.y * 3.3));
