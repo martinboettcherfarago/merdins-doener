@@ -119,7 +119,10 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 .spacer { flex: 1; }
 .clock { flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; }
 .clock .wx { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 10px; background: var(--paper-2); color: var(--ink-2); font-weight: 600; }
-.clock .wx .num { font-size: 16px; color: var(--ink); }
+.clock .wx .wt { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.clock .wx .wt b { font-size: 16px; color: var(--ink); font-weight: 600; }
+.clock .wx .wt small { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.clock .wx svg.ic { display: block; margin: -2px 0; }
 .clock .when { display: flex; flex-direction: column; align-items: flex-end; }
 .clock .time { font-family: var(--f-num); font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
 .clock .date { font-size: 11px; color: var(--ink-3); font-weight: 600; letter-spacing: 0.04em; white-space: nowrap; margin-top: 3px; }
@@ -922,7 +925,7 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 @media (max-width: 1100px) {
   .stat.opt { display: none; }
   .demand { display: none; }
-  .clock .wx .num { display: none; }
+  .clock .wx .wt small { display: none; }
 }
 @media (max-width: 1020px) {
   :root { --mm: 140px; }

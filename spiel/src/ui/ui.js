@@ -7,8 +7,11 @@
 // Panels (registerPanel) dürfen zusätzlich input(ui, el, e), change(ui, el, e), badge(ui) → Zahl|Text, group, color haben.
 import { BUILDINGS, ZONE_INFO, ROADS, MILESTONES, CATEGORIES } from '../config.js';
 import { fmt, fmtMoney, fmtShort, clamp } from '../util.js';
-import { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, emit, on as onBus } from '../registry.js';
+import { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, BUDGET_LINES, emit, on as onBus } from '../registry.js';
 import { cardById } from '../sim/progress.js';
+// Wetter von S4 (optional): seasonText(g) aus dem Wetter-System, wxIcon(kind, size, night) aus dem Wetter-Panel
+import * as wxSys from '../sim/systems/weather.js';
+import * as wxPanel from './panels/weather.js';
 import { icon, iconAny, logo } from './icons.js';
 import { toolbarCategories, lineById, viewList, VIEW_GROUPS, dockPanels, PANEL_GROUPS, catMeta } from './meta.js';
 import { CORE_PANELS } from './corepanels.js';
@@ -26,6 +29,21 @@ import { showLoader, hideLoader, loaderVisible, setLoader, painted } from './loa
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const WX_TEXT = 'seasonText', WX_ICON = 'wxIcon';
+// Wetterart wie im Wetter-Panel (für wxIcon)
+function wxKind(w) {
+  if (w.storm && (w.stormI ?? 1) > 0.2) return 'thunder';
+  if (w.kind === 'storm' && w.wind > 0.55) return 'storm';
+  if (w.snow > 0.05) return 'snow';
+  if (w.rain > 0.05) return w.cloud < 0.78 ? 'showers' : 'rain';
+  if (w.fog > 0.4) return 'fog';
+  if (w.temp >= 30 && w.cloud < 0.4) return 'heat';
+  if (w.temp <= -4 && w.cloud < 0.4) return 'frost';
+  if (w.cloud < 0.15) return 'clear';
+  if (w.cloud < 0.4) return 'fair';
+  if (w.cloud < 0.75) return 'cloudy';
+  return 'overcast';
+}
 const itemKey = (it) => `${it.kind}:${it.key || it.type || it.zone || it.panel || ''}`;
 const SEASON = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' };
 
@@ -51,6 +69,7 @@ const SYS_PANELS = [
         case 'export': app.exportSave(); return true;
         case 'copy': app.copySave(); return true;
         case 'tomenu': app.toMenu(); return false;
+        case 'openpanel': ui.openPanel(el.dataset.v); return false;
       }
       return true;
     },
@@ -97,7 +116,7 @@ export class UI {
     this.refreshBadges();
     this.unbus = [onBus('ui:rebuild', () => this.rebuild())];
     // Für Prüfskripte (tools/shot.mjs --eval): Register erreichbar machen
-    window.__stadtpulsReg = { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, CATEGORIES, emit };
+    window.__stadtpulsReg = { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, BUDGET_LINES, CATEGORIES, emit };
     if (restore) this.applyRestore();
   }
 
@@ -360,10 +379,16 @@ export class UI {
     if (w && typeof w.temp === 'number') {
       const night = this.app.engine && this.app.engine.night > 0.5;
       const ic = w.storm || w.lightning > 0 ? 'storm' : w.snow > 0.15 ? 'snow' : w.rain > 0.15 ? 'rain' : w.fog > 0.5 ? 'cloud' : w.cloud > 0.6 ? 'cloud' : night ? 'moon' : 'sun';
-      const html = `${icon(ic, 18)}<span class="num">${Math.round(w.temp)}°</span>`;
+      const fIcon = wxPanel[WX_ICON], fText = wxSys[WX_TEXT];
+      let st = '';
+      try { st = typeof fText === 'function' ? fText(g) : ''; } catch (e) { st = ''; }
+      const season = (st.split(' · ')[0]) || SEASON[w.season] || '';
+      let pic = '';
+      try { pic = typeof fIcon === 'function' ? fIcon(wxKind(w), 26, night) : ''; } catch (e) { pic = ''; }
+      const html = `${pic || icon(ic, 18)}<span class="wt"><b class="num">${Math.round(w.temp)}°</b>${season ? `<small>${esc(season)}</small>` : ''}</span>`;
       if (this._wx !== html) { this._wx = html; this.el.weather.innerHTML = html; }
-      this.el.weather.dataset.tip = SEASON[w.season] || 'Wetter';
-      this.el.weather.dataset.tipDesc = `${Math.round(w.temp)} °C${w.rain > 0.15 ? ' · Regen' : ''}${w.snow > 0.15 ? ' · Schnee' : ''}${w.wind > 0.6 ? ' · windig' : ''}`;
+      this.el.weather.dataset.tip = st || SEASON[w.season] || 'Wetter';
+      this.el.weather.dataset.tipDesc = `${Math.round(w.temp)} °C${w.rain > 0.15 ? ' · Regen' : ''}${w.snow > 0.15 ? ' · Schnee' : ''}${w.fog > 0.4 ? ' · Nebel' : ''}${w.wind > 0.6 ? ' · windig' : ''}${PANELS.find((p) => p.id === 'weather') ? ' · Klick: Wetter & Katastrophenschutz' : ''}`;
       this.el.weather.hidden = false;
     } else this.el.weather.hidden = true;
   }
@@ -749,6 +774,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   setCtx() {
     if (!this._setCtx) this._setCtx = { app: this.app, inGame: true, ui: this, tab: this.setTab, snap: this.gfxSnap, onTips: (v) => setTipsEnabled(v) };
     this._setCtx.tab = this.setTab;
+    // Verweise auf Einstellungen in Panels anderer Module (z. B. Katastrophen im Wetter-Panel)
+    this._setCtx.extraPanels = PANELS.filter((p) => p.id === 'weather').map((p) => [p.id, 'Katastrophen & Wetter']);
     return this._setCtx;
   }
 

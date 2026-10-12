@@ -87,6 +87,7 @@ export function settingsHTML(ctx) {
     body = `<div class="sec"><h3>Spielstände</h3>${slots}
   <div class="acts">${window.STADTPULS_EMBED ? '' : '<button class="btn small ghost" data-act="export">Als Datei exportieren</button>'}<button class="btn small ghost" data-act="copy">In Zwischenablage</button></div>
   <p class="hint">Automatisch gespeichert wird jeden Spieltag. Schnellspeichern mit Strg+S.</p></div>
+${ctx.extraPanels && ctx.extraPanels.length ? `<div class="sec"><h3>Weitere Einstellungen</h3><div class="acts">${ctx.extraPanels.map(([id, n]) => `<button class="btn small ghost" data-act="openpanel" data-v="${esc(id)}">${esc(n)}</button>`).join('')}</div></div>` : ''}
 <div class="sec"><button class="btn ghost" data-act="tomenu">${icon('menu', 16)} Zum Hauptmenü</button></div>`;
   } else {
     body = `<div class="sec help"><h3>So wächst deine Stadt</h3><ul>
