@@ -136,15 +136,15 @@ function steinbruch(b) {
   const { W, D, X, Z, wide, deep } = geom(b);
   const L = b.L;
   b.lot('gravel', 0.08);
-  const rock = b.pick(['rock', 'stone_grey', 'stone_sandstone', 'rock']);
+  const rock = b.pick(['rock', 'stone_grey', 'stone_dark', 'rock']), rock2 = rock === 'stone_dark' ? 'rock' : 'stone_dark';
   // Felswand mit Bermen (Stufen) hinten
   const tiers = 2 + Math.min(3, L), th = 3.0, td = deep ? 2.6 : 1.4;
   const segs = wide ? 3 : 2;
   for (let s = 0; s < segs; s++) {
     const sw = (W - 0.4) / segs, sx = -X + 0.2 + sw * (s + 0.5), jitter = (b.r() - 0.5) * 0.8;
     for (let k = 0; k < tiers; k++) {
-      const dz = td * (tiers - k), h = th * (k + 1) + jitter * k;
-      b.box(rock, sx, 0, -Z + 0.2 + dz / 2, sw + 0.02, h, dz);
+      const dz = td * (tiers - k) + (((s + k) % 3) - 1) * 0.35, h = th * (k + 1) + jitter * k;
+      b.box((s + k) % 2 ? rock : rock2, sx, 0, -Z + 0.2 + dz / 2, sw + 0.02, h, dz, (((s * 3 + k) % 3) - 1) * 0.04);
       if (b.d >= 2 && k < tiers - 1) b.box('gravel', sx, h, -Z + 0.2 + dz - td * 0.5, sw, 0.08, td * 0.6);
     }
     if (b.d >= 1) b.box('grass_dry', sx, th * tiers + jitter * (tiers - 1), -Z + 0.2 + td / 2, sw, 0.1, td);
