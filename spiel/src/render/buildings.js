@@ -26,7 +26,7 @@ import { Kit, M, FLOOR, pick, range } from './arch/kit.js';
 const COS = [1, 0, -1, 0], SIN = [0, 1, 0, -1];
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const LOD_TICK = 0.3;
-const LOD_NEAR = 12.5, LOD_MID = 25; // Kameraabstand für Detail 2 bzw. 1 (Qualität „medium")
+const LOD_NEAR = 13, LOD_MID = 32; // Kameraabstand für Detail 2 bzw. 1 (Qualität „medium")
 const LOD_SCALE = { low: 0.65, medium: 1, high: 1.3, ultra: 1.7 };
 const MAX_D2 = 60, MAX_D1 = 160; // höchstens so viele Gebäude in Detail 2 bzw. ≥ 1
 const MAX_PROTOS = 64; // höchstens so viele verschiedene Prototypen in Detail 1/2
@@ -1750,6 +1750,9 @@ export class BuildingView {
       st.fire = approach(st.fire, fT, dt * 1.5);
       st.char = b.burning ? Math.min(1, st.char + dt * 0.12) : Math.max(0, st.char - dt * 0.004);
     }
+    // Beschädigt (Katastrophe, S4): rußig-dunkel je nach Schwere; verblasst nach der Reparatur langsam
+    const rep = this.g.ext && this.g.ext.disasters && this.g.ext.disasters.repairs && this.g.ext.disasters.repairs[b.id];
+    if (rep) st.char = Math.max(st.char, dt > 0 ? Math.min(0.3 + 0.45 * (rep.sev || 0.5), st.char + dt * 0.5) : 0.3 + 0.45 * (rep.sev || 0.5));
     states.setv(s, 1, 0, win);
     states.setv(s, 1, 1, st.grime);
     states.setv(s, 1, 2, st.char);
@@ -1946,8 +1949,11 @@ export class BuildingView {
     const gap = now - this.lastFrame;
     this.lastFrame = now;
     const budget = gap > 300 ? Infinity : clamp(gap * 0.3, 4, 60);
+    // Takt alle 0,3 s – sofort, wenn die Kamera seit dem letzten Takt weit gesprungen ist
+    const cam = this.e.camera.position;
+    if (!this._lastCam) this._lastCam = cam.clone();
     this.lodT -= dt;
-    if (this.lodT <= 0) { this.lodT = LOD_TICK; this._lodTick(); }
+    if (this.lodT <= 0 || this._lastCam.distanceToSquared(cam) > 9) { this.lodT = LOD_TICK; this._lastCam.copy(cam); this._lodTick(); }
     this._work(budget);
     this._sitesFrame(dt, time);
     this._dyingFrame(dt);
@@ -1956,6 +1962,16 @@ export class BuildingView {
     this._lightsFrame(dt, night);
     this.gcT -= dt;
     if (this.gcT <= 0) { this.gcT = 3; this.protoMgr.gc(3); }
+    this.protoMgr.flush();
+    this.batch.flush(1);
+    this.sites.flush(1);
+    states.upload(this.e.renderer);
+  }
+
+  // Detailstufen sofort einschwingen (Fotomodus, Vorschaubilder, Messungen): Takt + alle Übergänge ohne Zeitbudget
+  settle() {
+    this._lodTick();
+    this._work(Infinity);
     this.protoMgr.flush();
     this.batch.flush(1);
     this.sites.flush(1);
