@@ -257,11 +257,11 @@ export class VehicleView {
     if (L >= 0.08) {
       for (const h of m.head) for (const s of [1, -1]) {
         toWorld(v, h[0] * s, h[1], h[2] * sz, x, y, z, cy, sy, cp, sp);
-        G.add(v[0], v[1], v[2], 0.055 * grow, 1.0, 0.9, 0.72, 0.5 * L);
+        G.add(v[0], v[1], v[2], 0.055 * grow, 1.0, 0.9, 0.72, 0.85 * L);
       }
       for (const t of m.tail) for (const s of [1, -1]) {
         toWorld(v, t[0] * s, t[1], t[2] * sz, x, y, z, cy, sy, cp, sp);
-        G.add(v[0], v[1], v[2], 0.04 * grow, 1.0, 0.08, 0.04, (flags & F.BRAKE ? 0.75 : 0.42) * L);
+        G.add(v[0], v[1], v[2], 0.04 * grow, 1.0, 0.08, 0.04, (flags & F.BRAKE ? 0.95 : 0.65) * L);
       }
       if (m.beam && m.head.length && d2 < this.fleet.mid2) {
         const hz = m.head[0][2] * sz;
