@@ -215,7 +215,7 @@ registerArch('refinery', {
     for (const [x, z, r, h] of cols) {
       k.cyl('tank_white', x * M, 0, z * M, r * M, h * M, { seg: P.segs(k, 12) });
       k.dome('tank_white', x * M, h * M, z * M, r * M, { seg: P.segs(k, 12), sy: 0.6 });
-      if (P.D1(k)) for (let y = 4; y < h; y += 5) { k.cyl('metal_dark', x * M, y * M, z * M, r * M + 0.7 * M, 0.15 * M, { seg: P.segs(k, 12) }); if (P.D2(k)) k.cyl('metal_dark', x * M, y * M + 0.15 * M, z * M, r * M + 0.7 * M, 0.9 * M, { seg: P.segs(k, 12), open: true }); }
+      if (P.D1(k)) for (let y = 4; y < h; y += 5) { k.cyl('metal_panel_grey', x * M, y * M, z * M, r * M + 0.7 * M, 0.15 * M, { seg: P.segs(k, 12) }); P.ringRail(k, x * M, y * M + 0.15 * M, z * M, r * M + 0.65 * M, 'paint_yellow', { seg: 12 }); }
       P.ladder(k, x * M, 0, z * M + r * M + 0.2 * M, h * M);
     }
     // Röhrenofen mit Schornsteinen

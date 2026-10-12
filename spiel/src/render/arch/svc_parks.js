@@ -204,7 +204,7 @@ registerArch('sports', {
       const x = s * (fw / 2 + 0.05 * M);
       for (const zz of [-1.2, 1.2]) k.box('paint_white', x, 0, zc + zz * M, 0.12 * M, 2.4 * M, 0.12 * M);
       k.box('paint_white', x, 2.3 * M, zc, 0.12 * M, 0.12 * M, 2.5 * M);
-      if (P.D2(k)) k.box('chain_fence', x + s * 0.8 * M, 0, zc, 0.04 * M, 2.2 * M, 2.4 * M);
+      if (P.D2(k)) for (const zz of [-1.2, 1.2]) P.beam(k, 'paint_white', [x, 2.36 * M, zc + zz * M], [x + s * 1.0 * M, 0, zc + zz * M], 0.06 * M);
     }
     // Tribüne mit Dach
     const gz = -8.1 * M, gw = 12 * M;
@@ -517,6 +517,8 @@ registerArch('beach', {
       g.box('hay', 0, 0.9 * M, -0.3 * M, 1.3 * M, 0.7 * M, 0.4 * M);
       g.box('hay', 0, 1.5 * M, -0.05 * M, 1.3 * M, 0.15 * M, 0.85 * M, { rx: -0.25 });
       g.box(c, 0, 0.5 * M, 0.06 * M, 1.12 * M, 1.0 * M, 0.9 * M);
+      g.box(c, 0, 1.0 * M, -0.52 * M, 1.33 * M, 0.5 * M, 0.04 * M);
+      g.box(c, 0, 1.62 * M, -0.05 * M, 1.33 * M, 0.06 * M, 0.7 * M, { rx: -0.25 });
     };
     const kc = ['awning_blue', 'awning_striped', 'awning_red', 'canvas_white', 'awning_blue', 'awning_green'];
     for (let i = 0; i < 6; i++) korb((-8.4 + (i % 3) * 2.2 + (i > 2 ? 0.8 : 0)) * M, (i > 2 ? -1.2 : 1.8) * M, Math.PI + (k.rng() - 0.5) * 0.4, kc[i]);

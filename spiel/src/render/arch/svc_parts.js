@@ -446,7 +446,7 @@ export function stack(k, x, z, h, o = {}) {
   if (D2(k) && o.platform !== false && h > 15 * M) {
     const py = h * (o.platformAt ?? 0.7), pr = rAt(py) + 0.6 * M;
     k.cyl('metal_dark', x, y0 + py, z, pr, 0.15 * M, { seg });
-    k.cyl('metal_dark', x, y0 + py + 0.15 * M, z, pr, 1 * M, { seg, open: true, rTop: pr });
+    ringRail(k, x, y0 + py + 0.15 * M, z, pr - 0.05 * M, 'metal_light');
   }
   if (D2(k) && o.ladder !== false) beam(k, 'metal_dark', [x, y0 + 0.5 * M, z + r + 0.15 * M], [x, y0 + h - 0.6 * M, z + rt + 0.15 * M], 0.12 * M, { d: 0.05 * M });
   if (o.smoke !== false) k.smoke(x, y0 + h + 0.2 * M, z, o.type || 'smoke', o.amount ?? 1);
@@ -493,7 +493,7 @@ export function tank(k, x, z, r, h, o = {}) {
       const a = o.ladderA ?? Math.PI * 0.25;
       beam(k, 'metal_dark', [x + Math.sin(a) * (r + 0.2 * M), y0, z + Math.cos(a) * (r + 0.2 * M)], [x + Math.sin(a) * (r + 0.2 * M), y0 + h, z + Math.cos(a) * (r + 0.2 * M)], 0.14 * M, { d: 0.06 * M });
     }
-    if (o.rail) k.cyl('metal_dark', x, y0 + h + (roof === 'flat' ? 0 : r * 0.05), z, r * 0.98, 0.9 * M, { seg, open: true });
+    if (o.rail) ringRail(k, x, y0 + h + (roof === 'flat' ? 0 : r * 0.04), z, r * 0.97, o.railMat || 'metal_light');
   }
   if (o.band && k.detail > 0) k.cyl(o.band, x, y0 + h * 0.78, z, r + 0.03 * M, h * 0.1, { seg, open: true });
 }
@@ -610,6 +610,16 @@ export function pipeRack(k, a, b, h, o = {}) {
     if (D2(k)) for (const s of [-1, 1]) k.box('metal_dark', px + nx * s * wv / 2, 0, pz + nz * s * wv / 2, 0.15 * M, h, 0.15 * M, { ry });
     else k.box('metal_dark', px, 0, pz, 0.2 * M, h, 0.2 * M, { ry });
   }
+}
+// Rundes Geländer (Handlauf als Ring + Pfosten) um eine Plattform bei Höhe y
+export function ringRail(k, x, y, z, R, mat = 'paint_yellow', o = {}) {
+  if (!D1(k)) return;
+  const seg = segs(k, o.seg ?? 16);
+  torus(k, mat, x, y + 1.0 * M, z, R, 0.05 * M, { seg, rseg: 4 });
+  if (!D2(k)) return;
+  torus(k, mat, x, y + 0.5 * M, z, R, 0.035 * M, { seg, rseg: 3 });
+  const n = o.posts ?? Math.max(6, Math.round((R * 6.28) / (1.6 * M)));
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; k.box(mat, x + Math.cos(a) * R, y, z + Math.sin(a) * R, 0.06 * M, 1.0 * M, 0.06 * M); }
 }
 // Leiter/Treppenturm (einfach)
 export function ladder(k, x, y0, z, h, ry = 0) {

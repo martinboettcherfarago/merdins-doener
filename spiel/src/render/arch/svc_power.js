@@ -17,8 +17,8 @@ registerArch('coal', {
     // Zufahrt und Kohlelager
     P.slab(k, 'asphalt', 1.6 * M, 7.6 * M, 4.2 * M, 4.6 * M);
     P.slab(k, 'dirt', 6.9 * M, 3.3 * M, 5.8 * M, 7.6 * M);
-    P.heap(k, 'asphalt_dark', 7.0 * M, 5.0 * M, 4.6 * M, 3.4 * M, 2.3 * M);
-    P.heap(k, 'asphalt_dark', 6.8 * M, 1.4 * M, 4.0 * M, 2.8 * M, 1.6 * M);
+    P.heap(k, 'rubber', 7.0 * M, 5.0 * M, 4.6 * M, 3.4 * M, 2.3 * M);
+    P.heap(k, 'rubber', 6.8 * M, 1.4 * M, 4.0 * M, 2.8 * M, 1.6 * M);
     if (P.D1(k)) P.bollards(k, 4.0 * M, -0.4 * M, 4.0 * M, 7.0 * M, 5);
     // Kesselhaus (hoch, hinten links)
     const bx = -3 * M, bz = -4.6 * M, bw = 6 * M, bd = 7 * M, bh = 15 * M;
@@ -314,14 +314,14 @@ registerArch('hydro', {
     const brick = v ? 'brick_dark' : 'brick_red';
     k.box(brick, hx, 0, hz, hw, hh, hd);
     k.box('stone_grey', hx, 0, hz, hw + 0.16 * M, 0.9 * M, hd + 0.16 * M);
-    P.gridRow(k, 'front', hx, hz, hw, hd, 4, 1.6 * M, 1.7 * M, 4.2 * M, 3, 5, { arch: true, archMat: 'trim_stone', frame: 'window_frame_white', margin: 0.8 * M, shift: 0 });
+    P.gridRow(k, 'front', hx, hz, hw, hd, 4, 1.6 * M, 1.7 * M, 3.6 * M, 3, 5, { arch: true, archMat: 'trim_stone', frame: 'window_frame_white', margin: 0.8 * M, shift: 0 });
     P.gridRow(k, 'left', hx, hz, hw, hd, 1, 1.6 * M, 1.7 * M, 4.2 * M, 3, 5, { arch: true, archMat: 'trim_stone', frame: 'window_frame_white' });
     P.gridRow(k, 'right', hx, hz, hw, hd, 1, 1.6 * M, 1.7 * M, 4.2 * M, 3, 5, { arch: true, archMat: 'trim_stone', frame: 'window_frame_white' });
     if (P.D1(k)) { k.band('trim_stone', hx, hz, hw, hd, hh - 0.5 * M, 0.5 * M, 0.14 * M); for (const s of [-1, 1]) k.box('trim_stone', hx + s * (hw / 2 - 0.25 * M), 0, hz + hd / 2, 0.6 * M, hh, 0.2 * M); }
     k.hipRoof(v ? 'roof_slate' : 'roof_copper', hx, hh, hz, hw, hd, 2.4 * M, { overhang: 0.4 * M, ridgeK: 0.8 });
     if (P.D2(k)) { k.box('roof_copper', hx, hh + 2.2 * M, hz, 1.4 * M, 1.4 * M, 1.4 * M); k.cone('roof_copper', hx, hh + 3.6 * M, hz, 1.1 * M, 1.4 * M, { seg: 4, ry: Math.PI / 4 }); }
     P.door(k, hx, hz + hd / 2, 0, { w: 2 * M, h: 3 * M, mat: 'wood_dark', frame: 'trim_stone' });
-    P.text(k, 'WASSERKRAFT', hx, 6.4 * M, hz + hd / 2 + 0.05 * M, 0, 0.16 * M, 'trim_stone');
+    P.text(k, 'WASSERKRAFT', hx, 6.75 * M, hz + hd / 2 + 0.05 * M, 0, 0.12 * M, 'trim_stone');
     // Schaltanlage rechts
     P.substation(k, 7.0 * M, 1.6 * M, 4.8 * M, 5.4 * M, { n: 1, s: 0.8 });
     P.lamp(k, 4.2 * M, 4.2 * M);
@@ -465,14 +465,14 @@ registerArch('district_heating', {
     const hx = -5 * M, hz = 2.2 * M, hw = 8.4 * M, hd = 9 * M, hh = 11 * M, brick = v ? 'brick_dark' : 'brick_red';
     k.box(brick, hx, 0, hz, hw, hh, hd);
     k.box('stone_dark', hx, 0, hz, hw + 0.16 * M, 0.8 * M, hd + 0.16 * M);
-    P.gridRow(k, 'front', hx, hz, hw, hd, 3, 1.6 * M, 1.5 * M, 6.4 * M, 3, 7, { arch: true, archMat: 'trim_stone' });
-    P.gridRow(k, 'right', hx, hz, hw, hd, 3, 1.6 * M, 1.5 * M, 6.4 * M, 3, 7, { arch: true, archMat: 'trim_stone' });
-    P.gridRow(k, 'left', hx, hz, hw, hd, 3, 1.6 * M, 1.5 * M, 6.4 * M, 3, 7, { arch: true, archMat: 'trim_stone' });
+    P.gridRow(k, 'front', hx, hz, hw, hd, 3, 1.6 * M, 1.5 * M, 5.8 * M, 3, 7, { arch: true, archMat: 'trim_stone' });
+    P.gridRow(k, 'right', hx, hz, hw, hd, 3, 1.6 * M, 1.5 * M, 5.8 * M, 3, 7, { arch: true, archMat: 'trim_stone' });
+    P.gridRow(k, 'left', hx, hz, hw, hd, 3, 1.6 * M, 1.5 * M, 5.8 * M, 3, 7, { arch: true, archMat: 'trim_stone' });
     if (P.D1(k)) { k.band('trim_stone', hx, hz, hw, hd, hh - 0.6 * M, 0.6 * M, 0.15 * M); k.band('trim_stone', hx, hz, hw, hd, 9.4 * M, 0.2 * M, 0.08 * M); }
     k.gableRoof('roof_tiles_anthracite', hx, hh, hz, hw, hd, 2.2 * M, { ridge: 'z', overhang: 0.3 * M });
     k.gableEnds(brick, hx, hh, hz, hw, hd, 2.2 * M, { ridge: 'z' });
     if (P.D1(k)) P.clock(k, hx, hh + 0.9 * M, hz + hd / 2 + 0.05 * M, 0.7 * M);
-    P.text(k, 'FERNWAERME', hx, 9.8 * M, hz + hd / 2 + 0.06 * M, 0, 0.14 * M, 'trim_stone');
+    P.text(k, 'HEIZWERK', hx, 9.0 * M, hz + hd / 2 + 0.06 * M, 0, 0.13 * M, 'trim_stone');
     // Kesselhaus + Schornstein
     k.box('metal_corrugated', -5.6 * M, 0, -6.4 * M, 7.2 * M, 14 * M, 6 * M);
     P.gridRow(k, 'right', -5.6 * M, -6.4 * M, 7.2 * M, 6 * M, 2, 3 * M, 0.9 * M, 9 * M, 1, 6);
