@@ -19,8 +19,28 @@
   <div id="modal-root"></div>
   <div id="toasts"></div>
   <div id="tooltip" hidden></div>
+  <div id="loader" class="loader boot" role="status" aria-live="polite">
+    <div class="ld-sky"><i></i><i></i><i></i></div>
+    <div class="ld-card">
+      <div class="ld-brand"><svg width="54" height="54" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path class="ld-pulse" d="M5 22h7l3-9 5 16 4-11 2 4h9" stroke="#f6f2ea" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="35" cy="22" r="3" fill="#e8543f"/></svg><b>Stadtpuls</b></div>
+      <div class="ld-title" id="ld-title">Die Stadt erwacht</div>
+      <div class="ld-line"><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span></div>
+      <div class="ld-bar"><i id="ld-fill"></i><span class="ld-shine"></span></div>
+      <div class="ld-step" id="ld-step">Programm wird geladen …</div>
+      <div class="ld-tip" id="ld-tip"></div>
+    </div>
+  </div>
   <noscript><p class="noscript">Stadtpuls braucht JavaScript und WebGL.</p></noscript>
 </div>
+<script>
+// Notfall: Wenn das Spielprogramm den Ladebildschirm nicht übernimmt (Galerie, Fehler), blendet er sich aus.
+(function () {
+  var l = document.getElementById('loader');
+  if (!l) return;
+  if (/[?&]gallery=/.test(location.search)) { l.parentNode.removeChild(l); return; }
+  setTimeout(function () { if (!window.__stadtpulsLoader && l.parentNode) l.parentNode.removeChild(l); }, 9000);
+})();
+</script>
 <script src="dist/stadtpuls.js"></script>
 </body>
 </html>
