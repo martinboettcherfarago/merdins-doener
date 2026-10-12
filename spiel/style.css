@@ -913,6 +913,12 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 @media (max-width: 1520px) {
   .stat.opt-wide { display: none; }
 }
+/* Mit Wetteranzeige: Datum steckt in der Jahreszeit, Kopfzeile bleibt einzeilig */
+@media (max-width: 1440px) {
+  .clock.has-wx .date { display: none; }
+  .topbar { gap: 8px; }
+  .cityplate .name { max-width: 170px; }
+}
 @media (max-width: 1280px) {
   .ticker { max-width: min(440px, calc(100% - 640px)); }
 }

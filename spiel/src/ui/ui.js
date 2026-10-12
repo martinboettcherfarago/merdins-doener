@@ -400,7 +400,8 @@ export class UI {
       this.el.weather.dataset.tip = st || SEASON[w.season] || 'Wetter';
       this.el.weather.dataset.tipDesc = `${Math.round(w.temp)} °C${w.rain > 0.15 ? ' · Regen' : ''}${w.snow > 0.15 ? ' · Schnee' : ''}${w.fog > 0.4 ? ' · Nebel' : ''}${w.wind > 0.6 ? ' · windig' : ''}${PANELS.find((p) => p.id === 'weather') ? ' · Klick: Wetter & Katastrophenschutz' : ''}`;
       this.el.weather.hidden = false;
-    } else this.el.weather.hidden = true;
+      this.el.weather.parentElement.classList.add('has-wx');
+    } else { this.el.weather.hidden = true; this.el.weather.parentElement.classList.remove('has-wx'); }
   }
 
   refreshBadges() {
