@@ -211,6 +211,7 @@ function supply(ui) {
     if (S.unsewered > 0) sewWarn.push(`<b>${fmt(S.unsewered)} Gebäude</b> brauchen einen Kanalanschluss und haben keinen. Ohne Kanal wachsen Häuser nicht über Stufe ${SEWAGE_LEVEL - 1} hinaus, ab ${fmt(SEWAGE_ALL_POP)} Einwohnern brauchen alle Zonengebäude den Kanal. ${hotspot(g, (b) => (b.cz && b.cz.sewNeed && !b.cz.sew ? 1 + b.cz.noSew + b.level : 0), 'Eines zeigen')}`);
     if (S.sewageCap < S.sewageDemand && S.sewageCap > 0) sewWarn.push(`Das Kanalnetz ist <b>überlastet</b>: ${fmt(S.sewageDemand)} m³ Abwasser, ${fmt(S.sewageCap)} m³ Kapazität.`);
   }
+  if (S.sewBlocked > 0) sewWarn.push(`<b>${fmt(S.sewBlocked)} Häuser</b> erfüllen alles für Stufe ${SEWAGE_LEVEL} – nur der Kanalanschluss fehlt.`);
   if (S.waterPolMax > 0.25) sewWarn.push('Abwasserauslässe färben das Gewässer braun. Pumpwerke in der Nähe fördern verschmutztes Wasser.');
   const heatInfo = S.hd > 0
     ? `Bei ${Math.round(S.temp)} °C brauchen die Gebäude Wärme: <b>${fmt(S.heatDemand)}</b> benötigt, <b>${fmt(S.heatSupply)}</b> aus Heizkraftwerken.${S.cold ? ` <span style="color:var(--bad)">${fmt(S.cold)} Gebäude frieren.</span>` : ''}`

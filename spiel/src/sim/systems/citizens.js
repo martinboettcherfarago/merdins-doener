@@ -185,7 +185,7 @@ function stepPeople(g, C, b, cz, rnd, ctx) {
   // --- Sterbefälle
   // Schwer Kranke brauchen ein Krankenhausbett – fehlen Betten, sterben mehr
   const mm = (1.25 - 0.42 * health) * (1 + cz.sick * (1 + 1.2 * (1 - ctx.bedQ))) * (1 + pol * 0.35) * (g.policies.has('vaccination') ? 0.94 : 1);
-  const careMul = 1 - 0.22 * cz.care;
+  const careMul = (1 - 0.22 * cz.care) * ctx.heat; // Hitzewellen treffen vor allem Ältere
   const dk = ctx.dk;
   let D = 0;
   for (let k = 0; k < BINS; k++) {
@@ -759,6 +759,7 @@ function computeStats(g, C, res, ctx) {
     ambulances: C.ambToday || 0,
     beds: C.beds || { beds: 0, severe: 0, q: 1 },
     centenarians: ctx.centenarians || 0,
+    sewBlocked: C.sewBlocked || 0,
     rates: [0, 2, 4].map((k) => (ctx.rates[k + 1] > 1e-6 ? ctx.rates[k] / ctx.rates[k + 1] : 0)),
   };
   C.stats = S;
@@ -788,6 +789,7 @@ function newsDaily(g, C, rnd) {
   else if (S.bodies > 10) say(g, C, 'dc1', 4, `Leichenwagen-Stau: ${fmt(S.bodies)} Verstorbene warten auf ihre Bestattung. Mehr Friedhöfe oder ein Krematorium!`);
   if (S.graveFill > 0.9) say(g, C, 'dc2', 6, `Die Friedhöfe sind zu ${Math.round(S.graveFill * 100)} % belegt. Ein Krematorium braucht keine Gräber.`, 'bad');
   if (S.sewageRequired && S.unsewered > Math.max(3, g.stats.countByZone.reduce((a, b) => a + b, 0) * 0.05)) say(g, C, 'sw1', 4, `Das Kanalnetz ist überlastet – ${fmt(S.unsewered)} Gebäude ohne Abwasserentsorgung.`);
+  if (S.sewBlocked >= 3) say(g, C, 'sw3', 10, `${fmt(S.sewBlocked)} Häuser könnten zu Stufe ${SEWAGE_LEVEL} wachsen – es fehlt nur der Kanalanschluss.`, 'info');
   if (S.contam > 0.12) say(g, C, 'sw2', 5, 'Ein Pumpwerk fördert verschmutztes Wasser! Abwasser flussabwärts einleiten oder eine Kläranlage bauen.');
   if (S.schoolFill > 1.15 && S.stage.school) say(g, C, 'ed1', 7, `Die Schulen sind überfüllt: ${fmt(S.stage.school.pupils)} Kinder, ${fmt(S.stage.school.seats)} Plätze.`, 'bad');
   if (S.kitaFill > 1.3 && S.stage.kita && S.stage.kita.pupils > 40) say(g, C, 'ed2', 8, `Kita-Plätze fehlen: ${fmt(S.stage.kita.pupils)} Kleinkinder, ${fmt(S.stage.kita.seats)} Plätze.`, 'info');
@@ -864,7 +866,9 @@ registerSystem({
     const ctx = {
       dk: new Float32Array(BINS), flow: new Float32Array(BINS), deathsByBin: new Float32Array(BINS),
       deaths: 0, births: 0, moveIn: 0, moveOut: 0, mmSum: 0, mmW: 0, graduates: [0, 0, 0, 0], centenarians: 0, rates: [0, 0, 0, 0, 0, 0],
-      flu: Math.max(0, -g.eff('healthCov')) * 0.12,
+      flu: Math.max(0, -g.eff('healthCov')) * 0.12 + (g.ext.weather && g.ext.weather.season === 'winter' ? 0.008 : 0),
+      heat: g.ext.weather && typeof g.ext.weather.temp === 'number' && g.ext.weather.temp > 30 ? 1.15 + Math.min(0.25, (g.ext.weather.temp - 30) * 0.04) : 1,
+      blocked: 0,
       eduBoost: Math.sqrt(g.mods.edu || 1) * (g.policies.has('education') ? 1.15 : 1) * (g.policies.has('fullday') ? 1.15 : 1) * (1 + (g.stats.eduCity || 0)),
       study: g.mods.czStudy || 1,
       bedQ: C.beds.q,
@@ -874,7 +878,10 @@ registerSystem({
       stepPeople(g, C, b, cz, rnd, ctx);
       cz.noSew = cz.sew || !cz.sewNeed ? 0 : cz.noSew + 1;
       // Ohne Kanalanschluss wächst ein Haus nicht über die Sickergrube hinaus (Stufe 2 → 3 gesperrt)
-      if (b.level === SEWAGE_LEVEL - 1 && !cz.sew && C.sewReq) b.upCount = 0;
+      if (b.level === SEWAGE_LEVEL - 1 && !cz.sew && C.sewReq) {
+        b.upCount = 0;
+        if (b.powered && b.watered && b.happy >= 45 && b.occ >= b.cap * 0.7 && g.fields.landValue[b.y * g.W + b.x] >= LEVELS[Z.RES].need[SEWAGE_LEVEL] && g.maxLevelAt(b.x, b.y) >= SEWAGE_LEVEL) ctx.blocked++;
+      }
       // Wegzug bei unbestatteten Toten oder fehlendem Abwasser
       let leave = 0;
       if (cz.deadDays >= 5) leave = Math.max(leave, 0.04);
@@ -902,6 +909,7 @@ registerSystem({
       }
     }
     if (C.polDirty || g.day() % 3 === 0) waterPollution(g, C);
+    C.sewBlocked = ctx.blocked;
     computeStats(g, C, res, ctx);
     newsDaily(g, C, rnd);
   },
