@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { registerView, registerOverlay, registerIcon, on } from '../../registry.js';
 import { R, T as TER, BUILDINGS } from '../../config.js';
 import * as TPS from '../../sim/systems/transport.js';
+import { ARCH } from '../arch/index.js';
 
 const BUS_ICON = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8 21v-3M16 21v-3"/><circle cx="8" cy="14.5" r="0.9" fill="currentColor"/><circle cx="16" cy="14.5" r="0.9" fill="currentColor"/><path d="M9 6.5h6"/></svg>';
 
@@ -398,6 +399,8 @@ registerView(class TransportView {
   }
 
   buildStations(T) {
+    // Gibt es ein Architektur-Modell (G6) für den Hauptbahnhof, zeichnet es Gleise, Bahnsteig und Portale selbst
+    if (ARCH && ARCH.train_station) return;
     const g = this.g;
     const L0 = TPS.STATION_LAYOUT;
     const parts = [], railP = [];

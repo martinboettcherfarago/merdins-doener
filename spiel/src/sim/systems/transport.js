@@ -996,6 +996,8 @@ function airStep(g) {
     }
     for (const f of A.flights) {
       const t = (g.time - f.t0) / GAME_MIN_PER_SEC;
+      if (!f.landed && t >= FLIGHT.app) { f.landed = true; emit('plane', { x: b.x + b.w / 2, y: b.y + b.h / 2, phase: 'landing' }); }
+      if (!f.tookOff && t >= FLIGHT_T - FLIGHT.take) { f.tookOff = true; emit('plane', { x: b.x + b.w / 2, y: b.y + b.h / 2, phase: 'takeoff' }); }
       if (!f.counted && t >= FLIGHT.app + FLIGHT.roll) {
         f.counted = true;
         const pax = Math.round((f.big ? 260 : 150) * (0.6 + T.rng() * 0.5));
@@ -1013,6 +1015,15 @@ function airStep(g) {
 
 // Fähren: Anleger über das Wasser verbinden (Breitensuche über Wasserfelder)
 function dockTile(g, b) {
+  // Das Modell (G6) erwartet das Wasser hinter dem Grundstück (lokal −z)
+  if (b.w === 1 && b.h === 1) {
+    const rot = (b.rot || 0) * (Math.PI / 2);
+    const bx = b.x + Math.round(-Math.sin(rot)), by = b.y + Math.round(-Math.cos(rot));
+    if (bx >= 0 && by >= 0 && bx < g.W && by < g.H) {
+      const i = by * g.W + bx;
+      if (g.world.terrain[i] === TER.WATER && !g.road[i]) return i;
+    }
+  }
   let best = -1, bv = -1;
   for (let yy = b.y - 1; yy <= b.y + b.h; yy++) for (let xx = b.x - 1; xx <= b.x + b.w; xx++) {
     if (xx < 0 || yy < 0 || xx >= g.W || yy >= g.H) continue;
@@ -1328,7 +1339,10 @@ function arriveVehicle(g, T, line, v, vt) {
     if (ahead < ideal * 0.55) v.dwell += 0.35;
   }
   v.vi = (v.vi + 1) % line.visits.length;
-  if (st) emit('transport:arrive', { kind: line.mode, line: line.id, x: st.x, y: st.y, pax: v.pax });
+  if (st) {
+    emit('transport:arrive', { kind: line.mode, line: line.id, x: st.x, y: st.y, pax: v.pax });
+    emit('busStop', { x: st.x + 0.5, y: st.y + 0.5, kind: line.mode, line: line.id, pax: v.pax });
+  }
 }
 
 // ---------------------------------------------------------------- Takt, Nachfrage, Umlegung (stündlich)
