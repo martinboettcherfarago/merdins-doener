@@ -10,7 +10,7 @@ import { drawLineChart } from '../charts.js';
 import { GOODS, GOOD_KEYS, RAW_KEYS, SPEC_PLURAL, SPEC_DATIVE, SPEC_HOWTO, ECON } from '../../content/industry.js';
 import {
   BUDGET_CATS, budgetOf, categoryUpkeep, setServiceBudget, setExportPrice, setBuyRaw, setAutoPrice, setWarehouseMode, cycleWarehouseGood,
-  WH_MODES, setDensityTax, worldPrice, marketDemand, goodsColor, buildingEconomy, cycleForecast, cycleLabel,
+  WH_MODES, setDensityTax, worldPrice, marketDemand, goodsColor, buildingEconomy, cycleForecast, cycleLabel, SEASON_NAMES,
 } from '../../sim/systems/industry.js';
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -666,12 +666,15 @@ INSPECTORS.push((ui, sel) => {
   }
   if (r.kind === 'raw') {
     const k = r.good;
-    return box(`${esc(r.specName || 'Rohstoffbetrieb')} · ${esc(GOODS[k].name)}`, kv([
+    const rows = [
       ['Erzeugt', `${T(r.out || 0)} am Tag`],
       ['Absatz', P(r.sales ?? 1), (r.sales ?? 1) < 0.8 ? 'neg' : ''],
       ['davon in der Stadt verwendet', P(r.local || 0)],
       ['Weltmarktpreis', `${worldPrice(g, k).toFixed(2).replace('.', ',')} € je t`],
-    ]) + ((r.local || 0) < 0.3 && !g.hasBuilt(PROC_KEYS.find((p) => BUILDINGS[p].input === k)) ? `<p>Ein ${esc(BUILDINGS[PROC_KEYS.find((p) => BUILDINGS[p].input === k)].name)} würde ${esc(GOODS[k].name)} hier in der Stadt veredeln.</p>` : ''));
+    ];
+    if (b.spec === 'farm' && r.season !== undefined && Math.abs(r.season - 1) > 0.01) rows.push([`Ernte im ${esc(SEASON_NAMES[g.ext.weather?.season] || 'Jahr')}`, `${r.season > 1 ? '+' : '−'}${Math.round(Math.abs(r.season - 1) * 100)} %`, r.season < 1 ? 'neg' : 'pos']);
+    if ((b.spec === 'mine' || b.spec === 'oil') && r.deposit !== undefined) rows.push(['Vorkommen', P(r.deposit), r.deposit < 0.3 ? 'neg' : '']);
+    return box(`${esc(r.specName || 'Rohstoffbetrieb')} · ${esc(GOODS[k].name)}`, kv(rows) + ((b.spec === 'mine' || b.spec === 'oil') && r.deposit < 0.3 ? `<p>Das Vorkommen geht zur Neige – die Förderung sinkt. Neue ${b.spec === 'mine' ? 'Erzfelder' : 'Ölvorkommen'} erschließen.</p>` : '') +((r.local || 0) < 0.3 && !g.hasBuilt(PROC_KEYS.find((p) => BUILDINGS[p].input === k)) ? `<p>Ein ${esc(BUILDINGS[PROC_KEYS.find((p) => BUILDINGS[p].input === k)].name)} würde ${esc(GOODS[k].name)} hier in der Stadt veredeln.</p>` : ''));
   }
   if (r.kind === 'shop') {
     const need = (r.need || 0);

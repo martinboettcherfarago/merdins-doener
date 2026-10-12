@@ -193,6 +193,21 @@ check(ships > 0, 'Frachtschiffe am Hafen');
 { const mx = Math.max(...series.map((e) => e.stock)); check(mx > 50, `Lagerhallen puffern (höchster Bestand ${Math.round(mx)} t, zuletzt ${Math.round(S.tot.stock)} t)`); }
 check(g.stats.pop > 1500, `Stadt wächst (${g.stats.pop} Einwohner)`);
 
+// Vorkommen und Jahreszeiten
+{
+  let dep = null;
+  for (const b of g.buildings.values()) if (b.spec === 'mine' || b.spec === 'oil') { const r = S.rec.get(b.id); if (r && r.deposit !== undefined && (dep === null || r.deposit < dep)) dep = r.deposit; }
+  check(dep !== null && dep < 1 && dep > 0.3, `Erz- und Ölvorkommen werden langsam abgebaut (niedrigstes Vorkommen ${dep === null ? '–' : Math.round(dep * 100) + ' %'})`);
+  const w = g.ext.weather || (g.ext.weather = {});
+  const keep = w.season;
+  const farmOut = () => { let s = 0; for (const b of g.buildings.values()) if (b.spec === 'farm') s += S.rec.get(b.id)?.out || 0; return s; };
+  w.season = 'summer'; for (let s = 0; s < 13; s++) g.update(0.1);
+  const summer = farmOut();
+  w.season = 'winter'; for (let s = 0; s < 13; s++) g.update(0.1);
+  const winter = farmOut();
+  w.season = keep;
+  check(winter < summer * 0.6 && winter > 0, `Bauernhöfe ernten im Winter weniger (${Math.round(summer)} → ${Math.round(winter)} t/Tag)`);
+}
 // Bedienung: Dienstbudgets
 {
   const before = g.budget().exp.services;

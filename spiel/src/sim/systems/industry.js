@@ -21,7 +21,7 @@
 //   g.ext.industry.jobs → Arbeitsplätze in städtischen Betrieben (Verarbeitung, Lager, Umschlag, Markthallen)
 import { registerSystem, HAPPINESS_FACTORS, DEMAND_MODIFIERS, BUDGET_LINES, LANDVALUE_TERMS, emit } from '../../registry.js';
 import { BUILDINGS, Z, TAX_RATE, T } from '../../config.js';
-import { clamp, WeightedList, fmtMoney } from '../../util.js';
+import { clamp, WeightedList, fmtMoney, typedToB64, b64ToTyped } from '../../util.js';
 import { findPath } from '../network.js';
 import { VT } from '../traffic.js';
 import { GOODS, GOOD_KEYS, RAW_KEYS, INPUT_KEYS, RAW_OF_SPEC, SPEC_NAMES, SPEC_HOWTO, ECON } from '../../content/industry.js';
@@ -269,6 +269,44 @@ function whPut(W, k, amount, modes) {
   return put;
 }
 
+// ---------------------------------------------------------------- Jahreszeiten und Vorkommen
+// Ernte nach Jahreszeit (g.ext.weather von S4; fehlt das Wetter, gilt Sommer = 1)
+export const SEASON_FARM = { spring: 0.9, summer: 1.1, autumn: 1.3, winter: 0.55 };
+export const SEASON_NAMES = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' };
+function seasonFactor(g) {
+  const w = g.ext && g.ext.weather;
+  return w && SEASON_FARM[w.season] ? SEASON_FARM[w.season] : 1;
+}
+// Erz- und Ölvorkommen gehen langsam zur Neige (Felder und Wälder wachsen nach).
+// st.depl[i] = abgebauter Anteil 0..1 je Feld; ein Feld trägt DEPOSIT_T Tonnen.
+const DEPLETING = { mine: 1, oil: 1 };
+const DEPOSIT_T = 12000;
+const DEPOSIT_LOW = 0.3; // darunter sinkt die Förderung
+function depletionOf(g, st, b) {
+  if (!st.depl) return 0;
+  let s = 0;
+  for (let yy = b.y; yy < b.y + b.h; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) s += st.depl[yy * g.W + xx];
+  return s / (b.w * b.h);
+}
+function depleteDaily(g, st) {
+  for (const b of g.buildings.values()) {
+    if (!b.spec || !DEPLETING[b.spec] || b.construct < 1 || b.abandoned) continue;
+    const r = st.rec.get(b.id);
+    if (!r || !(r.out > 0)) continue;
+    if (!st.depl) st.depl = new Float32Array(g.N);
+    const per = r.out / (b.w * b.h * DEPOSIT_T);
+    for (let yy = b.y; yy < b.y + b.h; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) {
+      const i = yy * g.W + xx;
+      st.depl[i] = Math.min(1, st.depl[i] + per);
+    }
+    const left = 1 - depletionOf(g, st, b);
+    if (left < DEPOSIT_LOW && !st.first['dep' + b.id]) {
+      st.first['dep' + b.id] = 1;
+      say(g, st, 'dep' + b.id, 0, `${b.spec === 'mine' ? 'Ein Bergwerk' : 'Ein Ölfeld'} ist fast ausgebeutet (${Math.round(left * 100)} % Vorkommen) – die Förderung sinkt. Neue ${b.spec === 'mine' ? 'Erzfelder' : 'Ölvorkommen'} erschließen.`, 'info', b);
+    }
+  }
+}
+
 // ---------------------------------------------------------------- Der stündliche Wirtschaftstakt
 function rec(st, b, kind) {
   let r = st.rec.get(b.id);
@@ -291,6 +329,7 @@ function tick(g, st) {
   let zoneTax = 0, densInc = 0;
   const densW = { 1: [0, 0], 2: [0, 0], 3: [0, 0], 4: [0, 0] };
   const prodFac = 1 + g.eff('ecoProd:factory');
+  const seasonMul = seasonFactor(g);
 
   // --- 1) Gebäude einsammeln
   for (const b of g.buildings.values()) {
@@ -312,7 +351,10 @@ function tick(g, st) {
         if (b.spec && RAW_OF_SPEC[b.spec]) {
           const r = rec(st, b, 'raw');
           r.good = RAW_OF_SPEC[b.spec];
-          r.out = b.occ * ECON.rawRate[b.spec] * ECON.levelProd[b.level] * eff * Math.max(0, 1 + g.eff('ecoProd:' + b.spec));
+          r.season = b.spec === 'farm' ? seasonMul : 1;
+          r.deposit = DEPLETING[b.spec] ? 1 - depletionOf(g, st, b) : 1;
+          r.depMul = r.deposit >= DEPOSIT_LOW ? 1 : Math.max(0.05, r.deposit / DEPOSIT_LOW);
+          r.out = b.occ * ECON.rawRate[b.spec] * ECON.levelProd[b.level] * eff * Math.max(0, 1 + g.eff('ecoProd:' + b.spec)) * r.season * r.depMul;
           raws[r.good].push({ b, r });
         } else {
           const r = rec(st, b, 'factory');
@@ -755,6 +797,7 @@ function daily(g, st) {
     if (m.shockDays > 0) { m.shockDays--; if (m.shockDays === 0) m.shock = 0; }
   }
   if (st.autoPrice) autoPrices(g, st);
+  depleteDaily(g, st);
   // Zufällige Marktereignisse
   if (day >= st.nextShock && g.stats.pop > 200) {
     st.nextShock = day + 10 + Math.floor(rnd(st) * 14);
@@ -1111,6 +1154,7 @@ registerSystem({
       v: 1, seed: st.seed, market: st.market, prices: st.prices, buyRaw: st.buyRaw, autoPrice: st.autoPrice, cycle: st.cycle, dens: st.dens,
       applied: st.applied, perm: st.perm, wh: st.wh, flow: st.flow, tot: st.tot, acc: st.acc, lines: st.lines,
       hist: st.hist, news: st.news, nextShock: st.nextShock, first: st.first, jobs: st.jobs, densAvg: st.densAvg, links: st.links, recs,
+      depl: st.depl ? typedToB64(st.depl) : null,
     });
   },
   load(g, d) {
@@ -1126,6 +1170,7 @@ registerSystem({
       const [id, kind, sales, supply, local, imp, shortDays, lowDays] = a;
       st.rec.set(id, { kind, good: null, out: 0, sales, supply, local, imp, short: clamp(1 - supply, 0, 1), need: kind === 'shop' ? 1 : 0, boost: 0, util: 0, cap: 0, in: 0, staff: 1, shortDays, lowDays, dist: 0 });
     }
+    if (typeof d.depl === 'string') { try { const a = b64ToTyped(d.depl, Float32Array); if (a.length === g.N) st.depl = a; } catch (e) { /* alter Spielstand */ } }
     st.parkLV = (budgetOf(g, 'parks') - 1) * 12;
     g.ext.industry = st;
   },
