@@ -272,3 +272,14 @@ export async function selfTest(opts = {}) {
   out.ms = Math.round(performance.now() - T0);
   return out;
 }
+
+// Einzelnes Rendering für Darstellungen (z. B. Spektrogramm): kind = 'music' | 'amb' | 'sfx'
+export const MUSIC_STATES = {
+  tag_sommer: { night: 0, crisis: 0, season: 'summer', trains: true }, tag_winter: { night: 0, crisis: 0, season: 'winter', trains: true },
+  nacht: { night: 1, crisis: 0, season: 'summer', trains: true }, krise: { night: 0, crisis: 0.9, season: 'summer', trains: true }, menue: { menu: true },
+};
+export async function renderBuffer(kind, key, seconds = 20, limiter = true) {
+  const setup = kind === 'music' ? musicSetup(MUSIC_STATES[key] || MUSIC_STATES.tag_sommer, seconds) : kind === 'amb' ? ambSetup(AMB_SCENES[key], seconds) : sfxSetup(key);
+  const r = await render(seconds, setup, limiter);
+  return r.buf;
+}

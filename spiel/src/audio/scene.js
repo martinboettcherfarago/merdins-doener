@@ -215,7 +215,7 @@ export class Listener {
       if (d2 < R2) near += 1 / (1 + d2 / (0.2 * R2));
       if (c.type === 3 || c.type === 4) consider('siren', c.x, c.z);
     }
-    s.cars = clamp(near / (4 + R * 0.6));
+    s.cars = clamp(near / (2 + 0.08 * R * R)); // Dichte: erwartete Anzahl wächst mit der Fläche
     for (const t of g.transit.trains) if (t.state !== 'dwell' && t.x != null) consider('pulsbahn', t.x, t.z);
     let rend = null;
     try { rend = g.renderables ? g.renderables() : null; } catch (e) { rend = null; }

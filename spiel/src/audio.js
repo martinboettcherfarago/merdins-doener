@@ -109,6 +109,7 @@ export class Audio {
       lastAdded: () => (this.lastAdded && performance.now() - this.lastAdded.t < 250 ? this.lastAdded : null),
       lastRemoved: () => (performance.now() - this.removed.t < 250 ? this.removed.n : 1),
     });
+    if (this.settings.quality === 'low') { this.amb.voices.max = 6; this.music.voices.max = 16; this.sfx.voices.max = 10; }
     this.applyVolumes();
     if (this.audible('music')) this.music.wake(ctx.currentTime + 0.05);
     this.timer = setInterval(() => this.pump(), 50);
@@ -140,7 +141,7 @@ export class Audio {
     if (this.audible('music')) {
       this.music.wake(now);
       if (!inGame) this.music.setState({ menu: true, crisis: 0 });
-      this.music.tick(now);
+      try { this.music.tick(now); } catch (e) { if (!this.musicError) { this.musicError = e.message; console.warn('Musik:', e); } }
     } else this.music.sleep(now);
     if (!inGame || !this.audible('amb')) {
       if (!this.ambQuiet) { this.amb.sleepAll(now); this.ambQuiet = true; }

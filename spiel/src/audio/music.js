@@ -281,6 +281,8 @@ export class Music {
     this.notes = 0;
     this.celebrateReq = false;
     this.history = [];
+    this.pending = null;
+    this.fill = null;
     this.mute = new Set(); // zum Prüfen: 'pad', 'str', 'bass', 'arp', 'mel', 'perc', 'pulse'
   }
 
@@ -331,12 +333,8 @@ export class Music {
     else if (tm === 'crisis') name = 'tension';
     else if (this.mood === 'crisis') name = 'resolve';
     else if (!this.section) name = this.state.start && SECTIONS[this.state.start] ? this.state.start : 'intro';
-    else {
-      const list = this.section.next;
-      let x = r(), acc = 0;
-      name = list[list.length - 1][0];
-      for (const [n, p] of list) { acc += p; if (x < acc) { name = n; break; } }
-    }
+    else name = this.pending || this.chooseNext();
+    this.pending = null;
     const moodChanged = tm !== this.mood;
     this.mood = tm;
     if (!this.section || this.section.newSong || moodChanged || name === 'intro' || name === 'tension') this.newSong(name === 'intro' || !this.section);
@@ -357,6 +355,15 @@ export class Music {
     s.strFilter.frequency.setTargetAtTime(tm === 'crisis' ? 1100 : 1600, t, 2);
     this.history.push(`${tm}:${name}`);
     if (this.history.length > 40) this.history.shift();
+  }
+
+  // Nächsten Abschnitt würfeln (wird zu Beginn des letzten Takts festgelegt, damit ein Übergang passt)
+  chooseNext() {
+    const list = this.section.next;
+    let x = this.rng(), acc = 0;
+    let name = list[list.length - 1][0];
+    for (const [n, p] of list) { acc += p; if (x < acc) { name = n; break; } }
+    return name;
   }
 
   newSong(newKey) {
@@ -410,6 +417,12 @@ export class Music {
     s.droneRoot(this.key + 9 - 24, t);
     // Melodie: Phrase über zwei Takte planen
     if (this.secBar % 2 === 0 && sec.mel > 0 && this.rng() < sec.mel * md.mel) this.planPhrase();
+    // Letzter Takt: Übergang vorbereiten – vor einem großen Abschnitt ein Anlauf (Rauschen + Wirbel)
+    this.fill = null;
+    if (this.secBar === sec.bars - 1 && this.mood !== 'crisis' && this.mood !== 'menu') {
+      this.pending = this.chooseNext();
+      if ((this.pending === 'B' || this.pending === 'A2') && !this.mute.has('perc')) this.fill = this.pending;
+    }
     this.secBar++;
   }
 
@@ -478,7 +491,7 @@ export class Music {
       if (r() < sec.arp * md.arp * (strong ? 1 : 0.8)) {
         const kind = crisis ? 'pulse' : night ? 'epiano' : this.mood === 'menu' ? 'kalimba' : ARP_INSTR[season] || 'marimba';
         const m = (ai >= 4 ? this.voicing[3] + 12 : this.voicing[ai]) + 12 + (night ? 0 : 0);
-        const vel = (strong ? 0.28 : 0.2) * (0.9 + r() * 0.2) * (night ? 0.8 : 1) * md.level;
+        const vel = (strong ? 0.21 : 0.15) * (0.9 + r() * 0.2) * (night ? 0.8 : 1) * md.level;
         if (can(1.2)) { this.notes++; play(ctx, this.dest, kind, t + hum(), mtof(m), vel, spb, { pan: (r() - 0.5) * 0.6, send: night ? 0.55 : 0.35, echo: night ? 0.25 : 0.1 }); }
       }
     }
@@ -488,7 +501,7 @@ export class Music {
       if (n.at !== this.abs || mute.has('mel')) continue;
       const kind = crisis ? 'lead' : night ? (season === 'winter' ? 'musicbox' : 'flute') : this.mood === 'menu' ? 'bell' : MEL_INSTR[season] || 'bell';
       const dur = n.len * spb / 4;
-      const vel = 0.25 * n.vel * md.level * (kind === 'lead' ? 0.6 : kind === 'flute' ? 0.9 : 1);
+      const vel = 0.19 * n.vel * md.level * (kind === 'lead' ? 0.45 : kind === 'flute' ? 0.3 : 1); // gehaltene Töne leiser als gezupfte
       if (can(dur + 1)) { this.notes++; play(ctx, this.dest, kind, t + hum(), mtof(n.m), vel, dur, { pan: 0.15, send: 0.5, echo: 0.12 }); }
     }
 
@@ -505,6 +518,18 @@ export class Music {
         if (st % 2 === 1 && r() < p * 0.25 && can(0.05)) play(ctx, this.dest, 'shaker', t + hum(), 0, 0.03 * p, 0, { pan: 0.4, send: 0.15 });
       }
     }
+
+    // Übergang in einen dichteren Abschnitt: Rauschanstieg und kleiner Wirbel in den letzten Schlägen
+    if (this.fill && st === 8) {
+      const B = buffers(ctx);
+      const v = voiceOut(ctx, this.dest, { gain: night ? 0.025 : 0.04, send: 0.5 });
+      const src = noiseSrc(ctx, B.white, t, spb * 2 + 0.1), bp = filter(ctx, 'bandpass', 900, 1.2), g = gainNode(ctx, 0);
+      bp.frequency.setValueAtTime(900, t); bp.frequency.exponentialRampToValueAtTime(7000, t + spb * 2);
+      src.connect(bp); bp.connect(g); g.connect(v.node);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(1, t + spb * 2 - 0.02); g.gain.linearRampToValueAtTime(0, t + spb * 2);
+      v.release(src);
+    }
+    if (this.fill === 'B' && st >= 12 && sec.perc > 0 && can(0.05)) play(ctx, this.dest, 'rim', t + hum(), 0, 0.03 + (st - 12) * 0.012, 0, { pan: (st - 13.5) * 0.2, send: 0.3 });
 
     // Pulsbahn-Ankünfte: auf Achteln, höchstens zwei je Achtel
     if (st % 2 === 0 && this.queue.length) {
