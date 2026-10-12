@@ -1,7 +1,7 @@
 // Pulsbahn: Hochbahnsteig `station` (1 × 1, steht über der Straße) und Umsteigebahnhof `metro_hub` (2 × 1).
 // Bahnsteigoberkante liegt auf TRANSIT.trackHeight (Oberkante Fahrbalken, dort stehen die Züge). Besitzer: G6.
-// Hinweis für die Ansicht: Die Fahrrichtung ist beliebig – deshalb keine Geländer an den Bahnsteigkanten, Stützen
-// nur in den Ecken bzw. an den Rändern; das Dach liegt unter TRANSIT.trackHeight + 0.44 (Stationssymbol darüber).
+// Station: Gleisbereich entlang Modell-z in der Mitte (|x| < 0.28) frei, Seitenbahnsteige außen, Oberkante
+// trackHeight + 0.035; G10 dreht das Modell in Fahrtrichtung. Dachoberkante < trackHeight + 0.48 (Symbol darüber).
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
@@ -65,41 +65,57 @@ registerArch('station', {
   variants: 1,
   build(ctx) {
     const { kit, detail } = ctx;
-    const C = 4.35 * M; // Eckstützen
-    // Stützen in den vier Ecken (außerhalb der Fahrbahn), Querträger unter dem Bahnsteig
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      if (sx > 0 && sz > 0) continue; // dort steht der Aufzug
-      if (sx < 0 && sz < 0) { spiralStair(kit, sx * C, sz * C, H - 0.25 * M); continue; }
-      kit.cyl('concrete', sx * C, 0, sz * C, 0.4 * M, H - 0.25 * M, { seg: 10, rTop: 0.32 * M });
-      kit.cyl('concrete_dark', sx * C, 0, sz * C, 0.55 * M, 0.5 * M, { seg: 10 });
+    const TH = ctx.trackHeight ?? H;
+    // Gleisbereich entlang z in der Mitte (|x| < GX) bleibt frei; Seitenbahnsteige außen.
+    // G10 dreht das Modell in Fahrtrichtung der ersten Linie (Modell-z = Fahrtrichtung).
+    const GX = 2.8 * M, PX = 4.9 * M, PT = TH + 0.35 * M, L = 4.95 * M;
+    const C = 4.35 * M;
+    // Stützen: zwei Eckstützen, Wendeltreppe und Aufzug in den anderen Ecken
+    for (const [sx, sz] of [[1, -1], [-1, 1]]) {
+      kit.cyl('concrete', sx * C, 0, sz * C, 0.42 * M, TH - 0.6 * M, { seg: 10, rTop: 0.34 * M });
+      kit.cyl('concrete_dark', sx * C, 0, sz * C, 0.58 * M, 0.5 * M, { seg: 10 });
     }
-    elevator(kit, C - 0.2 * M, C - 0.2 * M, H + 3.6 * M, 1.3 * M);
+    spiralStair(kit, -C, -C, PT - 0.05 * M);
+    elevator(kit, C - 0.2 * M, C - 0.2 * M, TH + 3.8 * M, 1.3 * M);
+    // Querträger unter den Bahnsteigen (außerhalb des Gleisbereichs bis zur Mitte durchlaufend unter dem Fahrbalken)
     for (const s of [-1, 1]) {
-      kit.box('concrete', 0, H - 1.1 * M, s * C, 9.6 * M, 0.85 * M, 0.7 * M);
-      kit.box('concrete', s * C, H - 1.1 * M, 0, 0.7 * M, 0.85 * M, 9.6 * M);
+      kit.box('concrete', s * C, TH - 1.2 * M, 0, 0.8 * M, 0.9 * M, 9.8 * M);
+      kit.box('concrete', 0, TH - 1.5 * M, s * C, 9.8 * M, 0.7 * M, 0.7 * M);
     }
-    // Bahnsteigplatte: Oberkante knapp unter der Fahrbahnoberkante (Zugboden)
-    kit.box('concrete_panel', 0, H - 0.3 * M, 0, 9.8 * M, 0.29 * M, 9.8 * M);
-    if (detail > 0) {
-      // Taktiler Leitstreifen und Sicherheitslinie um die Fahrspur
-      kit.box('paint_white', 0, H - 0.005 * M, 0, 9.7 * M, 0.02 * M, 9.7 * M);
-      kit.box('concrete_panel', 0, H, 0, 9.0 * M, 0.02 * M, 9.0 * M);
-      kit.box('paint_yellow', 0, H + 0.005 * M, 0, 3.4 * M, 0.02 * M, 3.4 * M);
-      kit.box('concrete_panel', 0, H + 0.012 * M, 0, 3.0 * M, 0.02 * M, 3.0 * M);
+    // Seitenbahnsteige mit Kante, Sicherheitslinie und Leitstreifen
+    for (const s of [-1, 1]) {
+      const cx = s * (GX + PX) / 2, w = PX - GX;
+      kit.box('concrete_panel', cx, TH - 0.6 * M, 0, w, PT - TH + 0.6 * M, L * 2);
+      if (detail > 0) {
+        kit.box('paint_yellow', s * (GX + 0.25 * M), PT, 0, 0.12 * M, 0.02 * M, L * 2 - 0.1 * M);
+        kit.box('paint_white', s * (GX + 0.6 * M), PT, 0, 0.3 * M, 0.02 * M, L * 2 - 0.4 * M);
+        kit.box('metal_dark', s * (GX + 0.03 * M), PT - 0.35 * M, 0, 0.08 * M, 0.35 * M, L * 2);
+      }
+      // Windschutz aus Glas an der Außenkante (Lücke für Treppe/Aufzug)
+      if (detail > 0) {
+        const xg = s * (PX - 0.1 * M);
+        const z0 = s > 0 ? -L + 0.2 * M : -L + 2.2 * M, z1 = s > 0 ? L - 2.2 * M : L - 0.2 * M;
+        kit.box('glass_curtain_blue', xg, PT, (z0 + z1) / 2, 0.05 * M, 2.4 * M, z1 - z0, { lit: 0.2 });
+        for (let k = 0; k <= 4; k++) kit.box('metal_dark', xg, PT, z0 + ((z1 - z0) * k) / 4, 0.1 * M, 2.5 * M, 0.1 * M);
+      }
     }
-    // Dach auf vier Stützen
-    canopy(kit, 0, 0, 9.4 * M, 9.4 * M, H, [[-4.2 * M, -4.2 * M], [4.2 * M, -4.2 * M], [-4.2 * M, 4.2 * M], [4.2 * M, 4.2 * M]]);
-    // Ausstattung an den Ecken: Bänke, Anzeigetafel, Fahrkartenautomat
-    if (detail === 2) {
-      bench(kit, -3.4 * M, 3.4 * M, Math.PI / 4 + Math.PI);
-      kit.add('wood_planks', new THREE.BoxGeometry(1.6 * M, 0.06 * M, 0.45 * M), { x: 3.4 * M, y: H + 0.42 * M, z: -3.4 * M, ry: Math.PI / 4 });
-      kit.cyl('metal_dark', -3.3 * M, H, -3.3 * M, 0.06 * M, 2.4 * M, { seg: 5 });
-      kit.box('glass_curtain_blue', -3.3 * M, H + 2.4 * M, -3.3 * M, 1.4 * M, 0.5 * M, 0.12 * M, { ry: Math.PI / 4, lit: 1 });
-      kit.box('paint_blue', 3.6 * M, H, 2.4 * M, 0.5 * M, 1.6 * M, 0.4 * M);
-      kit.box('glass_curtain_blue', 3.6 * M, H + 1.0 * M, 2.62 * M, 0.35 * M, 0.4 * M, 0.02 * M, { lit: 1 });
+    // Stege zu Treppe und Aufzug
+    kit.box('concrete_panel', -C, PT - 0.3 * M, -C, 1.6 * M, 0.3 * M, 1.6 * M);
+    kit.box('concrete_panel', C - 0.2 * M, PT - 0.3 * M, C - 1.2 * M, 1.3 * M, 0.3 * M, 0.8 * M);
+    // Gleisbereich: Wanne unter dem Fahrbalken (bleibt unter TH − 0.1)
+    kit.box('concrete_dark', 0, TH - 1.25 * M, 0, GX * 2, 0.3 * M, L * 2);
+    // Dach über beide Bahnsteige
+    canopy(kit, 0, 0, 9.6 * M, 9.6 * M, PT, [[-4.4 * M, -2.6 * M], [-4.4 * M, 2.6 * M], [4.4 * M, -2.6 * M], [4.4 * M, 2.6 * M]]);
+    // Ausstattung: Bänke, Anzeiger, Automat
+    if (detail === 2) for (const s of [-1, 1]) {
+      bench(kit, s * 4.1 * M, -0.8 * M * s, s * -Math.PI / 2);
+      kit.cyl('metal_dark', s * 3.6 * M, PT, 1.6 * M * s, 0.06 * M, 2.2 * M, { seg: 5 });
+      kit.box('glass_curtain_blue', s * 3.6 * M, PT + 2.2 * M, 1.6 * M * s, 0.12 * M, 0.5 * M, 1.4 * M, { lit: 1 });
+      kit.box('paint_blue', s * 4.4 * M, PT, -2.8 * M * s, 0.4 * M, 1.6 * M, 0.5 * M);
     }
-    crowd(kit, 0, 0, 7.0 * M, 7.0 * M, 5, { y0: H });
-    // Bodenebene: Eingang am Aufzug und Fahrkartenautomat
+    crowd(kit, 3.8 * M, 0, 1.4 * M, 7.0 * M, 3, { y0: PT });
+    crowd(kit, -3.8 * M, 0, 1.4 * M, 7.0 * M, 3, { y0: PT });
+    // Bodenebene: Eingangsschild am Aufzug
     if (detail > 0) {
       kit.box('paint_blue', C - 0.2 * M, 2.4 * M, C + 0.52 * M, 1.3 * M, 0.5 * M, 0.06 * M);
       if (detail === 2) text(kit, 'paint_white', 'P', C - 0.2 * M, 2.45 * M, C + 0.56 * M, 0, 0.36 * M, { depth: 0.02 * M });

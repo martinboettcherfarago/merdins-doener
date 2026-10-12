@@ -1,7 +1,7 @@
 // Schienenverkehr: Straßenbahndepot (3 × 2, historische Backsteinhalle) und Hauptbahnhof (4 × 2) mit
 // Empfangsgebäude, Uhrturm und gläserner Bahnsteighalle. Besitzer: G6.
-// Gleise im Hauptbahnhof (Modellkoordinaten, vor Drehung): entlang x bei z = −0.68 und z = −0.24 (Welteinheiten),
-// Schienenoberkante y = 0.012. Auf dem hinteren Gleis steht ein Zug, das vordere ist für einfahrende Züge frei.
+// Hauptbahnhof abgestimmt mit S3 (STATION_LAYOUT): Gleise entlang x bei z = −0.25 und −0.8 (Welteinheiten), Mittelbahnsteig
+// z = −0.62 … −0.43, Tunnelportale an beiden Enden ab |x| = 1.3 – dort verschwinden die Züge.
 import * as THREE from 'three';
 import { registerArch } from './index.js';
 import { M } from './kit.js';
@@ -107,49 +107,56 @@ registerArch('train_station', {
     const { kit, detail } = ctx;
     const ST = 'stone_sandstone', TRM = 'trim_stone';
     kit.box('pavers', 0, 0, 0, 39.8 * M, 0.08 * M, 19.8 * M);
-    // --- Gleisfeld und Bahnsteige in der Halle
-    const T1 = -6.8 * M, T2 = -2.4 * M;
+    // --- Gleisfeld (abgestimmt mit S3: STATION_LAYOUT.tracks = [−0.25, −0.8], Bahnsteig [−0.62, −0.43],
+    // Tunnelportale 0.7 breit an beiden Enden; Züge sind nur für |x| < 1.59 sichtbar)
+    const T1 = -8.0 * M, T2 = -2.5 * M, PX = 13.0 * M;
     for (const z of [T1, T2]) trackX(kit, -19.9 * M, 19.9 * M, z);
     const PH = 0.76 * M;
-    for (const [z0, z1] of [[-9.8, -8.4], [-5.4, -3.8], [-0.95, 2.6]]) kit.box('concrete_panel', 0, 0, ((z0 + z1) / 2) * M, 39.8 * M, PH, (z1 - z0) * M);
-    if (detail > 0) for (const z of [-8.5, -5.3, -3.9, -1.05]) kit.box('paint_white', 0, PH, z * M, 39.6 * M, 0.02 * M, 0.15 * M);
-    // Bahnsteigausstattung
-    if (detail > 0) for (const x of [-14, -6, 2, 10]) {
-      kit.cyl('metal_dark', x * M, PH, -4.6 * M, 0.08 * M, 3.0 * M, { seg: 5 });
-      kit.box('glass_window', x * M, PH + 3.0 * M, -4.6 * M, 0.12 * M, 0.7 * M, 2.4 * M, { lit: 1 });
-      if (detail === 2) { bench(kit, (x + 3) * M, -4.6 * M + 0.0001, 0); kit.box('paint_blue', (x + 1.5) * M, PH, 0.6 * M, 0.08 * M, 2.4 * M, 1.2 * M); }
+    for (const [z0, z1] of [[-6.2, -4.3], [-1.0, 2.6]]) kit.box('concrete_panel', 0, 0, ((z0 + z1) / 2) * M, PX * 2, PH, (z1 - z0) * M);
+    if (detail > 0) for (const z of [-6.1, -4.4, -0.9]) kit.box('paint_white', 0, PH, z * M, PX * 2 - 0.4 * M, 0.02 * M, 0.15 * M);
+    // Bahnsteigausstattung: Anzeiger, Bänke, Wartehäuschen
+    if (detail > 0) for (const x of [-9, -3, 3, 9]) {
+      kit.cyl('metal_dark', x * M, PH, -5.25 * M, 0.08 * M, 3.0 * M, { seg: 5 });
+      kit.box('glass_window', x * M, PH + 3.0 * M, -5.25 * M, 2.4 * M, 0.7 * M, 0.12 * M, { lit: 1 });
+      if (detail === 2) { bench(kit, (x + 1.6) * M, -5.25 * M, 0); kit.box('paint_blue', (x + 1.5) * M, PH, 0.9 * M, 1.2 * M, 2.4 * M, 0.08 * M); }
     }
-    crowd(kit, 0, -4.6 * M, 34 * M, 1.0 * M, 12, { y0: PH });
-    crowd(kit, 0, 0.8 * M, 34 * M, 2.4 * M, 12, { y0: PH });
+    crowd(kit, 0, -5.25 * M, PX * 1.7, 1.0 * M, 12, { y0: PH });
+    crowd(kit, 0, 0.8 * M, PX * 1.7, 2.4 * M, 12, { y0: PH });
     crowd(kit, 0, 12.0 * M - 2.4 * M, 30 * M, 1.4 * M, 10);
-    // Zug auf dem hinteren Gleis (Triebkopf + Wagen)
-    const ZY = 0.28 * M;
-    railcar(kit, -12.0 * M, ZY, T1, Math.PI / 2, 9.0 * M, { body: 'paint_white', stripe: 'paint_red' });
-    railcar(kit, -2.6 * M, ZY, T1, Math.PI / 2, 9.0 * M, { body: 'paint_white', stripe: 'paint_red' });
-    railcar(kit, 6.8 * M, ZY, T1, Math.PI / 2, 9.0 * M, { body: 'paint_white', stripe: 'paint_red' });
-    kit.add('paint_white', new THREE.SphereGeometry(1.5 * M, 10, 6, 0, Math.PI), { x: 11.3 * M, y: ZY + 1.9 * M, z: T1, ry: Math.PI / 2, sx: 1, sy: 1.0, sz: 2.2 });
-    if (detail > 0) kit.box('glass_window', 12.6 * M, ZY + 2.6 * M, T1, 0.9 * M, 0.8 * M, 2.0 * M, { rz: -0.6, lit: 0 });
-    // --- Bahnsteighalle: Tonnengewölbe aus Glas mit Stahlbögen, entlang x
-    const VZ = -3.6 * M, VR = 6.4 * M, VY = 5.0 * M, VL = 39.8 * M;
-    for (const s of [-1, 1]) {
-      kit.box(ST, 0, 0, VZ + s * (VR - 0.2 * M), VL, VY, 0.5 * M);
-      if (detail > 0 && s < 0) for (let x = -18; x <= 18; x += 4) archWindow(kit, x * M, 1.4 * M, VZ - VR - 0.06 * M, Math.PI, 2.2 * M, 3.0 * M, { kind: 'round', frame: TRM, mullions: 1 });
-    }
+    void railcar;
+    // --- Bahnsteighalle: Tonnengewölbe aus Glas mit Stahlbögen zwischen den Tunnelportalen
+    const VZ = -3.65 * M, VR = 6.3 * M, VY = 5.0 * M, VL = PX * 2;
+    kit.box(ST, 0, 0, VZ - VR + 0.25 * M, VL + 0.4 * M, VY, 0.5 * M);
+    if (detail > 0) for (let x = -11; x <= 11; x += 4.4) archWindow(kit, x * M, 1.4 * M, VZ - VR - 0.01 * M, Math.PI, 2.2 * M, 3.0 * M, { kind: 'round', frame: TRM, mullions: 1 });
     const vault = new THREE.CylinderGeometry(VR, VR, VL, detail === 2 ? 18 : detail === 1 ? 10 : 6, 1, true, -Math.PI / 2, Math.PI);
     kit.add('glass_skylight', vault, { x: 0, y: VY, z: VZ, rx: -Math.PI / 2, ry: Math.PI / 2, sz: 0.62, lit: 0.4 });
-    const nArch = detail === 2 ? 11 : detail === 1 ? 6 : 3;
+    const nArch = detail === 2 ? 9 : detail === 1 ? 5 : 3;
     for (let k = 0; k < nArch; k++) {
-      const x = -VL / 2 + 0.4 * M + (k * (VL - 0.8 * M)) / (nArch - 1);
+      const x = -VL / 2 + 0.3 * M + (k * (VL - 0.6 * M)) / (nArch - 1);
       kit.add('metal_panel_grey', new THREE.TorusGeometry(VR + 0.05 * M, 0.18 * M, 3, 14, Math.PI), { x, y: VY, z: VZ, ry: Math.PI / 2, sy: 0.62 });
     }
     kit.box('metal_panel_grey', 0, VY + VR * 0.62, VZ, VL, 0.25 * M, 1.6 * M);
-    // Giebelabschluss an den Hallenenden (Stahlrahmen mit Glas, unten offen für die Züge)
-    if (detail > 0) for (const s of [-1, 1]) {
-      const pts = [];
-      for (let k = 0; k <= 12; k++) { const a = (k / 12) * Math.PI; pts.push([Math.cos(a) * VR, Math.sin(a) * VR * 0.62]); }
-      const shp = new THREE.Shape(pts.map(([a, b]) => new THREE.Vector2(a, b)));
-      kit.add('glass_skylight', new THREE.ShapeGeometry(shp, 2), { x: s * (VL / 2 - 0.1 * M), y: VY, z: VZ, ry: s * Math.PI / 2, lit: 0.4 });
-      kit.box('metal_panel_grey', s * (VL / 2 - 0.1 * M), VY - 0.3 * M, VZ, 0.4 * M, 0.6 * M, VR * 2);
+    // Tunnelportale mit begrüntem Erdwall an beiden Enden
+    for (const s of [-1, 1]) {
+      const cx = s * (PX + 3.45 * M), w = 6.9 * M, z0 = -9.9 * M, z1 = -0.4 * M, h = 5.6 * M;
+      kit.box('stone_grey', cx, 0, (z0 + z1) / 2, w, h, z1 - z0);
+      kit.box('grass', cx, h, (z0 + z1) / 2, w + 0.2 * M, 0.25 * M, z1 - z0 + 0.2 * M);
+      kit.prism('grass', [[0, 0], [w, 0], [w, 1.6 * M]].map(([a, b]) => [s > 0 ? a - w / 2 : w / 2 - a, b]), z1 - z0, { x: cx, y: h + 0.2 * M, z: (z0 + z1) / 2 });
+      // Portalfassade zur Halle mit zwei Tunnelmündern
+      const fx = s * PX, ry = -s * Math.PI / 2;
+      const f = face(fx, 0, ry);
+      for (const tz of [T1, T2]) {
+        const [px, pz] = f.at(-tz * (s > 0 ? -1 : 1), 0.05 * M);
+        slab(kit, 'asphalt_dark', [[-2.0 * M, 0], [2.0 * M, 0], [2.0 * M, 2.6 * M], ...Array.from({ length: 9 }, (_, i) => { const a = (i / 8) * Math.PI; return [Math.cos(a) * 2.0 * M, 2.6 * M + Math.sin(a) * 2.0 * M]; })], 0.06 * M, { x: px, y: 0, z: pz, ry });
+        if (detail > 0) {
+          const [qx, qz] = f.at(-tz * (s > 0 ? -1 : 1), 0.2 * M);
+          slab(kit, 'stone_sandstone', archRing(4.0 * M, 4.6 * M, 0.6 * M, 'round', 10), 0.3 * M, { x: qx, y: 0, z: qz, ry });
+        }
+      }
+      const [bx, bz] = f.at(0, 0.2 * M);
+      kit.box('stone_sandstone', bx, h - 0.8 * M, (z0 + z1) / 2, 0.4 * M, 0.8 * M, z1 - z0);
+      void bz;
+      if (detail > 0) { tree(kit, cx + s * 1.2 * M, -6.0 * M, 0.7, 'round', { y0: h + 0.2 * M }); tree(kit, cx - s * 1.0 * M, -2.4 * M, 0.6, 'conifer', { y0: h + 0.2 * M }); }
     }
     // --- Empfangsgebäude
     const FZ0 = 2.6 * M, FZ1 = 9.4 * M, FD = FZ1 - FZ0, FZ = (FZ0 + FZ1) / 2;
