@@ -318,7 +318,7 @@ registerPanel({
       case 'extend': input.setTool({ kind: 'buslines', type: 'extend', line: L, atStart: el.dataset.start === '1' }); ui.closePanels(); ui.toast('Neue Haltestellen anklicken. Enter oder Rechtsklick: fertig.'); break;
       case 'showline': {
         const l = TPS.lineById(g, L);
-        if (l && l.path.length) { const t = l.path[Math.floor(l.path.length / 2)]; focus(ui, t % g.W, (t / g.W) | 0, Math.max(18, Math.min(60, l.len * 0.9))); }
+        if (l && l.path.length) { const t = l.path[Math.floor(l.path.length / 2)]; focus(ui, t % g.W, (t / g.W) | 0, Math.max(18, Math.min(60, l.len * 0.9))); emit('transport:focusLine', l.id); }
         break;
       }
       case 'showtile': { const i = +el.dataset.i; focus(ui, i % g.W, (i / g.W) | 0, 16); if (g.road[i]) ui.inspect({ type: 'road', i }); break; }

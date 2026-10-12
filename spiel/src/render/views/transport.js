@@ -168,7 +168,10 @@ registerView(class TransportView {
       on('transport:panel', () => { this.panelSeen = performance.now(); }),
       on('transport:tool', (d) => { this.toolActive = !!(d && d.active); }),
       on('transport:preview', (d) => { this.preview = d; this.previewDirty = true; }),
+      on('transport:focusLine', (id) => { this.focusLine = id; this.focusUntil = performance.now() + 5000; this.focusDirty = true; }),
     ];
+    this.focusMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8 });
+    this.focusMesh = null;
     // Materialien
     this.ribbonMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, toneMapped: false });
     this.dotMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
@@ -501,6 +504,7 @@ registerView(class TransportView {
     if (this.peopleTimer <= 0) { this.peopleTimer = 0.4; this.updatePeople(T); }
     this.updateAccidents(g, T, time);
     if (this.previewDirty) { this.previewDirty = false; this.updatePreview(); }
+    this.updateFocus(T);
     this.updatePlaceholders(g, T, night, time);
     this.addLights(T, night, time);
   }
@@ -566,6 +570,24 @@ registerView(class TransportView {
     m.visible = n > 0;
     m.instanceMatrix.needsUpdate = true;
     void time;
+  }
+
+  // Hervorgehobene Linie (Panel → „Zeigen"): breites, pulsierendes Band für einige Sekunden
+  updateFocus(T) {
+    const now = performance.now();
+    if (this.focusDirty || (this.focusMesh && now > this.focusUntil)) {
+      this.focusDirty = false;
+      if (this.focusMesh) { this.dyn.remove(this.focusMesh); this.focusMesh.geometry.dispose(); this.focusMesh = null; }
+      const l = now < this.focusUntil ? T.lines.find((x) => x.id === this.focusLine) : null;
+      if (l && l.pts && l.pts.length >= 4) {
+        const pos = [], cols = [];
+        strip(pos, cols, this.g, l.pts, 0, 0.3, 0.05, TPS.lineColor(l));
+        this.focusMesh = flatMesh(pos, cols, this.focusMat);
+        this.focusMesh.renderOrder = 6;
+        this.dyn.add(this.focusMesh);
+      }
+    }
+    if (this.focusMesh) this.focusMat.opacity = 0.45 + 0.4 * Math.sin(now / 160) ** 2;
   }
 
   updatePreview() {

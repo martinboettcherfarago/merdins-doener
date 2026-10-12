@@ -57,7 +57,7 @@ const LANE_OFF = { 1: 0.11, 2: 0.16, 3: 0.24, 4: 0.27 };
 
 // ---------------------------------------------------------------- Zugriff
 
-export function TS(g) { return g.ext && g.ext.transport; }
+export function TS(g) { return g && g.ext && g.ext.transport; }
 const stopMap = (T) => T._stopMap || (T._stopMap = new Map(T.stops.map((s) => [s.id, s])));
 const lineMap = (T) => T._lineMap || (T._lineMap = new Map(T.lines.map((l) => [l.id, l])));
 export function stopById(g, id) { return stopMap(TS(g)).get(id) || null; }
