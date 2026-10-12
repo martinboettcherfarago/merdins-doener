@@ -822,7 +822,8 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 
 /* ---------- Ladebildschirm */
 .loader { position: absolute; inset: 0; z-index: 90; display: grid; place-items: center; background: radial-gradient(120% 90% at 50% 110%, #2b3a63 0%, #172038 45%, #0e1424 100%); color: var(--paper); transition: opacity 0.5s ease; }
-.loader.out { opacity: 0; pointer-events: none; }
+.loader.out, .loader.pre { pointer-events: none; }
+.loader.out { opacity: 0; }
 .ld-sky i { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.35; }
 .ld-sky i:nth-child(1) { width: 420px; height: 420px; left: -100px; top: -80px; background: #e8543f; animation: drift 9s ease-in-out infinite alternate; }
 .ld-sky i:nth-child(2) { width: 380px; height: 380px; right: -120px; bottom: -60px; background: #2f8fe0; animation: drift 11s ease-in-out infinite alternate-reverse; }

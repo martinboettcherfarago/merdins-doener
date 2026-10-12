@@ -52,7 +52,7 @@ export function showLoader(title, step = '') {
   const el = loaderEl();
   clearTimeout(hideTimer);
   el.hidden = false;
-  el.classList.remove('out', 'boot');
+  el.classList.remove('out', 'boot', 'pre');
   const tt = $('ld-title'); if (tt) tt.textContent = title || '';
   setLoader(0.04, step);
   rotateTips();

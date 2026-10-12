@@ -8,7 +8,7 @@ import { MENU_SECTIONS } from '../registry.js';
 import { ensureSettings, applyUiScale, settingsHTML, settingsClick, settingsInput, settingsChange, gfxSnapshot, gfxChanged } from './settings.js';
 import { keysHTML } from './keys.js';
 import { bindTips, setTipsEnabled } from './tips.js';
-import { bootSequence, loaderVisible, showLoader, painted, hideLoader } from './loading.js';
+import { bootSequence, loaderVisible, showLoader, painted, hideLoader, loaderEl } from './loading.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -92,6 +92,7 @@ export class Menu {
 </div>`;
     const r = this.root;
     r.querySelector('.menu').addEventListener('click', (e) => this.click(e));
+    r.querySelector('.menu').addEventListener('pointerdown', (e) => this.prelaunch(e));
     r.querySelector('#m-name').addEventListener('input', (e) => { this.opts.name = e.target.value; });
     r.querySelector('#m-size').addEventListener('change', (e) => { this.opts.size = +e.target.value; this.preview(); this.render(); });
     r.querySelector('#m-seed').addEventListener('change', (e) => { this.opts.seed = Math.max(0, Math.floor(+e.target.value || 0)); this.preview(); this.render(); });
@@ -124,15 +125,27 @@ export class Menu {
   }
 
   // Ladebildschirm zeigen, Menü-Stadt anhalten (schnelles Bild), dann starten
+  // Synchron starten (Prüfwerkzeuge erwarten das Spiel direkt nach dem Klick). Der Ladebildschirm erscheint schon beim
+  // Drücken der Maustaste (pointerdown, siehe prelaunch), damit er während der Arbeit sichtbar ist.
   launch(title, step, fn) {
     const app = this.app;
-    const prev = app.mode;
-    app.mode = 'loading';
+    clearTimeout(this._preT);
+    const prev = this._preMode || app.mode;
+    this._preMode = null;
     showLoader(title, step);
-    painted().then(() => {
-      try { fn(); } catch (e) { console.error(e); }
-      if (app.mode !== 'game') { app.mode = prev === 'loading' ? 'menu' : prev; hideLoader(); }
-    });
+    try { fn(); } catch (e) { console.error(e); }
+    if (app.mode !== 'game') { app.mode = prev === 'loading' ? 'menu' : prev; hideLoader(); }
+  }
+  prelaunch(e) {
+    const b = e.target.closest('[data-act=start], [data-act=continue], [data-act=slot]');
+    if (!b || e.button > 0) return;
+    const app = this.app;
+    this._preMode = app.mode;
+    app.mode = 'loading';  // Menü-Stadt anhalten, damit das nächste Bild sofort kommt
+    showLoader(b.dataset.act === 'start' ? `${(this.opts.name || '').trim() || 'Neustadt'} wird gegründet` : 'Spielstand wird geladen', 'Einen Moment …');
+    loaderEl().classList.add('pre'); // Klick muss den Knopf noch erreichen
+    clearTimeout(this._preT);
+    this._preT = setTimeout(() => { if (this._preMode !== null && app.mode === 'loading') { app.mode = this._preMode; this._preMode = null; hideLoader(true); } }, 1500);
   }
 
   preview() {

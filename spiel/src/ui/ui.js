@@ -334,7 +334,7 @@ export class UI {
     else if (s === 'money') this.togglePanel('budget');
     else if (s === 'happy') this.setView(this.view === 'happiness' ? 'none' : 'happiness');
     else if (s === 'jobs') this.togglePanel(PANELS.find((p) => p.id === 'economy') ? 'economy' : 'stats');
-    else if (s === 'transit') this.togglePanel('transit');
+    else if (s === 'transit') this.togglePanel(PANELS.find((p) => p.id === 'transport') ? 'transport' : 'transit');
   }
 
   refreshHUD() {
@@ -359,7 +359,17 @@ export class UI {
     this.el.happyd.className = 'd ' + (hp >= 50 ? 'pos' : 'neg');
     this.el.unemp.textContent = `${Math.round(s.unemployment * 100)} %`;
     this.el.jobs.textContent = `${fmt(s.jobs)} Jobs`;
-    this.el.riders.textContent = fmt(s.ridersToday || 0);
+    // ÖPNV: Pulsbahn heute + Bus und Tram (S3, gestern), falls vorhanden
+    const tp = g.ext && g.ext.transport && g.ext.transport.day;
+    const busRiders = tp && typeof tp.riders === 'number' ? tp.riders : null;
+    this.el.riders.textContent = fmt((s.ridersToday || 0) + (busRiders || 0));
+    if (busRiders !== null && !this._oepnv) {
+      this._oepnv = true;
+      const st = this.el.riders.parentElement;
+      st.querySelector('.k').textContent = 'ÖPNV';
+      st.dataset.tip = 'Öffentlicher Verkehr';
+      st.dataset.tipDesc = 'Fahrgäste Pulsbahn (heute) plus Bus und Tram (gestern) · Verkehrsfluss';
+    }
     this.el.flow.textContent = `Verkehr ${Math.round((s.trafficFlow || 1) * 100)} %`;
     this.el.date.textContent = g.dateText();
     this.el.time.textContent = g.clockText();

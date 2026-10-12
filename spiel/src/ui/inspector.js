@@ -11,6 +11,9 @@ import { catMeta } from './meta.js';
 import { getThumb, thumbId, hasArch } from './thumbs.js';
 import { meterHTML } from './charts.js';
 
+// Knöpfe in Inspektor-Zusätzen anderer Module: INSPECTOR_ACTIONS[act] = (ui, el, sel) => { … } – reagiert auf data-act="act"
+export const INSPECTOR_ACTIONS = {};
+
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 export const ZONE_LEVEL_NAMES = {
@@ -177,6 +180,7 @@ export function inspectorClick(ui, e) {
   const g = ui.g, s = ui.sel;
   const act = b.dataset.act;
   if (act === 'close') { ui.app.audio.play('close'); ui.closeInspector(); return; }
+  if (INSPECTOR_ACTIONS[act]) { try { INSPECTOR_ACTIONS[act](ui, b, s); } catch (err) { console.error(err); } ui._inspHead = null; ui.renderInspector(); return; }
   // Zusätze anderer Module dürfen eigene Knöpfe haben: fn.click(ui, act, el) → true = behandelt
   for (const fn of INSPECTORS) {
     try { if (fn && typeof fn.click === 'function' && fn.click(ui, act, b, s)) { ui._inspHead = null; ui.renderInspector(); return; } } catch (err) { console.error(err); }
