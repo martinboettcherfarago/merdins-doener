@@ -87,6 +87,8 @@ class GB {
       pos.push(cx + ux * rx * j, y, cz + uz * rz * j, ux, uy, uz);
     }
     const flat = !!opts.flat;
+    // jeder Klumpen etwas anders getönt (Blattbüschel)
+    const tintF = 0.84 + hash2(seed, 5, 17) * 0.3, tintH = (hash2(seed, 9, 23) - 0.5) * 0.14;
     for (let i = 0; i < pos.length; i += 18) {
       let fn = null;
       if (flat) {
@@ -104,7 +106,7 @@ class GB {
         else {
           let sx = x - center[0], sy = (y - center[1]) * 1.2, sz = z - center[2];
           const sl = Math.hypot(sx, sy, sz) || 1;
-          nx = sx / sl * 0.62 + pos[o + 3] * 0.38; ny = sy / sl * 0.62 + pos[o + 4] * 0.38; nz = sz / sl * 0.62 + pos[o + 5] * 0.38;
+          nx = sx / sl * 0.8 + pos[o + 3] * 0.2; ny = sy / sl * 0.8 + pos[o + 4] * 0.2; nz = sz / sl * 0.8 + pos[o + 5] * 0.2;
           const nl = Math.hypot(nx, ny, nz) || 1;
           nx /= nl; ny /= nl; nz /= nl;
         }
@@ -112,7 +114,7 @@ class GB {
         const out = flat ? 1 : clamp((Math.hypot(x - center[0], z - center[2]) / Math.max(0.05, opts.crownR || rx)) * 0.6 + 0.4, 0, 1);
         const up = clamp((y - (center[1] - (opts.crownH || ry))) / (2 * (opts.crownH || ry)), 0, 1);
         const ao = opts.col ? 1 : 0.5 + 0.5 * (0.35 * out + 0.65 * up);
-        const c = opts.col || [ao, ao, ao];
+        const c = opts.col || [ao * tintF * (1 + tintH), ao * tintF, ao * tintF * (1 - tintH * 1.5)];
         this.v(x, y, z, nx, ny, nz, c, kind, clamp(y / H, 0, 1));
       }
     }
@@ -347,6 +349,24 @@ const SPECIES = {
       return b.geometry();
     },
   },
+  hecke: {
+    decid: true,
+    pal: [0x4f7b36, 0x567f39, 0x4a7232, 0x5b843a],
+    hi() {
+      const b = new GB(), H = 0.2, C = [0, 0.07, 0];
+      const o = { crownR: 0.5, crownH: 0.1, flatBottom: -0.01 };
+      for (let k = 0; k < 3; k++) {
+        const x = -0.33 + k * 0.33;
+        b.blob(x, 0.075, (hash2(k, 1, 3) - 0.5) * 0.02, 0.24, 0.085 + hash2(k, 4, 3) * 0.02, 0.085, 1, 101 + k, K.BUSH, [x, 0.06, 0], H, { ...o, jitter: 0.38 });
+      }
+      return b.geometry();
+    },
+    lo() {
+      const b = new GB(), H = 0.2, C = [0, 0.07, 0];
+      b.blob(0, 0.075, 0, 0.52, 0.095, 0.08, 0, 107, K.BUSH, C, H, { crownR: 0.5, crownH: 0.1, flatBottom: -0.01, jitter: 0.15 });
+      return b.geometry();
+    },
+  },
   fels: {
     pal: [0x8a857c, 0x9a958c, 0x7d786f, 0xa39b8e, 0x8f8578],
     hi() {
@@ -517,15 +537,19 @@ function makeVegMaterial(u, variant = 'solid') {
   } else {
     vec2 sideUv = abs(wn.x) > abs(wn.z) ? vWP.zy : vWP.xy;
     vec4 lt = mix(texture2D(tLeaf, sideUv * 5.5 + 0.6), texture2D(tLeaf, vWP.xz * 5.5 + 0.3), smoothstep(0.2, 0.8, abs(wn.y)));
-    vec3 g = vCol * inst * lt.rgb * 2.0;
+    vec3 ltc = mix(vec3(1.0), lt.rgb * 2.0, 1.35);
+    ltc = max(ltc, vec3(0.25));
+    vec3 g = vCol * inst * ltc;
     if (g7decid) {
       g = mix(g, g * vec3(1.14, 1.2, 0.78), uFresh);
-      float turn = smoothstep(vSeed * 0.55, vSeed * 0.55 + 0.35, uAutumnK);
+      float late = step(0.8, fract(vSeed * 3.31)) * 0.45;
+      float turn = smoothstep(vSeed * 0.5 + late, vSeed * 0.5 + late + 0.38, uAutumnK) * (abs(k - 7.0) < 0.5 ? 0.7 : 1.0);
       float s2 = fract(vSeed * 7.13);
-      vec3 ac = s2 < 0.3 ? vec3(0.86, 0.66, 0.16) : s2 < 0.6 ? vec3(0.86, 0.45, 0.12) : s2 < 0.8 ? vec3(0.72, 0.22, 0.09) : vec3(0.58, 0.4, 0.17);
-      if (abs(k - 5.0) < 0.5) ac = vec3(0.9, 0.75, 0.22);
-      if (abs(k - 7.0) < 0.5) ac = mix(ac, vec3(0.6, 0.22, 0.12), 0.5);
-      g = mix(g, g7lin(ac) * vCol * lt.rgb * 2.0, turn);
+      vec3 ac = s2 < 0.36 ? vec3(0.84, 0.66, 0.2) : s2 < 0.64 ? vec3(0.82, 0.48, 0.15) : s2 < 0.78 ? vec3(0.66, 0.24, 0.1) : vec3(0.56, 0.42, 0.2);
+      ac = mix(ac, vec3(0.6, 0.56, 0.22), step(0.9, fract(vSeed * 11.7)));
+      if (abs(k - 5.0) < 0.5) ac = vec3(0.88, 0.74, 0.24);
+      if (abs(k - 7.0) < 0.5) ac = mix(ac, vec3(0.55, 0.38, 0.18), 0.55);
+      g = mix(g, g7lin(ac) * vCol * ltc, turn);
       if (abs(k - 4.0) < 0.5 && uBlossom > 0.01) {
         float bl = smoothstep(0.42, 0.58, lt.a + (fract(vSeed * 3.7) - 0.5) * 0.25);
         vec3 bc = fract(vSeed * 5.1) < 0.5 ? vec3(0.98, 0.96, 0.95) : vec3(0.98, 0.8, 0.86);
@@ -534,7 +558,7 @@ function makeVegMaterial(u, variant = 'solid') {
       if (g7twig) g = g7lin(vec3(0.4, 0.35, 0.31)) * (0.55 + 0.45 * vCol);
     }
     col = g;
-    g7Hgt = lt.a * 0.6;
+    g7Hgt = lt.a * 1.0;
     g7Rough = 0.8;
   }
   float sn = uSnowK * smoothstep(0.1, 0.65, wn.y + (fract(vSeed * 13.0) - 0.5) * 0.25) * (conifer ? 1.0 : 0.8) * (blade ? 0.35 : 1.0);
@@ -669,9 +693,9 @@ export class Vegetation {
             add(hash2(x, y, 141 + k) < 0.72 ? 'fichte' : 'kiefer', px, pz, 0.7 + hash2(x, y, 151 + k) * 0.45, hash2(x, y, 161 + k) * 6.28, 0.95);
           }
         }
-        if (hash2(x, y, 181) < 0.32 && hC > 0.1) {
+        if (hash2(x, y, 181) < 0.16 && hC > 0.1) {
           const px = x + ox + 0.15 + hash2(x, y, 182) * 0.7, pz = y + oz + 0.15 + hash2(x, y, 183) * 0.7;
-          add('fels', px, pz, 0.6 + hash2(x, y, 184) * 1.1, hash2(x, y, 185) * 6.28, 0.8 + hash2(x, y, 186) * 0.5);
+          add('fels', px, pz, 0.8 + hash2(x, y, 184) * 1.3, hash2(x, y, 185) * 6.28, 0.7 + hash2(x, y, 186) * 0.5);
         }
         continue;
       }
@@ -687,6 +711,14 @@ export class Vegetation {
       if ((rd < 2.5 && hash2(x, y, 27) < 0.3) || hash2(x, y, 28) < 0.008) {
         add('fels', x + ox + 0.2 + hash2(x, y, 29) * 0.6, y + oz + 0.2 + hash2(x, y, 30) * 0.6, 0.35 + hash2(x, y, 32) * 0.5, hash2(x, y, 33) * 6.28, 0.8);
         this.decor[i] = 1;
+      }
+      // Hecken als Feldraine: gerade Reihen im Raster über fruchtbaren Wiesen, mit Lücken
+      if (w.resource[i] === RES.FERTILE && t === T.GRASS) {
+        const hv = patch.fbm(x * 0.07 + 9, y * 0.07, 2);
+        if (hv > 0.5) {
+          if (x % 7 === 0 && hash2(x, y >> 1, 37) > 0.3) { add('hecke', x + ox + 0.06, y + oz + 0.5, 1.02, Math.PI / 2, 0.9 + hash2(x, y, 38) * 0.35); this.decor[i] = 1; }
+          if (y % 6 === 0 && hash2(x >> 1, y, 39) > 0.3) { add('hecke', x + ox + 0.5, y + oz + 0.06, 1.02, 0, 0.9 + hash2(x, y, 40) * 0.35); this.decor[i] = 1; }
+        }
       }
       // Einzelner Obstbaum auf fruchtbarem Boden
       if (w.resource[i] === RES.FERTILE && hash2(x, y, 34) < 0.05) {

@@ -234,11 +234,14 @@ const SURF_COLOR = /* glsl */`
   sl *= 1.0 - g7IceA * 0.92;
   g7N = normalize(vec3(sl.x * 0.55, 1.0, sl.y * 0.55));
 
-  vec3 cShallow = g7lin(vec3(0.40, 0.73, 0.69));
-  vec3 cMid = g7lin(vec3(0.15, 0.49, 0.58));
-  vec3 cDeep = g7lin(vec3(0.05, 0.23, 0.36));
+  vec3 cShallow = g7lin(vec3(0.42, 0.74, 0.68));
+  vec3 cMid = g7lin(vec3(0.17, 0.51, 0.58));
+  vec3 cDeep = g7lin(vec3(0.08, 0.31, 0.45));
   vec3 wc = mix(cShallow, cMid, smoothstep(0.0, 0.3, dd));
-  wc = mix(wc, cDeep, smoothstep(0.28, 1.5, dd));
+  wc = mix(wc, cDeep, smoothstep(0.28, 1.6, dd));
+  vec4 big = texture2D(tNoise, p * 0.021 + vec2(uTime * 0.002, 0.0));
+  wc *= 0.9 + 0.2 * big.r;
+  wc = mix(wc, wc * vec3(0.9, 1.05, 0.95), smoothstep(0.55, 0.8, big.g) * 0.5);
   float alpha = mix(0.16, 0.94, smoothstep(0.0, 0.62, dd));
   // Uferschaum (Wellen laufen auf das Ufer zu) und Strömungsschaum
   float shore = 1.0 - smoothstep(0.0, 0.05 + nz.g * 0.07, dd);
@@ -265,7 +268,7 @@ const SURF_REFL = /* glsl */`
   vec3 vW = normalize(cameraPosition - vWP);
   float ndv = clamp(dot(g7N, vW), 0.0, 1.0);
   vec3 rW = reflect(-vW, g7N);
-  float fres = 0.05 + 0.75 * pow(1.0 - ndv, 3.0);
+  float fres = 0.08 + 0.72 * pow(1.0 - ndv, 2.6);
   vec3 sky = mix(uSkyHor, uSkyTop, smoothstep(0.0, 0.55, rW.y));
   float k = fres * uOwnRefl * (1.0 - g7Foam) * (1.0 - g7IceA * 0.8);
   outgoingLight = mix(outgoingLight, sky, k);

@@ -289,7 +289,7 @@ const TERRAIN_COLOR = /* glsl */`
   vec3 col = mix(grass, floorC * gdet, forest * 0.85);
   // Fruchtbarer Boden: Erdflecken, Öl: dunkle Stellen
   vec3 soil = g7lin(vec3(0.43, 0.33, 0.22)) * (0.8 + 0.4 * gh);
-  col = mix(col, soil, mB.r * smoothstep(0.62, 0.8, nC.b) * 0.55);
+  col = mix(col, soil, mB.r * smoothstep(0.6, 0.78, nC.r * 0.7 + nB.b * 0.3) * 0.5);
   col = mix(col, col * vec3(0.55, 0.56, 0.5), mB.a * smoothstep(0.5, 0.75, nB.b) * 0.55);
   float stoneAmt = mB.g * smoothstep(0.35, 0.65, nC.r) * 0.8 + mB.b;
   if (stoneAmt > 0.004) {
@@ -322,9 +322,11 @@ const TERRAIN_COLOR = /* glsl */`
     sandH = sdT.a;
     vec3 sandC = g7lin(vec3(0.86, 0.78, 0.58)) * sdT.rgb * 2.0;
     sandM = smoothstep(0.35, 0.65, mA.g + (nC.r - 0.5) * 0.35);
-    bank = smoothstep(-0.004, -0.05, wp.y);
-    vec3 mud = mix(g7lin(vec3(0.41, 0.35, 0.25)), g7lin(vec3(0.5, 0.52, 0.32)), smoothstep(0.4, 0.7, nC.g)) * (0.8 + 0.4 * gh);
-    vec3 bankC = mix(mud, sandC, max(sandM, smoothstep(0.55, 0.8, nC.b) * 0.6));
+    bank = smoothstep(-0.004, -0.04, wp.y);
+    float lowBank = smoothstep(-0.07, -0.125, wp.y + (nC.r - 0.5) * 0.04);
+    vec3 mud = mix(g7lin(vec3(0.5, 0.44, 0.33)), g7lin(vec3(0.56, 0.54, 0.4)), smoothstep(0.35, 0.65, nC.r)) * (0.85 + 0.3 * gh);
+    vec3 bankC = mix(col * vec3(0.86, 0.9, 0.76), mud, lowBank);
+    bankC = mix(bankC, sandC * mix(1.0, 0.86, lowBank), max(sandM, smoothstep(0.62, 0.8, nB.b) * 0.5));
     col = mix(col, sandC, sandM * (1.0 - bank));
     col = mix(col, bankC, bank);
     // Unter Wasser: Sand, Schlick, Kiesel, Lichtnetz (Kaustik)
@@ -341,8 +343,8 @@ const TERRAIN_COLOR = /* glsl */`
       bed += caus * 0.32 * (1.0 - smoothstep(0.0, 0.9, depth)) * g7lin(vec3(0.95, 1.0, 0.9));
       col = mix(col, bed, under);
     }
-    wetLine = smoothstep(uWL + 0.07, uWL + 0.005, wp.y) * (1.0 - under);
-    col *= 1.0 - wetLine * 0.38;
+    wetLine = smoothstep(uWL + 0.045, uWL + 0.004, wp.y) * (1.0 - under);
+    col *= 1.0 - wetLine * 0.2;
   }
 
   // Fels an Hängen und in der Höhe, Geröll am Hangfuß (Dreifachprojektion, Schichtung waagerecht)
@@ -437,6 +439,7 @@ uniform sampler2D tNoise;
 uniform sampler2D tRock;
 uniform sampler2D tGrass;
 uniform float uSnowK;
+uniform float uNightK;
 varying float vTop;
 varying vec3 vWP;
 varying vec3 vWN;
@@ -448,11 +451,13 @@ ${GLSL_COMMON}`)
   vec3 wn = normalize(vWN);
   float hx = abs(wn.x) > abs(wn.z) ? wp.z : wp.x;
   float dep = vTop - wp.y;
+  float isRock = smoothstep(0.25, 0.6, vTop);
+  float dG = min(vTop, 0.0) - wp.y;
   vec4 n1 = texture2D(tNoise, vec2(hx * 0.043, 0.37));
   vec4 n2 = texture2D(tNoise, vec2(hx, wp.y) * vec2(0.19, 0.55));
   vec4 n3 = texture2D(tNoise, vec2(hx, wp.y) * vec2(0.9, 1.3));
   float wob = (n1.r - 0.5) * 0.7 + (n2.g - 0.5) * 0.18;
-  float d = dep + wob * 0.5;
+  float d = mix(dep, max(dG, 0.0) + 0.5, isRock) + wob * 0.5;
   vec3 c = g7lin(vec3(0.38, 0.54, 0.24));
   c = mix(c, g7lin(vec3(0.27, 0.2, 0.14)), smoothstep(0.035, 0.08, dep + (n3.r - 0.5) * 0.03));
   c = mix(c, g7lin(vec3(0.48, 0.36, 0.24)), smoothstep(0.32, 0.46, d));
@@ -470,8 +475,9 @@ ${GLSL_COMMON}`)
   float root = (1.0 - smoothstep(0.0, 0.05, abs(n2.a - 0.5) * 2.0 - 0.8)) * smoothstep(0.06, 0.1, dep) * (1.0 - smoothstep(0.3, 0.55, dep));
   c = mix(c, g7lin(vec3(0.2, 0.15, 0.1)), root * 0.6);
   // Felsige Säulen (Berge an der Kante)
-  float rockCol = smoothstep(0.25, 0.6, vTop);
-  c = mix(c, g7lin(vec3(0.55, 0.52, 0.48)) * rkS.rgb * 2.0, rockCol * smoothstep(0.02, 0.1, dep));
+  float rockCol = isRock;
+  vec3 mtn = mix(g7lin(vec3(0.6, 0.57, 0.52)), g7lin(vec3(0.68, 0.64, 0.58)), n2.g) * rkS.rgb * 2.0;
+  c = mix(c, mtn, rockCol * smoothstep(0.02, 0.1, dep) * smoothstep(-0.3, 0.1, wp.y));
   c *= 0.86 + 0.28 * n2.r;
   // Schnee auf der Grasnarbe
   c = mix(c, vec3(0.86, 0.88, 0.92), uSnowK * (1.0 - smoothstep(0.02, 0.05, dep)));
@@ -480,7 +486,8 @@ ${GLSL_COMMON}`)
   diffuseColor.rgb = c;
   g7Hgt = mix(n3.r * 0.2 + peb * 0.4, rkS.a, smoothstep(2.2, 2.5, d) + rockCol) * 0.7;
 }`)
-      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = g7bump(-vViewPosition, normal, g7Hgt, faceDirection);');
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = g7bump(-vViewPosition, normal, g7Hgt, faceDirection);')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * 0.16 * (1.0 - uNightK);');
   };
   mat.customProgramCacheKey = () => 'g7slab';
   return mat;
@@ -529,9 +536,9 @@ ${GLSL_COMMON}`)
   vec4 nB = texture2D(tNoise, wp.xz * 0.0093 + 0.3);
   vec4 nC = texture2D(tNoise, wp.xz * 0.041 + 0.6);
   // Felder: gedrehtes Raster mit Hecken an den Rändern
-  float ang = (nA.g - 0.5) * 1.4 + 0.4;
+  float ang = 0.35 + step(0.5, nA.g) * 0.95 + step(0.62, nA.r) * 0.4;
   mat2 rot = mat2(cos(ang), -sin(ang), sin(ang), cos(ang));
-  vec2 q = rot * wp.xz / vec2(10.0, 6.5);
+  vec2 q = rot * wp.xz / vec2(7.0, 4.6);
   q.x += floor(q.y) * 0.37;
   vec2 id = floor(q);
   vec2 f = fract(q);
@@ -546,13 +553,15 @@ ${GLSL_COMMON}`)
   else if (hh < 0.8) fc = vec3(0.53, 0.64, 0.33);                                             // Weide
   else fc = vec3(0.66, 0.64, 0.4);                                                            // Heu
   vec3 col = g7lin(fc) * uGrassTint;
-  // Furchen
-  col *= 0.92 + 0.08 * sin(f.y * 60.0 + hh * 10.0);
+  // Furchen (verblassen in der Ferne)
+  float fpx = length(fwidth(q * 30.0));
+  col *= 1.0 - 0.06 * (0.5 + 0.5 * sin(f.y * 30.0 * 6.2832 / 6.5 + hh * 10.0)) * (1.0 - smoothstep(0.3, 1.0, fpx));
+  col *= 0.9 + 0.2 * g7h(id + 0.5);
   float edge = min(min(f.x, 1.0 - f.x) * 10.0, min(f.y, 1.0 - f.y) * 6.5);
   float hedge = 1.0 - smoothstep(0.12, 0.3, edge);
-  col = mix(col, g7lin(vec3(0.24, 0.36, 0.17)), hedge * step(0.35, g7h(id + 7.0)));
+  col = mix(col, g7lin(vec3(0.27, 0.38, 0.19)), hedge * step(0.55, g7h(id + 7.0)) * 0.8);
   // Wälder: große Flecken, an steilen Hängen häufiger
-  float fm = smoothstep(0.52, 0.58, nB.r + slope * 0.6 + (nC.g - 0.5) * 0.12);
+  float fm = smoothstep(0.49, 0.55, nB.r + slope * 0.6 + (nC.g - 0.5) * 0.14);
   vec3 forestC = mix(g7lin(vec3(0.18, 0.3, 0.15)), g7lin(vec3(0.26, 0.36, 0.17)), nC.r);
   forestC = mix(forestC, g7lin(vec3(0.55, 0.36, 0.14)), autumn * 0.55 * step(0.45, nC.b));
   col = mix(col, forestC * (0.75 + 0.5 * nC.b), fm);
@@ -577,6 +586,7 @@ ${GLSL_COMMON}`)
   g7Water = smoothstep(0.0, 0.05, vWet);
   vec3 waterC = mix(g7lin(vec3(0.2, 0.45, 0.52)), g7lin(vec3(0.1, 0.27, 0.4)), smoothstep(0.2, 4.0, vWet));
   col = mix(col, waterC, g7Water);
+  col = mix(col, vec3(dot(col, vec3(0.3, 0.59, 0.11))), 0.22);
   diffuseColor.rgb = col;
   g7Hgt = (fm * nC.b * 0.9 + hedge * 0.3) * (1.0 - g7Water);
 }`)
@@ -601,8 +611,8 @@ if (g7Water > 0.5) {
       .replace('#include <fog_fragment>', `#include <fog_fragment>
 {
   float dist = length(vViewPosition);
-  float hz = 1.0 - exp(-dist / 260.0);
-  hz = clamp(0.28 + 0.72 * hz, 0.0, 0.97) * uHazeK;
+  float hz = 1.0 - exp(-dist / 230.0);
+  hz = clamp(0.44 + 0.56 * hz, 0.0, 0.965) * uHazeK;
   float low = smoothstep(${(OUTER_Y + 60).toFixed(1)}, ${OUTER_Y.toFixed(1)}, vWP.y);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uHaze, clamp(hz + low * 0.05, 0.0, 0.97));
 }`);
@@ -725,7 +735,9 @@ function buildField(g) {
       if (dd > 0) {
         const ridge = 1 - Math.abs(2 * nB.fbm(tx * 0.15, ty * 0.15, 4) - 1);
         const big = nC.fbm(tx * 0.06, ty * 0.06, 3);
-        let m = 1.25 * Math.pow(dd, 0.82) * (0.5 + 0.95 * ridge * (0.55 + 0.9 * big));
+        let m = 1.4 * Math.pow(dd, 0.9) * (0.45 + 1.05 * ridge * (0.5 + 0.95 * big));
+        const rug = 1 - Math.abs(2 * nE.fbm(tx * 0.42 + 7, ty * 0.42, 3) - 1);
+        m += rug * rug * 0.9 * smoothstep(0.6, 3.5, dd);
         // Terrassen und Klippen in manchen Gegenden
         const cliff = smoothstep(0.48, 0.64, nD.fbm(tx * 0.11 + 30, ty * 0.11, 3));
         const step = 0.85;
@@ -733,12 +745,13 @@ function buildField(g) {
         const terr = (fl + smoothstep(0.55, 0.92, qv - fl)) * step;
         m += (terr - m) * cliff * 0.85;
         m += (nE.fbm(tx * 0.9, ty * 0.9, 3) - 0.5) * 0.45 * Math.min(1, dd);
-        m = 8.8 * (1 - Math.exp(-Math.max(0, m) / 8.8));
+        m = 9.5 * (1 - Math.exp(-Math.max(0, m) / 9.5));
         h[k] = m * smoothstep(0, 0.75, dd);
       }
     } else if (waterAll[k]) {
       const d = dWin[k] / S;
-      let inset = 0.05 + 0.3 * nF.fbm(tx * 0.6 + 11, ty * 0.6, 3) + Math.max(0, 0.64 - B[k]) * 1.3;
+      const nf = nF.fbm(tx * 0.55 + 11, ty * 0.55, 3), nf2 = nE.fbm(tx * 0.21 + 3, ty * 0.21, 2);
+      let inset = 0.06 + 0.58 * clamp((nf - 0.3) / 0.4, 0, 1) * (0.45 + 0.8 * nf2) + Math.max(0, 0.66 - B[k]) * 1.35;
       inset = Math.min(inset, 0.58 * M[k] / S);
       const dd = d - inset;
       if (dd <= 0) h[k] = WL * Math.pow(clamp(d / inset, 0, 1), 1.25);
@@ -746,6 +759,22 @@ function buildField(g) {
         const maxD = clamp(0.42 + d * 0.15, 0.42, 2.1);
         h[k] = WL - maxD * (1 - Math.exp(-dd / 0.55)) + (nE.fbm(tx * 0.7, ty * 0.7, 2) - 0.5) * 0.08 * Math.min(1, dd);
       }
+    }
+  }
+  // Seegrund glätten (nur unter Wasserfeldern, Land bleibt exakt 0): weichere Uferlinien ohne Zacken
+  for (let pass = 0; pass < 3; pass++) {
+    const src = h.slice();
+    for (let gy = 1; gy < GH - 1; gy++) for (let gx = 1; gx < GW - 1; gx++) {
+      const k = gy * GW + gx;
+      if (!waterAll[k]) continue;
+      let sum = 0, n = 0;
+      for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+        const j = k + oy * GW + ox;
+        if (!waterAll[j]) continue;
+        const wgt = ox === 0 && oy === 0 ? 2 : 1;
+        sum += src[j] * wgt; n += wgt;
+      }
+      h[k] = sum / n;
     }
   }
   return { S, GW, GH, GN, h, dIn, dWin, dToW, dToR, rockAll, waterAll };
@@ -774,7 +803,7 @@ export class TerrainView {
       tNoise: { value: tex.noise }, tGrass: { value: tex.grass }, tRock: { value: tex.rock }, tSand: { value: tex.sand },
       tMapA: { value: this.texA }, tMapB: { value: this.texB }, uMapSize: { value: new THREE.Vector2(this.g.W, this.g.H) },
       uTime: shared.uTime, uSnowK: { value: 0 }, uWetK: { value: 0 }, uFlowers: { value: 0.7 }, uDry: { value: 0.25 },
-      uLitter: { value: 0 }, uGrassTint: { value: new THREE.Vector3(1, 1, 1) }, uSeasonT: { value: 0.33 }, uWL: { value: WATER_LEVEL },
+      uLitter: { value: 0 }, uNightK: shared.uNight, uGrassTint: { value: new THREE.Vector3(1, 1, 1) }, uSeasonT: { value: 0.33 }, uWL: { value: WATER_LEVEL },
     };
     this.outerUniforms = { uHaze: { value: fogCol }, uSkyTop: { value: new THREE.Color(0x86c3ea) }, uHazeK: { value: 1 } };
     this.build();
@@ -894,7 +923,10 @@ export class TerrainView {
       for (let sy = 0; sy < S; sy++) for (let sx = 0; sx < S; sx++) {
         const gx = tx * S + sx, gy = ty * S + sy;
         const a = gy * GW + gx, b = a + 1, c = a + GW, d = c + 1;
-        if (((gx + gy) & 1) === 0) idx.push(a, c, d, a, d, b); else idx.push(a, c, b, b, c, d);
+        // kürzere Diagonale (kleinerer Höhenunterschied) → Uferlinien ohne Sägezahn
+        const dAD = Math.abs(hh[a] - hh[d]), dBC = Math.abs(hh[b] - hh[c]);
+        const useAD = Math.abs(dAD - dBC) < 1e-4 ? ((gx + gy) & 1) === 0 : dAD < dBC;
+        if (useAD) idx.push(a, c, d, a, d, b); else idx.push(a, c, b, b, c, d);
       }
     }
     const geo = new THREE.BufferGeometry();
@@ -1011,9 +1043,9 @@ export class TerrainView {
       const out = Math.max(Math.abs(x), Math.abs(z)) - half;
       let hgt = (n1.fbm(x * 0.012, z * 0.012, 4) - 0.42) * (5 + 26 * smoothstep(half * 1.2, half * 6, r));
       const ridge = 1 - Math.abs(2 * n2.fbm(x * 0.0042, z * 0.0042, 4) - 1);
-      const far = type === 'mountains' ? smoothstep(half * 1.3, half * 3.5, r) * 1.6 : smoothstep(half * 4, half * 9, r);
+      const far = type === 'mountains' ? smoothstep(half * 2.5, half * 7, r) * 1.15 : smoothstep(half * 4, half * 9, r);
       hgt += Math.pow(ridge, 2.2) * 150 * far;
-      if (type === 'mountains') hgt += Math.pow(ridge, 1.4) * 40 * smoothstep(half * 1.1, half * 2.2, r);
+      if (type === 'mountains') hgt += Math.pow(ridge, 1.6) * 34 * smoothstep(half * 1.15, half * 2.4, r);
       hgt = Math.max(hgt, 1.2 - smoothstep(half * 1.5, half * 3, r) * 0.6);
       if (out < 4) hgt = Math.max(hgt, 0.6);
       let wet = 0;
@@ -1024,8 +1056,11 @@ export class TerrainView {
         let best = 1e9;
         for (const [px, pz] of rv.pts) { const d = (px - x) * (px - x) + (pz - z) * (pz - z); if (d < best) best = d; }
         const d = Math.sqrt(best);
-        const rw = rv.w * (1 + smoothstep(0, 200, r - half) * 1.5) + 1.5;
-        if (d < rw + 6) hgt = Math.min(hgt, -2.5 * (1 - smoothstep(rw * 0.6, rw + 6, d)) + hgt * smoothstep(rw * 0.6, rw + 6, d));
+        const rw = rv.w * 0.5 * (1 + smoothstep(0, 200, r - half) * 1.5) + 0.8;
+        if (d < rw + 5) {
+          const t = smoothstep(rw * 0.5, rw + 5, d);
+          hgt = Math.min(hgt, -1.6 * (1 - t) + Math.max(hgt, 0.4) * t);
+        }
       }
       if (hgt < 0) { wet = -hgt; hgt = 0; }
       return [hgt, wet];
@@ -1034,7 +1069,7 @@ export class TerrainView {
     const segs = 220;
     const radii = [];
     let r = half * 0.55;
-    while (r < 1150) { radii.push(r); r = r * 1.045 + 1.6; }
+    while (r < 1150) { radii.push(r); r = r * 1.034 + 0.9; }
     const nR = radii.length;
     const pos = new Float32Array((nR * segs + 1) * 3), wetA = new Float32Array(nR * segs + 1);
     pos[0] = 0; pos[1] = OUTER_Y; pos[2] = 0; wetA[0] = 0;
