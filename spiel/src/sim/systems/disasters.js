@@ -484,7 +484,7 @@ function warn(g, p) {
   p.known = true;
   p.lead = Math.max(0, p.at - g.time);
   if (p.aftershock) return;
-  emitD(g, p, 'warn', { eta: p.lead });
+  // emit('disaster', phase 'warn') erst, wenn die Sirenen heulen (U2 spielt dazu die Sirene) – siehe step()
   const where = { x: Math.floor(p.x), y: Math.floor(p.y) };
   const t = etaText(g, p);
   const msg = {
