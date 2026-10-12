@@ -573,7 +573,6 @@ function wohnhof(ctx, g, P) {
   const { W, D } = P;
   const n = level >= 5 ? 8 : 5 + (rng() < 0.5 ? 1 : 0);
   const st = stack(0.4 * M, 3.4 * M, 3.0 * M, n);
-  const depth = 9.5 * M; // Flügeltiefe
   const wall = rpick(rng, ['brick_red', 'plaster_cream', 'brick_dark', 'plaster_white', 'brick_yellow', 'plaster_ochre']);
   const trim = wall.startsWith('brick') ? 'concrete' : 'trim_stone';
   const fr = rpick(rng, ['window_frame_white', 'window_frame_dark']);
@@ -581,13 +580,19 @@ function wohnhof(ctx, g, P) {
   const x0 = -W / 2 + 0.3 * M, x1 = W / 2 - 0.3 * M, z1 = D / 2 - front, z0 = -D / 2 + 0.6 * M;
   const win = (f) => winT({ w: 1.3 * M, h: f === 0 ? 1.5 * M : 1.6 * M, y: f === 0 ? 1.0 * M : 0.8 * M, frame: fr, panes: { cols: 2, transom: 0.2 }, sill: 'metal_light' });
   const wings = [];
-  // Vorderflügel (mit Tordurchfahrt in der Mitte)
-  wings.push({ cx: (x0 + x1) / 2, cz: z1 - depth / 2, sx: x1 - x0, sz: depth, gate: true });
-  if (D > 1.5) wings.push({ cx: (x0 + x1) / 2, cz: z0 + depth / 2, sx: x1 - x0, sz: depth });
-  const sideLen = (D > 1.5 ? z1 - z0 - depth * 2 : z1 - depth - z0);
-  if (sideLen > 2 * M) {
-    wings.push({ cx: x0 + depth / 2, cz: (D > 1.5 ? (z0 + depth + z1 - depth) / 2 : (z0 + z1 - depth) / 2), sx: depth, sz: sideLen, side: true });
-    if (W > 1.5) wings.push({ cx: x1 - depth / 2, cz: (D > 1.5 ? (z0 + depth + z1 - depth) / 2 : (z0 + z1 - depth) / 2), sx: depth, sz: sideLen, side: true });
+  // Flügelanordnung je Grundfläche: 1×1/2×1 ein Vorderhaus mit Durchfahrt, 1×2 Vorder- und Hinterhaus,
+  // 2×2 U-Form mit Vorderhaus und zwei Seitenflügeln um einen Gartenhof
+  const zl = z1 - z0;
+  const dF = D > 1.5 ? (W > 1.5 ? 7.0 * M : 6.5 * M) : Math.min(9.5 * M, zl - 1.2 * M);
+  wings.push({ cx: (x0 + x1) / 2, cz: z1 - dF / 2, sx: x1 - x0, sz: dF, gate: true });
+  let hof = null;
+  if (D > 1.5 && W < 1.5) {
+    wings.push({ cx: (x0 + x1) / 2, cz: z0 + dF / 2, sx: x1 - x0, sz: dF });
+    hof = { x: 0, z: (z0 + dF + z1 - dF) / 2, w: x1 - x0, d: zl - dF * 2 };
+  } else if (D > 1.5) {
+    const dS = 6.5 * M, sl = zl - dF;
+    for (const sg of [-1, 1]) wings.push({ cx: sg > 0 ? x1 - dS / 2 : x0 + dS / 2, cz: z0 + sl / 2, sx: dS, sz: sl, side: true });
+    hof = { x: 0, z: z0 + sl / 2, w: x1 - x0 - dS * 2, d: sl };
   }
   for (const wg of wings) {
     const m = { cx: wg.cx, cz: wg.cz, sx: wg.sx, sz: wg.sz, y0: 0, y1: st.top, wall };
@@ -624,13 +629,13 @@ function wohnhof(ctx, g, P) {
   }
   // Durchfahrt: Tunnel im Vorderflügel als dunkle Laibung bereits über 'door'; Hof
   ground(g, 'pavers', 0, 0, W - 0.04 * M, D - 0.04 * M, 0.03 * M);
-  const hz = D > 1.5 ? 0 : (z0 + z1 - depth) / 2;
-  if (g.detail >= 1) {
-    const hofW = W > 1.5 ? x1 - x0 - depth * 2 : x1 - x0 - depth;
-    const hofX = W > 1.5 ? 0 : (x0 + depth + x1) / 2;
-    ground(g, 'grass', hofX, hz, Math.max(1 * M, hofW - 2 * M), Math.max(1 * M, sideLen - 2 * M), 0.05 * M);
-    tree(g, hofX, hz, 1.2);
-    if (hofW > 8 * M) { play(g, hofX - hofW * 0.25, hz + 1 * M, 'sand'); bench(g, hofX + hofW * 0.25, hz, 0); tree(g, hofX + hofW * 0.3, hz - 1.5 * M, 0.9); }
+  if (hof && g.detail >= 1) {
+    ground(g, 'grass', hof.x, hof.z, Math.max(1 * M, hof.w - 2 * M), Math.max(1 * M, hof.d - 2 * M), 0.05 * M);
+    tree(g, hof.x, hof.z, 1.2);
+    if (hof.w > 5 * M && hof.d > 5 * M) { play(g, hof.x - hof.w * 0.25, hof.z + hof.d * 0.25, 'sand'); bench(g, hof.x + hof.w * 0.25, hof.z, 0); tree(g, hof.x + hof.w * 0.28, hof.z - hof.d * 0.3, 0.9); }
+    if (W > 1.5) fence(g, x0 + 6.5 * M, z0 - 0.3 * M, x1 - 6.5 * M, z0 - 0.3 * M, 'wall', { h: 1.6 * M, mat: wall.startsWith('brick') ? wall : 'brick_red' });
+  } else if (g.detail >= 1) {
+    backyard(g, W, D, z1 - dF, rng, { mat: 'grass' });
   }
 }
 
