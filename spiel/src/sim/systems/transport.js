@@ -1944,6 +1944,23 @@ registerSystem({
 
   daily(g, day) { dailyReset(g, day); },
 
+  weekly(g) {
+    const T = TS(g);
+    if (!T || (!T.lines.length && !T.rail.size && !T.air.size && T.totals.accidents === 0)) return;
+    const wk = T.hist.slice(-7);
+    if (!wk.length) return;
+    const riders = wk.reduce((a, h) => a + h.riders, 0);
+    const acc = wk.reduce((a, h) => a + (h.acc || 0), 0);
+    const trains = wk.reduce((a, h) => a + (h.trains || 0), 0);
+    const flights = wk.reduce((a, h) => a + (h.flights || 0), 0);
+    const parts = [];
+    if (T.lines.length) parts.push(`${riders.toLocaleString('de-DE')} Fahrgäste in Bus und Tram (Anteil ${(T.share * 100).toFixed(1).replace('.', ',')} %)`);
+    if (trains) parts.push(`${trains} Fernzüge`);
+    if (flights) parts.push(`${flights} Flüge`);
+    parts.push(acc ? `${acc} Unfall${acc > 1 ? 'e' : ''}` : 'keine Unfälle');
+    g.pushNews({ kind: 'report', author: 'Verkehrsbetriebe', text: `Verkehrsbericht der Woche: ${parts.join(', ')}.`, mood: acc > 3 ? 'bad' : 'good' });
+  },
+
   serialize(g) {
     const T = TS(g);
     return {

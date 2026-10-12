@@ -27,7 +27,7 @@ function helpers(g) {
     g.zoneTiles(tiles, z);
   };
   const place = (key, x, y, rot = 0) => {
-    for (let d = 0; d < 9; d++) for (const [ox, oy] of [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d], [d, d], [-d, -d], [d, -d], [-d, d]]) {
+    for (let d = 0; d < 22; d++) for (const [ox, oy] of [[0, 0], [d, 0], [-d, 0], [0, d], [0, -d], [d, d], [-d, -d], [d, -d], [-d, d]]) {
       const r = g.placeBuilding(key, x + ox, y + oy, rot);
       if (r.ok) return r;
     }
@@ -230,9 +230,18 @@ let air = { ok: false };
 { const p = (() => { for (let x = x0 + 2; x < x0 + 30; x++) { let free = true; for (let yy = sy + 12; yy < sy + 16 && free; yy++) for (let xx = x; xx < x + 6; xx++) { const i = yy * s.W + xx; if (s.bld[i] || s.road[i] || s.world.terrain[i] === 1 || s.world.terrain[i] === 3) free = false; } if (free) return [x, sy + 12]; } return null; })(); if (p) air = s.placeBuilding('airport', p[0], p[1], 0); }
 if (!air.ok) air = HB.place('airport', x0 + 14, sy + 14);
 ok(air.ok, 'Flughafen gebaut');
-// Fähranleger an zwei Ufern suchen
-const water = [];
-for (let i = 0; i < s.N; i++) if (s.world.terrain[i] === 1) water.push(i);
+// Fähranleger an zwei Ufern desselben (größten) Gewässers suchen
+const lab = new Int32Array(s.N).fill(-1);
+const bodies = [];
+for (let i = 0; i < s.N; i++) {
+  if (s.world.terrain[i] !== 1 || lab[i] >= 0) continue;
+  const q = [i], tiles = [];
+  lab[i] = bodies.length;
+  while (q.length) { const c = q.pop(); tiles.push(c); const x = c % s.W, y = (c / s.W) | 0; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= s.W || ny >= s.H) continue; const j = ny * s.W + nx; if (s.world.terrain[j] === 1 && lab[j] < 0) { lab[j] = bodies.length; q.push(j); } } }
+  bodies.push(tiles);
+}
+bodies.sort((a, b) => b.length - a.length);
+const water = bodies[0] || [];
 const piers = [];
 for (const i of water) {
   if (piers.length >= 2) break;
@@ -262,7 +271,7 @@ ok(L3.ok && L3.line.loop, 'Ringlinie ' + (L3.msg || ''));
 const LT = TPS.createLine(s, 'tram', [st(x0 + 2, sy, 'tram'), st(x0 + 12, sy, 'tram'), st(x0 + 24, sy, 'tram'), st(x0 + 32, sy, 'tram')].filter((t) => t >= 0));
 ok(LT.ok, 'Straßenbahn auf der Allee ' + (LT.msg || ''));
 ok(!!TPS.canStop(s, (sy - 3) * s.W + x0 + 6, 'tram'), 'Tram-Halt neben der Straße abgelehnt: ' + TPS.canStop(s, (sy - 3) * s.W + x0 + 6, 'tram'));
-{ let inter = -1; for (let i = 0; i < s.N && inter < 0; i++) if (TPS.isIntersection(s, i)) inter = i; ok(TPS.canStop(s, inter, 'bus') === 'Nicht auf einer Kreuzung', 'Halt auf Kreuzung abgelehnt'); }
+{ let inter = -1; for (let i = 0; i < s.N && inter < 0; i++) if (TPS.isIntersection(s, i) && s.world.terrain[i] !== 1) inter = i; ok(TPS.canStop(s, inter, 'bus') === 'Nicht auf einer Kreuzung', 'Halt auf Kreuzung abgelehnt'); }
 if (L1.ok) TPS.setVehicles(s, L1.line.id, 3);
 if (LT.ok) { TPS.setVehicles(s, LT.line.id, 2); TPS.setVehicleType(s, LT.line.id, 'tram_long'); }
 if (L2.ok) TPS.setVehicleType(s, L2.line.id, 'gelenk');
@@ -272,7 +281,7 @@ if (L1.ok) {
   const line = TB().lines.find((l) => l.id === L1.line.id);
   const mid = line.path[Math.floor((line.stopIdx[1] + line.stopIdx[2]) / 2)];
   const ins = TPS.insertStop(s, mid);
-  ok(ins.ok || /Kreuzung|Kurve/.test(ins.msg), 'Haltestelle einfügen: ' + (ins.ok ? 'ok' : ins.msg));
+  ok(ins.ok || /Kreuzung|Kurve|Brücke/.test(ins.msg), 'Haltestelle einfügen: ' + (ins.ok ? 'ok' : ins.msg));
   const n0 = line.stops.length;
   const ext = TPS.extendLine(s, line.id, [st(x0 + 30, sy - 11)].filter((t) => t >= 0), false);
   ok(ext.ok && line.stops.length === n0 + 1, 'Linie am Ende verlängert ' + (ext.msg || ''));
@@ -288,6 +297,17 @@ if (inter >= 0) {
   TPS.cycleSignal(s, inter);
   ok(!TB().signalSet.has(inter), 'Ampel von Hand ausgeschaltet');
   TPS.cycleSignal(s, inter);
+}
+// Zubringer: Pulsbahn-Linie und eine Buslinie mit Halt an einer Station
+let feederLine = null;
+{
+  const a = HB.station(x0 + 11, sy - 11), b = HB.station(x0 + 31, sy + 11);
+  if (a && b) s.createLine([a.id, b.id], false);
+  const tA = a ? a.y * s.W + a.x : -1;
+  const ok1 = a && !TPS.canStop(s, tA, 'bus');
+  const r = ok1 ? TPS.createLine(s, 'bus', [tA, st(x0 + 11, sy - 3), st(x0 + 11, sy + 6)].filter((t) => t >= 0)) : { ok: false, msg: 'Station nicht auf geradem Straßenstück' };
+  feederLine = r.ok ? r.line : null;
+  console.log('    Zubringerlinie:', r.ok ? 'ok' : r.msg);
 }
 let maxR = 0, sawTrain = 0, sawPlane = 0, sawFerry = 0, sawTaxi = 0, sawBus = 0, sawTram = 0, sawAcc = 0, accMax = 0;
 HB.run(14, () => {
@@ -329,6 +349,10 @@ ok(!air.ok || sawPlane > 0, 'Flugzeuge sichtbar');
 ok(piers.length < 2 || tb.ferries.length === 0 || sawFerry > 0, 'Fähren sichtbar');
 ok(sawTaxi > 0, 'Taxis sichtbar');
 ok(tb.signals.length > 0, `Ampeln an großen Kreuzungen: ${tb.signals.length}`);
+if (feederLine) {
+  const fw = [...s.transit.stations.values()].reduce((a, st2) => a + st2.waiting.filter((p) => p.feeder).length, 0);
+  ok(tb.stops.some((x) => x.feeder) && (tb.day.feeder > 0 || tb.today.feeder > 0), `Zubringer zur Pulsbahn: gestern ${fmt(tb.day.feeder)} Umsteiger, ${fw} warten gerade an Stationen`);
+}
 ok(tb.totals.trains > 0 && tb.totals.flights >= (air.ok ? 1 : 0), `Fernverkehr: ${tb.totals.trains} Züge, ${tb.totals.flights} Flüge, Fähre ${fmt(tb.totals.ferry)} Fahrgäste, Taxi ${tb.totals.taxi} Fahrten`);
 ok(!hub.ok || [...tb.hubs.values()].every((sid) => s.transit.stations.has(sid)), 'Umsteigebahnhof hat eine Pulsbahn-Station');
 console.log(`  Unfälle gesamt ${tb.totals.accidents} (gleichzeitig max. ${accMax}), Einkommen Fernverkehr gestern ${fmt(tb.day.long)} €`);

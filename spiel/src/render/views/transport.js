@@ -171,6 +171,7 @@ registerView(class TransportView {
     ];
     // Materialien
     this.ribbonMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, toneMapped: false });
+    this.dotMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 });
     this.glowMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -3, toneMapped: false });
     this.railMat = new THREE.MeshStandardMaterial({ color: 0x5b6068, roughness: 0.35, metalness: 0.7, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 });
     this.solidMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.05 });
@@ -229,9 +230,17 @@ registerView(class TransportView {
     // Linienwege
     // dünne Linie (immer sichtbar, dezent) und breites Band (nur hervorgehoben: Panel, Werkzeug, Infoansicht)
     const rp = [], rc = [], gp = [], gc = [];
+    // Versatz: allein fahrende Linien in der Mitte, gemeinsame Abschnitte nebeneinander
+    const onTile = new Map();
+    T.lines.forEach((l, idx) => { for (const t of new Set(l.path)) { if (!onTile.has(t)) onTile.set(t, []); onTile.get(t).push(idx); } });
+    const offs = T.lines.map((l, idx) => {
+      let slot = 0, cnt = 1;
+      for (const t of new Set(l.path)) { const a = onTile.get(t); if (a.length > cnt) { cnt = a.length; slot = a.indexOf(idx); } }
+      return (slot - (cnt - 1) / 2) * 0.1;
+    });
     T.lines.forEach((l, idx) => {
       if (!l.pts || l.pts.length < 4) return;
-      const off = ((idx % 3) - 1) * 0.1;
+      const off = offs[idx];
       strip(rp, rc, g, l.pts, off, l.mode === 'tram' ? 0.07 : 0.06, 0.032, TPS.lineColor(l));
       strip(gp, gc, g, l.pts, off, 0.2, 0.028, TPS.lineColor(l));
     });
@@ -362,6 +371,23 @@ registerView(class TransportView {
         this.p.set(px + w.nx * 0.12, y0 + 0.14, pz + w.nz * 0.12); this.m4.compose(this.p, this.q, this.s); glass.setMatrixAt(i, this.m4);
       }
     });
+    // Netzplan-Punkte auf der Fahrbahn (nur hervorgehoben)
+    const dotGeo = merge([
+      part(new THREE.CircleGeometry(0.17, 20).rotateX(-Math.PI / 2), 0xffffff),
+      part(new THREE.RingGeometry(0.17, 0.25, 20).rotateX(-Math.PI / 2), 0x1d2330),
+    ]);
+    const dots = new THREE.InstancedMesh(dotGeo, this.dotMat, n);
+    stops.forEach((s, i) => {
+      const y0 = g.world.terrain[s.tile] === TER.WATER ? 0.24 : 0;
+      const big = s.lines.length > 1 || s.feeder;
+      this.m4.makeScale(big ? 1.25 : 1, 1, big ? 1.25 : 1).setPosition(s.x + 0.5 - g.W / 2, y0 + 0.045, s.y + 0.5 - g.H / 2);
+      dots.setMatrixAt(i, this.m4);
+      dots.setColorAt(i, this.c.setHex(s.crowd > 0.15 ? 0xffb0a8 : 0xffffff));
+    });
+    dots.count = n;
+    dots.renderOrder = 5;
+    dots.frustumCulled = false;
+    this.group.add(dots);
     mark.count = n; plat.count = np; band.count = nb;
     if (band.instanceColor) band.instanceColor.needsUpdate = true;
     for (const m of [pole, sign, band, mark, plat, shel, glass]) if (m) { m.castShadow = m !== mark; m.receiveShadow = true; m.frustumCulled = false; this.group.add(m); }
@@ -466,6 +492,8 @@ registerView(class TransportView {
     this.ribbonMat.opacity = 0.35 + 0.65 * this.highlight;
     this.glowMat.opacity = 0.5 * this.highlight;
     this.glowMat.visible = this.highlight > 0.02;
+    this.dotMat.opacity = this.highlight;
+    this.dotMat.visible = this.highlight > 0.02;
     if (this.ferryLines) this.ferryLines.material.opacity = 0.15 + 0.55 * this.highlight;
     this.signMat.emissive.setRGB(night * 0.35, night * 0.32, night * 0.22);
     this.updateSignals(g);

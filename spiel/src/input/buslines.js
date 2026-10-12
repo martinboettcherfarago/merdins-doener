@@ -7,6 +7,7 @@
 import { registerTool, TRAY_ITEMS, emit } from '../registry.js';
 import * as TPS from '../sim/systems/transport.js';
 import { fmtMoney } from '../util.js';
+import { ROADS } from '../config.js';
 
 const S = { tool: null, tiles: [], segs: [], canvas: null, rightAt: 0 };
 const TOOL_COLORS = { bus: 0x1c7ed6, tram: 0xc92a2a };
@@ -172,7 +173,7 @@ function hoverSignal(input, t) {
   const g = input.g;
   const s = TPS.signalState(g, t.i);
   if (!s.possible) { input.ui.tooltip('Ampeln gibt es nur an Kreuzungen', input.mouse, false); input.e.overlay.showTiles([{ i: t.i, color: 0xff7060 }]); return; }
-  const load = g.road[t.i] ? Math.round((g.trafficLoad[t.i] / 650) * 100) : 0;
+  const load = g.road[t.i] ? Math.round((g.trafficLoad[t.i] / ROADS[g.road[t.i]].capacity) * 100) : 0;
   const now = s.on ? 'Ampel an' : 'keine Ampel';
   const next = s.mode === 'auto' ? 'immer an' : s.mode === 'an' ? 'immer aus' : 'automatisch';
   input.ui.tooltip(`${now} (${s.mode === 'auto' ? 'automatisch' : 'von Hand'}) · Verkehr ${load} % · Klicken: ${next}`, input.mouse, true);
