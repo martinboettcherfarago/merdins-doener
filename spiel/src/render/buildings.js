@@ -1416,6 +1416,7 @@ export class BuildingView {
     this.emitters = new Map();
     this.constructing = new Set();
     this.tint = null;
+    this.tintsProtos = true; // setTint färbt alle Gebäude (Prototypen, Bündel, Baustellen) – S2 schaltet seine Übergangslösung ab
     this.lodList = [];
     this.lodPos = 0;
     this.lodT = 0; this.gcT = 3; this.siteT = 0; this.lightT = 0;

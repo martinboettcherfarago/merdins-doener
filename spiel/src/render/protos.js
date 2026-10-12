@@ -22,7 +22,27 @@ import * as THREE from 'three';
 import { getMaterial, MATERIAL_DEFS } from './matlib.js';
 import { getAtlasMaterial, isAtlasMaterial, ATLAS_INDEX } from './atlas.js';
 import { buildArch, ARCH } from './arch/all.js';
+import { Kit } from './arch/kit.js';
+import { mulberry32 } from '../util.js';
 import { shared } from './materials.js';
+
+// Gleiche Form in allen Detailstufen: Einige Baukasten-Funktionen ziehen je nach Detailstufe unterschiedlich viele
+// Zufallszahlen (Detail 0: eine pro Fassade, sonst eine pro Fenster). Alles, was ein Baustein danach auswürfelt
+// (Dachhöhe, Farben, Bäume …), wäre sonst je Stufe anders und „springt" beim Umschalten. Diese Funktionen nutzen
+// deshalb für ihre Leuchtwerte einen eigenen Generator; kit.js selbst bleibt unverändert.
+for (const name of ['windows', 'window', 'curtainWall', 'rooftopClutter']) {
+  const orig = Kit.prototype[name];
+  if (typeof orig !== 'function' || orig.g9) continue;
+  const wrapped = function (...args) {
+    if (!this._g9rng) this._g9rng = mulberry32(0x5eed);
+    const main = this.rng;
+    if (main === this._g9rng) return orig.apply(this, args);
+    this.rng = this._g9rng;
+    try { return orig.apply(this, args); } finally { this.rng = main; }
+  };
+  wrapped.g9 = true;
+  Kit.prototype[name] = wrapped;
+}
 
 // ---------------------------------------------------------------- Zustandstabelle
 // Pro Gebäude 4 Texel (RGBA, float):
@@ -625,9 +645,10 @@ export class ProtoManager {
       let geo = a.geometry;
       if (!geo.boundingBox) geo.computeBoundingBox();
       const c = geo.boundingBox.getCenter(new THREE.Vector3());
-      // Geometrie in Modellkoordinaten (Drehung um pivot) – oder, wenn ihre Mitte näher am Ursprung als
-      // am Drehpunkt liegt, relativ zum Drehpunkt modelliert. a.local erzwingt eine der beiden Lesarten.
-      const local = a.local ?? (pv.lengthSq() > 1e-6 && c.length() < c.distanceTo(pv));
+      // Vertrag (G5/G6): Geometrie relativ zum Drehpunkt, pivot in Modellkoordinaten, axis dreht mit dem Gebäude,
+      // speed in rad/s. Ohne a.local gilt das auch – außer die Geometrie liegt erkennbar schon am Drehpunkt
+      // (Mitte viel näher am Drehpunkt als am Ursprung), dann wird sie als Modellkoordinaten gelesen.
+      const local = a.local ?? !(pv.lengthSq() > 1e-6 && c.distanceTo(pv) < 0.5 * c.length());
       if (isMat || a.nightOnly) { legacy.push({ a, isMat, pv, local }); continue; }
       if (local) { geo = geo.clone(); geo.translate(pv.x, pv.y, pv.z); }
       const axis = a.axis === 'x' ? 1 : a.axis === 'z' ? 3 : 2;
