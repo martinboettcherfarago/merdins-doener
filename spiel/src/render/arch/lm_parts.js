@@ -165,6 +165,19 @@ export function archWindow(kit, x, y0, z, ry, w, h, o = {}) {
   const mats = o.bars || o.frame || 'trim_stone';
   const bw = 0.08 * M;
   const nV = o.mullions ?? (w > 1.6 * M ? 1 : 0);
+  if (kind === 'pointed' && nV > 0 && w >= 1.4 * M && o.tracery !== false) {
+    // Gotisches Maßwerk: Mittelpfosten bis zum Bogenansatz, Vierpass-Ring im Bogenfeld, zwei kleine Lanzettbögen
+    const hw = w / 2, rise = Math.max(hw, Math.min(hw * 1.25, h * 0.7)), spring = Math.max(0, h - rise);
+    [px, pz] = f.at(0, 0.05 * M);
+    kit.box(mats, px, y0, pz, bw * 1.3, spring + rise * 0.12, 0.06 * M, { ry });
+    const rr = Math.min(w * 0.22, rise * 0.3);
+    kit.add(mats, new THREE.TorusGeometry(rr, 0.05 * M, 3, 12), { x: px, y: y0 + spring + rise * 0.5, z: pz, ry });
+    for (const sd of [-1, 1]) {
+      const [lx, lz] = f.at(sd * w * 0.25, 0.05 * M);
+      kit.add(mats, new THREE.TorusGeometry(w * 0.25, 0.04 * M, 3, 8, Math.PI), { x: lx, y: y0 + spring + rise * 0.1, z: lz, ry });
+    }
+    return;
+  }
   for (let k = 1; k <= nV; k++) {
     const u = -w / 2 + (k * w) / (nV + 1);
     [px, pz] = f.at(u, 0.05 * M);
