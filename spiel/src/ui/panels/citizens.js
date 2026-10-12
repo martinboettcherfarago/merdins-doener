@@ -59,6 +59,12 @@ const view = { tab: 'overview' };
 const TABS = [['overview', 'Übersicht'], ['edu', 'Bildung'], ['health', 'Gesundheit'], ['death', 'Todesfälle'], ['supply', 'Versorgung']];
 
 function C(ui) { return ui.g.ext.citizens; }
+// Knopf, der die Kamera auf das Gebäude mit der höchsten Bewertung richtet
+function hotspot(g, score, label) {
+  let best = null, bs = 0;
+  for (const b of g.buildings.values()) { const v = score(b); if (v > bs) { bs = v; best = b; } }
+  return best ? `<button class="btn small ghost" data-act="focus" data-id="${best.id}" style="margin-top:6px">${label}</button>` : '';
+}
 
 function strip(cells) {
   return `<div class="cz-strip">${cells.map(([k, v, cls = '', small = '']) => `<div><div class="k">${k}</div><div class="v ${cls}">${v}${small ? `<small>${small}</small>` : ''}</div></div>`).join('')}</div>`;
@@ -120,6 +126,7 @@ function health(ui) {
   const tips = [];
   if (S.contam > 0.03) tips.push(`<b>Trinkwasser verschmutzt (${pct(S.contam)})</b>: Ein Pumpwerk zieht Wasser aus der Nähe eines Abwasserauslasses. Auslass flussabwärts verlegen oder eine Kläranlage bauen.`);
   if (S.sickShare > 0.08) tips.push('<b>Viele Kranke</b>: Arztpraxen und Krankenhäuser heilen schneller. Abgase, fehlendes Abwasser und Kälte machen krank.');
+  if (S.beds.q < 0.9 && S.beds.severe > 2) tips.push(`<b>Krankenhausbetten fehlen</b>: ${fmt(S.beds.severe)} schwere Fälle, ${fmt(S.beds.beds)} Betten. Ohne Bett sterben mehr Kranke – ein Krankenhaus hat 180 Betten, eine Praxis 12.`);
   if (S.care.demand > S.care.cap * 1.1 && S.care.demand > 30) tips.push(`<b>Pflegeplätze fehlen</b>: ${fmt(S.care.demand)} Hochbetagte, ${fmt(S.care.cap)} Plätze in Seniorenheimen.`);
   const hist = C(ui).hist.slice(-60);
   return `
@@ -129,6 +136,7 @@ ${tips.length ? `<div class="cz-warn">${tips.join('<br><br>')}</div>` : '<div cl
 <div class="sec"><h3>Versorgung</h3><div class="kv">
 <span>Ärztliche Versorgung (Ø Wohnungen)</span><span class="v">${pct(g.stats.healthAvg || 0)}</span>
 <span>Rettungseinsätze heute</span><span class="v">${fmt(S.ambulances)}</span>
+<span>Krankenhausbetten (schwere Fälle / Betten)</span><span class="v ${S.beds.q < 0.95 ? 'neg' : ''}">${fmt(S.beds.severe)} / ${fmt(S.beds.beds)}</span>
 <span>Trinkwasser verschmutzt</span><span class="v ${S.contam > 0.03 ? 'neg' : ''}">${pct(S.contam)}</span>
 <span>Gewässer (stärkste Stelle)</span><span class="v ${S.waterPolMax > 0.3 ? 'neg' : ''}">${pct(S.waterPolMax)}</span>
 <span>Pflegeplätze / Hochbetagte (75+)</span><span class="v">${fmt(S.care.cap)} / ${fmt(S.care.demand)}</span>
@@ -151,7 +159,7 @@ function deaths(ui) {
   const hist = C(ui).hist.slice(-60);
   const warn = [];
   const unlocked = g.isUnlocked('cemetery');
-  if (S.bodies >= 1) warn.push(`<b>${fmt(S.bodies)} Verstorbene</b> warten in ${fmt(S.deadBuildings)} Gebäuden auf ihre Bestattung (am längsten seit ${fmt(S.maxDeadDays)} Tagen). Die Nachbarn sind entsetzt – nach einigen Tagen ziehen Menschen weg.`);
+  if (S.bodies >= 1) warn.push(`<b>${fmt(S.bodies)} Verstorbene</b> warten in ${fmt(S.deadBuildings)} Gebäuden auf ihre Bestattung (am längsten seit ${fmt(S.maxDeadDays)} Tagen). Die Nachbarn sind entsetzt – nach einigen Tagen ziehen Menschen weg. ${hotspot(g, (b) => (b.cz && b.cz.dead >= 1 ? b.cz.deadDays * 10 + b.cz.dead : 0), 'Schlimmsten Fall zeigen')}`);
   if (!unlocked) warn.push(`Bis „${MILESTONES[2].name}" übernimmt das Umland alle Bestattungen (${fmtMoney(UMLAND_FEE)} je Verstorbenem).`);
   else if (!facs.length) warn.push(`Ohne Friedhof holt das Umland höchstens ${UMLAND_PER_DAY} Verstorbene pro Tag ab – gegen ${fmtMoney(UMLAND_FEE)} Gebühr.`);
   if (S.graveFill > 0.85) warn.push(`Die Friedhöfe sind zu <b>${pct(S.graveFill)}</b> belegt. Gräber werden erst nach 25 Jahren Ruhefrist wieder frei – ein Krematorium braucht keine.`);
@@ -183,7 +191,7 @@ function supply(ui) {
   const sewWarn = [];
   if (!S.sewageRequired) sewWarn.push('Noch reichen Sickergruben. Sobald die Stadt wächst, brauchen größere Gebäude einen Kanalanschluss.');
   else {
-    if (S.unsewered > 0) sewWarn.push(`<b>${fmt(S.unsewered)} Gebäude</b> brauchen einen Kanalanschluss und haben keinen. Ohne Kanal wachsen Häuser nicht über Stufe ${SEWAGE_LEVEL - 1} hinaus, ab ${fmt(SEWAGE_ALL_POP)} Einwohnern brauchen alle Zonengebäude den Kanal.`);
+    if (S.unsewered > 0) sewWarn.push(`<b>${fmt(S.unsewered)} Gebäude</b> brauchen einen Kanalanschluss und haben keinen. Ohne Kanal wachsen Häuser nicht über Stufe ${SEWAGE_LEVEL - 1} hinaus, ab ${fmt(SEWAGE_ALL_POP)} Einwohnern brauchen alle Zonengebäude den Kanal. ${hotspot(g, (b) => (b.cz && b.cz.sewNeed && !b.cz.sew ? 1 + b.cz.noSew + b.level : 0), 'Eines zeigen')}`);
     if (S.sewageCap < S.sewageDemand && S.sewageCap > 0) sewWarn.push(`Das Kanalnetz ist <b>überlastet</b>: ${fmt(S.sewageDemand)} m³ Abwasser, ${fmt(S.sewageCap)} m³ Kapazität.`);
   }
   if (S.waterPolMax > 0.25) sewWarn.push('Abwasserauslässe färben das Gewässer braun. Pumpwerke in der Nähe fördern verschmutztes Wasser.');
@@ -293,6 +301,12 @@ registerPanel({
   },
   click(ui, act, el) {
     if (act === 'tab') view.tab = el.dataset.t;
+    else if (act === 'focus') {
+      const g = ui.g, b = g.buildings.get(+el.dataset.id);
+      if (!b) return;
+      ui.app.engine.rig.focus(b.x + b.w / 2 - g.W / 2, b.y + b.h / 2 - g.H / 2, 16);
+      setTimeout(() => ui.inspect({ type: 'building', id: b.id }), 0);
+    }
   },
   afterRender(ui) {
     const Cz = C(ui);

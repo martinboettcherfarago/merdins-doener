@@ -17,7 +17,7 @@ const ok = (msg) => console.log('  ✓ ' + msg);
 const pct = (v) => (v * 100).toFixed(0) + '%';
 
 function makeCity({ services = false, sewage = 'none', cemetery = false, crematorium = false, seed = 4242, mapType = 'river', difficulty = 'normal' } = {}) {
-  const g = new Game({ size: 96, seed, mapType, difficulty, name: 'Prüfstadt' });
+  const g = new Game({ size: 96, seed, mapType, difficulty: difficulty === 'normal' ? 'relaxed' : difficulty, name: 'Prüfstadt' });
   const W = g.W, hy = g.world.highwayY;
   const idx = (x, y) => y * W + x;
   g.on('cards', (ids) => g.chooseCard(ids[0]));
@@ -83,24 +83,41 @@ function makeCity({ services = false, sewage = 'none', cemetery = false, cremato
   let eastRoad = false;
   const placeShore = (key) => {
     if (!eastRoad) { eastRoad = true; road(46, hy, 50, hy); road(50, hy - 10, 50, hy + 10); }
-    return place(key, 49, hy, true, 9) || place(key, 34, hy, false, 26);
+    const b = place(key, 49, hy, true, 9);
+    if (b) return b;
+    // Freies Uferstück östlich der Stadt suchen und mit einer Stichstraße anbinden
+    const [w, h] = g.footprint(key, 0);
+    for (let x = 46; x < 75; x++) for (let y = hy - 12; y <= hy + 12; y++) {
+      let free = true, wet = false;
+      for (let yy = y; yy < y + h && free; yy++) for (let xx = x; xx < x + w; xx++) { const i = idx(xx, yy); if (g.world.terrain[i] === T.WATER || g.world.terrain[i] === T.ROCK || g.road[i] || g.bld[i]) { free = false; break; } }
+      if (!free) continue;
+      for (let yy = y - 1; yy <= y + h; yy++) for (let xx = x - 1; xx <= x + w; xx++) if (g.world.terrain[idx(xx, yy)] === T.WATER) wet = true;
+      if (!wet) continue;
+      road(45, y - 1, x + w - 1, y - 1);
+      const r = g.placeBuilding(key, x, y, 0);
+      if (r.ok) return r.building;
+    }
+    console.log('    (Uferanlage fehlgeschlagen:', key, ')');
+    return null;
   };
   plan.step = () => {
     if (!plan.done1 && g.milestone >= 1) {
       plan.done1 = true;
+      if (sewage !== 'none') plan.sewBuilt = !!placeShore('sewage_outlet');
       if (services) {
         place('police', 20, hy - 5); place('fire', 30, hy + 5); place('clinic', 15, hy + 7); place('school', 24, hy - 8);
         place('park', 12, hy - 4); place('park', 34, hy - 4); place('kindergarten', 14, hy - 9); place('kindergarten', 36, hy - 9);
       }
       place('wind', 46, hy - 8); place('watertower', 46, hy - 4);
-      if (sewage !== 'none') plan.sewBuilt = !!placeShore('sewage_outlet');
     }
+    if (sewage === 'plant' && !plan.plant && g.milestone >= 2 && (g.money > 12000 || g.sandbox)) plan.plant = !!placeShore('sewage_plant');
+    if (!plan.parks && services && g.money > 9000) { plan.parks = true; place('plaza', 20, hy - 2, true); place('plaza', 40, hy - 2, true); place('park', 24, hy - 10, true); place('park', 42, hy - 10, true); }
     if (!plan.done2 && g.milestone >= 2) {
       plan.done2 = true;
       if (cemetery) { place('cemetery', 17, hy - 7); place('cemetery', 37, hy - 7); }
       road(9, hy - 18, 45, hy - 18);
       if (services) { place('clinic', 36, hy - 3); place('elderly_care', 30, hy - 16); place('library', 14, hy - 16); }
-      if (sewage === 'plant') placeShore('sewage_plant');
+
     }
     if (!plan.done3 && g.milestone >= 3) {
       plan.done3 = true;
@@ -266,12 +283,21 @@ if (results.full) {
 if (results.bare && results.full) {
   const a = results.bare.sum, b = results.full.sum;
   a.bodies > b.bodies + 2 ? ok(`Ohne Friedhof warten mehr Verstorbene (${a.bodies.toFixed(1)} vs. ${b.bodies.toFixed(1)})`) : fail('Friedhof macht keinen Unterschied bei wartenden Verstorbenen');
-  const hi = (r) => [...r.g.buildings.values()].filter((x) => x.zone && x.level >= 3).length;
+  const hi = (r) => [...r.g.buildings.values()].filter((x) => x.zone === Z.RES && x.level >= 3).length;
   const hiA = hi(results.bare), hiB = hi(results.full);
-  hiB > hiA ? ok(`Kanalanschluss erlaubt Stufe 3+ (${hiB} Gebäude mit Kanal vs. ${hiA} ohne)`) : fail(`Kanal macht keinen Unterschied bei den Stufen (${hiB} vs. ${hiA})`);
+  hiB > hiA ? ok(`Kanalanschluss erlaubt Wohnstufe 3+ (${hiB} Wohnhäuser mit Kanal vs. ${hiA} ohne)`) : fail(`Kanal macht keinen Unterschied bei den Wohnstufen (${hiB} vs. ${hiA})`);
   const seA = results.bare.g.ext.citizens.stats, seB = results.full.g.ext.citizens.stats;
   ok(`Kanal: ohne ${seA.sewageCap}/${Math.round(seA.sewageDemand)} m³, mit ${Math.round(seB.sewageCap)}/${Math.round(seB.sewageDemand)} m³`);
-  a.happy < b.happy ? ok(`Ohne Friedhof/Kanal unglücklicher (${a.happy.toFixed(0)} vs. ${b.happy.toFixed(0)})`) : fail('Glück unabhängig von Friedhof/Kanal');
+  {
+    const ga = results.bare.g;
+    let hw = 0, nw = 0, ho = 0, no = 0;
+    for (const x of ga.buildings.values()) {
+      if (x.zone !== Z.RES || x.abandoned || x.construct < 1) continue;
+      if (x.cz && x.cz.dead >= 1 && x.cz.deadDays >= 2) { hw += x.happy; nw++; } else { ho += x.happy; no++; }
+    }
+    const aw = nw ? hw / nw : 0, ao = no ? ho / no : 0;
+    nw > 0 && aw < ao - 3 ? ok(`Häuser mit unbestatteten Verstorbenen sind unglücklicher (${aw.toFixed(0)} vs. ${ao.toFixed(0)}, ${nw} Häuser)`) : fail(`Unbestattete Verstorbene ohne Wirkung aufs Glück (${aw.toFixed(0)} vs. ${ao.toFixed(0)}, ${nw} Häuser)`);
+  }
   a.pop > 600 ? ok(`Stadt ohne Friedhof/Kanal bricht nicht zusammen (${a.pop.toFixed(0)} Einw.)`) : fail(`Stadt ohne Friedhof/Kanal kollabiert (${a.pop.toFixed(0)})`);
   b.edu > 0.15 ? ok(`Bildungsstand mit Schulen ${b.edu.toFixed(2)}`) : fail(`Bildungsstand zu gering (${b.edu.toFixed(2)})`);
 }

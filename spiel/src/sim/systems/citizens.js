@@ -48,6 +48,8 @@ const IMM = (() => { const s = IMM_RAW.reduce((a, b) => a + b, 0); return IMM_RA
 // Kapazitäten (Schulplätze usw.) für Gebäude, deren Daten nicht in content/services.js liegen
 const STAGE_OF = { kindergarten: 'kita', school: 'school', highschool: 'gym', university: 'uni', library: 'lib' };
 const SEATS_DEFAULT = { kindergarten: 140, school: 650, highschool: 520, university: 1800, library: 260 };
+const BEDS_DEFAULT = { clinic: 12, hospital: 180 };
+const bedsOf = (f) => BUILDINGS[f.key].beds ?? BEDS_DEFAULT[f.key] ?? Math.round(((BUILDINGS[f.key].service || {}).capacity || 700) / 70);
 export const STAGES = [
   { id: 'kita', name: 'Kita', who: 'Kinder 0–4' },
   { id: 'school', name: 'Schule', who: 'Kinder 5–14' },
@@ -181,13 +183,14 @@ function stepPeople(g, C, b, cz, rnd, ctx) {
   cz.sick = clamp(cz.sick + inc * (1 - cz.sick) - rec * cz.sick, 0, 0.9);
 
   // --- Sterbefälle
-  const mm = (1.25 - 0.42 * health) * (1 + cz.sick * 1.6) * (1 + pol * 0.35) * (g.policies.has('vaccination') ? 0.94 : 1);
+  // Schwer Kranke brauchen ein Krankenhausbett – fehlen Betten, sterben mehr
+  const mm = (1.25 - 0.42 * health) * (1 + cz.sick * (1 + 1.2 * (1 - ctx.bedQ))) * (1 + pol * 0.35) * (g.policies.has('vaccination') ? 0.94 : 1);
   const careMul = 1 - 0.22 * cz.care;
   const dk = ctx.dk;
   let D = 0;
   for (let k = 0; k < BINS; k++) {
     let d = a[k] * Math.min(0.9, MORT[k] * mm * (k >= 13 ? careMul : 1) * YEARS_PER_DAY);
-    if (k === BINS - 1) d += (a[k] - d) * 0.2 * YEARS_PER_DAY; // über 100
+    if (k === BINS - 1) { const old = (a[k] - d) * 0.2 * YEARS_PER_DAY; d += old; ctx.centenarians += old; } // 100 Jahre
     dk[k] = d;
     D += d;
   }
@@ -749,6 +752,8 @@ function computeStats(g, C, res, ctx) {
     kitaFill: C.stage && C.stage.kita.seats > 0 ? C.stage.kita.pupils / C.stage.kita.seats : 0,
     workforce: work, laborRatio: pop > 50 ? work / (pop * 0.62) : 1,
     ambulances: C.ambToday || 0,
+    beds: C.beds || { beds: 0, severe: 0, q: 1 },
+    centenarians: ctx.centenarians || 0,
   };
   C.stats = S;
   C.hist.push({ d: g.day(), pop: Math.round(pop), b: ctx.births, dth: ctx.deaths, sick: Math.round(sick), age: +S.avgAge.toFixed(1), edu: Math.round(S.eduIndex * 100), dead: bodies, le: Math.round(S.lifeExp) });
@@ -765,6 +770,13 @@ function say(g, C, key, days, text, mood = 'bad', where = null) {
 function newsDaily(g, C, rnd) {
   const S = C.stats;
   if (!S || S.pop < 30) return;
+  // Woche aufsummieren
+  const w = C.week || (C.week = { b: 0, d: 0, gr: 0, c: 0 });
+  w.b += S.birthsToday; w.d += S.deathsToday; w.gr += S.graduates[1] + S.graduates[2] + S.graduates[3]; w.c += S.centenarians;
+  if (S.centenarians >= 0.6 && rnd() < 0.5) {
+    const n = pick(rnd, ['Gertrud', 'Heinz', 'Ursula', 'Klaus', 'Helga', 'Werner', 'Erika', 'Hannelore']);
+    g.pushNews({ kind: 'chatter', author: citizenName(rnd), text: pick(rnd, [`Unsere Nachbarin ${n} ist heute 100 geworden! Die ganze Straße hat gesungen.`, `${n} aus dem dritten Stock feiert den 100. Geburtstag. Der Bürgermeister hat gratuliert!`]), mood: 'info' });
+  }
   const fmt = (n) => Math.round(n).toLocaleString('de-DE');
   if (S.bodies >= 1 && S.deathcareCount === 0 && g.isUnlocked('cemetery')) say(g, C, 'dc0', 6, `${fmt(S.bodies)} Verstorbene warten auf ihre Bestattung – die Stadt braucht einen Friedhof.`);
   else if (S.bodies > 10) say(g, C, 'dc1', 4, `Leichenwagen-Stau: ${fmt(S.bodies)} Verstorbene warten auf ihre Bestattung. Mehr Friedhöfe oder ein Krematorium!`);
@@ -811,6 +823,19 @@ registerSystem({
     for (const f of F.research) if (f.powered) ob += BUILDINGS[f.key].offBoost * 0.5;
     C.offBoost = ob;
   },
+  weekly(g) {
+    const C = state(g);
+    const w = C.week;
+    if (!w || g.stats.pop < 50) return;
+    const S = C.stats || {};
+    const parts = [`${w.b.toLocaleString('de-DE')} Geburten`, `${w.d.toLocaleString('de-DE')} Sterbefälle`];
+    if (w.gr >= 1) parts.push(`${Math.round(w.gr).toLocaleString('de-DE')} Abschlüsse`);
+    let tail = '';
+    if (S.bodies >= 1) tail = ` ${S.bodies} Verstorbene warten noch auf ihre Bestattung.`;
+    else if (S.sickShare > 0.08) tail = ` Der Krankenstand liegt bei ${Math.round(S.sickShare * 100)} %.`;
+    g.news('report', `Bevölkerung diese Woche: ${parts.join(', ')}. Durchschnittsalter ${Math.round(S.avgAge || 0)} Jahre.${tail}`, w.b >= w.d ? 'good' : 'info');
+    C.week = { b: 0, d: 0, gr: 0, c: 0 };
+  },
   daily(g) {
     const C = state(g);
     const rnd = C.rng;
@@ -824,12 +849,19 @@ registerSystem({
       res.push(b);
     }
     coverageDaily(g, C, F, res);
+    // Krankenhausbetten: schwere Fälle (3 % der Kranken) gegen Betten aller Gesundheitseinrichtungen
+    let beds = 0, sickNow = 0;
+    for (const f of F.health) beds += bedsOf(f) * budget(g, BUILDINGS[f.key]) * (f.powered ? 1 : 0.4);
+    for (const b of res) sickNow += b.cz.sick * b.occ;
+    const severe = sickNow * 0.03;
+    C.beds = { beds, severe, q: severe > 0 ? Math.min(1, beds / severe) : 1 };
     const ctx = {
       dk: new Float32Array(BINS), flow: new Float32Array(BINS), deathsByBin: new Float32Array(BINS),
-      deaths: 0, births: 0, moveIn: 0, moveOut: 0, mmSum: 0, mmW: 0, graduates: [0, 0, 0, 0],
+      deaths: 0, births: 0, moveIn: 0, moveOut: 0, mmSum: 0, mmW: 0, graduates: [0, 0, 0, 0], centenarians: 0,
       flu: Math.max(0, -g.eff('healthCov')) * 0.12,
       eduBoost: Math.sqrt(g.mods.edu || 1) * (g.policies.has('education') ? 1.15 : 1) * (g.policies.has('fullday') ? 1.15 : 1) * (1 + (g.stats.eduCity || 0)),
       study: g.mods.czStudy || 1,
+      bedQ: C.beds.q,
     };
     for (const b of res) {
       const cz = b.cz;
@@ -1034,6 +1066,24 @@ DEMAND_MODIFIERS.push((g, d) => {
 });
 
 BUDGET_LINES.push({ id: 'czUmland', label: 'Bestattung im Umland', kind: 'expense', amount: (g) => (g.ext && g.ext.citizens ? g.ext.citizens.umlandCost || 0 : 0) });
+
+// ---------- Schnittstelle für andere Systeme (z. B. Katastrophen, S4)
+// Tötet n Bewohner eines Wohngebäudes (Ältere und Erwachsene etwas häufiger), sie warten dann auf Bestattung.
+export function addCasualties(g, b, n) {
+  if (!b || b.zone !== Z.RES || n <= 0) return 0;
+  const cz = czOf(b);
+  n = Math.min(Math.floor(n), b.occ);
+  if (n <= 0) return 0;
+  const a = cz.a;
+  let tot = 0; for (let k = 0; k < BINS; k++) tot += a[k];
+  if (tot > 0) {
+    const f = Math.max(0, 1 - n / tot);
+    for (let k = 0; k < LEN; k++) a[k] *= f;
+  }
+  b.occ -= n;
+  cz.dead += n; cz.died += n;
+  return n;
+}
 
 // ---------- Abfragen für Oberfläche und Ansichten
 export function citizensOf(g) { return g.ext.citizens; }
