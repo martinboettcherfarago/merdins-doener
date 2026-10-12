@@ -9,6 +9,7 @@ import { Ambience } from './ambience.js';
 import { Sfx, SFX_NAMES } from './sfx.js';
 import { emptyScene } from './scene.js';
 import { gainToDb } from './core.js';
+import * as S from './synths.js';
 
 const SR = 44100;
 const VOL = { volume: 1, music: 1, sfx: 1, muted: false };
@@ -102,7 +103,7 @@ async function render(seconds, setup, limiter = false) {
   const mixer = new Mixer(ctx, { limiter, quality: 'medium' });
   mixer.setVolumes(VOL, 0);
   // Regler sofort setzen (setTargetAtTime würde sonst die ersten Millisekunden dämpfen)
-  for (const g of [mixer.master, mixer.musicVol, mixer.musicSendVol, mixer.sfxVol, mixer.sfxSendVol, mixer.ambVol, mixer.ambSendVol]) { g.gain.cancelScheduledValues(0); g.gain.setValueAtTime(g === mixer.master ? 0.9 : 1, 0); }
+  for (const g of [mixer.master, mixer.musicVol, mixer.musicSendVol, mixer.sfxVol, mixer.sfxSendVol, mixer.ambVol, mixer.ambSendVol]) { g.gain.cancelScheduledValues(0); g.gain.setValueAtTime(1, 0); }
   const info = setup(ctx, mixer) || {};
   const t0 = performance.now();
   const buf = await ctx.startRendering();
@@ -159,6 +160,7 @@ function ambSetup(def, seconds) {
 function musicSetup(state, seconds) {
   return (ctx, mixer) => {
     const m = new Music(ctx, mixer, { seed: 1234 });
+    for (const k of state.mute || []) m.mute.add(k);
     m.setState(state);
     m.wake(0);
     let k = 0;
@@ -177,11 +179,22 @@ function sfxSetup(name, opts = {}) {
   };
 }
 
+// [Name in synths.js, übliche Lautstärke, Länge s, Zusatz]
+const AMB_EVENTS = [
+  ['birdTweet', 0.1, 1.2], ['birdTrill', 0.1, 1.4], ['birdWarble', 0.1, 1.2], ['blackbird', 0.1, 2.5], ['sparrow', 0.1, 1.2], ['greatTit', 0.1, 1.5],
+  ['pigeon', 0.18, 1.8], ['crow', 0.28, 2.5], ['cuckoo', 0.06, 4], ['woodpecker', 0.2, 2], ['owl', 0.07, 3.6], ['frog', 0.18, 2.5], ['gull', 0.1, 2],
+  ['carPass', 0.13, 3.5], ['horn', 0.07, 0.8], ['bikeBell', 0.05, 0.8], ['hammer', 0.15, 3.2], ['drill', 0.1, 2], ['beeper', 0.08, 4.5], ['clank', 0.065, 0.8],
+  ['press', 0.14, 9], ['steam', 0.1, 2.2], ['saw', 0.12, 3], ['lap', 0.07, 1.4], ['splash', 0.12, 0.8], ['shipHorn', 0.09, 4], ['foghorn', 0.12, 3.4],
+  ['trainHorn', 0.09, 1.8], ['stationChime', 0.12, 3], ['jetFlyby', 0.12, 7.5], ['cheer', 0.1, 4.5], ['churchBell', 0.15, 5], ['schoolBell', 0.18, 2.5],
+  ['rooster', 0.12, 1.6], ['cow', 0.12, 2], ['railClack', 0.08, 0.4], ['lawnmower', 0.035, 9],
+  ['thunder', 0.4, 10, { close: 0.85 }], ['thunder', 0.26, 10, { close: 0.2 }],
+];
+
 const SFX_LEN = { milestone: 5, disaster: 5, siren: 10, quake: 9, meteor: 6, tornado: 9, flood: 8, thunder: 9, storm: 9, plane: 8, helicopter: 4, ship: 4, churchbell: 10, bankrupt: 3, busStop: 3, fire: 2.5, extinguish: 2.5, season: 2.5, achievement: 3, train: 3.5, explosion: 4.5 };
 
 export async function selfTest(opts = {}) {
   const parts = opts.parts || ['sfx', 'music', 'amb', 'mix'];
-  const out = { sampleRate: SR, sfx: {}, music: {}, amb: {}, beds: {}, mix: null, ms: 0 };
+  const out = { sampleRate: SR, sfx: {}, music: {}, stems: {}, amb: {}, events: {}, beds: {}, mix: null, ms: 0 };
   const T0 = performance.now();
   if (parts.includes('sfx')) {
     const names = opts.sfx || SFX_NAMES.filter((n) => !['fanfare', 'cash', 'coins', 'ui'].includes(n));
@@ -207,12 +220,28 @@ export async function selfTest(opts = {}) {
       out.music[k] = { ...analyze(r.buf, 1), ...r.info, renderMs: r.ms };
     }
   }
+  if (parts.includes('stems')) {
+    // Instrumente einzeln (Tag, Sommer): alles außer einem stumm
+    const all = ['pad', 'str', 'bass', 'arp', 'mel', 'perc', 'pulse'];
+    const base = opts.stemState || { night: 0, crisis: 0, season: 'summer', trains: true, start: 'B' };
+    for (const k of all.concat(['alle'])) {
+      const r = await render(24, musicSetup({ ...base, mute: all.filter((x) => x !== k && k !== 'alle') }, 24));
+      out.stems[k] = analyze(r.buf, 1);
+    }
+  }
   if (parts.includes('amb')) {
     const sec = opts.ambSeconds || 14;
     const list = opts.scenes || Object.keys(AMB_SCENES);
     for (const k of list) {
       const r = await render(sec, ambSetup(AMB_SCENES[k], sec));
       out.amb[k] = { ...analyze(r.buf, 2), ...r.info, renderMs: r.ms };
+    }
+  }
+  if (parts.includes('events')) {
+    // Einzelereignisse der Umgebung mit ihren üblichen Pegeln aus ambience.js
+    for (const [name, gain, len, extra] of AMB_EVENTS) {
+      const r = await render(len, (ctx, mixer) => { S[name](ctx, { dry: mixer.amb, send: mixer.ambSend }, 0.05, { gain, send: 0.3, ...(extra || {}) }); });
+      out.events[name + (extra && extra.close != null ? '_' + extra.close : '')] = analyze(r.buf);
     }
   }
   if (parts.includes('beds')) {

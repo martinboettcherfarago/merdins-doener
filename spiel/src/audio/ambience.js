@@ -140,6 +140,13 @@ const BEDS = {
       lfo(ctx, t, 0.07, 230, bp.frequency), lfo(ctx, t, 0.11, 0.25, gust.gain), lfo(ctx, t, 0.27, 0.15, gust.gain), lfo(ctx, t, 0.05, 160, wh.frequency),
     ] };
   } },
+  // Lüftung und Klimaanlagen der Bürohäuser
+  hvac: { send: 0.1, k: 1, build(ctx, out, B) {
+    const bp = filter(ctx, 'bandpass', 190, 1), lp = filter(ctx, 'lowpass', 400, 4);
+    const tg = gainNode(ctx, 0.12);
+    bp.connect(out); lp.connect(tg); tg.connect(out);
+    return { start: (t) => { const o = osc(ctx, 'sawtooth', 120, t); o.connect(lp); o.start(t); return [o, loop(ctx, B.brown, t, bp, 1.3)]; } };
+  } },
   // Brand: Fauchen + Knistern
   fire: { send: 0.15, k: 0.23, build(ctx, out, B) {
     const lp = filter(ctx, 'lowpass', 380, 0.7), hp = filter(ctx, 'highpass', 900, 0.6);
@@ -277,6 +284,7 @@ export class Ambience {
     b.murmur.set(people * near * Math.sqrt(zoom) * (1 - rain * 0.6) * (paused ? 0.5 : 1), now, 1.2, (s.pan.com + s.pan.res) * 0.4);
     const work = s.hour >= 6.5 && s.hour <= 19 && s.weekday !== 6 ? 1 : 0;
     b.construction.set(s.construction * near * work * (paused ? 0 : 1), now, 1, s.pan.construction);
+    b.hvac.set(s.off * near * 0.6 * (paused ? 0.7 : 1), now, 1.5, s.pan.off * 0.6);
     b.industry.set((s.ind * 0.8 + s.poi.heavy.p * 0.55 + s.poi.cargo.p * 0.2) * (0.3 + 0.7 * near) * (paused ? 0.5 : 1) * (1 - night * 0.25), now, 1.2, s.pan.ind * 0.8);
     b.leaves.set((s.trees * 0.9 + s.park * 0.4) * (0.25 + wind * 1.1) * near * (winter ? 0.35 : 1), now, 1.5, s.pan.trees * 0.6);
     b.leaves.p.bp.frequency.setTargetAtTime(winter ? 3600 : 2600, now, 3);
@@ -288,7 +296,7 @@ export class Ambience {
     b.rain.p.heavy.gain.setTargetAtTime(rain * rain * 0.8, now, 1.5);
     b.rain.p.drops.gain.setTargetAtTime(rain > 0.05 ? (0.3 + zoom) * 0.9 : 0, now, 1.5);
     const windV = 0.05 + wind * 0.75 + far * far * 0.12 + s.edge * 0.12 + (w.storm ? 0.3 : 0) + snow * 0.1;
-    b.wind.set(windV, now, 2);
+    b.wind.set(windV, now, 2, Math.sin((w.windDir || 0) - s.yaw) * 0.35);
     b.wind.p.whistle.gain.setTargetAtTime(clamp((wind - 0.5) * 1.6 + (w.storm ? 0.4 : 0) + far * far * 0.08, 0, 0.9) * 0.6, now, 2);
     b.fire.set(s.fire * near * 1.4 + (s.burning > 0 ? 0.03 * far : 0), now, 0.8, s.pan.fire);
     const crowdTime = (s.weekend && s.hour > 13 && s.hour < 22) || (s.hour > 18 && s.hour < 22) ? 1 : 0.35;
@@ -296,13 +304,6 @@ export class Ambience {
     b.fountain.set(s.poi.fountain.p * zoom * near * (winter ? 0 : 1), now, 1, s.poi.fountain.pan);
     const sv = s.veh.siren;
     b.siren.set(sv.p * near * (paused ? 0 : 1), now, 0.4, sv.pan);
-    const st = b.siren.p.st;
-    if (b.siren.awake && st.o) {
-      // Martinshorn: a1–d2 im Wechsel; nähert sich das Fahrzeug, klingt es höher (Doppler)
-      const dop = clamp(1 - sv.vr * 0.012, 0.92, 1.08);
-      if (st.next < now) st.next = now + 0.02;
-      while (st.next < now + 0.8) { st.o.frequency.setValueAtTime((st.phase ? 587 : 440) * dop, st.next); st.phase ^= 1; st.next += 0.65; }
-    }
     const pb = s.veh.pulsbahn;
     b.pulsbahn.set(pb.p * near * 0.9 * (paused ? 0 : 1), now, 0.5, pb.pan);
     if (b.pulsbahn.p.st.o) b.pulsbahn.p.st.o.frequency.setTargetAtTime(150 + pb.p * 60 - pb.vr * 3, now, 0.5);
@@ -337,10 +338,11 @@ export class Ambience {
   // Ereignisse planen (aufgerufen jedes Bild; arbeitet mit ~10 Hz)
   tick(s, now) {
     if (!this.enabled || !s.valid) return;
-    const dt = now - this.lastTick;
+    let dt = now - this.lastTick;
     if (dt < 0.1) return;
     this.lastTick = now;
-    if (dt > 1) return; // nach Pausen nicht alles auf einmal nachholen
+    if (dt > 5) return; // nach langen Aussetzern nichts nachholen
+    dt = Math.min(dt, 0.5);
     const P = (rate) => Math.random() < 1 - Math.exp(-Math.max(0, rate) * dt);
     const w = s.weather, zoom = s.zoom, near = 0.25 + 0.75 * zoom;
     const day = s.night < 0.5;
@@ -348,11 +350,19 @@ export class Ambience {
     const panAround = (p) => clamp(p + rand(-0.5, 0.5), -1, 1);
     const ev = (name, fn, o, est, force) => this.fire(name, fn, now, now + est, o, force);
 
+    // Martinshorn: a1–d2 im Wechsel; nähert sich das Fahrzeug, klingt es höher (Doppler)
+    const sb = this.beds.siren, st = sb.p.st;
+    if (sb.awake && st.o) {
+      const dop = clamp(1 - s.veh.siren.vr * 0.012, 0.92, 1.08);
+      if (st.next < now) st.next = now + 0.02;
+      while (st.next < now + 0.8) { st.o.frequency.setValueAtTime((st.phase ? 587 : 440) * dop, st.next); st.phase ^= 1; st.next += 0.65; }
+    }
+
     // --- Vögel
     const bl = this.birdLevel(s);
     if (P(bl * 1.4)) {
       const d = rand(0.15, 1);
-      const o = { gain: 0.11 * (1.1 - d * 0.7), pan: rand(-0.9, 0.9), send: 0.15 + d * 0.4 };
+      const o = { gain: 0.14 * (1.1 - d * 0.7), pan: rand(-0.9, 0.9), send: 0.15 + d * 0.4 };
       const city = s.res + s.com * 1.5 + s.off;
       const green = s.trees + s.park;
       let fn;
@@ -361,17 +371,32 @@ export class Ambience {
       else if (w.season === 'winter' || w.season === 'autumn') fn = r < 0.35 ? S.crow : r < 0.7 ? S.greatTit : S.birdTweet;
       else if (city > green * 1.5) fn = r < 0.4 ? S.sparrow : r < 0.6 ? S.pigeon : r < 0.8 ? S.birdTweet : S.greatTit;
       else fn = pick([S.birdTweet, S.birdTrill, S.birdWarble, S.greatTit, S.blackbird, S.birdTweet]);
-      if (fn === S.crow) o.gain *= 0.7;
-      if (fn === S.pigeon) o.gain *= 1.6;
+      if (fn === S.crow) o.gain *= 2;
+      if (fn === S.pigeon) o.gain *= 1.3;
       ev('bird', fn, o, 2);
     }
     if (day && w.season === 'spring' && s.trees > 0.2 && P(0.012) && this.ready('cuckoo', now, 40)) ev('cuckoo', S.cuckoo, { gain: 0.06, pan: rand(-0.8, 0.8), send: 0.5 }, 4);
-    if (day && w.season !== 'winter' && s.trees > 0.25 && P(0.012 * zoom) && this.ready('wood', now, 25)) ev('wood', S.woodpecker, { gain: 0.08, pan: rand(-0.8, 0.8), send: 0.35 }, 2);
+    if (day && w.season !== 'winter' && s.trees > 0.25 && P(0.012 * zoom) && this.ready('wood', now, 25)) ev('wood', S.woodpecker, { gain: 0.2, pan: rand(-0.8, 0.8), send: 0.35 }, 2);
+
+    // --- Wohngebiet im Sommer: Rasenmäher (am Wochenende öfter)
+    if (day && s.res > 0.3 && s.hour > 9 && s.hour < 18.5 && w.rain < 0.1 && (w.season === 'summer' || w.season === 'spring') && !paused &&
+      P(0.012 * s.res * (s.weekend ? 2.5 : 1)) && this.ready('mower', now, 40)) ev('mower', S.lawnmower, { gain: 0.035 * near, pan: rand(-0.8, 0.8), send: 0.4 }, 9);
+
+    // --- Bauernhof: Hahn im Morgengrauen, Kühe am Tag
+    const farm = s.poi.farm.p;
+    if (farm > 0.05) {
+      if ((s.dawn > 0.5 ? P(0.06 * farm) : day && P(0.003 * farm)) && this.ready('rooster', now, 20)) ev('rooster', S.rooster, { gain: 0.07 * (0.4 + farm), pan: s.poi.farm.pan, send: 0.45 }, 1.5);
+      if (day && P(0.03 * farm) && this.ready('cow', now, 9)) ev('cow', S.cow, { gain: 0.09 * (0.3 + farm) * near, pan: clamp(s.poi.farm.pan + rand(-0.3, 0.3), -1, 1), send: 0.35 }, 1.8);
+    }
+
+    // --- Pulsbahn: Schienenstöße, wenn ein Zug nah vorbeifährt
+    const pbv = s.veh.pulsbahn;
+    if (!paused && pbv.p > 0.25 && P(1.8 * pbv.p)) ev('rail', S.railClack, { gain: 0.08 * pbv.p * near, pan: pbv.pan, send: 0.25 }, 0.25);
 
     // --- Nacht: Grillen, Frösche, Kauz
     const cl = this.cricketLevel(s);
     this.tickCrickets(cl, now, s);
-    if (cl > 0.05 && s.water > 0.06 && (w.season === 'spring' || w.season === 'summer') && P(0.12 * s.water * near)) ev('frog', S.frog, { gain: 0.09, pan: panAround(s.pan.water), send: 0.3 }, 2.5);
+    if (cl > 0.05 && s.water > 0.06 && (w.season === 'spring' || w.season === 'summer') && P(0.12 * s.water * near)) ev('frog', S.frog, { gain: 0.18, pan: panAround(s.pan.water), send: 0.3 }, 2.5);
     if (s.night > 0.6 && s.trees > 0.15 && P(0.015) && this.ready('owl', now, 22)) ev('owl', S.owl, { gain: 0.07, pan: rand(-0.9, 0.9), send: 0.55 }, 3.5);
 
     // --- Straße
@@ -379,9 +404,9 @@ export class Ambience {
       const rate = Math.min(1.1, (s.traffic * 0.45 + s.cars * 0.9) * zoom * 0.9);
       if (P(rate) && this.voices.count(now) < 8) {
         const heavy = Math.random() < 0.1 + s.ind * 0.4;
-        ev('car', S.carPass, { gain: 0.16 * zoom * (heavy ? 1.1 : 1) * (1 - w.snowCover * 0.3), heavy, send: 0.1 }, 3.5);
+        ev('car', S.carPass, { gain: 0.13 * zoom * (heavy ? 1.1 : 1) * (1 - w.snowCover * 0.3), heavy, send: 0.1 }, 3.5);
       }
-      if (day && s.traffic > 0.25 && P(0.03 * s.traffic * (0.4 + s.cityScale)) && this.ready('horn', now, 6)) ev('horn', S.horn, { gain: 0.05 * zoom, pan: panAround(s.pan.traffic), send: 0.25 }, 0.6);
+      if (day && s.traffic > 0.25 && P(0.03 * s.traffic * (0.4 + s.cityScale)) && this.ready('horn', now, 6)) ev('horn', S.horn, { gain: 0.07 * zoom, pan: panAround(s.pan.traffic), send: 0.25 }, 0.6);
       if (day && w.rain < 0.2 && !w.snowCover && s.res + s.com + s.park > 0.25 && P(0.025 * zoom) && this.ready('bike', now, 12)) ev('bike', S.bikeBell, { gain: 0.05 * zoom, pan: rand(-0.7, 0.7), send: 0.2 }, 0.6);
     }
 
@@ -390,10 +415,10 @@ export class Ambience {
     if (work && s.construction > 0.02) {
       const c = s.construction * near;
       const pan = panAround(s.pan.construction);
-      if (P(c * 0.9)) ev('hammer', S.hammer, { gain: 0.09 * near, pan, send: 0.25 }, 2.5);
-      if (P(c * 0.22)) ev('drill', S.drill, { gain: 0.05 * near, pan, send: 0.2 }, 2);
-      if (P(c * 0.06) && this.ready('beep', now, 10)) ev('beep', S.beeper, { gain: 0.035 * near, pan, send: 0.3 }, 4);
-      if (P(c * 0.2)) ev('clank', S.clank, { gain: 0.05 * near, pan, send: 0.3 }, 0.6);
+      if (P(c * 0.9)) ev('hammer', S.hammer, { gain: 0.15 * near, pan, send: 0.25 }, 2.5);
+      if (P(c * 0.22)) ev('drill', S.drill, { gain: 0.1 * near, pan, send: 0.2 }, 2);
+      if (P(c * 0.06) && this.ready('beep', now, 10)) ev('beep', S.beeper, { gain: 0.08 * near, pan, send: 0.3 }, 4);
+      if (P(c * 0.2)) ev('clank', S.clank, { gain: 0.065 * near, pan, send: 0.3 }, 0.6);
     }
 
     // --- Industrie
@@ -401,27 +426,27 @@ export class Ambience {
     if (!paused && ind > 0.08) {
       const pan = panAround(s.pan.ind);
       if (P(ind * 0.1) && this.ready('press', now, 5)) ev('press', S.press, { gain: 0.14 * near, pan, send: 0.3 }, 8);
-      if (P(ind * 0.07)) ev('steam', S.steam, { gain: 0.06 * near, pan, send: 0.3 }, 2);
+      if (P(ind * 0.07)) ev('steam', S.steam, { gain: 0.1 * near, pan, send: 0.3 }, 2);
       if (P(ind * 0.09)) ev('iclank', S.clank, { gain: 0.04 * near, pan, send: 0.35, f: rand(200, 330) }, 0.6);
     }
-    if (work && s.poi.saw.p > 0.05 && P(s.poi.saw.p * 0.12) && this.ready('saw', now, 5)) ev('saw', S.saw, { gain: 0.05 * s.poi.saw.p * near, pan: s.poi.saw.pan, send: 0.3 }, 3);
+    if (work && s.poi.saw.p > 0.05 && P(s.poi.saw.p * 0.12) && this.ready('saw', now, 5)) ev('saw', S.saw, { gain: 0.12 * s.poi.saw.p * near, pan: s.poi.saw.pan, send: 0.3 }, 3);
 
     // --- Wasser, Hafen, Leuchtturm
     if (s.water > 0.05) {
       if (P(s.water * 0.45 * near)) ev('lap', S.lap, { gain: 0.07 * near, pan: panAround(s.pan.water), send: 0.25 }, 1.3);
-      if (P(s.water * 0.05 * zoom)) ev('splash', S.splash, { gain: 0.04 * zoom, pan: panAround(s.pan.water), send: 0.3 }, 0.7);
+      if (P(s.water * 0.05 * zoom)) ev('splash', S.splash, { gain: 0.12 * zoom, pan: panAround(s.pan.water), send: 0.3 }, 0.7);
     }
     const harbor = Math.max(s.poi.harbor.p, s.water > 0.3 ? s.water * 0.5 : 0);
-    if (day && harbor > 0.15 && P(harbor * 0.07)) ev('gull', S.gull, { gain: 0.06, pan: rand(-0.9, 0.9), send: 0.45 }, 2);
+    if (day && harbor > 0.15 && P(harbor * 0.07)) ev('gull', S.gull, { gain: 0.1, pan: rand(-0.9, 0.9), send: 0.45 }, 2);
     if ((s.veh.ship.p > 0.2 || s.poi.harbor.p > 0.25) && P(0.012) && this.ready('ship', now, 30)) ev('ship', S.shipHorn, { gain: 0.09 * Math.max(s.veh.ship.p, s.poi.harbor.p), pan: s.veh.ship.p > 0.2 ? s.veh.ship.pan : s.poi.harbor.pan, send: 0.6 }, 4);
     if (s.poi.lighthouse.p > 0.03 && w.fog > 0.3 && this.ready('fog', now, rand(14, 20))) ev('fog', S.foghorn, { gain: 0.12 * Math.max(0.3, s.poi.lighthouse.p), pan: s.poi.lighthouse.pan, send: 0.7 }, 3.2, true);
 
     // --- Bahn, Flughafen, Menge, Spieluhr
     if (s.poi.railway.p > 0.08) {
-      if (P(s.poi.railway.p * 0.02) && this.ready('thorn', now, 20)) ev('thorn', S.trainHorn, { gain: 0.06 * s.poi.railway.p, pan: s.poi.railway.pan, send: 0.5 }, 1.6);
+      if (P(s.poi.railway.p * 0.02) && this.ready('thorn', now, 20)) ev('thorn', S.trainHorn, { gain: 0.09 * s.poi.railway.p, pan: s.poi.railway.pan, send: 0.5 }, 1.6);
       if (P(s.poi.railway.p * 0.012) && this.ready('chime', now, 30)) {
         const ch = this.host.chord ? this.host.chord() : [74, 71, 67];
-        ev('chime', S.stationChime, { gain: 0.08 * s.poi.railway.p, pan: s.poi.railway.pan, send: 0.6, fs: [mtof(ch[2] + 12), mtof(ch[1] + 12), mtof(ch[0] + 12)] }, 3);
+        ev('chime', S.stationChime, { gain: 0.12 * s.poi.railway.p, pan: s.poi.railway.pan, send: 0.6, fs: [mtof(ch[2] + 12), mtof(ch[1] + 12), mtof(ch[0] + 12)] }, 3);
       }
     }
     if (s.veh.train.p > 0.3 && this.ready('trainNear', now, 25)) ev('thorn2', S.trainHorn, { gain: 0.07 * s.veh.train.p, pan: s.veh.train.pan, send: 0.4 }, 1.6);
@@ -447,7 +472,7 @@ export class Ambience {
   thunder(t, close) {
     this.lastThunder = t;
     if (!this.voices.take(t, t + 9, true)) return;
-    S.thunder(this.ctx, this.dest, t, { close, gain: 0.32 + close * 0.3, send: 0.35 + (1 - close) * 0.4 });
+    S.thunder(this.ctx, this.dest, t, { close, gain: 0.22 + close * 0.2, send: 0.35 + (1 - close) * 0.4 });
     if (close > 0.7) this.mixer.duck(t, 0.75, 1, 0.8);
   }
 

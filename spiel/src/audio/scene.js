@@ -27,7 +27,7 @@ const POI_KEYS = {
   fire: 'firestation', firehq: 'firestation', hospital: 'hospital',
   cemetery: 'quiet', warning_siren: 'siren',
 };
-const POI_KINDS = ['bells', 'crowd', 'pool', 'fountain', 'musicbox', 'doener', 'heavy', 'saw', 'cargo', 'harbor', 'lighthouse', 'airport', 'railway', 'turbine', 'school', 'firestation', 'hospital', 'quiet', 'siren'];
+const POI_KINDS = ['farm', 'bells', 'crowd', 'pool', 'fountain', 'musicbox', 'doener', 'heavy', 'saw', 'cargo', 'harbor', 'lighthouse', 'airport', 'railway', 'turbine', 'school', 'firestation', 'hospital', 'quiet', 'siren'];
 const VEH_KINDS = ['siren', 'pulsbahn', 'plane', 'heli', 'ship', 'bus', 'train', 'plow'];
 const RENDER_KIND = {
   police: 'siren', fire: 'siren', ambulance: 'siren',
@@ -82,6 +82,7 @@ export class Listener {
     for (const b of g.buildings.values()) {
       if (b.zone) {
         if (b.spec === 'mine' || b.spec === 'oil') list.push({ kind: 'heavy', x: b.x + b.w / 2, y: b.y + b.h / 2, b });
+        else if (b.spec === 'farm') list.push({ kind: 'farm', x: b.x + b.w / 2, y: b.y + b.h / 2, b });
         else if (b.spec === 'forest') list.push({ kind: 'saw', x: b.x + b.w / 2, y: b.y + b.h / 2, b });
         continue;
       }

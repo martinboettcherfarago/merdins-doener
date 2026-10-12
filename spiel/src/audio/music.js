@@ -46,14 +46,14 @@ const MOOD = {
   day: { arp: 1, mel: 1, perc: 1, bass: 1, pad: 1, cut: 1350, q: 0.7, level: 1 },
   night: { arp: 0.6, mel: 0.65, perc: 0.15, bass: 0.7, pad: 1, cut: 650, q: 0.8, level: 0.85 },
   crisis: { arp: 0.9, mel: 0.5, perc: 1, bass: 1, pad: 0.9, cut: 820, q: 3.2, level: 1 },
-  menu: { arp: 0.8, mel: 0.7, perc: 0, bass: 0.6, pad: 1, cut: 1000, q: 0.7, level: 0.9 },
+  menu: { arp: 1, mel: 0.8, perc: 0, bass: 0.6, pad: 1, cut: 1000, q: 0.7, level: 0.9 },
 };
 const TEMPO = { day: { spring: 88, summer: 84, autumn: 80, winter: 76 }, night: 68, crisis: 96, menu: 74 };
 const ARP = {
   day: [[0, -1, 1, -1, 2, -1, 3, -1, 2, -1, 1, -1, 2, -1, 3, -1], [0, -1, 2, -1, 1, -1, 3, -1, 0, -1, 2, -1, 4, -1, 3, -1], [0, 2, 1, 3, -1, 2, -1, 4, 0, 2, 1, 3, -1, 2, 4, -1], [0, -1, -1, 2, -1, -1, 1, -1, 3, -1, -1, 2, -1, -1, 4, -1]],
   night: [[0, -1, -1, -1, 2, -1, -1, -1, 1, -1, -1, 3, -1, -1, -1, -1], [0, -1, -1, 2, -1, -1, 1, -1, -1, -1, 3, -1, -1, -1, 2, -1], [2, -1, -1, -1, -1, -1, 1, -1, 3, -1, -1, -1, -1, -1, 0, -1]],
   crisis: [[0, -1, 0, -1, 1, -1, 0, -1, 2, -1, 0, -1, 1, -1, 3, -1], [0, 0, -1, 1, 0, -1, 2, -1, 0, 0, -1, 1, 3, -1, 2, -1]],
-  menu: [[0, -1, -1, -1, 1, -1, -1, -1, 2, -1, -1, -1, 3, -1, -1, -1], [0, -1, -1, 2, -1, -1, 1, -1, 3, -1, -1, -1, 4, -1, -1, -1]],
+  menu: [[0, -1, 2, -1, 1, -1, 3, -1, 2, -1, 1, -1, 4, -1, 3, -1], [0, -1, -1, 2, -1, -1, 1, -1, 3, -1, -1, 2, 4, -1, -1, -1]],
 };
 const RHYTHMS = [ // Melodie-Rhythmen über zwei Takte: [Start-16tel, Länge]
   [[0, 4], [4, 2], [6, 2], [8, 6], [16, 4], [20, 4], [24, 8]],
@@ -281,6 +281,7 @@ export class Music {
     this.notes = 0;
     this.celebrateReq = false;
     this.history = [];
+    this.mute = new Set(); // zum Prüfen: 'pad', 'str', 'bass', 'arp', 'mel', 'perc', 'pulse'
   }
 
   // Stimmung von außen: { night, crisis, season, menu, activity }
@@ -329,7 +330,7 @@ export class Music {
     if (this.celebrateReq && tm !== 'crisis') { name = 'celebrate'; this.celebrateReq = false; }
     else if (tm === 'crisis') name = 'tension';
     else if (this.mood === 'crisis') name = 'resolve';
-    else if (!this.section) name = 'intro';
+    else if (!this.section) name = this.state.start && SECTIONS[this.state.start] ? this.state.start : 'intro';
     else {
       const list = this.section.next;
       let x = r(), acc = 0;
@@ -338,7 +339,7 @@ export class Music {
     }
     const moodChanged = tm !== this.mood;
     this.mood = tm;
-    if (!this.section || this.section.newSong || moodChanged || name === 'intro') this.newSong(name === 'intro' || !this.section);
+    if (!this.section || this.section.newSong || moodChanged || name === 'intro' || name === 'tension') this.newSong(name === 'intro' || !this.section);
     this.section = SECTIONS[name];
     this.secName = name;
     this.secBar = 0;
@@ -401,8 +402,9 @@ export class Music {
     this.sus.setChord(this.voicing, t, this.mood === 'night' ? 0.5 : 0.25);
     const s = this.sus;
     const act = 0.85 + 0.15 * clamp(this.state.activity);
-    s.padGain.gain.setTargetAtTime(sec.pad * md.pad * md.level * 0.42 * act, t, 1.2);
-    s.strGain.gain.setTargetAtTime(sec.str * md.level * 0.5 * (this.state.season === 'winter' ? 1.2 : 1), t, 1.8);
+    const mu = (k) => (this.mute.has(k) ? 0 : 1);
+    s.padGain.gain.setTargetAtTime(sec.pad * md.pad * md.level * 0.28 * act * mu('pad'), t, 1.2);
+    s.strGain.gain.setTargetAtTime(sec.str * md.level * 0.5 * (this.state.season === 'winter' ? 1.2 : 1) * mu('str'), t, 1.8);
     const cr = clamp((this.state.crisis - 0.25) / 0.5);
     s.droneGain.gain.setTargetAtTime(cr * 0.07, t, 2);
     s.droneRoot(this.key + 9 - 24, t);
@@ -454,11 +456,12 @@ export class Music {
     const hum = () => (r() - 0.5) * 0.012;
     const can = (dur) => this.voices.take(t, t + dur);
 
+    const mute = this.mute;
     // Bass
-    if (sec.bass > 0) {
+    if (sec.bass > 0 && !mute.has('bass')) {
       let root = this.key + ROOT.get(this.chord) - 12;
       if (root > this.key - 5) root -= 12;
-      const v = 0.13 * sec.bass * md.bass;
+      const v = 0.095 * sec.bass * md.bass;
       if (crisis) { if (st % 2 === 0) this.sus.bassNote(root, t, spb * 0.4, v * (st % 8 === 0 ? 1 : 0.7)); }
       else if (night || this.mood === 'menu') { if (st === 0) this.sus.bassNote(root, t, spb * 3.6, v * 0.85); }
       else {
@@ -470,27 +473,27 @@ export class Music {
 
     // Arpeggio
     const ai = this.arpPat[st];
-    if (ai >= 0 && sec.arp > 0) {
+    if (ai >= 0 && sec.arp > 0 && !mute.has('arp')) {
       const strong = st % 4 === 0;
       if (r() < sec.arp * md.arp * (strong ? 1 : 0.8)) {
         const kind = crisis ? 'pulse' : night ? 'epiano' : this.mood === 'menu' ? 'kalimba' : ARP_INSTR[season] || 'marimba';
         const m = (ai >= 4 ? this.voicing[3] + 12 : this.voicing[ai]) + 12 + (night ? 0 : 0);
-        const vel = (strong ? 0.13 : 0.09) * (0.9 + r() * 0.2) * (night ? 0.75 : 1) * md.level;
+        const vel = (strong ? 0.28 : 0.2) * (0.9 + r() * 0.2) * (night ? 0.8 : 1) * md.level;
         if (can(1.2)) { this.notes++; play(ctx, this.dest, kind, t + hum(), mtof(m), vel, spb, { pan: (r() - 0.5) * 0.6, send: night ? 0.55 : 0.35, echo: night ? 0.25 : 0.1 }); }
       }
     }
 
     // Melodie
     for (const n of this.mel) {
-      if (n.at !== this.abs) continue;
+      if (n.at !== this.abs || mute.has('mel')) continue;
       const kind = crisis ? 'lead' : night ? (season === 'winter' ? 'musicbox' : 'flute') : this.mood === 'menu' ? 'bell' : MEL_INSTR[season] || 'bell';
       const dur = n.len * spb / 4;
-      const vel = 0.1 * n.vel * md.level * (kind === 'lead' ? 0.6 : kind === 'flute' ? 0.9 : 1);
+      const vel = 0.25 * n.vel * md.level * (kind === 'lead' ? 0.6 : kind === 'flute' ? 0.9 : 1);
       if (can(dur + 1)) { this.notes++; play(ctx, this.dest, kind, t + hum(), mtof(n.m), vel, dur, { pan: 0.15, send: 0.5, echo: 0.12 }); }
     }
 
     // Schlagwerk
-    if (sec.perc > 0 && md.perc > 0) {
+    if (sec.perc > 0 && md.perc > 0 && !mute.has('perc')) {
       const p = sec.perc * md.perc;
       if (crisis) {
         if ((st === 0 || st === 3 || st === 8 || st === 11) && can(0.5)) play(ctx, this.dest, 'tom', t, st % 8 === 0 ? 92 : 78, 0.22 * p, 0, { send: 0.3 });
@@ -520,13 +523,13 @@ export class Music {
     let m = this.key + 12 + PULSE_SCALE[deg];
     const pcs = this.chord.map((c) => ((this.key + c) % 12 + 12) % 12);
     const pc = ((m % 12) + 12) % 12;
-    if (!pcs.includes(pc) && this.rng() < 0.6) {
+    if (!pcs.includes(pc) && (this.mood === 'crisis' || this.rng() < 0.6)) { // in der Krise immer in den Akkord
       let best = m, bd = 99;
       for (let d = -2; d <= 2; d++) if (pcs.includes((((m + d) % 12) + 12) % 12) && Math.abs(d) < bd) { bd = Math.abs(d); best = m + d; }
       m = best;
     }
     const vel = (0.12 + Math.min(0.12, (a.n || 0) * 0.01)) * (this.mood === 'night' ? 0.85 : 1);
-    if (!this.voices.take(t, t + 1.7, true)) return;
+    if (this.mute.has('pulse') || !this.voices.take(t, t + 1.7, true)) return;
     this.notes++;
     play(this.ctx, this.dest, 'pluck', t, mtof(m), vel, 0, { pan: (((a.line | 0) % 5) - 2) * 0.15, send: 0.45, echo: this.mood === 'night' ? 0.7 : 0.55 });
   }

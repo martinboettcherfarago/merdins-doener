@@ -130,12 +130,13 @@ export class Audio {
     return s.sfx > 0;
   }
 
-  // Taktgeber (setInterval und jedes Bild): Musik planen, Umgebung ausblenden, wenn kein Spiel läuft.
+  // Taktgeber (setInterval alle 50 ms und jedes Bild): Musik und Umgebungs-Ereignisse planen –
+  // unabhängig von der Bildrate. Kommt einige Sekunden kein Bild aus dem Spiel, gilt das Menü.
   pump() {
     const ctx = this.ctx;
     if (!ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
-    const inGame = !!this.game && performance.now() - this.lastUpdate < 800;
+    const inGame = !!this.game && performance.now() - this.lastUpdate < 4000;
     if (this.audible('music')) {
       this.music.wake(now);
       if (!inGame) this.music.setState({ menu: true, crisis: 0 });
@@ -143,6 +144,8 @@ export class Audio {
     } else this.music.sleep(now);
     if (!inGame || !this.audible('amb')) {
       if (!this.ambQuiet) { this.amb.sleepAll(now); this.ambQuiet = true; }
+    } else if (this.scene && !this.ambQuiet) {
+      try { this.amb.tick(this.scene, now); } catch (e) { /* Klang darf das Spiel nie anhalten */ }
     }
   }
 
@@ -176,7 +179,6 @@ export class Audio {
         if (ambOn) { this.amb.update(sc, now); this.ambQuiet = false; }
       } catch (e) { /* Klang darf das Spiel nie anhalten */ }
     }
-    if (ambOn && this.scene) { try { this.amb.tick(this.scene, now); } catch (e) { /* egal */ } }
     this.pump();
     void dt;
   }
@@ -233,12 +235,12 @@ export class Audio {
     const now = this.ctx.currentTime;
     const bells = sc.poi.bells;
     if (bells.d < 900) {
-      const gain = 0.05 + 0.25 * bells.p;
+      const gain = 0.03 + 0.12 * bells.p;
       if (h === 12) this.amb.bells(now, 3, gain, bells.pan, 196 * Math.pow(2, ((this.music.key - 43) % 12) / 12));
       else if (h === 10 && g.weekday() === 6) this.amb.peal(now, gain, bells.pan, this.music.key + 7);
     }
     const sch = sc.poi.school;
-    if ((h === 8 || h === 13) && g.weekday() < 5 && sch.p > 0.12) this.amb.schoolBell(now, 0.06 * sch.p * (0.4 + 0.6 * sc.zoom), sch.pan);
+    if ((h === 8 || h === 13) && g.weekday() < 5 && sch.p > 0.12) this.amb.schoolBell(now, 0.18 * sch.p * (0.4 + 0.6 * sc.zoom), sch.pan);
   }
 
   onDisaster(ev) {

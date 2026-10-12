@@ -256,18 +256,18 @@ export class Sfx {
       case 'ship': S.shipHorn(ctx, dest, t, sp({ gain: 0.22, send: 0.6 })); break;
       case 'horn': S.horn(ctx, dest, t, sp({ gain: 0.12, send: 0.2 })); break;
       case 'bell': S.bikeBell(ctx, dest, t, sp({ gain: 0.1, send: 0.2 })); break;
-      case 'churchbell': for (let k = 0; k < (o.count || 3); k++) S.churchBell(ctx, dest, t + k * 2.3, sp({ gain: 0.22, send: 0.7, f: o.f || 220 })); break;
+      case 'churchbell': for (let k = 0; k < (o.count || 3); k++) S.churchBell(ctx, dest, t + k * 2.3, sp({ gain: 0.08, send: 0.7, f: o.f || 220 })); break;
 
       // ---------- Feuer, Wetter, Katastrophen
-      case 'fire': S.ignite(ctx, dest, t, sp({ gain: 0.22, send: 0.3 })); break;
+      case 'fire': S.ignite(ctx, dest, t, sp({ gain: 0.16, send: 0.3 })); break;
       case 'extinguish': S.hiss(ctx, dest, t, sp({ gain: 0.35, send: 0.3 })); S.bubbles(ctx, dest, t + 0.3, sp({ gain: 0.08, send: 0.3, n: 3 })); break;
-      case 'thunder': S.thunder(ctx, dest, t, sp({ close: o.close == null ? 0.8 : o.close, gain: 0.36, send: 0.4 })); break;
-      case 'storm': S.thunder(ctx, dest, t, sp({ close: 0.3, gain: 0.4, send: 0.6 })); S.tornado(ctx, dest, t, sp({ gain: 0.18, send: 0.3, dur: 3 })); break;
+      case 'thunder': S.thunder(ctx, dest, t, sp({ close: o.close == null ? 0.8 : o.close, gain: 0.25, send: 0.4 })); break;
+      case 'storm': S.thunder(ctx, dest, t, sp({ close: 0.3, gain: 0.28, send: 0.6 })); S.tornado(ctx, dest, t, sp({ gain: 0.13, send: 0.3, dur: 3 })); break;
       case 'siren': S.civilSiren(ctx, dest, t, sp({ gain: 0.32, send: 0.65, cycles: o.cycles || 2 })); this.mixer.duck(t, 0.55, 0.75, 7); break;
       case 'disaster': {
         this.mixer.duck(t, 0.35, 0.6, 3);
-        S.boom(ctx, dest, t, sp({ gain: 0.42, send: 0.4, big: 1 }));
-        const v = S.voiceOut(ctx, dest, { gain: 0.07, send: 0.5 });
+        S.boom(ctx, dest, t, sp({ gain: 0.3, send: 0.4, big: 1 }));
+        const v = S.voiceOut(ctx, dest, { gain: 0.05, send: 0.5 });
         const lp = filter(ctx, 'lowpass', 300, 2), g = gainNode(ctx, 0);
         lp.frequency.setValueAtTime(300, t); lp.frequency.exponentialRampToValueAtTime(1300, t + 0.5); lp.frequency.exponentialRampToValueAtTime(260, t + 2.4);
         lp.connect(g); g.connect(v.node);
@@ -277,11 +277,11 @@ export class Sfx {
         v.release(last);
         break;
       }
-      case 'quake': this.mixer.duck(t, 0.5, 0.7, 4); S.quake(ctx, dest, t, sp({ gain: 0.32, send: 0.2, dur: o.dur || 4 })); break;
-      case 'explosion': S.boom(ctx, dest, t, sp({ gain: 0.5, send: 0.35, big: 0.8 })); this.noise(t + 0.05, 0.8, 'bandpass', 2200, 0.2 * G, { buf: 'crackle', q: 0.6, hold: 0.3, ...P }); break;
-      case 'meteor': this.mixer.duck(t + 1.6, 0.4, 0.6, 3); S.meteor(ctx, dest, t, sp({ gain: 0.4, send: 0.4 })); break;
-      case 'tornado': S.tornado(ctx, dest, t, sp({ gain: 0.4, send: 0.3, dur: o.dur || 5 })); break;
-      case 'flood': S.waterRush(ctx, dest, t, sp({ gain: 0.45, send: 0.3, dur: o.dur || 4 })); break;
+      case 'quake': this.mixer.duck(t, 0.5, 0.7, 4); S.quake(ctx, dest, t, sp({ gain: 0.22, send: 0.2, dur: o.dur || 4 })); break;
+      case 'explosion': S.boom(ctx, dest, t, sp({ gain: 0.35, send: 0.35, big: 0.8 })); this.noise(t + 0.05, 0.8, 'bandpass', 2200, 0.2 * G, { buf: 'crackle', q: 0.6, hold: 0.3, ...P }); break;
+      case 'meteor': this.mixer.duck(t + 1.6, 0.4, 0.6, 3); S.meteor(ctx, dest, t, sp({ gain: 0.28, send: 0.4 })); break;
+      case 'tornado': S.tornado(ctx, dest, t, sp({ gain: 0.28, send: 0.3, dur: o.dur || 5 })); break;
+      case 'flood': S.waterRush(ctx, dest, t, sp({ gain: 0.32, send: 0.3, dur: o.dur || 4 })); break;
     }
   }
 }

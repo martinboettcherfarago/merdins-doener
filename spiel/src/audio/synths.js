@@ -316,6 +316,85 @@ export function frog(ctx, dest, t, o = {}) {
   return tk;
 }
 
+// Hahn: „Ki-ke-ri-kiii" (Bauernhof, Morgengrauen)
+export function rooster(ctx, dest, t, o = {}) {
+  const v = voiceOut(ctx, dest, o);
+  const o1 = osc(ctx, 'sawtooth', 600, t);
+  const b1 = filter(ctx, 'bandpass', 1500, 2.2), b2 = filter(ctx, 'bandpass', 2900, 3);
+  const g2 = gainNode(ctx, 0.5);
+  const rough = osc(ctx, 'sine', 31, t), rd = gainNode(ctx, 0.25), ga = gainNode(ctx, 0.75);
+  rough.connect(rd); rd.connect(ga.gain);
+  const g = gainNode(ctx, 0);
+  o1.connect(b1); o1.connect(b2); b2.connect(g2); b1.connect(ga); g2.connect(ga); ga.connect(g); g.connect(v.node);
+  const syl = [[0, 0.12, 620, 880], [0.17, 0.12, 820, 860], [0.34, 0.14, 950, 1050], [0.54, 0.75, 1100, 700]];
+  for (const [dt, d, f0, f1] of syl) {
+    const tk = t + dt;
+    o1.frequency.setValueAtTime(f0, tk);
+    o1.frequency.linearRampToValueAtTime(f1, tk + d);
+    g.gain.setValueAtTime(0, tk); g.gain.linearRampToValueAtTime(1, tk + 0.03); g.gain.setValueAtTime(1, tk + d * 0.75); g.gain.linearRampToValueAtTime(0, tk + d);
+  }
+  o1.start(t); rough.start(t); o1.stop(t + 1.4); rough.stop(t + 1.4);
+  v.release(o1);
+  return t + 1.4;
+}
+
+// Kuh: „Muuuh" – das Maul öffnet sich (Filter auf) und schließt sich wieder
+export function cow(ctx, dest, t, o = {}) {
+  const v = voiceOut(ctx, dest, o);
+  const f = rand(100, 125);
+  const o1 = osc(ctx, 'sawtooth', f, t);
+  o1.frequency.linearRampToValueAtTime(f * 1.12, t + 0.5);
+  o1.frequency.linearRampToValueAtTime(f * 0.85, t + 1.5);
+  const lp = filter(ctx, 'lowpass', 300, 3);
+  lp.frequency.setValueAtTime(280, t); lp.frequency.linearRampToValueAtTime(1000, t + 0.6); lp.frequency.linearRampToValueAtTime(350, t + 1.5);
+  const g = gainNode(ctx, 0);
+  o1.connect(lp); lp.connect(g); g.connect(v.node);
+  ahrEnv(g.gain, t, 0.7, 0.15, 1.1, 0.35);
+  o1.start(t); o1.stop(t + 1.7);
+  v.release(o1);
+  return t + 1.7;
+}
+
+// Rasenmäher in der Ferne (Sommerwochenende im Wohngebiet)
+export function lawnmower(ctx, dest, t, o = {}) {
+  const B = buffers(ctx);
+  const v = voiceOut(ctx, dest, o);
+  const dur = o.dur || rand(5, 9);
+  const f = rand(85, 105);
+  const eng = osc(ctx, 'sawtooth', f, t);
+  const wob = osc(ctx, 'sine', rand(0.2, 0.4), t), wd = gainNode(ctx, 6);
+  wob.connect(wd); wd.connect(eng.frequency);
+  const lp = filter(ctx, 'lowpass', 1300, 1.2);
+  const n = noiseSrc(ctx, B.pink, t, dur + 1), bp = filter(ctx, 'bandpass', 2600, 1), ng = gainNode(ctx, 0.25);
+  const g = gainNode(ctx, 0);
+  eng.connect(lp); lp.connect(g); n.connect(bp); bp.connect(ng); ng.connect(g); g.connect(v.node);
+  // Lastwechsel beim Mähen: Pegel schwankt langsam
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.5, t + 1);
+  for (let k = 1; k < dur - 1; k += 1.3) g.gain.linearRampToValueAtTime(rand(0.3, 0.6), t + k);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  eng.start(t); wob.start(t); eng.stop(t + dur + 0.05); wob.stop(t + dur + 0.05);
+  v.release(eng);
+  return t + dur;
+}
+
+// Schienenstoß der Pulsbahn: „ta-dam"
+export function railClack(ctx, dest, t, o = {}) {
+  const B = buffers(ctx);
+  const v = voiceOut(ctx, dest, o);
+  const src = noiseSrc(ctx, B.white, t, 0.2);
+  const bp = filter(ctx, 'bandpass', 1700, 2);
+  const g = gainNode(ctx, 0);
+  src.connect(bp); bp.connect(g); g.connect(v.node);
+  pulses(g.gain, [[t, 1, 0.002, 0.018], [t + 0.095, 0.8, 0.002, 0.022]]);
+  const p = osc(ctx, 'sine', 2350, t), pg = gainNode(ctx, 0);
+  p.connect(pg); pg.connect(v.node);
+  adEnv(pg.gain, t, 0.12, 0.002, 0.05);
+  p.start(t); p.stop(t + 0.15);
+  v.release(src);
+  return t + 0.2;
+}
+
 // Möwe: „kjau"
 export function gull(ctx, dest, t, o = {}) {
   const v = voiceOut(ctx, dest, o);
@@ -719,7 +798,7 @@ export function churchBell(ctx, dest, t, o = {}) {
 export function schoolBell(ctx, dest, t, o = {}) {
   const v = voiceOut(ctx, dest, o);
   const o1 = osc(ctx, 'square', 1250, t);
-  const bp = filter(ctx, 'bandpass', 2500, 3);
+  const bp = filter(ctx, 'bandpass', 1250, 2);
   const g = gainNode(ctx, 0);
   o1.connect(bp); bp.connect(g); g.connect(v.node);
   const dur = o.dur || 2.2;

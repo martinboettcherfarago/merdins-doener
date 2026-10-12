@@ -20,10 +20,19 @@ export class Mixer {
     this.master.connect(this.hp);
     if (limiter) {
       const c = ctx.createDynamicsCompressor();
-      c.threshold.value = -9; c.knee.value = 6; c.ratio.value = 10; c.attack.value = 0.003; c.release.value = 0.22;
-      this.hp.connect(c); c.connect(ctx.destination);
+      c.threshold.value = -4; c.knee.value = 4; c.ratio.value = 12; c.attack.value = 0.002; c.release.value = 0.2;
+      // Sicherheitsnetz hinter dem Limiter: linear bis 0,8, darüber weich bis höchstens 0,98
+      const sh = ctx.createWaveShaper();
+      const N = 2048, curve = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const x = (i / (N - 1)) * 2 - 1, a = Math.abs(x);
+        curve[i] = Math.sign(x) * (a < 0.8 ? a : 0.8 + 0.18 * Math.tanh((a - 0.8) / 0.18));
+      }
+      sh.curve = curve;
+      this.hp.connect(c); c.connect(sh); sh.connect(ctx.destination);
       this.limiter = c;
-    } else this.hp.connect(ctx.destination);
+      this.out = sh;
+    } else { this.hp.connect(ctx.destination); this.out = this.hp; }
 
     // Hallräume: weiter Saal für Musik, kurzer Straßenraum für Effekte und Umgebung
     this.hall = ctx.createConvolver();
@@ -34,19 +43,19 @@ export class Mixer {
     this.roomOut = gainNode(ctx, 0.5); this.room.connect(this.roomOut); this.roomOut.connect(this.master);
 
     // Musik
-    this.music = gainNode(ctx, 1);
+    this.music = gainNode(ctx, 2); // Musik-Grundpegel +6 dB
     this.musicVol = gainNode(ctx, 0);
     this.musicDuck = gainNode(ctx, 1);
     this.music.connect(this.musicVol); this.musicVol.connect(this.musicDuck); this.musicDuck.connect(this.master);
-    this.musicSend = gainNode(ctx, 1);
+    this.musicSend = gainNode(ctx, 2);
     this.musicSendVol = gainNode(ctx, 0);
     this.musicSend.connect(this.musicSendVol); this.musicSendVol.connect(this.hall);
 
     // Effekte
-    this.sfx = gainNode(ctx, 1);
+    this.sfx = gainNode(ctx, 1.4); // Effekte +3 dB
     this.sfxVol = gainNode(ctx, 0);
     this.sfx.connect(this.sfxVol); this.sfxVol.connect(this.master);
-    this.sfxSend = gainNode(ctx, 1);
+    this.sfxSend = gainNode(ctx, 1.4);
     this.sfxSendVol = gainNode(ctx, 0);
     this.sfxSend.connect(this.sfxSendVol); this.sfxSendVol.connect(this.room);
 
@@ -80,9 +89,8 @@ export class Mixer {
     const amb = s.ambience == null ? 1 : s.ambience;
     const m = s.muted ? 0 : clamp(+s.volume || 0, 0, 1);
     this.vol = { master: m, music: clamp(+s.music || 0, 0, 1), sfx: clamp(+s.sfx || 0, 0, 1), amb: clamp(+s.sfx || 0, 0, 1) * clamp(+amb, 0, 1) };
-    // leicht gekrümmt: der Regler wirkt gleichmäßiger
-    const curve = (v) => v * v * 0.35 + v * 0.65;
-    this.master.gain.setTargetAtTime(curve(this.vol.master) * 0.9, t, 0.08);
+    const curve = (v) => v; // linear wie bisher
+    this.master.gain.setTargetAtTime(curve(this.vol.master), t, 0.08);
     this.musicVol.gain.setTargetAtTime(curve(this.vol.music), t, 0.15);
     this.musicSendVol.gain.setTargetAtTime(curve(this.vol.music), t, 0.15);
     this.sfxVol.gain.setTargetAtTime(curve(this.vol.sfx), t, 0.08);
