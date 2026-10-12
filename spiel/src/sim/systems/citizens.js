@@ -58,6 +58,7 @@ export const STAGES = [
 export const SEWAGE_POP = 300;        // ab hier meldet sich die Stadtentwässerung
 export const SEWAGE_LEVEL = 3;        // Zonengebäude ab dieser Stufe brauchen einen Kanalanschluss (sonst Sickergrube)
 export const SEWAGE_ALL_POP = 3000;   // ab dieser Einwohnerzahl brauchen alle Zonengebäude den Kanal
+export const HEAT_LEVEL = 3;          // ab dieser Stufe brauchen Gebäude bei Kälte Fernwärme
 export const UMLAND_PER_DAY = 3;      // so viele Verstorbene holt das Umland pro Tag ab
 export const UMLAND_FEE = 60;        // € je Bestattung im Umland
 const BODIES_PER_HEARSE = 6;          // Verstorbene je Leichenwagen und Tag
@@ -603,8 +604,10 @@ function heatHourly(g, C) {
     if (!cz || !b.zone) continue;
     const r = b.comp < 0 || dem[b.comp] <= 0 ? 0 : Math.min(1, sup[b.comp] / dem[b.comp]);
     cz.heat = r >= 0.999 || hash2(b.id, 23) < r;
-    cz.cold = cz.heat ? 0 : hd;
-    if (!cz.heat && b.construct >= 1 && !b.abandoned) coldN++;
+    // Kleine Häuser heizen mit eigenen Öfen; ab Stufe 3 braucht es Fernwärme
+    cz.heatNeed = b.level >= HEAT_LEVEL;
+    cz.cold = cz.heat || !cz.heatNeed ? 0 : hd;
+    if (cz.cold && b.construct >= 1 && !b.abandoned) coldN++;
   }
   C.heatSupply = ts; C.heatDemand = td; C.coldBuildings = coldN;
 }
@@ -980,6 +983,7 @@ HAPPINESS_FACTORS.push((g, b) => {
   const C = g.ext && g.ext.citizens, cz = b.cz;
   if (!C || !C.hd || !cz) return null;
   if (cz.heat) return ['Fernwärme', C.hd * 3];
+  if (!cz.heatNeed) return null;
   return ['Kalte Wohnung', -C.hd * (b.zone === Z.RES ? 8 : 4)];
 });
 HAPPINESS_FACTORS.push((g, b) => {

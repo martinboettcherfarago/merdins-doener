@@ -16,8 +16,8 @@ const fail = (msg) => { failures++; console.log('  ✗ ' + msg); };
 const ok = (msg) => console.log('  ✓ ' + msg);
 const pct = (v) => (v * 100).toFixed(0) + '%';
 
-function makeCity({ services = false, sewage = 'none', cemetery = false, crematorium = false, seed = 4242, mapType = 'river' } = {}) {
-  const g = new Game({ size: 96, seed, mapType, difficulty: 'normal', name: 'Prüfstadt' });
+function makeCity({ services = false, sewage = 'none', cemetery = false, crematorium = false, seed = 4242, mapType = 'river', difficulty = 'normal' } = {}) {
+  const g = new Game({ size: 96, seed, mapType, difficulty, name: 'Prüfstadt' });
   const W = g.W, hy = g.world.highwayY;
   const idx = (x, y) => y * W + x;
   g.on('cards', (ids) => g.chooseCard(ids[0]));
@@ -83,7 +83,7 @@ function makeCity({ services = false, sewage = 'none', cemetery = false, cremato
   let eastRoad = false;
   const placeShore = (key) => {
     if (!eastRoad) { eastRoad = true; road(46, hy, 50, hy); road(50, hy - 10, 50, hy + 10); }
-    return place(key, 49, hy, false, 9);
+    return place(key, 49, hy, true, 9) || place(key, 34, hy, false, 26);
   };
   plan.step = () => {
     if (!plan.done1 && g.milestone >= 1) {
@@ -185,6 +185,64 @@ const results = {};
 if (only === 'all' || only === 'bare') results.bare = run('Ohne Friedhof und Kanal (wie sim-test)', { services: true, sewage: 'none', cemetery: false }, days);
 if (only === 'all' || only === 'full') results.full = run('Mit Friedhof, Krematorium, Kläranlage und Diensten', { services: true, sewage: 'plant', cemetery: true, crematorium: true }, days);
 if (only === 'all' || only === 'outlet') results.outlet = run('Nur Abwasserauslass, Friedhof', { services: true, sewage: 'outlet', cemetery: true }, days);
+
+// --- Bezirke mit Verordnungen
+let districtsCity = null;
+if (only === 'all' || only === 'districts') {
+  const ids = {};
+  districtsCity = run('Bezirke mit Verordnungen', { services: true, sewage: 'plant', cemetery: true }, Math.max(40, Math.round(days * 0.8)), ({ g, hy }, d) => {
+    if (d !== 8) return;
+    // West-Wohngebiet: Hochhausverbot + Verkehrsberuhigung; Ost-Wohngebiet: Nachverdichtung + Steuerzuschlag; Gewerbe: Einkaufsmeile
+    const rect = (x0, y0, x1, y1) => { const t = []; for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) t.push(y * g.W + x); return t; };
+    const west = DIST.createDistrict(g); DIST.paintTiles(g, west.id, rect(9, hy - 12, 27, hy - 1)); DIST.finishStroke(g, west.id);
+    const east = DIST.createDistrict(g); DIST.paintTiles(g, east.id, rect(28, hy - 12, 45, hy - 1)); DIST.finishStroke(g, east.id);
+    const shop = DIST.createDistrict(g); DIST.paintTiles(g, shop.id, DIST.blockTiles(g, (hy + 3) * g.W + 12)); DIST.finishStroke(g, shop.id);
+    DIST.toggleDistrictPolicy(g, west.id, 'd_lowrise'); DIST.toggleDistrictPolicy(g, west.id, 'd_tempo30'); DIST.toggleDistrictPolicy(g, west.id, 'd_watch');
+    DIST.toggleDistrictPolicy(g, east.id, 'd_density'); DIST.setDistrictTax(g, east.id, 3);
+    DIST.toggleDistrictPolicy(g, shop.id, 'd_shopping');
+    Object.assign(ids, { west: west.id, east: east.id, shop: shop.id });
+    console.log('    Bezirke:', g.ext.districts.list.map((x) => `${x.name} (${DIST.districtArea(g, x.id)} Felder)`).join(', '));
+  });
+  const g = districtsCity.g;
+  const D = g.ext.districts;
+  const inD = (b, id) => D.map[DIST.anchorTile(g, b)] === id;
+  const westHigh = [...g.buildings.values()].filter((b) => b.zone && inD(b, ids.west) && b.level > 3).length;
+  westHigh === 0 ? ok('Hochhausverbot: kein Gebäude über Stufe 3 im Bezirk') : fail(`Hochhausverbot verletzt (${westHigh} Gebäude über Stufe 3)`);
+  const eastRes = [...g.buildings.values()].filter((b) => b.zone === 1 && inD(b, ids.east) && !b.abandoned);
+  const dense = eastRes.filter((b) => b._dens).length;
+  dense === eastRes.length && dense > 0 ? ok(`Nachverdichtung: ${dense} Wohngebäude mit +20 % Kapazität`) : fail(`Nachverdichtung greift nicht (${dense}/${eastRes.length})`);
+  const bud = g.budget();
+  bud.inc.distTax > 0 ? ok(`Bezirkssteuern bringen ${Math.round(bud.inc.distTax)} €/Tag`) : fail('Bezirkssteuern ohne Wirkung');
+  bud.exp.distPolicies > 0 ? ok(`Bezirksverordnungen kosten ${Math.round(bud.exp.distPolicies)} €/Tag`) : fail('Bezirksverordnungen kosten nichts');
+  const st = DIST.computeDistrictStats(g);
+  for (const d of D.list) { const x = st[d.id]; console.log(`    ${d.name}: ${x.residents} Einw., ${x.jobs} Jobs, Glück ${x.happiness.toFixed(0)}, Bodenwert ${x.lv.toFixed(0)}, Lärm ${(x.noise * 100).toFixed(0)}%, Steuern ${Math.round(x.taxIncome)} €/T, Verordnungen ${Math.round(x.policyCost)} €/T`); }
+  const shopB = [...g.buildings.values()].find((b) => b.zone === 2 && inD(b, ids.shop));
+  if (shopB) { const out = []; happinessFactors(g, shopB, out); const f = out.find(([l]) => l.includes('Einkaufsmeile')); f ? ok(`Einkaufsmeile im Inspektor: „${f[0]}" ${f[1].toFixed(1)}`) : fail('Einkaufsmeile fehlt in den Glücksfaktoren'); }
+  // Speichern/Laden der Bezirke
+  const g2 = Game.fromSave(JSON.parse(JSON.stringify(g.serialize())));
+  const D2 = g2.ext.districts;
+  let same = D2.list.length === D.list.length;
+  for (let i = 0; i < g.N && same; i++) if (D2.map[i] !== D.map[i]) same = false;
+  same && D2.list.every((d, k) => d.name === D.list[k].name && d.policies.join() === D.list[k].policies.join() && d.tax === D.list[k].tax) ? ok('Bezirke überstehen Speichern/Laden') : fail('Bezirke nach Laden verändert');
+  // Auflösen
+  const n0 = D.list.length;
+  DIST.deleteDistrict(g, ids.shop);
+  D.list.length === n0 - 1 && ![...D.map].includes(ids.shop) ? ok('Bezirk auflösen entfernt Fläche und Eintrag') : fail('Bezirk auflösen unvollständig');
+}
+
+// --- Winter: Fernwärme
+if (only === 'all' || only === 'winter') {
+  const mk = (heat) => run(heat ? 'Winter mit Heizkraftwerk (Sandkasten)' : 'Winter ohne Fernwärme (Sandkasten)', { services: true, sewage: 'plant', cemetery: true, difficulty: 'sandbox' }, 30, ({ g, place, hy }, d) => {
+    if (heat && g.milestone >= 2 && !g.hasBuilt('district_heating')) place('district_heating', 30, hy + 15, true);
+    if (d === 10) { let n = 0; for (const b of g.buildings.values()) if (b.zone === 1 && b.level < 3 && b.construct >= 1 && !b.abandoned && n++ < 40) g.setBuildingLevel(b, 3); }
+    if (d >= 12) { g.ext.weather = { ...(g.ext.weather || {}), temp: -6, season: 'winter' }; }
+  });
+  const a = mk(false), b = mk(true);
+  const ca = a.g.ext.citizens.stats.cold, cb = b.g.ext.citizens.stats.cold;
+  const sa = summary(a.rows, 18), sb = summary(b.rows, 18);
+  ca > cb ? ok(`Ohne Fernwärme frieren mehr Gebäude (${ca} vs. ${cb})`) : fail(`Fernwärme ohne Wirkung (${ca} vs. ${cb})`);
+  sa.sick > sb.sick ? ok(`Kälte macht krank (${pct(sa.sick)} vs. ${pct(sb.sick)})`) : fail(`Kälte ohne Einfluss auf Krankheit (${pct(sa.sick)} vs. ${pct(sb.sick)})`);
+}
 
 // --- Bewertung
 console.log('\n=== Bewertung ===');
