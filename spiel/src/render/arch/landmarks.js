@@ -9,3 +9,5 @@ import './lm_venues.js';
 import './lm_culture.js';
 import './lm_gardens.js';
 import './lm_historic.js';
+import './lm_themepark.js';
+import './lm_fair.js';

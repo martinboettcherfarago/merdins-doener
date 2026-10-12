@@ -49,7 +49,7 @@ export function ferrisWheel(k, R, o = {}) {
     if (d > 0) torus(k, 'metal_light', 0, 0, s * W / 2, 0.9 * M, 0.2 * M, { tubular: 12, radial: 4 });
   }
   k.cyl('metal_light', 0, 0, -W / 2 - 0.3 * M, 0.7 * M, W + 0.6 * M, { rx: Math.PI / 2, seg: 12, x: 0, y: 0 });
-  const sp = d === 2 ? Math.round(n * 1.5) : n;
+  const sp = d === 2 ? Math.round(n * 1.5) : d === 1 ? n : Math.max(6, n >> 1);
   for (let i = 0; i < sp; i++) {
     const a = (i / sp) * Math.PI * 2;
     const c = Math.cos(a), sn = Math.sin(a);
@@ -73,6 +73,7 @@ export function ferrisWheel(k, R, o = {}) {
     const cx = Math.cos(a) * rr, cy = Math.sin(a) * rr;
     const seg = d === 2 ? 14 : 8;
     const col = CAB_COLORS[i % CAB_COLORS.length];
+    if (d === 0) { k.cyl(col, cx, cy, -cl / 2, cr, cl, { rx: Math.PI / 2, seg: 5 }); continue; }
     k.cyl(o.glass || 'glass_skylight', cx, cy, -cl / 2, cr * 0.97, cl, { rx: Math.PI / 2, seg, lit: 0.7 + (i % 4) * 0.07 });
     for (const zz of [-cl / 2 - 0.04 * M, cl / 2 - 0.1 * M]) k.cyl(col, cx, cy, zz, cr, 0.14 * M, { rx: Math.PI / 2, seg });
     if (d > 0) {
