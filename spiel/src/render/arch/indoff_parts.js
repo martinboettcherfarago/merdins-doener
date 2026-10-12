@@ -313,6 +313,67 @@ export class B {
       for (const f of axles) { [px, pz] = P(f); this.box('rubber', px, 0, pz, 2.6, 1.0, 1.0, ry); }
     }
   }
+  // Lokales Fahrzeug-Koordinatensystem: T(f, l) → [x, z] (f = vorwärts, l = nach rechts)
+  T(x, z, ry) { const s = Math.sin(ry), c = Math.cos(ry); return (f, l = 0) => [x + s * f + c * l, z + c * f - s * l]; }
+  // Rad als liegender Zylinder quer zur Fahrtrichtung
+  wheel(P, ry, f, l, r, w) { const [px, pz] = P(f, l); this.hcyl('rubber', px, r, pz, r, w, 'x', { ry, seg: 10 }); }
+  // Traktor (≈ 4,2 m), optional mit Anhänger ('hay' | 'grain' | 'logs')
+  tractor(x, z, ry, color = 'paint_green', trailer = null) {
+    if (!this.fits(x, z, ry, trailer ? 10 : 4.4, 2.5)) return;
+    const P = this.T(x, z, ry), at = (f, l, y, sx, sy, sz, mat) => { const [px, pz] = P(f, l); this.box(mat, px, y, pz, sx, sy, sz, ry); };
+    const o = trailer ? 2.6 : 0;
+    if (this.d === 0) { at(o, 0, 0.3, 1.8, 2.2, 3.8, color); if (trailer) at(-2.6, 0, 0.5, 2.2, 1.6, 4.6, trailer === 'hay' ? 'hay' : 'wood_planks'); return; }
+    at(o + 0.6, 0, 0.75, 1.1, 1.0, 2.6, color);
+    at(o - 0.5, 0, 1.6, 1.5, 1.35, 1.5, 'trim_dark');
+    at(o - 0.5, 0, 2.95, 1.6, 0.12, 1.7, color);
+    at(o + 1.85, 0, 0.75, 0.9, 0.8, 0.2, 'metal_dark');
+    for (const l of [-0.95, 0.95]) { this.wheel(P, ry, o - 0.6, l, 0.85, 0.5); this.wheel(P, ry, o + 1.3, l * 0.9, 0.5, 0.35); }
+    if (this.d >= 2) { const [ex, ez] = P(o + 1.1, 0.35); this.cyl('metal_dark', ex, 1.75, ez, 0.07, 1.1, { seg: 5, exact: true }); }
+    if (trailer) {
+      at(-2.6, 0, 0.75, 2.3, 0.25, 4.8, 'metal_dark');
+      if (trailer === 'hay') for (let i = 0; i < 3; i++) for (let k = 0; k < 2; k++) at(-4.2 + i * 1.6, (k - 0.5) * 1.1, 1.0 + (i % 2) * 0, 1.0, 0.9, 1.4, 'hay');
+      else if (trailer === 'logs') for (let k = 0; k < 3; k++) { const [px, pz] = P(-2.6, (k - 1) * 0.6); this.g('log_wood', new THREE.CylinderGeometry(0.28, 0.28, 4.6, 6).rotateX(HP), px, 1.3, pz, { ry }); }
+      else { at(-2.6, 0, 1.0, 2.3, 1.2, 4.8, color === 'paint_red' ? 'paint_green' : 'paint_red'); at(-2.6, 0, 2.15, 2.1, 0.1, 4.6, 'field_wheat'); }
+      for (const l of [-1.0, 1.0]) this.wheel(P, ry, -2.6, l, 0.5, 0.35);
+      at(-0.15, 0, 0.6, 0.15, 0.15, 0.7, 'metal_dark');
+    }
+  }
+  // Hydraulikbagger auf Ketten; swing dreht den Oberwagen
+  excavator(x, z, ry, color = 'paint_yellow', swing = 0) {
+    if (!this.fits(x, z, ry, 7, 3.4)) return;
+    const P = this.T(x, z, ry), r2 = ry + swing, Q = this.T(x, z, r2);
+    for (const l of [-1.1, 1.1]) { const [px, pz] = P(0, l); this.box('metal_dark', px, 0, pz, 0.8, 0.9, 4.2, ry); }
+    const [bx, bz] = Q(-0.3);
+    this.box(color, bx, 1.0, bz, 2.6, 1.3, 3.2, r2);
+    if (this.d >= 1) { const [cx, cz] = Q(0.6, -0.6); this.box('trim_dark', cx, 2.3, cz, 1.0, 1.3, 1.2, r2); this.box(color, cx, 3.6, cz, 1.05, 0.1, 1.25, r2); }
+    const [p0x, p0z] = Q(1.0, 0.4), [p1x, p1z] = Q(3.6, 0.4), [p2x, p2z] = Q(5.2, 0.4);
+    this.beam(color, [p0x, 1.9, p0z], [p1x, 4.6, p1z], 0.45, 0.6);
+    this.beam(color, [p1x, 4.6, p1z], [p2x, 1.4, p2z], 0.35, 0.45);
+    if (this.d >= 1) this.box('metal_dark', p2x, 0.5, p2z, 1.1, 0.95, 0.9, r2);
+  }
+  // Muldenkipper (Großmuldenkipper im Tagebau oder Lkw-Kipper)
+  dumper(x, z, ry, color = 'paint_yellow', big = false) {
+    const k = big ? 1.5 : 1;
+    if (!this.fits(x, z, ry, 7.5 * k, 3.6 * k)) return;
+    const P = this.T(x, z, ry), at = (f, l, y, sx, sy, sz, mat) => { const [px, pz] = P(f * k, l * k); this.box(mat, px, y * k, pz, sx * k, sy * k, sz * k, ry); };
+    at(0, 0, 0.9, 2.6, 0.6, 6.6, 'metal_dark');
+    const [mx, mz] = P(-0.8 * k, 0);
+    this.prism(color, [[-1.7 * k, 1.5 * k], [1.7 * k, 1.5 * k], [1.7 * k, 3.6 * k], [-1.7 * k, 3.6 * k]], 4.8 * k, mx, 0, mz, ry - 0, { rx: 0 });
+    if (this.d >= 1) at(2.6, -0.5, 1.5, 1.6, 1.5, 1.4, 'trim_dark');
+    if (this.d >= 1) at(2.6, -0.5, 3.0, 1.7, 0.12, 1.5, color);
+    if (this.d >= 1) at(-0.8, 0, 3.4, 3.2, 0.3, 4.6, this.pick(['gravel', 'rock', 'dirt']));
+    for (const l of [-1.25, 1.25]) for (const f of [2.4, -1.4, -2.6]) this.wheel(P, ry, f * k, l * k, 0.85 * k, 0.6 * k);
+  }
+  // Radlader
+  loader(x, z, ry, color = 'paint_yellow') {
+    if (!this.fits(x, z, ry, 7.0, 2.8)) return;
+    const P = this.T(x, z, ry), at = (f, l, y, sx, sy, sz, mat) => { const [px, pz] = P(f, l); this.box(mat, px, y, pz, sx, sy, sz, ry); };
+    at(-0.8, 0, 0.7, 2.0, 1.2, 3.2, color);
+    at(-0.3, 0, 1.9, 1.5, 1.5, 1.4, 'trim_dark');
+    at(-0.3, 0, 3.4, 1.6, 0.1, 1.5, color);
+    if (this.d >= 1) { at(1.6, 0, 0.9, 1.0, 0.5, 1.6, color); at(2.8, 0, 0.2, 2.7, 1.1, 1.1, 'metal_dark'); }
+    for (const l of [-1.0, 1.0]) for (const f of [1.2, -1.6]) this.wheel(P, ry, f, l, 0.8, 0.55);
+  }
   // Gabelstapler
   forklift(x, z, ry, color = 'paint_orange') {
     if (this.d < 2) return;

@@ -486,11 +486,18 @@ function kleinfabrik(b) {
   b.take(0, z, sx, sz, 0.3);
   for (const s of ['left', 'right', 'back']) b.winRow(H.f[s], -H.f[s].len / 2 + 1, H.f[s].len / 2 - 1, 1.3, 1.4, 2.2, { spacing: 3.6, arch: rib, frame: 'window_frame_dark', lod: s !== 'back' });
   // Kopfbau mit Treppengiebel
-  const kw = Math.min(6.5, sx * 0.62), kd = 3.2, kz = zf + kd / 2 - 0.2;
-  b.box(wall, 0, 0, kz, kw, 6.5, kd);
-  if (b.d >= 1) { b.box('stone_grey', 0, 0, kz, kw + 0.12, 0.7, kd + 0.12); b.box('trim_stone', 0, 6.5, kz, kw + 0.25, 0.25, kd + 0.25); }
-  for (let k = 0; k < 3; k++) b.box(wall, 0, 6.75 + k * 0.9, kz, kw * (0.8 - k * 0.25), 0.9, kd * 0.9);
-  if (b.d >= 1) for (let k = 0; k < 3; k++) b.box('trim_stone', 0, 6.75 + k * 0.9 + 0.82, kz, kw * (0.8 - k * 0.25) + 0.15, 0.12, kd * 0.9 + 0.15);
+  const kw = Math.min(6.5, sx * 0.62), kd = 3.4, kz = zf + kd / 2 - 0.2, kh = 6.5;
+  b.hall({ x: 0, z: kz, sx: kw, sz: kd, h: kh, wall, roof: 'gable', roofMat: b.pick(['roof_tiles_red', 'roof_slate', 'roof_tiles_anthracite']), pitch: 48, ridge: 'z', ribs: false, plinth: 'stone_grey', plinthH: 0.7, over: 0.2, gableOver: 0, gutter: false });
+  if (b.d >= 1) b.box('trim_stone', 0, kh - 0.25, kz + kd / 2 - 0.05, kw + 0.25, 0.25, 0.3);
+  // Treppengiebel: Stufen folgen der Dachneigung und ragen darüber hinaus
+  const rise = Math.tan((48 * PI) / 180) * (kw / 2), st = rise / 4;
+  for (let k = 0; k < 4; k++) {
+    const w = Math.max(0.9, kw - 2 * k * (kw / 2 / 4.6));
+    b.box(wall, 0, kh + k * st, kz + kd / 2 - 0.25, w, st + 0.35, 0.55);
+    if (b.d >= 1) b.box('trim_stone', 0, kh + (k + 1) * st + 0.35, kz + kd / 2 - 0.25, w + 0.12, 0.12, 0.65);
+  }
+  if (b.d >= 1) b.cone('trim_stone', 0, kh + 4 * st + 0.47, kz + kd / 2 - 0.25, 0.25, 0.9, { seg: 4, exact: true, ry: PI / 4 });
+  if (b.d >= 1) b.winRow(b.face(0, kz, kw, kd + 0.3, 'front'), -0.1, 0.1, kh + 0.4, 0.8, 1.1, { arch: 'trim_stone', lod: false });
   b.take(0, kz, kw, kd, 0.3);
   const kf = b.face(0, kz, kw, kd, 'front');
   b.fbox('door_wood', kf, 0, 0, 1.8, 2.8, 0.1, 0.02);
@@ -498,7 +505,7 @@ function kleinfabrik(b) {
   b.winRow(kf, -kw / 2 + 0.7, -1.3, 1.1, 1.0, 1.7, { arch: rib, spacing: 1.6 });
   b.winRow(kf, 1.3, kw / 2 - 0.7, 1.1, 1.0, 1.7, { arch: rib, spacing: 1.6 });
   b.winRow(kf, -kw / 2 + 0.7, kw / 2 - 0.7, 3.9, 1.0, 1.7, { arch: rib, spacing: 1.6 });
-  b.sign(kf, 0, 5.75, kw - 1.4, 0.55, { bg: 'paint_white', logo: b.pick(LOGO) });
+  b.sign(kf, 0, 5.6, kw - 1.4, 0.55, { bg: 'paint_white', logo: b.pick(LOGO) });
   b.chimney(-sx / 2 + 1.6, z - sz / 2 + 1.8, { type: 'square', h: 16, r: 0.8, mat: wall, smoke: 1 });
   if (deep) b.putTruck({ type: 'rigid', load: 'tarp' }, { prefer: 'front' });
   if (wide) { b.putPallets(3, { prefer: 'front' }); b.putTree(0.9, 'laub', { prefer: 'left' }); b.putTree(0.8, 'laub', { prefer: 'right' }); }
