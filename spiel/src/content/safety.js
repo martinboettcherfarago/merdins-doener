@@ -133,8 +133,8 @@ for (const ev of EVENTS) {
   if (ev.id === 'storm') ev.cond = (g) => (!prev || prev(g)) && (!g.ext.weather || season(g) === 'autumn' || season(g) === 'winter');
 }
 
-// ---------- Stadtfunk zum Wetter
-CHATTER.push(
+// ---------- Stadtfunk zum Wetter (vor dem allgemeinen Rückfall-Eintrag einfügen, der muss der letzte bleiben)
+CHATTER.splice(Math.max(0, CHATTER.length - 1), 0,
   { when: (g) => W(g).rain > 0.3, texts: ['Regen, Regen, Regen. Mein Schirm hat schon aufgegeben.', 'Bei dem Wetter nehme ich lieber die Pulsbahn.', 'Die Pfützen an der Kreuzung sind tief genug zum Schwimmen.', 'Endlich Regen – mein Garten dankt.', 'Kinder in Gummistiefeln, Hunde mit nassem Fell. Herbststimmung.'] },
   { when: (g) => W(g).snow > 0.2, texts: ['Es schneit! Die Kinder sind nicht mehr zu halten.', 'Schneeflocken auf der Hochbahn – wie im Bilderbuch.', 'Wer hat den Schneemann vor dem Rathaus gebaut? Großartig.', 'Schnee bis zu den Knöcheln. Ich hole den Schlitten raus.'] },
   { when: (g) => W(g).snowCover > 0.4 && !g.hasBuilt('snow_depot'), texts: ['Die Straßen sind spiegelglatt! Wo bleibt der Winterdienst?', 'Drei Autos im Graben an einem Morgen. Wir brauchen Räumfahrzeuge!', 'Mit dem Auto komme ich nicht mehr aus der Einfahrt.'] },

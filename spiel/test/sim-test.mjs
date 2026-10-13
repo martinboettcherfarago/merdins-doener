@@ -76,7 +76,8 @@ for (let d = 1; d <= days; d++) {
   }
   if (!builtCem && g.milestone >= 2) {
     builtCem = true;
-    place('cemetery', 36, hy - 9); place('landfill', 8, hy + 9);
+    // Zweite Deponie im Norden: Die erste (Süden, Radius 15) erreicht die Wohnblöcke nördlich der Hauptstraße nicht
+    place('cemetery', 36, hy - 9); place('landfill', 26, hy - 14);
     console.log('  Kläranlage:', placeAtShore(g, 'sewage_plant', 27, hy, 80));
   }
   if (!builtTransit && g.isUnlocked('transit') && g.money > 9000) {
@@ -121,3 +122,8 @@ for (const b of g.buildings.values()) {
   for (const [l, v] of out) agg[l] = (agg[l] || 0) + v;
 }
 console.log('Ø Glücksfaktoren Wohnen:', Object.entries(agg).map(([l, v]) => `${l} ${(v / nres).toFixed(1)}`).join(', '));
+// Müllabfuhr: Auslastung der Deponien und Wohnhäuser ohne Abdeckung (Ursache für den Glücksfaktor „Müllabfuhr")
+const dumps = [...g.buildings.values()].filter((b) => b.key === 'landfill' || b.key === 'incinerator');
+let noCov = 0, lowCov = 0;
+for (const b of g.buildings.values()) if (b.zone === 1 && !b.abandoned) { const c = g.cov.garbage[b.y * W + b.x]; if (c <= 0) noCov++; else if (c < 0.5) lowCov++; }
+console.log('Müll:', dumps.map((b) => `${b.key}(${b.x},${b.y}) Last ${(b.load * 100).toFixed(0)} %`).join(', '), `| Wohnhäuser ohne Abdeckung ${noCov}/${nres}, schwach ${lowCov}`);

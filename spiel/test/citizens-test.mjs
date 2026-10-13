@@ -252,7 +252,8 @@ if (only === 'all' || only === 'winter') {
   const mk = (heat) => run(heat ? 'Winter mit Heizkraftwerk (Sandkasten)' : 'Winter ohne Fernwärme (Sandkasten)', { services: true, sewage: 'plant', cemetery: true, difficulty: 'sandbox' }, 30, ({ g, place, hy }, d) => {
     if (heat && g.milestone >= 2 && !g.hasBuilt('district_heating')) place('district_heating', 30, hy + 15, true);
     if (d === 10) { let n = 0; for (const b of g.buildings.values()) if (b.zone === 1 && b.level < 3 && b.construct >= 1 && !b.abandoned && n++ < 40) g.setBuildingLevel(b, 3); }
-    if (d >= 12) { g.ext.weather = { ...(g.ext.weather || {}), temp: -6, season: 'winter' }; }
+    // Frost über das Wettersystem erzwingen (ein überschriebenes g.ext.weather setzt S4 im nächsten Schritt zurück)
+    if (d >= 12) { const W = g.system('weather'); if (W && W.set) W.set(g, 'frost'); else g.ext.weather = { ...(g.ext.weather || {}), temp: -6, season: 'winter' }; }
   });
   const a = mk(false), b = mk(true);
   const ca = a.g.ext.citizens.stats.cold, cb = b.g.ext.citizens.stats.cold;

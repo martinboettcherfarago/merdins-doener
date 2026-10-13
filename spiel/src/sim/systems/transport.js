@@ -1710,13 +1710,17 @@ function commuteEffect(g) {
   const T = TS(g);
   if (!T.covField || !T.taktField) return;
   const strike = g.eff('busStrike') > 0;
-  if (strike) return;
+  const pcov = g.cov.transit, pen = g.transitPenalty;
   for (const b of g.buildings.values()) {
     if (b.zone !== Z.RES || b.abandoned || !b.occ) continue;
     const i = b.y * g.W + b.x;
-    const c = T.covField[i];
+    let c = strike ? 0 : T.covField[i];
+    let tc = 6 + Math.min(30, T.taktField[i]) / 2 + 10; // Fußweg + halbe Wartezeit + Fahrt
+    // Pulsbahn (Q2): fährt kreuzungsfrei über dem Stau – wer an einer Station wohnt, pendelt kürzer.
+    // Überfüllte Stationen (Strafe aktiv) helfen nicht.
+    const p = pcov ? pcov[i] : 0;
+    if (p > 0.05 && !(pen && pen[i])) { tc = Math.min(strike ? Infinity : tc, 19); c = Math.max(c, p * 0.8); }
     if (c < 0.05) continue;
-    const tc = 6 + Math.min(30, T.taktField[i]) / 2 + 10; // Fußweg + halbe Wartezeit + Fahrt
     if (tc < b.commute) b.commute -= (b.commute - tc) * c * 0.12;
   }
 }
@@ -1735,10 +1739,16 @@ function adjustCongestion(g) {
   }
   // Busspuren: Autos haben auf Busstrecken weniger Platz
   if (g.policies.has('tp_buslanes')) for (const l of T.lines) if (l.mode === 'bus') for (const t of l.path) cong[t] *= 1.08;
-  // Ampeln: Wartezeit an der Kreuzung
-  if (g.eff('greenWave') <= 0) for (const i of T.signals) cong[i] = Math.max(cong[i] + 0.06, 0.84);
-  // Unfälle blockieren die Kreuzung
-  for (const a of T.accidents) if (g.time < a.until) cong[a.tile] = Math.max(cong[a.tile], 1.75);
+  // Ampeln und Unfälle über die Kern-Schnittstelle g.tileDelay (Fahrzeit-Aufschlag), damit die Auslastung ehrlich bleibt
+  const delay = g.tileDelay;
+  if (delay) {
+    delay.fill(0);
+    if (g.eff('greenWave') <= 0) for (const i of T.signals) delay[i] = 0.27; // ≈ 21 % langsamer an der Kreuzung
+    for (const a of T.accidents) if (g.time < a.until) delay[a.tile] = 3; // Kreuzung fast dicht
+  } else {
+    if (g.eff('greenWave') <= 0) for (const i of T.signals) cong[i] = Math.max(cong[i] + 0.06, 0.84);
+    for (const a of T.accidents) if (g.time < a.until) cong[a.tile] = Math.max(cong[a.tile], 1.75);
+  }
 }
 
 function accidentsHour(g, h) {
@@ -2019,7 +2029,11 @@ registerSystem({
     T.marks = d.marks || 0;
     changed(T);
     scanFacilities(g);
+    // Fahrzeuge werden neu eingesetzt: Nummern ab 1 vergeben, der gespeicherte Zähler bleibt (stabile IDs beim Laden)
+    const savedVeh = T.nextVeh;
+    T.nextVeh = 1;
     rebuildAll(g);
+    T.nextVeh = Math.max(savedVeh || 1, T.nextVeh);
     updateSignals(g);
     rebuildFerries(g);
     stopTakts(g);

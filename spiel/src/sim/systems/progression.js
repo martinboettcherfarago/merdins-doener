@@ -569,6 +569,8 @@ const G = {
   money: (target) => ({ id: 'money', label: `${fmtMoney(target)} in der Kasse`, cur: (g) => g.money, target, fmt: fmtMoney }),
   net: (target, hold) => ({ id: 'net', label: `Tagesbilanz ≥ +${fmtMoney(target)}`, cur: (g) => g.lastBudget?.net || 0, target, hold, fmt: fmtMoney }),
   riders: (target, hold) => ({ id: 'riders', label: `${fmt(target)} Pulsbahn-Fahrgäste pro Tag`, cur: (g) => g.stats.ridersToday || 0, target, hold, fmt }),
+  // ÖPNV gesamt (Pulsbahn heute + Bus & Tram gestern) – wie die Kopfzeile „ÖPNV"
+  oepnv: (target, hold) => ({ id: 'oepnv', label: `${fmt(target)} ÖPNV-Fahrgäste pro Tag`, cur: (g) => (g.stats.ridersToday || 0) + (g.ext.transport?.day?.riders || 0), target, hold, fmt }),
   flow: (target, hold) => ({ id: 'flow', label: `Ø Verkehrsfluss ≥ ${target} %`, cur: (g) => (S(g).counters.dayFlow || 0) * 100, target, hold, fmt: (v) => `${Math.round(v)} %` }),
   tourism: (target) => ({ id: 'tourism', label: `${fmt(target)} Touristen pro Tag`, cur: (g) => g.stats.tourism || 0, target, fmt }),
   edu: (target) => ({ id: 'edu', label: `Ø Bildung ≥ ${target} %`, cur: (g) => g.stats.edu * 100, target, fmt: (v) => `${Math.round(v)} %` }),
@@ -641,7 +643,7 @@ export const SCENARIOS = [
       { day: 10, who: 'umwelt', text: 'Industrie macht Abgase – halte sie fern von den Wohngebieten oder setz auf Büros.' },
       { day: 35, event: 'bees' },
     ],
-    goals: [G.pop(3500), G.pollution(4, 3), G.parks(12)],
+    goals: [G.pop(4000), G.pollution(4, 3), G.parks(12)],
     banned: ['coal', 'gas', 'incinerator', 'refinery', 'district_heating'],
     fails: ['bankrupt'],
     setup(g) { g.money = 52000; },
@@ -655,7 +657,7 @@ export const SCENARIOS = [
       { day: 12, who: 'geld', text: 'Jeder Euro zählt im Bergland. Prüfe den Haushalt, bevor du baust.' },
       { day: 30, event: 'plantclose' },
     ],
-    goals: [G.jobs(3, 500, 'in der Industrie'), G.money(60000), G.pop(1500)],
+    goals: [G.jobs(3, 500, 'in der Industrie'), G.money(55000), G.pop(1500)],
     fails: ['bankrupt'],
     setup(g) { g.money = 30000; g.addEffect('indDemand', 30, 10, 'Erzfund'); },
   },
@@ -686,7 +688,7 @@ export const SCENARIOS = [
       { day: 15, event: 'citizenbond' },
       { day: 30, who: 'buerger', text: 'Die Bürger halten zu dir. Noch ein Endspurt!' },
     ],
-    goals: [G.noLoans(), G.money(20000), G.pop(1600, 3)],
+    goals: [G.noLoans(), G.money(12000), G.pop(1600, 3)],
     fails: ['bankrupt'],
     setup(g) {
       g.milestone = 2;
@@ -695,8 +697,8 @@ export const SCENARIOS = [
       ensureUtilities(g, { margin: 1.35 });
       ensureServices(g, ['fire', 'police', 'clinic', 'school', 'landfill'], 3);
       settle(g, 3);
-      g.money = -8000;
-      g.loans.push({ amount: 60000, weeks: 30, weeksLeft: 22, rate: 0.015, weekly: 60000 * 0.015 });
+      g.money = -3000;
+      g.loans.push({ amount: 60000, weeks: 30, weeksLeft: 16, rate: 0.015, weekly: 60000 * 0.015 });
       g.loans.push({ amount: 25000, weeks: 20, weeksLeft: 16, rate: 0.012, weekly: 25000 * 0.012 });
       for (const id of ['smoke', 'bikes', 'freetransit', 'recycling']) if (POLICIES.find((p) => p.id === id)) g.policies.add(id);
     },
@@ -710,7 +712,7 @@ export const SCENARIOS = [
       { day: 3, who: 'verkehr', text: 'Alleen haben die doppelte Kapazität und sind schneller. Die Gassen sind das Nadelöhr.' },
       { day: 12, event: 'bikelanes' },
     ],
-    goals: [G.commute(28, 3), G.riders(400, 2), G.pop(3500, 3)],
+    goals: [G.commute(34, 3), G.oepnv(1200, 2), G.pop(3500, 3)],
     fails: ['bankrupt', 'unhappy'],
     setup(g) {
       g.milestone = 3;
@@ -742,7 +744,7 @@ export const SCENARIOS = [
       { day: 25, event: 'coworking' },
       { day: 45, who: 'bau', text: 'Ab „Großstadt" (4.000 Einwohner) dürfen wir eine Universität bauen.' },
     ],
-    goals: [G.pop(4500), G.edu(60), G.built('highschool'), G.built('university'), G.jobs(4, 700, 'in Büros')],
+    goals: [G.pop(4500), G.edu(48), G.built('highschool'), G.built('university'), G.jobs(4, 700, 'in Büros')],
     fails: ['bankrupt'],
     setup(g) { g.money = 90000; },
   },
@@ -767,7 +769,7 @@ export const SCENARIOS = [
       { day: 0, who: 'buerger', text: 'Niedrige Steuern, viele Parks und ein Spielplatz in jeder Straße – so wird man glücklich.' },
       { day: 15, event: 'market' },
     ],
-    goals: [G.happy(78, 5), G.pop(600), G.popMax(1800), G.jobs(3, 60, 'in der Industrie (höchstens)')].map((x) => (x.id === 'jobs3' ? { ...x, label: 'Höchstens 60 Industrie-Jobs', cmp: '<=' } : x)),
+    goals: [G.happy(72, 5), G.pop(600), G.popMax(2500), G.jobs(3, 250, 'in der Industrie (höchstens)')].map((x) => (x.id === 'jobs3' ? { ...x, label: 'Höchstens 250 Industrie-Jobs', cmp: '<=' } : x)),
     fails: ['bankrupt'],
     setup(g) { g.money = 45000; },
   },
@@ -780,7 +782,7 @@ export const SCENARIOS = [
       { day: 10, event: 'foodtruck' },
       { day: 25, who: 'geld', text: 'Brunnenplätze und Parkhäuser bringen Kundschaft ins Gewerbe.' },
     ],
-    goals: [G.built('doener', 'Mêrdîn’s Dönerpalast eröffnet'), G.jobs(2, 450, 'im Gewerbe'), G.happy(68), G.pop(2000)],
+    goals: [G.built('doener', 'Mêrdîn’s Dönerpalast eröffnet'), G.jobs(2, 800, 'im Gewerbe'), G.happy(68), G.pop(3500)],
     fails: ['bankrupt'],
     setup(g) { g.money = 70000; g.landmarkVouchers.add('doener'); },
   },

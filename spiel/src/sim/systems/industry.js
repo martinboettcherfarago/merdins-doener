@@ -317,6 +317,41 @@ function rec(st, b, kind) {
   return r;
 }
 
+// Entfernungsfeld (8-Nachbarschaft, Diagonale √2) in zwei Durchläufen; D: 0 an Quellen, sonst groß
+function chamfer(D, W, H) {
+  const S2 = Math.SQRT2;
+  for (let y = 0; y < H; y++) {
+    const r = y * W;
+    for (let x = 0; x < W; x++) {
+      const i = r + x;
+      let v = D[i];
+      if (x > 0 && D[i - 1] + 1 < v) v = D[i - 1] + 1;
+      if (y > 0) {
+        const j = i - W;
+        if (D[j] + 1 < v) v = D[j] + 1;
+        if (x > 0 && D[j - 1] + S2 < v) v = D[j - 1] + S2;
+        if (x < W - 1 && D[j + 1] + S2 < v) v = D[j + 1] + S2;
+      }
+      D[i] = v;
+    }
+  }
+  for (let y = H - 1; y >= 0; y--) {
+    const r = y * W;
+    for (let x = W - 1; x >= 0; x--) {
+      const i = r + x;
+      let v = D[i];
+      if (x < W - 1 && D[i + 1] + 1 < v) v = D[i + 1] + 1;
+      if (y < H - 1) {
+        const j = i + W;
+        if (D[j] + 1 < v) v = D[j] + 1;
+        if (x < W - 1 && D[j + 1] + S2 < v) v = D[j + 1] + S2;
+        if (x > 0 && D[j - 1] + S2 < v) v = D[j - 1] + S2;
+      }
+      D[i] = v;
+    }
+  }
+}
+
 function tick(g, st) {
   const s = g.stats;
   const cyc = st.cycle.value;
@@ -513,19 +548,29 @@ function tick(g, st) {
   lk.impShop = SG.imp + SF.imp; lk.whShop = SG.wh + SF.wh;
   // Verteilung nach Entfernung zur nächsten Bezugsquelle (Fabriken, Lager, Umschlag, Autobahn)
   if (shops.length) {
-    const pts = [];
-    for (const f of facs) if (f.r.out > 0.2) pts.push([f.b.x + f.b.w / 2, f.b.y + f.b.h / 2, 1]);
-    for (const p of procs) if (p.d.output === 'food' && p.r.out > 0.2) pts.push([p.b.x + p.b.w / 2, p.b.y + p.b.h / 2, 1]);
-    for (const w of W) if (w.rate > 0) pts.push([w.b.x + w.b.w / 2, w.b.y + w.b.h / 2, 0.5]);
-    for (const c of cargos) if (c.r.cap > 0) pts.push([c.b.x + c.b.w / 2, c.b.y + c.b.h / 2, 0.8]);
-    const he = g.world.highwayEnd;
-    pts.push([he % g.W + 0.5, ((he / g.W) | 0) + 0.5, 1.2]);
+    // Abstandsfeld je Quellenart (Chamfer, zwei Durchläufe über das Raster): O(Felder) statt Läden × Quellen (Q4-Messung: 42 % Rechenzeit)
+    const N = g.N, Wd = g.W;
+    const groups = new Map();
+    const src = (b, m) => { const t = Math.min(g.H - 1, Math.floor(b.y + b.h / 2)) * Wd + Math.min(Wd - 1, Math.floor(b.x + b.w / 2)); (groups.get(m) || groups.set(m, []).get(m)).push(t); };
+    for (const f of facs) if (f.r.out > 0.2) src(f.b, 1);
+    for (const p of procs) if (p.d.output === 'food' && p.r.out > 0.2) src(p.b, 1);
+    for (const w of W) if (w.rate > 0) src(w.b, 0.5);
+    for (const c of cargos) if (c.r.cap > 0) src(c.b, 0.8);
+    (groups.get(1.2) || groups.set(1.2, []).get(1.2)).push(g.world.highwayEnd);
+    const best = st._best && st._best.length === N ? st._best : (st._best = new Float32Array(N));
+    const D = st._dfield && st._dfield.length === N ? st._dfield : (st._dfield = new Float32Array(N));
+    best.fill(1e9);
+    for (const [m, tiles] of groups) {
+      D.fill(1e9);
+      for (const t of tiles) D[t] = 0;
+      chamfer(D, Wd, g.H);
+      for (let i = 0; i < N; i++) { const v = D[i] * m; if (v < best[i]) best[i] = v; }
+    }
     for (const sh of shops) {
-      const cx = sh.b.x + sh.b.w / 2, cy = sh.b.y + sh.b.h / 2;
-      let best = 1e9;
-      for (const [px, py, m] of pts) { const d = Math.hypot(px - cx, py - cy) * m; if (d < best) best = d; }
-      sh.dist = best + (sh.b.id % 7) * 0.01;
-      sh.r.dist = best;
+      const t = Math.min(g.H - 1, Math.floor(sh.b.y + sh.b.h / 2)) * Wd + Math.min(Wd - 1, Math.floor(sh.b.x + sh.b.w / 2));
+      const d = best[t];
+      sh.dist = d + (sh.b.id % 7) * 0.01;
+      sh.r.dist = d;
     }
     shops.sort((a, c) => a.dist - c.dist);
     let remG = SG.got, remF = SF.got;
@@ -746,12 +791,14 @@ function buildTruckPlan(g, st, f) {
 }
 function spawnTruck(g, st) {
   const plan = st.plan;
-  let r = Math.random() * plan.total;
+  // Reproduzierbarer Zufall des Verkehrs (Zustand wird gespeichert) statt Math.random
+  const rng = (g.traffic && g.traffic.rng) || g.rng;
+  let r = rng() * plan.total;
   let fl = plan.flows[plan.flows.length - 1];
   for (const x of plan.flows) { r -= x.w; if (r <= 0) { fl = x; break; } }
   const pickTile = (end) => {
     if (end === 'entry') return g.world.entry;
-    const b = end.sample(Math.random);
+    const b = end.sample(rng);
     return b ? b.access : -1;
   };
   const from = pickTile(fl.from), to = pickTile(fl.to);
@@ -1139,7 +1186,8 @@ registerSystem({
     if (h === 0) closeDay(st);
     tick(g, st);
     // Der Lieferverkehr dieses Systems ersetzt den pauschalen Lkw-Anteil des Kerns.
-    if (g.traffic && g.traffic.lists && g.traffic.lists.ind && st.plan && st.plan.total > 0) g.traffic.lists.ind.total = 0;
+    // Kern-Schnittstelle (Q4): pauschalen Lkw-Anteil abschalten, solange der eigene Lieferplan fährt
+    if (g.traffic) g.traffic.freightShare = st.plan && st.plan.total > 0 ? 0 : 0.28;
   },
   daily(g) { daily(g, g.ext.industry); },
   weekly(g) {
