@@ -67,6 +67,8 @@ function clippedInScroller(el) {
 // done(c) → erledigt? · hint(c) → { target: [ids …] (erstes sichtbares gewinnt), text, map?: 'highway' }
 // info: true → Schritt mit Knopf statt Aufgabe
 const verb = (c) => (c.touch ? 'Tippe' : 'Klicke');
+// Touch (Handy, Tablet): Bauen erst nach Bestätigung, ein Finger verschiebt die Karte
+const CONFIRM = 'Prüfe die Vorschau, dann tippe auf ✓ Bauen.';
 const placing = (c, cat) => c.tool.kind === 'place' && BUILDINGS[c.tool.key] && BUILDINGS[c.tool.key].cat === cat;
 // Hauptgruppe der Werkzeugleiste zu einer Kategorie (neue Oberfläche: Straßen, Zonen, Versorgung …)
 const GROUP_FALLBACK = { roads: 'roads', zones: 'zones', power: 'versorgung', water: 'versorgung', garbage: 'versorgung' };
@@ -82,7 +84,7 @@ function menuHint(c, { cat, catName, items, itemText, why }) {
   return { target: [...items.map((k) => 'item-' + k), 'cat-' + cat, 'group-' + gid], texts, text: texts['cat-' + cat] };
 }
 function pickHint(c, o) {
-  if (placing(c, o.cat)) return { target: [], text: o.placeText };
+  if (placing(c, o.cat)) return { target: [], text: c.touch ? `${o.placeTouch} ${CONFIRM}` : o.placeText };
   return menuHint(c, o);
 }
 
@@ -96,7 +98,7 @@ const STEPS = [
     id: 'road', title: 'Straße bauen', build: (c) => c.tool.kind === 'road',
     done: (c) => c.n.roads >= 4,
     hint: (c) => {
-      if (c.tool.kind === 'road') return { target: [], map: c.n.roads ? null : 'highway', text: c.n.roads ? 'Gut! Zieh die Straße noch ein Stück weiter ins Land.' : `${c.touch ? 'Ziehe mit dem Finger' : 'Halte die linke Maustaste gedrückt und ziehe'} vom Ende der Autobahn (roter Kreis) eine Straße ins Land.` };
+      if (c.tool.kind === 'road') return { target: [], map: c.n.roads ? null : 'highway', text: c.touch ? `${c.n.roads ? 'Gut! Bau die Straße noch ein Stück weiter ins Land.' : 'Tippe ans Ende der Autobahn (Kreis) und dann ein Stück weiter ins Land.'} ${CONFIRM} Mit einem Finger verschiebst du die Karte.` : c.n.roads ? 'Gut! Zieh die Straße noch ein Stück weiter ins Land.' : 'Halte die linke Maustaste gedrückt und ziehe vom Ende der Autobahn (roter Kreis) eine Straße ins Land.' };
       return menuHint(c, { cat: 'roads', catName: 'Straßen', items: ['street'], itemText: 'Wähle „Straße".', why: 'Alles in der Stadt braucht eine Straße.' });
     },
   },
@@ -104,7 +106,7 @@ const STEPS = [
     id: 'res', title: 'Wohngebiet ausweisen', build: (c) => c.tool.kind === 'zone' && c.tool.zone === Z.RES,
     done: (c) => c.n.zone[Z.RES] >= 6,
     hint: (c) => {
-      if (c.tool.kind === 'zone' && c.tool.zone === Z.RES) return { target: [], text: `Ziehe direkt neben der Straße eine Fläche auf. Dort bauen Familien ihre Häuser – Häuser entstehen nur an Straßen.` };
+      if (c.tool.kind === 'zone' && c.tool.zone === Z.RES) return { target: [], text: c.touch ? `Wähle direkt neben der Straße eine Fläche: Tippe auf die Karte. ${CONFIRM} Häuser entstehen nur an Straßen.` : 'Ziehe direkt neben der Straße eine Fläche auf. Dort bauen Familien ihre Häuser – Häuser entstehen nur an Straßen.' };
       return menuHint(c, { cat: 'zones', catName: 'Zonen', items: ['res'], itemText: 'Wähle „Wohnen" (grün).', why: 'Jetzt brauchst du Platz für Häuser.' });
     },
   },
@@ -113,14 +115,16 @@ const STEPS = [
     done: (c) => c.g.countBuilt('power') > 0,
     hint: (c) => pickHint(c, { cat: 'power', catName: 'Strom', items: ['coal', 'wind'], why: 'Ohne Strom zieht niemand ein.',
       itemText: 'Wähle das Kohlekraftwerk: günstig und stark. Windräder sind sauberer, liefern aber wenig.',
-      placeText: 'Setze das Kraftwerk direkt an eine Straße. Der Strom fließt über die Straßen zu allen Häusern.' }),
+      placeText: 'Setze das Kraftwerk direkt an eine Straße. Der Strom fließt über die Straßen zu allen Häusern.',
+      placeTouch: 'Tippe auf einen Platz direkt an einer Straße. Der Strom fließt über die Straßen zu allen Häusern.' }),
   },
   {
     id: 'water', title: 'Wasser liefern', build: (c) => placing(c, 'water'),
     done: (c) => ['watertower', 'pump', 'waterworks'].some((k) => c.g.hasBuilt(k)),
     hint: (c) => pickHint(c, { cat: 'water', catName: 'Wasser', items: ['watertower'], why: 'Auch Wasser muss sein.',
       itemText: 'Wähle den Wasserturm. Er passt überall hin.',
-      placeText: 'Setze den Wasserturm an eine Straße. Wasser fließt ebenfalls über die Straßen.' }),
+      placeText: 'Setze den Wasserturm an eine Straße. Wasser fließt ebenfalls über die Straßen.',
+      placeTouch: 'Tippe auf einen Platz an einer Straße.' }),
   },
   {
     id: 'time', title: 'Zeit laufen lassen',
@@ -139,7 +143,7 @@ const STEPS = [
     hint: (c) => {
       const needCom = c.n.zone[Z.COM] < 4, z = needCom ? Z.COM : Z.IND;
       const name = needCom ? 'Gewerbe' : 'Industrie', key = needCom ? 'com' : 'ind';
-      if (c.tool.kind === 'zone' && c.tool.zone === z) return { target: ['demand'], text: needCom ? 'Ziehe Gewerbe an eine Straße. Die Balken oben zeigen, was gefragt ist: W Wohnen, G Gewerbe, I Industrie.' : 'Ziehe Industrie an eine Straße – mit etwas Abstand zu den Häusern, denn Fabriken machen Abgase.' };
+      if (c.tool.kind === 'zone' && c.tool.zone === z) return { target: ['demand'], text: (needCom ? `${c.touch ? 'Wähle an einer Straße eine Fläche für Gewerbe.' : 'Ziehe Gewerbe an eine Straße.'} Die Balken oben zeigen, was gefragt ist: W Wohnen, G Gewerbe, I Industrie.` : `${c.touch ? 'Wähle an einer Straße eine Fläche für Industrie' : 'Ziehe Industrie an eine Straße'} – mit etwas Abstand zu den Häusern, denn Fabriken machen Abgase.`) + (c.touch ? ' ' + CONFIRM : '') };
       return menuHint(c, { cat: 'zones', catName: 'Zonen', items: [key], itemText: `Wähle „${name}" (${needCom ? 'blau' : 'gelb'}).`, why: 'Deine Bürger brauchen Arbeit und Läden.' });
     },
   },
@@ -148,7 +152,8 @@ const STEPS = [
     done: (c) => c.g.countBuilt('garbage') > 0,
     hint: (c) => pickHint(c, { cat: 'garbage', catName: 'Müll', items: ['landfill'], why: 'Wo Menschen wohnen, fällt Müll an.',
       itemText: 'Wähle die Deponie. Ihre Müllwagen holen den Müll ab.',
-      placeText: 'Setze die Deponie an eine Straße, etwas abseits der Häuser – sie riecht.' }),
+      placeText: 'Setze die Deponie an eine Straße, etwas abseits der Häuser – sie riecht.',
+      placeTouch: 'Tippe auf einen Platz an einer Straße, etwas abseits der Häuser.' }),
   },
   {
     id: 'happy', info: true, title: 'Glück verstehen',
@@ -168,51 +173,55 @@ const TASKS = STEPS.filter((s) => !s.info || s.id === 'happy').length;
 
 // ------------------------------------------------------------------ Styles
 const CSS = `
-#ob-layer { position: absolute; inset: 0; pointer-events: none; z-index: 46; }
+#ob-layer { position: absolute; inset: 0; pointer-events: none; z-index: 46; --ob-hi: var(--cta-2, #ff8a00); }
 #ob-layer[hidden] { display: none; }
-.ob-ring { position: fixed; border-radius: 14px; box-shadow: 0 0 0 3px var(--l-red, #e8543f), 0 0 0 9px color-mix(in srgb, var(--l-red, #e8543f) 28%, transparent); transition: left .25s var(--ease-out, ease), top .25s var(--ease-out, ease), width .25s var(--ease-out, ease), height .25s var(--ease-out, ease), opacity .2s; animation: obPulse 1.6s ease-in-out infinite; }
-.ob-ring.dim { box-shadow: 0 0 0 3px var(--l-red, #e8543f), 0 0 0 9px color-mix(in srgb, var(--l-red, #e8543f) 28%, transparent), 0 0 0 100vmax rgba(14, 18, 30, 0.22); }
-@keyframes obPulse { 50% { box-shadow: 0 0 0 3px var(--l-red, #e8543f), 0 0 0 14px color-mix(in srgb, var(--l-red, #e8543f) 10%, transparent); } }
-.ob-ring.dim { animation: none; }
-.ob-mark { position: fixed; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 3px solid var(--l-red, #e8543f); background: color-mix(in srgb, var(--l-red, #e8543f) 22%, transparent); animation: obMark 1.4s ease-out infinite; }
-.ob-mark::after { content: attr(data-label); position: absolute; left: 50%; top: 40px; transform: translateX(-50%); white-space: nowrap; font: 700 12px/1 var(--f-ui, system-ui); color: #fff; background: var(--l-red, #e8543f); padding: 5px 8px; border-radius: 999px; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.ob-ring { position: fixed; border-radius: 16px; box-shadow: 0 0 0 3px var(--ob-hi), 0 0 0 9px color-mix(in srgb, var(--ob-hi) 30%, transparent); transition: left .25s var(--ease-out, ease), top .25s var(--ease-out, ease), width .25s var(--ease-out, ease), height .25s var(--ease-out, ease), opacity .2s; animation: obPulse 1.6s ease-in-out infinite; }
+.ob-ring.dim { box-shadow: 0 0 0 3px var(--ob-hi), 0 0 0 9px color-mix(in srgb, var(--ob-hi) 30%, transparent), 0 0 0 100vmax rgba(30, 18, 70, 0.22); animation: none; }
+@keyframes obPulse { 50% { box-shadow: 0 0 0 3px var(--ob-hi), 0 0 0 14px color-mix(in srgb, var(--ob-hi) 10%, transparent); } }
+.ob-mark { position: fixed; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 3px solid var(--ob-hi); background: color-mix(in srgb, var(--ob-hi) 24%, transparent); animation: obMark 1.4s ease-out infinite; }
+.ob-mark::after { content: attr(data-label); position: absolute; left: 50%; top: 40px; transform: translateX(-50%); white-space: nowrap; font: 800 12px/1 var(--f-ui, system-ui); color: #fff; background: linear-gradient(180deg, var(--cta, #ffb23e), var(--cta-2, #ff8a00)); padding: 6px 10px; border-radius: var(--r-pill, 999px); box-shadow: 0 3px 0 var(--cta-edge, #d96a00), 0 6px 14px rgba(0,0,0,.2); }
 @keyframes obMark { 0% { transform: scale(.8); } 60% { transform: scale(1.15); } 100% { transform: scale(.8); } }
-.ob-card { position: fixed; pointer-events: auto; width: 320px; max-width: calc(100vw - 24px); background: var(--paper, #f6f2ea); color: var(--ink, #1d2330); border-radius: 16px; box-shadow: var(--shadow, 0 10px 30px rgba(18,24,38,.18)); padding: 14px 16px 14px; font-family: var(--f-ui, system-ui); zoom: var(--ui, 1); transition: opacity .2s ease; }
+.ob-card { position: fixed; pointer-events: auto; width: 320px; max-width: calc(100vw - 24px); background: var(--card, #fff); color: var(--ink, #1d2330); border: 2px solid var(--accent-soft, #ece6ff); border-radius: 18px; box-shadow: var(--shadow, 0 10px 30px rgba(40,24,90,.18)); padding: 13px 16px 14px; font-family: var(--f-ui, system-ui); zoom: var(--ui, 1); transition: opacity .2s ease; }
 .ob-card.enter { animation: obIn .35s var(--ease-out, ease); }
 @keyframes obIn { from { opacity: 0; transform: translateY(6px) scale(.98); } }
-.ob-card .ob-top { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3, #7a8294); }
+.ob-card .ob-top { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--accent, #6c4fe0); }
 .ob-card .ob-top .grow { flex: 1; }
-.ob-card .ob-x { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: var(--ink-3, #7a8294); background: none; border: 0; cursor: pointer; }
-.ob-card .ob-x:hover { background: color-mix(in srgb, var(--ink, #1d2330) 8%, transparent); color: var(--ink, #1d2330); }
-.ob-card .ob-bar { height: 4px; border-radius: 4px; background: color-mix(in srgb, var(--ink, #1d2330) 10%, transparent); margin: 6px 0 10px; overflow: hidden; }
-.ob-card .ob-bar i { display: block; height: 100%; background: var(--l-red, #e8543f); border-radius: 4px; transition: width .4s var(--ease-out, ease); }
-.ob-card h3 { margin: 0 0 4px; font: 700 17px/1.25 var(--f-display, var(--f-ui, system-ui)); text-wrap: balance; }
+.ob-card .ob-x { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; color: #fff; background: var(--accent, #6c4fe0); border: 0; cursor: pointer; }
+.ob-card .ob-x:hover { filter: brightness(1.12); }
+.ob-card .ob-bar { height: 5px; border-radius: 5px; background: var(--accent-soft, #ece6ff); margin: 7px 0 10px; overflow: hidden; }
+.ob-card .ob-bar i { display: block; height: 100%; background: var(--accent, #6c4fe0); border-radius: 5px; transition: width .4s var(--ease-out, ease); }
+.ob-card h3 { margin: 0 0 4px; font: 800 17px/1.25 var(--f-display, var(--f-ui, system-ui)); color: var(--accent-ink, var(--ink, #2a1f5c)); text-wrap: balance; }
 .ob-card p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--ink-2, #3b4252); }
-.ob-card .ob-acts { display: flex; align-items: center; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-.ob-card .ob-btn { font: 700 14px/1 var(--f-ui, system-ui); padding: 10px 14px; border-radius: 10px; border: 0; cursor: pointer; background: var(--ink, #1d2330); color: var(--paper, #f6f2ea); display: inline-flex; align-items: center; gap: 6px; }
-.ob-card .ob-btn:hover { filter: brightness(1.15); }
-.ob-card .ob-link { font: 600 13px/1 var(--f-ui, system-ui); padding: 6px 2px; border: 0; background: none; color: var(--ink-3, #7a8294); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-.ob-card .ob-link:hover { color: var(--ink, #1d2330); }
-.ob-card .ob-done { display: flex; align-items: center; gap: 8px; color: var(--good, #23864b); font-weight: 700; font-size: 15px; }
-.ob-card .ob-arrow { position: absolute; width: 14px; height: 14px; background: var(--paper, #f6f2ea); transform: rotate(45deg); border-radius: 3px; }
+.ob-card .ob-acts { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.ob-card .ob-btn { font: 800 14px/1 var(--f-ui, system-ui); padding: 11px 16px; border-radius: var(--r-pill, 999px); border: 0; cursor: pointer; color: #fff; background: linear-gradient(180deg, var(--cta, #ffb23e), var(--cta-2, #ff8a00)); box-shadow: 0 3px 0 var(--cta-edge, #d96a00); text-shadow: 0 1px 0 rgba(0,0,0,.15); display: inline-flex; align-items: center; gap: 6px; }
+.ob-card .ob-btn:hover { filter: brightness(1.06); }
+.ob-card .ob-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--cta-edge, #d96a00); }
+.ob-card .ob-link { font: 700 13px/1 var(--f-ui, system-ui); padding: 6px 2px; border: 0; background: none; color: var(--accent-ink, #4b3aa8); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; opacity: .85; }
+.ob-card .ob-link:hover { opacity: 1; }
+.ob-card .ob-done { display: flex; align-items: center; gap: 8px; color: var(--good, #23864b); font-weight: 800; font-size: 15px; }
+.ob-card .ob-arrow { position: absolute; width: 14px; height: 14px; background: var(--card, #fff); border: 2px solid var(--accent-soft, #ece6ff); border-top: 0; border-left: 0; transform: rotate(45deg); border-radius: 0 0 3px 0; }
+.ob-card .ob-arrow[data-side=bottom] { transform: rotate(225deg); }
+.ob-card .ob-arrow[data-side=right] { transform: rotate(135deg); }
+.ob-card .ob-arrow[data-side=left] { transform: rotate(-45deg); }
 .ob-card.center { width: 380px; }
 .ob-card.center h3 { font-size: 21px; }
-#ob-guide { width: 300px; max-width: calc(100vw - 24px); background: var(--paper, #f6f2ea); color: var(--ink, #1d2330); border-radius: var(--radius, 14px); box-shadow: var(--shadow-s, 0 4px 14px rgba(18,24,38,.16)); padding: 11px 12px 11px 14px; font-family: var(--f-ui, system-ui); position: relative; overflow: hidden; pointer-events: auto; }
+#ob-guide { width: 300px; max-width: calc(100vw - 24px); background: var(--card, #fff); color: var(--ink, #1d2330); border: 2px solid var(--accent-soft, #ece6ff); border-radius: 18px; box-shadow: var(--shadow-s, 0 4px 14px rgba(40,24,90,.16)); padding: 10px 12px 11px 15px; font-family: var(--f-ui, system-ui); position: relative; overflow: hidden; pointer-events: auto; }
 #ob-guide[hidden] { display: none; }
 #ob-guide.free { position: absolute; left: 12px; z-index: 6; }
-#ob-guide::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gc, var(--good, #23864b)); }
-#ob-guide .gh { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--gc, var(--good, #23864b)); }
+#ob-guide::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--gc, var(--accent, #6c4fe0)); }
+#ob-guide .gh { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--gc, var(--accent, #6c4fe0)); }
 #ob-guide .gh .grow { flex: 1; }
-#ob-guide .gh button { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; border: 0; background: none; color: var(--ink-3, #7a8294); cursor: pointer; }
-#ob-guide .gh button:hover { background: color-mix(in srgb, var(--ink, #1d2330) 8%, transparent); color: var(--ink, #1d2330); }
-#ob-guide .gt { font-size: 14px; font-weight: 700; line-height: 1.35; margin: 3px 0 2px; }
+#ob-guide .gh button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; border: 0; background: var(--accent-soft, #ece6ff); color: var(--accent, #6c4fe0); cursor: pointer; }
+#ob-guide .gh button:hover { filter: brightness(.96); }
+#ob-guide .gt { font-size: 14px; font-weight: 800; line-height: 1.35; margin: 3px 0 2px; color: var(--accent-ink, var(--ink, #2a1f5c)); }
 #ob-guide .gw { font-size: 12.5px; line-height: 1.4; color: var(--ink-2, #3b4252); }
-#ob-guide .ga { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; }
-#ob-guide .ga .go { font: 700 13px/1 var(--f-ui, system-ui); padding: 8px 11px; border-radius: 9px; border: 0; cursor: pointer; background: var(--ink, #1d2330); color: var(--paper, #f6f2ea); display: inline-flex; align-items: center; gap: 5px; }
-#ob-guide .ga .go:hover { filter: brightness(1.15); }
-#ob-guide .ga .lk { font: 600 12.5px/1 var(--f-ui, system-ui); border: 0; background: none; padding: 4px 0; color: var(--ink-3, #7a8294); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-#ob-guide .ga .lk:hover { color: var(--ink, #1d2330); }
-#ob-guide.min { width: auto; padding: 7px 10px 7px 12px; cursor: pointer; }
+#ob-guide .ga { display: flex; align-items: center; gap: 12px; margin-top: 9px; flex-wrap: wrap; }
+#ob-guide .ga .go { font: 800 13px/1 var(--f-ui, system-ui); padding: 9px 13px; border-radius: var(--r-pill, 999px); border: 0; cursor: pointer; color: #fff; background: linear-gradient(180deg, var(--cta, #ffb23e), var(--cta-2, #ff8a00)); box-shadow: 0 3px 0 var(--cta-edge, #d96a00); text-shadow: 0 1px 0 rgba(0,0,0,.15); display: inline-flex; align-items: center; gap: 5px; }
+#ob-guide .ga .go:hover { filter: brightness(1.06); }
+#ob-guide .ga .go:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--cta-edge, #d96a00); }
+#ob-guide .ga .lk { font: 700 12.5px/1 var(--f-ui, system-ui); border: 0; background: none; padding: 4px 0; color: var(--accent-ink, #4b3aa8); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; opacity: .8; }
+#ob-guide .ga .lk:hover { opacity: 1; }
+#ob-guide.min { width: auto; padding: 7px 10px 7px 14px; cursor: pointer; }
 #ob-guide.min .gt { margin: 0; font-size: 13px; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #ob-guide.pulse { animation: obGuide .9s var(--ease-out, ease); }
 @keyframes obGuide { 30% { transform: translateY(-3px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gc) 40%, transparent), var(--shadow-s, 0 4px 14px rgba(0,0,0,.16)); } }
@@ -221,7 +230,7 @@ const CSS = `
   .ob-card.center { width: auto; }
   .ob-card p { font-size: 13.5px; }
   .ob-card .ob-arrow { display: none; }
-  #ob-guide { width: auto; padding: 9px 10px 9px 13px; }
+  #ob-guide { width: auto; padding: 9px 10px 9px 14px; }
   #ob-guide.free { right: 12px; }
   #ob-guide .gw { display: none; }
   #ob-guide .gt { font-size: 13px; }
@@ -293,6 +302,7 @@ export class Onboarding {
     if (this.layer) this.layer.hidden = true;
     if (!finished) { try { this.ui.toast('Einführung beendet. Du kannst sie jederzeit in der Hilfe („?") neu starten.', '', { icon: 'help' }); } catch (e) { /* egal */ } }
     this.guideT = 0;
+    try { this.ui.advisor.compute(); } catch (e) { /* egal */ }
     this.syncUi();
     this.renderGuide(true);
   }
@@ -481,6 +491,7 @@ export class Onboarding {
     if (arrow) {
       if (side && tr && !mob) {
         arrow.hidden = false;
+        arrow.dataset.side = side;
         const ax = Math.max(14, Math.min(cw - 28, tr.left + tr.width / 2 - x - 7)) / z, ay = Math.max(14, Math.min(ch - 28, tr.top + tr.height / 2 - y - 7)) / z;
         Object.assign(arrow.style, side === 'top' ? { left: ax + 'px', top: '', bottom: '-6px', right: '' } : side === 'bottom' ? { left: ax + 'px', top: '-6px', bottom: '', right: '' } : side === 'left' ? { top: ay + 'px', right: '-6px', left: '', bottom: '' } : { top: ay + 'px', left: '-6px', right: '', bottom: '' });
       } else arrow.hidden = true;
@@ -556,7 +567,7 @@ export class Onboarding {
     const goal = this.ui.advisor && this.ui.advisor.goal;
     if (!goal) { el.hidden = true; return; }
     const s = this.settings();
-    const color = goal.prio >= 3 ? 'var(--bad, #d4433a)' : goal.prio >= 2 ? 'var(--warn, #c98a0c)' : 'var(--good, #23864b)';
+    const color = goal.prio >= 3 ? 'var(--bad, #d4433a)' : goal.prio >= 2 ? 'var(--cta-2, #ff8a00)' : 'var(--accent, #6c4fe0)';
     const head = goal.prio >= 3 ? 'Jetzt wichtig' : goal.id === 'milestone' ? 'Nächstes Ziel' : goal.prio >= 2 ? 'Nächstes Ziel' : 'Tipp';
     // Handy mit aktivem Werkzeug: nur eine Zeile, damit die Karte frei bleibt
     const toolOn = this.ui.app.input && this.ui.app.input.tool && this.ui.app.input.tool.kind !== 'select';

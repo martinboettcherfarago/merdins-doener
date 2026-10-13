@@ -174,9 +174,11 @@ export class Advisor {
   top() { return this.list[0] || null; }
 
   update(dt) {
-    this.timer -= dt;
-    if (this.timer > 0) return;
-    this.timer = 2;
+    // alle 2 s Echtzeit (nicht Bildzeit: bei wenigen Bildern pro Sekunde bliebe das Ziel sonst lange stehen)
+    void dt;
+    const now = performance.now();
+    if (now < (this.nextAt || 0)) return;
+    this.nextAt = now + 2000;
     this.compute();
     this.ui.refreshBadges();
     // Keine Sprechblasen mehr: Das eine Ziel steht ruhig im Begleiter (onboarding.js).
