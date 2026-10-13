@@ -225,6 +225,11 @@ try {
   await tapTile(page, bx + 5, ry - 1);
   s = await st(page);
   check('erneutes Antippen setzt die Vorschau um', s.pend && s.pend.x === bx + 5 && s.pend.y === ry - 1 && s.ok && !s.ok.disabled);
+  const hs = await page.evaluate(() => window.__stadtpuls.input.pendScreen().handles[0]);
+  const before = (await st(page)).pend;
+  await touchDrag(page, cdp, hs, { x: hs.x + 70, y: hs.y }, 8);
+  s = await st(page);
+  check('Verschiebe-Griff unter der Vorschau zieht sie mit', s.pend && (s.pend.x !== before.x || s.pend.y !== before.y) && s.blds === nA, `${JSON.stringify(before)} → ${JSON.stringify(s.pend)}`);
   await tapBar(page, 'cancel');
   s = await st(page);
   check('✕ bricht ab: nichts gebaut, Vorschau weg', !s.pend && !s.bar && !s.ghost && s.blds === nA);

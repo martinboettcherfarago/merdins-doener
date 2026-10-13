@@ -609,6 +609,12 @@ export class Input {
       if (this.tool.kind === 'place') {
         info = this.previewPlace(p.x, p.y);
         this.pendFoot = { x: info.x, y: info.y, w: info.w, h: info.h, hgt: this.tool.key === 'station' ? TRANSIT.trackHeight + 0.5 : 0.6 };
+        // Grundfläche zusätzlich einfärben: Die stehende Vorschau soll auch zwischen Bäumen und Häusern gut zu sehen sein
+        const g = this.g, tiles = [];
+        for (let yy = info.y; yy < info.y + info.h; yy++) for (let xx = info.x; xx < info.x + info.w; xx++) {
+          if (xx >= 0 && yy >= 0 && xx < g.W && yy < g.H) tiles.push({ i: yy * g.W + xx, color: info.ok ? 0x9cf0b0 : 0xff5a4a });
+        }
+        this.e.overlay.showTiles(tiles);
       } else if (reg && reg.pendPreview) { info = reg.pendPreview(this, p); this.pendFoot = { x: p.x, y: p.y, w: 1, h: 1, hgt: 0 }; this.placePos = { x: p.x, y: p.y }; }
     } else if (p.kind === 'rect') {
       info = this.previewRect(p);
