@@ -2,7 +2,7 @@
 // Umweltfelder (Verschmutzung, Lärm, Kriminalität, Bodenwert) und Glück.
 import { BUILDINGS, LEVELS, ROADS, R, T, Z, RES } from '../config.js';
 import { clamp, hash2 } from '../util.js';
-import { SERVICE_TYPES_EXTRA, HAPPINESS_FACTORS, LANDVALUE_TERMS } from '../registry.js';
+import { SERVICE_TYPES_EXTRA, HAPPINESS_FACTORS, LANDVALUE_TERMS, LANDVALUE_FIELDS, POWER_MODIFIERS, warnOnce } from '../registry.js';
 
 export const SERVICE_TYPES = ['police', 'fire', 'health', 'garbage', 'edu'];
 export const allServiceTypes = () => [...SERVICE_TYPES, ...SERVICE_TYPES_EXTRA];
@@ -14,16 +14,18 @@ function occFactor(b) {
   return 0.35 + 0.65 * (b.occ / b.cap);
 }
 
-export function powerUse(g, b) {
+// Stromverbrauch eines Gebäudes; g.eff('powerUse') erhöht ihn (Heizen, Kühlen). `mul` = vorab berechneter Faktor.
+export function powerUse(g, b, mul) {
   if (b.construct < 1 || b.abandoned) return 0;
-  if (b.zone) return LEVELS[b.zone].power[b.level] * occFactor(b);
-  return bDef(b).power_use || 0;
+  const m = mul === undefined ? Math.max(0, 1 + g.eff('powerUse')) : mul;
+  if (b.zone) return LEVELS[b.zone].power[b.level] * occFactor(b) * m;
+  return ((bDef(b) || {}).power_use || 0) * m;
 }
-export function waterUse(g, b) {
+export function waterUse(g, b, mul) {
   if (b.construct < 1 || b.abandoned) return 0;
-  const heat = 1 + g.eff('waterUse');
+  const heat = mul === undefined ? 1 + g.eff('waterUse') : mul;
   if (b.zone) return LEVELS[b.zone].water[b.level] * occFactor(b) * heat;
-  return (bDef(b).water_use || 0) * heat;
+  return ((bDef(b) || {}).water_use || 0) * heat;
 }
 export function garbageLoad(g, b) {
   if (b.construct < 1 || b.abandoned || !b.zone) return 0;
@@ -37,13 +39,21 @@ export function computeUtilities(g) {
   const wSup = new Float32Array(nc + 1), wDem = new Float32Array(nc + 1);
   const powerMul = g.mods.power * (1 + g.eff('powerMul'));
   const waterMul = g.mods.water;
+  const useMul = Math.max(0, 1 + g.eff('powerUse'));
+  const waterUseMul = 1 + g.eff('waterUse');
   for (const b of g.buildings.values()) {
     if (b.comp < 0) continue;
     if (!b.zone && b.construct >= 1 && !b.abandoned) {
       const d = bDef(b);
-      if (d.power) pSup[b.comp] += d.power * powerMul;
+      if (d && d.power) {
+        let p = d.power * powerMul;
+        for (const fn of POWER_MODIFIERS) {
+          try { const v = fn(g, b, p); if (Number.isFinite(v)) p = v; } catch (e) { warnOnce('POWER_MODIFIERS', e); }
+        }
+        pSup[b.comp] += Math.max(0, p);
+      }
     }
-    pDem[b.comp] += powerUse(g, b);
+    pDem[b.comp] += powerUse(g, b, useMul);
   }
   // Strom zuerst – Pumpen brauchen Strom
   let totalPS = 0, totalPD = 0;
@@ -55,9 +65,9 @@ export function computeUtilities(g) {
     b.powered = r >= 0.999 || hash2(b.id, 7) < r;
     if (!b.zone && b.construct >= 1 && !b.abandoned) {
       const d = bDef(b);
-      if (d.water && b.powered) wSup[b.comp] += d.water * waterMul;
+      if (d && d.water && b.powered) wSup[b.comp] += d.water * waterMul;
     }
-    wDem[b.comp] += waterUse(g, b);
+    wDem[b.comp] += waterUse(g, b, waterUseMul);
   }
   let totalWS = 0, totalWD = 0;
   for (let c = 0; c < nc; c++) { totalWS += wSup[c]; totalWD += wDem[c]; }
@@ -86,26 +96,39 @@ export function computeCoverage(g) {
   const { N } = g;
   const bestD = g._bestD || (g._bestD = new Float32Array(N));
   const bestF = g._bestF || (g._bestF = new Int32Array(N));
+  // Ein Durchlauf über alle Gebäude: Zonengebäude und Dienste nach Art
   const zoneBlds = [];
-  for (const b of g.buildings.values()) if (b.zone && !b.abandoned) zoneBlds.push(b);
+  const byType = new Map();
+  for (const b of g.buildings.values()) {
+    if (b.zone) { if (!b.abandoned) zoneBlds.push(b); continue; }
+    const d = bDef(b);
+    if (!d || !d.service || b.construct < 1 || b.abandoned) continue;
+    const list = byType.get(d.service.type);
+    if (list) list.push(b); else byType.set(d.service.type, [b]);
+  }
 
   for (const type of allServiceTypes()) {
-    const cov = g.cov[type];
+    const cov = g.cov[type] || (g.cov[type] = new Float32Array(N));
     cov.fill(0);
+    const facs = byType.get(type) || [];
+    if (!facs.length) { const nr = g.nearestFac[type]; if (nr) nr.fill(0); continue; }
     bestD.fill(1e9);
     bestF.fill(-1);
-    const facs = [];
-    for (const b of g.buildings.values()) {
-      const d = bDef(b);
-      if (!d || !d.service || d.service.type !== type || b.construct < 1 || b.abandoned) continue;
-      facs.push(b);
+    // Nächste Einrichtung je Feld (forDisc ausgeschrieben – heißeste Schleife der Abdeckung)
+    const { W, H } = g;
+    for (let fi = 0; fi < facs.length; fi++) {
+      const f = facs[fi], r = bDef(f).service.radius, cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+      const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
+      const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(H - 1, Math.ceil(cy + r));
+      for (let y = y0; y <= y1; y++) {
+        const dy = y + 0.5 - cy, row = y * W;
+        for (let x = x0; x <= x1; x++) {
+          const dx = x + 0.5 - cx;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d <= r && d < bestD[row + x]) { bestD[row + x] = d; bestF[row + x] = fi; }
+        }
+      }
     }
-    facs.forEach((f, fi) => {
-      const s = bDef(f).service;
-      forDisc(g, f.x + f.w / 2, f.y + f.h / 2, s.radius, (t, d) => {
-        if (d < bestD[t]) { bestD[t] = d; bestF[t] = fi; }
-      });
-    });
     const demand = new Float32Array(facs.length);
     for (const b of zoneBlds) {
       const fi = bestF[b.y * g.W + b.x];
@@ -135,17 +158,16 @@ export function computeCoverage(g) {
       });
       continue;
     }
+    // Je Einrichtung vorab: Radius, Wirksamkeit, ID (statt Nachschlagen pro Feld)
+    const nf = facs.length;
+    const invR = new Float32Array(nf), effC = new Float32Array(nf), fid = new Int32Array(nf);
+    for (let fi = 0; fi < nf; fi++) { invR[fi] = 1 / bDef(facs[fi]).service.radius; effC[fi] = clamp(eff[fi], 0, 1); fid[fi] = facs[fi].id; }
     for (let t = 0; t < N; t++) {
       const fi = bestF[t];
       if (fi < 0) continue;
-      const f = facs[fi];
-      const s = bDef(f).service;
-      const r = s.radius;
-      const fall = 1 - 0.45 * (bestD[t] / r) * (bestD[t] / r);
-      let v = clamp(eff[fi], 0, 1) * fall;
-      if (type === 'edu') v *= s.eduMax;
-      cov[t] = v;
-      if (nearest) nearest[t] = f.id;
+      const q = bestD[t] * invR[fi];
+      cov[t] = effC[fi] * (1 - 0.45 * q * q);
+      if (nearest) nearest[t] = fid[fi];
     }
   }
 
@@ -171,22 +193,25 @@ export function computeCoverage(g) {
 }
 
 function boxBlur(src, dst, W, H, r, tmp) {
+  const d = 2 * r + 1, xm = W - 1, ym = H - 1;
   // horizontal
   for (let y = 0; y < H; y++) {
     let acc = 0;
     const row = y * W;
-    for (let x = -r; x <= r; x++) acc += src[row + clamp(x, 0, W - 1)];
+    for (let x = -r; x <= r; x++) acc += src[row + (x < 0 ? 0 : x > xm ? xm : x)];
     for (let x = 0; x < W; x++) {
-      tmp[row + x] = acc / (2 * r + 1);
-      acc += src[row + clamp(x + r + 1, 0, W - 1)] - src[row + clamp(x - r, 0, W - 1)];
+      tmp[row + x] = acc / d;
+      const xa = x + r + 1, xb = x - r;
+      acc += src[row + (xa > xm ? xm : xa)] - src[row + (xb < 0 ? 0 : xb)];
     }
   }
   for (let x = 0; x < W; x++) {
     let acc = 0;
-    for (let y = -r; y <= r; y++) acc += tmp[clamp(y, 0, H - 1) * W + x];
+    for (let y = -r; y <= r; y++) acc += tmp[(y < 0 ? 0 : y > ym ? ym : y) * W + x];
     for (let y = 0; y < H; y++) {
-      dst[y * W + x] = acc / (2 * r + 1);
-      acc += tmp[clamp(y + r + 1, 0, H - 1) * W + x] - tmp[clamp(y - r, 0, H - 1) * W + x];
+      dst[y * W + x] = acc / d;
+      const ya = y + r + 1, yb = y - r;
+      acc += tmp[(ya > ym ? ym : ya) * W + x] - tmp[(yb < 0 ? 0 : yb) * W + x];
     }
   }
 }
@@ -253,10 +278,26 @@ export function computeFields(g) {
   const lv = g.fields.landValue;
   const { park, police, health, edu, garbage, transit, lvBonus } = g.cov;
   const terr = g.world.terrain, wd = g.world.waterDist;
+  const garb = g.stats.pop > 300;
+  // Straßen-Bodenwert je Straßentyp (0 = keine Straße)
+  const rlv = new Float32Array(8);
+  for (const k of Object.keys(ROADS)) if (+k > 0 && +k < 8) rlv[+k] = ROADS[k].lv || 0;
+  // Ganze Felder aus LANDVALUE_FIELDS (ein Aufruf pro Durchlauf) statt pro Feld
+  const extra = [];
+  for (const fn of LANDVALUE_FIELDS) {
+    try { const f = fn(g); if (f && f.length === N) extra.push(f); } catch (e) { warnOnce('LANDVALUE_FIELDS', e); }
+  }
+  // Terme ohne Feld-Parameter (fn.length < 2, z. B. (g) => …) hängen nicht vom Feld ab: einmal auswerten
+  let base = 0;
+  const terms = [];
+  for (const fn of LANDVALUE_TERMS) {
+    if (fn.length < 2) { try { const v = fn(g, 0); if (Number.isFinite(v)) base += v; } catch (e) { warnOnce('LANDVALUE_TERMS', e); } } else terms.push(fn);
+  }
+  const nt = terms.length;
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i = y * W + x;
-      let v = 26;
+      let v = 26 + base;
       const d = wd[i];
       if (d > 0 && d <= 4) v += 11 * (1 - (d - 1) / 4);
       if (terr[i] === T.SAND) v += 3;
@@ -265,76 +306,97 @@ export function computeFields(g) {
       v += transit[i] * 9;
       v += lvBonus[i];
       v -= pol[i] * 46 + noise[i] * 16 + crime[i] * 10;
-      if (g.stats.pop > 300) v -= (1 - garbage[i]) * 5;
-      // Alleen werten auf, Autobahn wertet ab
+      if (garb) v -= (1 - garbage[i]) * 5;
+      // Alleen werten auf, Autobahn wertet ab (Maximum über die vier Nachbarn, mindestens 0)
       let rb = 0;
-      if (x > 0 && road[i - 1]) rb = Math.max(rb, ROADS[road[i - 1]].lv);
-      if (x < W - 1 && road[i + 1]) rb = Math.max(rb, ROADS[road[i + 1]].lv);
-      if (y > 0 && road[i - W]) rb = Math.max(rb, ROADS[road[i - W]].lv);
-      if (y < H - 1 && road[i + W]) rb = Math.max(rb, ROADS[road[i + W]].lv);
+      if (x > 0 && road[i - 1]) rb = Math.max(rb, rlv[road[i - 1]]);
+      if (x < W - 1 && road[i + 1]) rb = Math.max(rb, rlv[road[i + 1]]);
+      if (y > 0 && road[i - W]) rb = Math.max(rb, rlv[road[i - W]]);
+      if (y < H - 1 && road[i + W]) rb = Math.max(rb, rlv[road[i + W]]);
       v += rb;
-      for (const term of LANDVALUE_TERMS) v += term(g, i);
-      lv[i] = clamp(v, 0, 100);
+      for (let k = 0; k < extra.length; k++) v += extra[k][i];
+      for (let k = 0; k < nt; k++) v += terms[k](g, i);
+      lv[i] = v < 0 ? 0 : v > 100 ? 100 : v;
     }
   }
 }
 
 // Glücksfaktoren eines Gebäudes. Gibt den Zielwert zurück, schreibt optional die Gründe nach out.
-export function happinessFactors(g, b, out) {
+// Stadtweite Werte für die Glücksberechnung (einmal pro Durchlauf statt pro Gebäude)
+function happyCtx(g) {
+  const P = g.policies;
+  return {
+    pop: g.stats.pop, unemp: g.stats.unemployment, jobFill: g.stats.jobFill, comDem: g.demand[2], ev: g.eff('happy'),
+    tenants: P.has('tenants'), lowrise: P.has('lowrise'), bikes: P.has('bikes'), freetransit: P.has('freetransit'),
+  };
+}
+
+export function happinessFactors(g, b, out, ctx) {
+  const c = ctx || happyCtx(g);
   const i = b.y * g.W + b.x;
-  const f = (label, v) => { if (out && Math.abs(v) >= 0.5) out.push([label, v]); return v; };
+  const cov = g.cov, fld = g.fields;
+  const f = out ? (label, v) => { if (Math.abs(v) >= 0.5) out.push([label, v]); return v; } : (label, v) => v;
   let h = 60;
   if (!b.connected) h += f('Keine Verbindung zur Autobahn', -22);
   h += f(b.powered ? 'Strom' : 'Kein Strom', b.powered ? 0 : -28);
   h += f(b.watered ? 'Wasser' : 'Kein Wasser', b.watered ? 0 : -24);
-  if (g.stats.pop > 250) h += f('Müllabfuhr', -(1 - g.cov.garbage[i]) * 9);
-  if (g.stats.pop > 300) h += f('Gesundheit', g.cov.health[i] * 11 - 5);
-  if (g.stats.pop > 300) h += f('Sicherheit', g.cov.police[i] * 6 - (b.crime || 0) * 12);
-  if (b.zone === Z.RES) h += f('Bildungsangebot', g.cov.edu[i] * 6);
-  h += f('Parks & Freizeit', g.cov.park[i] * 12);
-  h += f('Bodenwert', (g.fields.landValue[i] - 35) * 0.14);
-  h += f('Verschmutzung', -g.fields.pollution[i] * (b.zone === Z.IND ? 10 : 30));
-  h += f('Lärm', -g.fields.noise[i] * (b.zone === Z.RES ? 13 : 5));
+  if (c.pop > 250) h += f('Müllabfuhr', -(1 - cov.garbage[i]) * 9);
+  if (c.pop > 300) h += f('Gesundheit', cov.health[i] * 11 - 5);
+  if (c.pop > 300) h += f('Sicherheit', cov.police[i] * 6 - (b.crime || 0) * 12);
+  if (b.zone === Z.RES) h += f('Bildungsangebot', cov.edu[i] * 6);
+  h += f('Parks & Freizeit', cov.park[i] * 12);
+  h += f('Bodenwert', (fld.landValue[i] - 35) * 0.14);
+  h += f('Verschmutzung', -fld.pollution[i] * (b.zone === Z.IND ? 10 : 30));
+  h += f('Lärm', -fld.noise[i] * (b.zone === Z.RES ? 13 : 5));
   const tax = g.taxes[b.zone];
   h += f('Steuern', -(tax - 10) * 1.7);
   if (b.zone === Z.RES) {
     h += f('Pendelzeit', -clamp((b.commute - 30) * 0.3, 0, 12));
-    h += f('Arbeitslosigkeit', -g.stats.unemployment * 22);
-    if (g.policies.has('tenants')) h += f('Mieterschutz', 5);
-    if (g.policies.has('lowrise')) h += f('Hochhausverbot', 2);
-    h += f('Spielplätze', Math.min(6, g.cov.resBoost[i]));
+    h += f('Arbeitslosigkeit', -c.unemp * 22);
+    if (c.tenants) h += f('Mieterschutz', 5);
+    if (c.lowrise) h += f('Hochhausverbot', 2);
+    h += f('Spielplätze', Math.min(6, cov.resBoost[i]));
   } else {
-    h += f('Arbeitskräfte', -(1 - g.stats.jobFill) * 9);
+    h += f('Arbeitskräfte', -(1 - c.jobFill) * 9);
   }
-  if (b.zone === Z.COM) h += f('Kundschaft', clamp(g.demand[2] * 0.06, -6, 4) + Math.min(6, g.cov.comBoost[i] * 0.5));
-  h += f('Pulsbahn', g.cov.transit[i] * 5);
+  if (b.zone === Z.COM) h += f('Kundschaft', clamp(c.comDem * 0.06, -6, 4) + Math.min(6, cov.comBoost[i] * 0.5));
+  h += f('Pulsbahn', cov.transit[i] * 5);
   if (g.transitPenalty && g.transitPenalty[i] > 0) h += f('Überfüllte Station', -10);
-  h += f('Wahrzeichen', Math.min(14, g.cov.happyBonus[i]));
-  if (g.policies.has('bikes')) h += f('Fahrradstadt', 3);
-  if (g.policies.has('freetransit')) h += f('Kostenlose Pulsbahn', 3);
-  const ev = g.eff('happy');
-  if (ev) h += f('Ereignisse', ev);
+  h += f('Wahrzeichen', Math.min(14, cov.happyBonus[i]));
+  if (c.bikes) h += f('Fahrradstadt', 3);
+  if (c.freetransit) h += f('Kostenlose Pulsbahn', 3);
+  if (c.ev) h += f('Ereignisse', c.ev);
   if (b.burning) h += f('Feuer!', -30);
   if (b.problemGarbage) h += f('Müllberge', -4);
-  for (const fn of HAPPINESS_FACTORS) {
-    const r = fn(g, b, i);
-    if (r) h += f(r[0], r[1]);
+  for (let k = 0; k < HAPPINESS_FACTORS.length; k++) {
+    let r = null;
+    try { r = HAPPINESS_FACTORS[k](g, b, i); } catch (e) { warnOnce('HAPPINESS_FACTORS #' + k, e); }
+    if (r && Number.isFinite(r[1])) h += f(r[0], r[1]);
   }
   return clamp(h, 0, 100);
 }
 
-export function computeHappiness(g) {
+// Glück aller Zonengebäude. Mit `part` (0 oder 1) nur die Hälfte mit passender ID-Parität – der Kern ruft das
+// stündlich abwechselnd auf (halbe Rechenzeit); die Glättung ist so gewählt, dass sie zwei Stundenschritten entspricht.
+export function computeHappiness(g, part) {
   let sum = 0, w = 0;
+  const ctx = happyCtx(g);
   const unemp = g.stats.unemployment;
+  const half = part === 0 || part === 1;
+  const k = half ? 0.5775 : 0.35; // 1 − 0,65²
+  const bigCity = g.stats.pop > 1500 ? 0.06 : 0, garb = g.stats.pop > 300;
+  const W = g.W, police = g.cov.police, garbage = g.cov.garbage;
   for (const b of g.buildings.values()) {
     if (!b.zone || b.construct < 1) continue;
-    const i = b.y * g.W + b.x;
-    // Kriminalität im Gebäude
-    b.crime = clamp(0.04 + unemp * 0.5 + b.level * 0.03 + (1 - b.happy / 100) * 0.14 + (g.stats.pop > 1500 ? 0.06 : 0) - g.cov.police[i] * 0.75, 0, 1);
-    b.problemGarbage = g.cov.garbage[i] < 0.25 && g.stats.pop > 300;
-    if (b.abandoned) { b.happy = 0; continue; }
-    const target = happinessFactors(g, b, null);
-    b.happy += (target - b.happy) * 0.35;
+    if (!half || (b.id & 1) === part) {
+      const i = b.y * W + b.x;
+      // Kriminalität im Gebäude
+      b.crime = clamp(0.04 + unemp * 0.5 + b.level * 0.03 + (1 - b.happy / 100) * 0.14 + bigCity - police[i] * 0.75, 0, 1);
+      b.problemGarbage = garbage[i] < 0.25 && garb;
+      if (b.abandoned) { b.happy = 0; continue; }
+      const target = happinessFactors(g, b, null, ctx);
+      b.happy += (target - b.happy) * k;
+    } else if (b.abandoned) continue;
     const weight = Math.max(1, b.occ);
     sum += b.happy * weight;
     w += weight;
