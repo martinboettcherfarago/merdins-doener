@@ -304,9 +304,9 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 .dt-facts { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .fact { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
 .fact svg { color: var(--ink-3); flex: none; }
-.dt-lock, .dt-note { display: flex; gap: 6px; align-items: flex-start; margin-top: 8px; font-size: 12px; font-weight: 600; line-height: 1.3; }
-.dt-lock { color: var(--bad); }
-.dt-note { color: #8a5a10; }
+.detail .dt-lock, .detail .dt-note { display: flex; gap: 6px; align-items: flex-start; margin-top: 8px; font-size: 12px; font-weight: 600; line-height: 1.3; }
+.detail .dt-lock { color: var(--bad); }
+.detail .dt-note { color: #8a5a10; }
 .strip { display: flex; gap: 8px; padding: 10px 12px 12px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--paper-3) transparent; flex: 1; min-width: 0; scroll-snap-type: x proximity; }
 .strip::-webkit-scrollbar { height: 6px; }
 .strip::-webkit-scrollbar-thumb { background: var(--paper-3); border-radius: 3px; }
@@ -420,7 +420,14 @@ input[type=range] { width: 100%; accent-color: var(--ink); }
 .seg button.on { background: var(--ink); color: var(--paper); }
 .tabs { display: flex; gap: 4px; padding: 4px; background: var(--paper-2); border-radius: 12px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
 .tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 8px; border-radius: 9px; font-weight: 700; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
-.tabs button.on { background: var(--paper-hi); color: var(--ink); box-shadow: var(--shadow-s); }
+.tabs button.on { background: var(--ink); color: var(--paper); box-shadow: none; }
+.tabs button:hover:not(.on) { background: var(--paper-3); }
+/* Gleiche Reiterleiste für die Panels der Systeme (Bevölkerung, Wirtschaft, Verkehr, Wetter, Ziele) */
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) { display: flex; flex-wrap: nowrap; gap: 2px; padding: 3px; margin: 0 0 14px; background: var(--paper-2); border-radius: 11px; overflow-x: auto; scrollbar-width: none; }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs)::-webkit-scrollbar { display: none; }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button { flex: 1 1 auto; padding: 7px 7px; border-radius: 9px; background: transparent; font-weight: 700; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; position: relative; }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button:hover:not(.on) { background: var(--paper-3); }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button.on { background: var(--ink); color: var(--paper); }
 .panel .tabs button svg { display: none; }
 .panel .tabs button { padding: 7px 4px; }
 .apply { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--paper-2); font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
@@ -600,6 +607,7 @@ button.chip:hover { background: var(--paper-3); }
 /* ---------- Links unten: Ratgeber-Blase, Erste Schritte */
 .leftstack { position: absolute; left: var(--legend-x, 66px); bottom: calc(12px + var(--mm) + 40px + var(--safe-b)); width: 300px; display: flex; flex-direction: column-reverse; gap: 10px; pointer-events: none; }
 #hud.mm-off .leftstack { bottom: calc(12px + var(--tb-h) + 14px + var(--safe-b)); }
+@media (max-height: 940px) { #hud.view-on .leftstack { display: none; } }
 .leftstack > * { pointer-events: auto; }
 .bubble { display: flex; gap: 10px; padding: 12px 12px 12px 12px; position: relative; align-items: flex-start; }
 .bubble.enter { animation: bubbleIn 0.4s var(--ease-out); }

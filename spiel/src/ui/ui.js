@@ -633,17 +633,19 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     for (const b of this.el.views.querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === id);
     if (this.el.sheet && !this.el.sheet.hidden) this.renderSheet();
     const def = viewList().find((o) => o.id === id);
+    this.root.classList.toggle('view-on', id !== 'none' && !!def);
     if (id === 'none' || !def) { this.el.legend.hidden = true; return; }
     const bad = def.bad;
     let ramp = `linear-gradient(90deg, ${bad ? '#45c46b, #f2c230, #e5483c' : '#e5483c, #f2c230, #45c46b'})`;
     let ends = id === 'resources' ? ['fruchtbar', 'Erz'] : bad ? ['gering', 'hoch'] : id === 'traffic' ? ['frei', 'Stau'] : ['schlecht', 'gut'];
     if (id === 'traffic') ramp = 'linear-gradient(90deg,#45c46b,#f2c230,#e5483c)';
     let leg = `<div class="ramp" style="background:${ramp}"></div><div class="ends"><span>${ends[0]}</span><span>${ends[1]}</span></div>`;
-    const items = Array.isArray(def.legend) ? def.legend : def.legend && def.legend.items;
+    let lg = def.legend;
+    if (typeof lg === 'function') { try { lg = lg(this.g); } catch (e) { console.error(e); lg = null; } }
+    const items = Array.isArray(lg) ? lg : lg && lg.items;
     if (id === 'resources' && !def.legend) leg = `<div class="litems"><span><i style="background:#78be46"></i>Acker</span><span><i style="background:#2e6b3a"></i>Wald</span><span><i style="background:#966e5a"></i>Erz</span><span><i style="background:#4a4a58"></i>Öl</span></div>`;
     else if (items) leg = `<div class="litems">${items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
-    else if (def.legend && def.legend.items) leg = `<div class="litems">${def.legend.items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
-    else if (def.legend && def.legend.gradient) { leg = `<div class="ramp" style="background:${def.legend.gradient}"></div><div class="ends"><span>${esc((def.legend.ends || [])[0] || '')}</span><span>${esc((def.legend.ends || [])[1] || '')}</span></div>`; }
+    else if (lg && lg.gradient) { leg = `<div class="ramp" style="background:${lg.gradient}"></div><div class="ends"><span>${esc((lg.ends || [])[0] || '')}</span><span>${esc((lg.ends || [])[1] || '')}</span></div>`; }
     else if (id === 'power' || id === 'water') leg = `<div class="litems"><span><i style="background:${id === 'power' ? '#45c46b' : '#3fa0e0'}"></i>versorgt</span><span><i style="background:#e5483c"></i>fehlt</span></div>`;
     this.el.legend.innerHTML = `<h4>${iconAny(def.icon, 'layers', 16)}<span>${esc(def.name)}</span><button class="close" data-act="offview" aria-label="Ansicht schließen">${icon('close', 14)}</button></h4>${leg}<p>${esc(def.text || '')}</p>`;
     this.el.legend.hidden = false;
@@ -922,7 +924,15 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (this.photo.active) { if (this.photo.key(e)) { e.preventDefault(); e.stopImmediatePropagation(); } return; }
-    if (this.modalOpen()) { if (e.code === 'Escape' && this.modalRoot.querySelector('.keysheet')) this.closeTopModal(); return; }
+    if (this.modalOpen()) {
+      if (e.code === 'Escape') {
+        const top = this.modalRoot.lastElementChild;
+        const ok = top && top.querySelector('[data-act=ok]');
+        if (top && top.querySelector('.keysheet')) this.closeTopModal();
+        else if (ok && !top.querySelector('[data-card], [data-opt], [data-act=menu], [data-act=rescue]')) ok.click();
+      }
+      return;
+    }
     const k = (e.key || '').toLowerCase();
     const ctrl = e.ctrlKey || e.metaKey;
     if (e.code === 'Space') { e.preventDefault(); this.setSpeed(this.g.speed === 0 ? (this.lastSpeed || 1) : 0); }

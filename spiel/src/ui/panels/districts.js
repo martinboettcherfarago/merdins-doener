@@ -99,7 +99,7 @@ function toolRow(ui) {
   const brush = [];
   for (let k = 1; k <= BRUSH_MAX; k++) brush.push(`<button data-act="brush" data-n="${k}" class="${districtTool.brush === k ? 'on' : ''}">${k}</button>`);
   return `<div class="dt-tools">${btn('paint', 'Malen')}${btn('fill', 'Block füllen')}${btn('new', 'Neuer Bezirk')}${btn('erase', 'Radieren')}</div>
-<div class="dt-brush"><span style="margin-right:4px">Pinsel</span>${brush.join('')}<span style="margin-left:6px;color:var(--ink-3)">[,] [.]</span></div>${lk ? `<p class="dt-note" style="color:var(--bad)">${lk}</p>` : ''}`;
+<div class="dt-brush"><span style="margin-right:4px">Pinsel</span>${brush.join('')}<span style="margin-left:auto;color:var(--ink-3);font-size:11.5px" data-tip="Pinselgröße ändern" data-tip-desc="Tasten , und . auf der Tastatur">Tasten , / .</span></div>${lk ? `<p class="dt-note" style="color:var(--bad)">${lk}</p>` : ''}`;
 }
 
 function card(ui, d) {

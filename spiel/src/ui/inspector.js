@@ -127,9 +127,9 @@ function inspService(ui, b) {
   const facts = [];
   if (d.power) facts.push(['Stromerzeugung', `${fmt(d.power * g.mods.power)} MW`]);
   if (d.water) facts.push(['Wasserförderung', `${fmt(d.water * g.mods.water)} m³${b.powered ? '' : ' (ohne Strom: 0)'}`]);
-  if (d.service) facts.push(['Reichweite', `${d.service.radius} Felder`]);
+  if (d.service) facts.push(['Reichweite', `${String(d.service.radius).replace('.', ',')} Felder`]);
   if (d.tourism) facts.push(['Touristen', `${d.tourism} / Tag`]);
-  if (d.park) facts.push(['Erholung', `Radius ${d.parkRadius}`]);
+  if (d.park) facts.push(['Erholung', `Radius ${String(d.parkRadius).replace('.', ',')}`]);
   if (d.jobs) facts.push(['Arbeitsplätze', fmt(d.jobs)]);
   if (d.sewage) facts.push(['Abwasser', fmt(d.sewage)]);
   if (d.heat) facts.push(['Fernwärme', fmt(d.heat)]);
@@ -137,7 +137,7 @@ function inspService(ui, b) {
   if (d.storage) facts.push(['Lager', fmt(d.storage)]);
   if (d.buses || d.trams || d.taxis) facts.push(['Fahrzeuge', fmt(d.buses || d.trams || d.taxis)]);
   if (d.shelterCap) facts.push(['Schutzplätze', fmt(d.shelterCap)]);
-  if (d.warnRadius) facts.push(['Warnradius', `${d.warnRadius} Felder`]);
+  if (d.warnRadius) facts.push(['Warnradius', `${String(d.warnRadius).replace('.', ',')} Felder`]);
   if (d.stationCapacity) facts.push(['Kapazität', `${d.stationCapacity} Fahrgäste`]);
   if (d.lv) facts.push(['Bodenwert', `${d.lv > 0 ? '+' : '−'}${Math.abs(d.lv)} im Umkreis ${d.lvRadius || 0}`]);
   facts.push(['Unterhalt', `${fmtMoney(d.upkeep * g.upkeepMul() * (g.serviceBudget[d.cat] ?? 1))} / Tag`]);

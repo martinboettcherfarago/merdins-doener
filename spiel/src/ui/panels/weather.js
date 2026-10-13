@@ -153,7 +153,7 @@ function renderWeather(ui) {
 <div class="wx-det">
   <div><div class="k">Wind</div><div class="v">${kmh(w.wind)} km/h</div><div class="k" style="text-transform:none;letter-spacing:0">aus ${compass(w.windDir)}</div></div>
   <div><div class="k">${w.snow > w.rain ? 'Schnee' : 'Regen'}</div><div class="v">${Math.round(Math.max(w.rain, w.snow) * 100)} %</div><div class="k" style="text-transform:none;letter-spacing:0">Boden ${w.wet > 0.6 ? 'nass' : w.wet > 0.2 ? 'feucht' : w.dry > 0.6 ? 'staubtrocken' : 'trocken'}</div></div>
-  <div><div class="k">Schneedecke</div><div class="v">${Math.round(w.snowCover * 100)} %</div><div class="k" style="text-transform:none;letter-spacing:0">${w.snowCover > 0.15 ? (g.hasBuilt('snow_depot') ? 'Winterdienst fährt' : 'ungeräumt!') : '—'}</div></div>
+  <div><div class="k">Schnee</div><div class="v">${Math.round(w.snowCover * 100)} %</div><div class="k" style="text-transform:none;letter-spacing:0">${w.snowCover > 0.15 ? (g.hasBuilt('snow_depot') ? 'Winterdienst fährt' : 'ungeräumt!') : '—'}</div></div>
   <div><div class="k">Wolken</div><div class="v">${Math.round(w.cloud * 100)} %</div><div class="k" style="text-transform:none;letter-spacing:0">${w.fog > 0.3 ? 'Nebel' : 'Sicht gut'}</div></div>
 </div>`;
   // Jahreskreis
@@ -434,7 +434,7 @@ INSPECTORS.push((ui, sel) => {
     }
     const d = BUILDINGS[b.key];
     if (b.key === 'weather_station') lines.push(`Vorhersage: <b>${forecastDays(g)} Tage</b> · Unwetterwarnungen ${stationCount(g) >= 2 ? '7' : '5'} Tage im Voraus.`);
-    if (b.key === 'warning_siren') lines.push(`Warnt alle im Umkreis von <b>${d.warnRadius} Feldern</b> – ${Math.round(residentsCovered(g, (k) => sirenAt(g, k) > 0) * 100)} % der Bewohner sind in Hörweite einer Sirene.`);
+    if (b.key === 'warning_siren') lines.push(`Warnt alle im Umkreis von <b>${String(d.warnRadius).replace(".", ",")} Feldern</b> – ${Math.round(residentsCovered(g, (k) => sirenAt(g, k) > 0) * 100)} % der Bewohner sind in Hörweite einer Sirene.`);
     if (b.key === 'shelter') lines.push(`Belegt: <b>${fmt(Math.min(st.sheltered, d.shelterCap))} / ${fmt(d.shelterCap)}</b> Plätze · stadtweit ${fmt(st.shelterCap)} Plätze.`);
     if (b.key === 'disaster_center') lines.push(`Einsätze: <b>${st.ops.length}</b> · Reparaturen: <b>${Object.keys(st.repairs).length}</b> · Trümmerfelder: <b>${st.rubble.length}</b> · gerettet bisher: <b>${fmt(st.totals.rescued)}</b>`);
     if (b.key === 'snow_depot') { const w = g.ext.weather || {}; lines.push(`${w.snowCover > 0.18 ? `<b>Räumfahrzeuge unterwegs</b> · Schneedecke ${Math.round(w.snowCover * 100)} %` : 'Bereit für den nächsten Schnee.'}`); }

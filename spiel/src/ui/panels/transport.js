@@ -119,7 +119,7 @@ function advice(g) {
     else if (l.riders < 8 && g.day() - (l.created || 0) > 3) tips.push([`${TPS.lineLabel(l)} hat kaum Fahrgäste. Verbinde Wohnen mit Arbeit, Läden oder einer Pulsbahn-Station.`, 'warn']);
   }
   const u = unserved(g);
-  if (T.lines.length && u.pop > g.stats.pop * 0.25) tips.push([`${fmt(u.pop)} Menschen wohnen ohne Haltestelle in der Nähe (${TPS.TP.stopRadius} Felder).`, 'warn']);
+  if (T.lines.length && u.pop > g.stats.pop * 0.25) tips.push([`${fmt(u.pop)} Menschen wohnen ohne Haltestelle in der Nähe (${String(TPS.TP.stopRadius).replace('.', ',')} Felder).`, 'warn']);
   const recent = T.accidentLog.filter((a) => g.day() - a.day <= 2);
   if (recent.length >= 2) tips.push([`${recent.length} Unfälle in den letzten Tagen. Ampeln an belebten Kreuzungen verhindern die meisten.`, 'bad']);
   if ((g.stats.trafficFlow || 1) < 0.8) tips.push(['Viel Stau: Busspuren, Straßenbahnen, Parkhäuser und Alleen entlasten die Straßen.', 'warn']);
@@ -215,7 +215,7 @@ ${!busOk ? muted(`Busse gibt es ab „${MILESTONES[BUILDINGS.bus_depot.unlock].n
 </div>
 ${netMap(g)}
 ${lines.map((l) => lineCard(ui, l)).join('') || muted('Noch keine Linie. „Neue Buslinie" wählen und nacheinander Haltestellen an Straßen anklicken – erneuter Klick auf die letzte Haltestelle, Enter oder Rechtsklick beendet die Linie, ein Klick auf die erste schließt einen Ring.')}
-<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3>${muted(`Jede Haltestelle sammelt Fahrgäste im Umkreis von ${TPS.TP.stopRadius} Feldern. Wohnen, Arbeit, Läden und Sehenswürdigkeiten an derselben Linie erzeugen Fahrten; Umstiege zwischen Linien und zur Pulsbahn (⇄) funktionieren von selbst. Je kürzer der Takt, desto mehr Menschen lassen das Auto stehen. Ist ein Abschnitt voll, bleiben Fahrgäste stehen (●) und die Nachbarschaft ärgert sich.`)}</div>`;
+<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3>${muted(`Jede Haltestelle sammelt Fahrgäste im Umkreis von ${String(TPS.TP.stopRadius).replace(".", ",")} Feldern. Wohnen, Arbeit, Läden und Sehenswürdigkeiten an derselben Linie erzeugen Fahrten; Umstiege zwischen Linien und zur Pulsbahn (⇄) funktionieren von selbst. Je kürzer der Takt, desto mehr Menschen lassen das Auto stehen. Ist ein Abschnitt voll, bleiben Fahrgäste stehen (●) und die Nachbarschaft ärgert sich.`)}</div>`;
 }
 
 function status(b, ok) {
@@ -294,7 +294,7 @@ registerPanel({
     emit('transport:panel', true);
     if (!T) return '<p>Verkehrssystem nicht geladen.</p>';
     const tabs = [['overview', 'Übersicht'], ['lines', `Linien${T.lines.length ? ' · ' + T.lines.length : ''}`], ['long', 'Fernverkehr'], ['roads', 'Straße & Ampeln']];
-    const head = `<div class="chart-tabs" style="margin-bottom:12px">${tabs.map(([k, n]) => `<button data-act="tab" data-k="${k}" class="${S.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+    const head = `<div class="tp-tabs">${tabs.map(([k, n]) => `<button data-act="tab" data-k="${k}" class="${S.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>`;
     const body = S.tab === 'lines' ? tabLines(ui) : S.tab === 'long' ? tabLong(ui) : S.tab === 'roads' ? tabRoads(ui) : tabOverview(ui);
     return head + body;
   },

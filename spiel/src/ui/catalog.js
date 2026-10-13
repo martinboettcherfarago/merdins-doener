@@ -127,8 +127,8 @@ function placeItem(g, cat, key, meta, counts) {
   if (d.water) facts.push(['water', `${fmt(d.water)} m³`]);
   if (d.sewage) facts.push(['water', `Abwasser ${fmt(d.sewage)}`]);
   if (d.heat) facts.push(['flame', `Wärme ${fmt(d.heat)}`]);
-  if (d.service) facts.push(['target', `Radius ${d.service.radius}`]);
-  if (d.park) facts.push(['parks', `Erholung · Radius ${d.parkRadius}`]);
+  if (d.service) facts.push(['target', `Radius ${String(d.service.radius).replace('.', ',')}`]);
+  if (d.park) facts.push(['parks', `Erholung · Radius ${String(d.parkRadius).replace('.', ',')}`]);
   if (d.tourism) facts.push(['people', `${fmt(d.tourism)} Touristen/Tag`]);
   if (d.jobs) facts.push(['people', `${fmt(d.jobs)} Jobs`]);
   if (d.cargo) facts.push(['transport', `Fracht ${fmt(d.cargo)}`]);

@@ -517,7 +517,7 @@ registerPanel({
     if (!S) return '<p>Die Wirtschaft startet mit dem ersten Spieltag.</p>';
     const tabs = [['overview', 'Übersicht'], ['goods', 'Waren & Preise'], ['logistics', 'Logistik'], ['budgets', 'Budgets'], ['taxes', 'Steuern']];
     const body = view.tab === 'goods' ? tabGoods(g, S) : view.tab === 'logistics' ? tabLogistics(g, S) : view.tab === 'budgets' ? tabBudgets(g) : view.tab === 'taxes' ? tabTaxes(g, S) : tabOverview(g, S);
-    return `${cycleBox(g, S)}<div class="eco-tabs">${tabs.map(([k, n]) => `<button data-act="eco-tab" data-k="${k}" class="${view.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${body}`;
+    return `<div class="eco-tabs">${tabs.map(([k, n]) => `<button data-act="eco-tab" data-k="${k}" class="${view.tab === k ? 'on' : ''}">${n}</button>`).join('')}</div>${cycleBox(g, S)}${body}`;
   },
   click(ui, act, el) {
     const g = ui.g, S = g.ext.industry;
@@ -594,6 +594,7 @@ registerPanel({
 registerOverlay({
   id: 'goods', name: 'Waren', icon: SVG_CRATES,
   text: 'Läden: grün versorgt, rot Warenmangel. Industrie: grün verkauft, rot bleibt liegen. Violett: Lagerhallen nach Füllstand, blau: Güterumschlag.',
+  legend: [['#45c46b', 'versorgt · verkauft'], ['#e5483c', 'Mangel · Stau'], ['#8f5ad8', 'Lager'], ['#2f8fe0', 'Umschlag']],
   building: (g, b) => goodsColor(g, b),
 });
 
