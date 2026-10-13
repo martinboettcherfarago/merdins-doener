@@ -2,14 +2,13 @@
 // VehicleView: Straßenautos aus g.traffic.cars und alle beweglichen Objekte der Systeme (g.renderables(), Vertrag 6.3),
 //   instanziert mit drei Detailstufen, Scheinwerfer/Rücklichter/Blaulicht/Blinker, Lichtkegel auf der Straße bei Nacht,
 //   Sattelzüge mit nachlaufendem Auflieger.
-// TransitView: Pulsbahn – Hochbahn-Trassen auf Pfeilern, Stationen, Züge aus Führerstands- und Mittelwagen, Fahrgäste.
+// TransitView: Pulsbahn (U-Bahn) an der Oberfläche – Eingänge, Zielsymbole, wartende Fahrgäste. Tunnel und Züge: underground.js.
 import * as THREE from 'three';
 import { TRANSIT, T, R } from '../config.js';
 import { VT } from '../sim/traffic.js';
-import { LINE_COLORS, linePose } from '../sim/transit.js';
 import { MODELS, vehicleGeometry, carPaint, carType } from './vehicles_models.js';
 import { VKit, P, F, VU, Batch, GlowPoints, getVehicleMaterial, hashf, lin } from './vehicles_kit.js';
-import { ARCH, buildArch } from './arch/index.js';
+import { buildArch } from './arch/index.js';
 import { getMaterial } from './matlib.js';
 
 const QUAL = { low: 0.65, medium: 1, high: 1.3, ultra: 1.6 };
@@ -446,10 +445,14 @@ export class VehicleView {
 
 function smooth(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 
-// ---------------------------------------------------------------- Pulsbahn
+// ---------------------------------------------------------------- Pulsbahn (U-Bahn): Eingänge und Fahrgäste
+// Tunnel, Bahnsteighallen und Züge zeichnet render/underground.js (UndergroundView). Hier oben: die U-Bahn-Eingänge
+// (Architektur-Baustein 'station': Variante 0 eigener Platz, Variante 1 Abgang auf dem Gehweg) in drei Detailstufen,
+// das Zielsymbol und die wartenden Fahrgäste über dem Eingang sowie der Überfüllungs-Ring (Mini-Metro-Timer).
+// Symbole liegen in der HUD-Szene: immer lesbar, auch hinter Häusern und in der Untergrund-Ansicht.
 const SHAPE_COLORS = { 1: 0x2d8a4e, 2: 0x2a73c4, 3: 0xc98a14, 4: 0x7b4fc0 };
-const CAR_SPACING = 0.54;
-const BOGIE = 0.17;
+const ICON_Y = 0.6;      // Zielsymbol über der U-Säule
+const ICON_Y_HUB = 0.86; // über dem Dach des Umsteigebahnhofs
 
 export class TransitView {
   constructor(engine) {
@@ -457,11 +460,13 @@ export class TransitView {
     this.g = engine.game;
     this.group = new THREE.Group();
     engine.scene.add(this.group);
+    this.hud = engine.hud || engine.scene;
+    this.iconGroup = new THREE.Group();
+    this.hud.add(this.iconGroup);
     this.version = -1;
     this.H = TRANSIT.trackHeight;
-    this.fleet = new Fleet(engine, { near: 12, mid: 60 });
-    this.glowList = [];
-    this.mat = getVehicleMaterial();
+    this.glowList = []; // keine Zuglichter mehr an der Oberfläche (Züge fahren im Tunnel)
+    this.iconY = new Map();
     // Fahrgast-Symbole
     const shapes = {
       1: new THREE.CylinderGeometry(0.07, 0.07, 0.03, 14),
@@ -473,96 +478,89 @@ export class TransitView {
     for (const k of [1, 2, 3, 4]) {
       const m = new THREE.InstancedMesh(shapes[k], new THREE.MeshBasicMaterial({ color: SHAPE_COLORS[k] }), 1200);
       m.frustumCulled = false; m.count = 0;
-      engine.scene.add(m);
+      this.hud.add(m);
       this.paxMesh[k] = m;
     }
-    // Überfüllungs-Ringe (Mini-Metro-Timer)
+    this.iconMats = { face: new THREE.MeshBasicMaterial({ color: 0xffffff }), rim: new THREE.MeshBasicMaterial({ color: 0x2e3440 }) };
+    this.iconGeos = {};
+    // Überfüllungs-Ringe
     this.ringGroup = new THREE.Group();
-    engine.scene.add(this.ringGroup);
+    this.hud.add(this.ringGroup);
     this.rings = new Map();
-    this.tmp = { x: 0, z: 0, yaw: 0 };
-    this.tmpA = { x: 0, z: 0, yaw: 0 };
-    this.tmpB = { x: 0, z: 0, yaw: 0 };
     this.m4 = new THREE.Matrix4(); this.p = new THREE.Vector3();
     this.highlightLine = null;
     this.stationMeshes = [];
+    this.archGroup = new THREE.Group();
+    this.group.add(this.archGroup);
+    this.archCache = new Map();
+    this.archMeshes = [];
+    this.archSets = [];
     this.rebuild();
+  }
+
+  iconGeo(shape) {
+    if (!this.iconGeos[shape]) {
+      const geo = shape === 1 ? new THREE.CylinderGeometry(0.16, 0.16, 0.05, 20) : shape === 2 ? new THREE.CylinderGeometry(0.2, 0.2, 0.05, 3) : new THREE.BoxGeometry(0.26, 0.05, 0.26);
+      if (shape === 4) geo.rotateY(Math.PI / 4);
+      this.iconGeos[shape] = { face: geo, rim: geo.clone().scale(1.25, 0.8, 1.25) };
+    }
+    return this.iconGeos[shape];
+  }
+
+  isHub(st) {
+    const g = this.g;
+    const b = g.buildings.get(g.bld[st.y * g.W + st.x]);
+    return !!(b && b.key === 'metro_hub');
   }
 
   rebuild() {
     const g = this.g, tr = g.transit;
     this.version = tr.version;
-    for (const o of [...this.group.children]) {
-      this.group.remove(o);
-      o.traverse((x) => { if (x.geometry) x.geometry.dispose(); });
-    }
-    const H = this.H;
-    const k = new VKit(2);
-    const CON = 0xe4e1da, CON2 = 0xcfccc4, RAIL = 0x5a5f66;
-    // Trassen: Hohlkasten mit Linienstreifen, Schienen, Pfeiler mit Querhaupt
-    const girder = [[-0.105, -0.13], [0.105, -0.13], [0.125, -0.04], [0.125, 0.0], [-0.125, 0.0], [-0.125, -0.04]];
-    for (const line of tr.lines) {
-      const col = LINE_COLORS[line.color];
-      for (let s = 0; s < line.pts.length - 1; s++) {
-        const [ax, ay] = line.pts[s], [bx, by] = line.pts[s + 1];
-        const l = Math.hypot(bx - ax, by - ay);
-        if (l < 1e-4) continue;
-        const dx = (bx - ax) / l, dy = (by - ay) / l;
-        const off = (line.segOffset && line.segOffset[line.pair[s + 1]]) || 0;
-        const x0 = ax - dy * off - g.W / 2, z0 = ay + dx * off - g.H / 2;
-        const x1 = bx - dy * off - g.W / 2, z1 = by + dx * off - g.H / 2;
-        const yaw = Math.atan2(dx, dy);
-        k.group({ x: (x0 + x1) / 2, y: H, z: (z0 + z1) / 2, ry: yaw }, () => {
-          const hl = l / 2 + 0.11;
-          k.extrudeZ(girder, -hl, hl, CON, P.PLASTIC, { edge: (i) => (i === 0 ? { c: CON2, p: P.PLASTIC } : undefined) });
-          for (const sd of [1, -1]) k.rectX(sd, 0.1252, -0.035, -0.012, -hl, hl, col, P.STRIPE);
-          for (const sd of [1, -1]) k.box(sd * 0.055 - 0.008, 0.0, -hl, sd * 0.055 + 0.008, 0.012, hl, RAIL, P.CHROME, { back: false, front: false });
-          for (const sd of [1, -1]) k.box(sd * 0.125 - 0.012, 0.0, -hl, sd * 0.125, 0.03, hl, CON2, P.PLASTIC, { back: false, front: false });
-        });
-        const np = Math.max(1, Math.round(l / 2.2));
-        for (let j = 0; j < np; j++) {
-          const t = (j + 0.5) / np;
-          const px = x0 + (x1 - x0) * t, pz = z0 + (z1 - z0) * t;
-          k.group({ x: px, y: 0, z: pz, ry: yaw }, () => {
-            k.cyl('y', [0, (H - 0.2) / 2, 0], [0.075, 0.055], H - 0.2, 8, CON, P.PLASTIC, { capA: false });
-            k.prism([[-0.07, H - 0.2], [0.07, H - 0.2], [0.07, H - 0.13], [-0.07, H - 0.13]], 0.16, 0.16, CON2, P.PLASTIC, {});
-            k.box(-0.11, 0, -0.11, 0.11, 0.04, 0.11, CON2, P.PLASTIC);
-          });
-        }
-      }
-    }
-    // Stationen
-    const useArch = !!ARCH.station;
-    const archPlace = [];
+    for (const o of [...this.iconGroup.children]) this.iconGroup.remove(o);
+    const lists = [[], [], []];
+    this.iconY.clear();
     for (const st of tr.stations.values()) {
       const x = st.x + 0.5 - g.W / 2, z = st.y + 0.5 - g.H / 2;
-      const ls = tr.lines.filter((l) => l.stops.includes(st.id));
-      const yaw = this.stationYaw(st, ls);
-      const n = Math.max(1, ls.length);
-      if (useArch) archPlace.push([x, z, yaw]);
-      else this.buildStation(k, x, z, yaw, n, ls.map((l) => LINE_COLORS[l.color]));
-      // Symbol der Zone über dem Dach (Mini-Metro-Lesbarkeit)
+      const hub = this.isHub(st);
+      const base = hub ? ICON_Y_HUB : ICON_Y;
+      this.iconY.set(st.id, base);
+      if (!hub) {
+        const onRoad = g.road[st.y * g.W + st.x] > 0;
+        const ls = tr.lines.filter((l) => l.stops.includes(st.id));
+        const [v, yaw] = this.entrance(st, onRoad, ls);
+        lists[v].push([x, z, yaw]);
+      }
+      // Zielsymbol (Mini-Metro-Lesbarkeit)
       if (st.shape) {
-        const geo = st.shape === 1 ? new THREE.CylinderGeometry(0.16, 0.16, 0.05, 20) : st.shape === 2 ? new THREE.CylinderGeometry(0.2, 0.2, 0.05, 3) : new THREE.BoxGeometry(0.26, 0.05, 0.26);
-        if (st.shape === 4) geo.rotateY(Math.PI / 4);
-        const icon = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.25 }));
-        icon.position.set(x, H + 0.53, z);
-        const rim = new THREE.Mesh(geo.clone().scale(1.25, 0.8, 1.25), new THREE.MeshStandardMaterial({ color: 0x2e3440, roughness: 0.5 }));
-        rim.position.set(x, H + 0.51, z);
+        const geo = this.iconGeo(st.shape);
+        const icon = new THREE.Mesh(geo.face, this.iconMats.face);
+        icon.position.set(x, base + 0.02, z);
         icon.userData.station = st.id;
-        this.group.add(rim, icon);
+        const rim = new THREE.Mesh(geo.rim, this.iconMats.rim);
+        rim.position.set(x, base, z);
+        this.iconGroup.add(rim, icon);
       }
     }
-    const geo = k.build();
-    const mesh = new THREE.Mesh(geo, this.mat);
-    mesh.castShadow = mesh.receiveShadow = true;
-    this.group.add(mesh);
-    this.trackTris = geo.userData.triangles;
-    this.archList = null;
-    if (useArch && archPlace.length) this.placeArchStations(archPlace);
-    // Ringe
-    for (const r of this.rings.values()) this.ringGroup.remove(r);
+    this.placeArch(lists);
+    for (const r of this.rings.values()) { this.ringGroup.remove(r); r.geometry.dispose(); }
     this.rings.clear();
+  }
+
+  // Variante und Drehung des Eingangs: Platz (Treppe öffnet sich zur Straße), Gehweg (Abgang auf der straßenfreien
+  // Seite) oder Kreuzung (Abgang auf der Gehweg-Ecke, bevorzugt zur bebauten Ecke)
+  entrance(st, onRoad, ls) {
+    const g = this.g, W = g.W, H = g.H;
+    const rd = (x, y) => x >= 0 && y >= 0 && x < W && y < H && g.road[y * W + x] > 0;
+    const dirs = [[0, 1, 0], [1, 0, Math.PI / 2], [0, -1, Math.PI], [-1, 0, -Math.PI / 2]];
+    if (onRoad) {
+      for (const [dx, dy, yaw] of dirs) if (!rd(st.x + dx, st.y + dy)) return [1, yaw];
+      // Ecke (+x/+z im Modell) nach der Diagonale ohne Straße ausrichten
+      const corners = [[1, 1, 0], [1, -1, Math.PI / 2], [-1, -1, Math.PI], [-1, 1, -Math.PI / 2]];
+      for (const [dx, dy, yaw] of corners) if (!rd(st.x + dx, st.y + dy)) return [2, yaw];
+      return [2, 0];
+    }
+    for (const [dx, dy, yaw] of dirs) if (rd(st.x + dx, st.y + dy)) return [0, yaw];
+    return [0, this.stationYaw(st, ls)];
   }
 
   // Richtung der ersten Linie an der Station
@@ -581,153 +579,89 @@ export class TransitView {
     return 0;
   }
 
-  // Eigene Hochbahn-Station (wenn kein Architektur-Baustein 'station' registriert ist)
-  buildStation(k, x, z, yaw, n, cols) {
-    const H = this.H;
-    const spread = (n - 1) * 0.15;
-    const PL = 0.62; // halbe Bahnsteiglänge
-    const CON = 0xe9e6df, ROOF = 0x3a3f47, GLS = 0x9fb8c8, STEEL = 0x8d939a;
-    k.group({ x, y: 0, z, ry: yaw }, () => {
-      for (const s of [1, -1]) {
-        const xi = s * (spread + 0.14), xo = s * (spread + 0.4);
-        const x0 = Math.min(xi, xo), x1 = Math.max(xi, xo);
-        // Bahnsteig
-        k.box(x0, H - 0.02, -PL, x1, H + 0.035, PL, CON, P.PLASTIC, { bottom: { c: 0xbdb9b0 } });
-        k.rectY(H + 0.0362, s > 0 ? x0 : x1 - 0.018, s > 0 ? x0 + 0.018 : x1, -PL, PL, 0xf2c21a, P.GLOSS);
-        // Stützen unter dem Bahnsteig
-        for (const zz of [-0.45, 0.0, 0.45]) k.cyl('y', [(x0 + x1) / 2, (H - 0.02) / 2, zz], 0.035, H - 0.02, 6, CON, P.PLASTIC, { capA: false });
-        // Dach auf Stützen
-        const xp = s * (spread + 0.385);
-        for (const zz of [-0.45, 0.0, 0.45]) k.box(xp - 0.012, H + 0.035, zz - 0.012, xp + 0.012, H + 0.34, zz + 0.012, STEEL, P.CHROME);
-        k.box(x0 - 0.03, H + 0.34, -PL - 0.04, x1 + 0.03, H + 0.37, PL + 0.04, ROOF, P.PLASTIC, { bottom: { c: 0xd9d9d4 } });
-        // Windschutz aus Glas an der Außenkante
-        const xg = s > 0 ? x1 - 0.004 : x0 + 0.004;
-        k.rectX(s, Math.abs(xg) + 0.0, H + 0.04, H + 0.3, -PL + 0.05, PL - 0.05, GLS, P.GLASS);
-        k.rectX(-s, Math.abs(xg) - 0.006, H + 0.04, H + 0.3, -PL + 0.05, PL - 0.05, GLS, P.GLASS);
-        // Bänke, Stationsschild, Lampen
-        k.box(s * (spread + 0.32) - 0.03, H + 0.035, -0.2, s * (spread + 0.32) + 0.03, H + 0.075, 0.2, 0x7a5a3a, P.PLASTIC);
-        k.box(s * (spread + 0.36) - 0.005, H + 0.22, -0.12, s * (spread + 0.36) + 0.005, H + 0.27, 0.12, 0x1f4f9c, P.GLOSS);
-        for (const zz of [-0.3, 0.15]) k.box(s * (spread + 0.27) - 0.03, H + 0.325, zz - 0.06, s * (spread + 0.27) + 0.03, H + 0.335, zz + 0.06, 0xfff1d0, P.LAMP);
-      }
-      // Linienfarben als Bänder an der Dachkante
-      cols.slice(0, 4).forEach((c, i) => {
-        for (const s of [1, -1]) k.box(s * (spread + 0.41) - 0.006, H + 0.3 - i * 0.025, -PL, s * (spread + 0.41) + 0.006, H + 0.322 - i * 0.025, PL, c, P.STRIPE);
-      });
-      // Aufzug (Glas) und Treppenhaus an den Enden, mit Steg zum Bahnsteig
-      const zt = PL - 0.02;
-      const xa = spread + 0.44;
-      k.box(xa, 0.0, zt - 0.14, xa + 0.14, H + 0.3, zt, 0x9fb8c8, P.GLASS);
-      k.box(xa - 0.005, H + 0.3, zt - 0.145, xa + 0.145, H + 0.34, zt + 0.005, ROOF, P.PLASTIC);
-      k.box(xa - 0.006, 0.0, zt - 0.146, xa + 0.004, H + 0.3, zt - 0.136, STEEL, P.CHROME);
-      k.box(xa + 0.136, 0.0, zt - 0.146, xa + 0.146, H + 0.3, zt - 0.136, STEEL, P.CHROME);
-      k.box(xa - 0.04, H - 0.02, zt - 0.12, xa, H + 0.035, zt - 0.02, CON, P.PLASTIC);
-      const xs = -spread - 0.6;
-      k.box(xs, 0.0, -zt, xs + 0.16, H + 0.32, -zt + 0.2, 0xcfcac0, P.PLASTIC);
-      for (let yy = 0.3; yy < H; yy += 0.3) k.rectX(-1, -xs + 0.0012, yy, yy + 0.16, -zt + 0.03, -zt + 0.17, 0x7f98a8, P.GLASS);
-      k.box(xs + 0.16, H - 0.02, -zt + 0.04, -spread - 0.4, H + 0.035, -zt + 0.16, CON, P.PLASTIC);
-      k.box(xs - 0.005, H + 0.32, -zt - 0.005, xs + 0.165, H + 0.35, -zt + 0.205, ROOF, P.PLASTIC);
-    });
+  // Eingangsmodell je Variante und Detailstufe (einmal gebaut, dann wiederverwendet)
+  archModel(v, lod) {
+    const key = v * 3 + lod;
+    if (this.archCache.has(key)) return this.archCache.get(key);
+    let parts = null;
+    try {
+      const res = buildArch('station', 1, v, 1, 1, {}, [2, 1, 0][lod]);
+      if (res && res.meshes) parts = res.meshes.map((p) => ({ geometry: p.geometry, material: getMaterial(p.material) }));
+    } catch (e) { console.warn('U-Bahn-Eingang: Baustein fehlgeschlagen', e); }
+    this.archCache.set(key, parts);
+    return parts;
   }
 
-  // Stationen aus dem Architektur-Baustein von G6 (Modell-z = Fahrtrichtung), drei Detailstufen nach Kameraabstand
-  placeArchStations(list) {
-    this.archList = list;
-    this.archLods = [];
-    for (const detail of [2, 1, 0]) {
-      let res = null;
-      try { res = buildArch('station', 1, 0, 1, 1, { trackHeight: this.H }, detail); } catch (e) { console.warn('Station-Baustein fehlgeschlagen', e); }
-      if (!res || !res.meshes) { this.archLods.push(null); continue; }
-      const meshes = res.meshes.map((part) => {
-        const mesh = new THREE.InstancedMesh(part.geometry, getMaterial(part.material), list.length);
-        mesh.castShadow = !mesh.material.transparent;
-        mesh.receiveShadow = true;
-        mesh.frustumCulled = false;
-        mesh.count = 0;
-        this.group.add(mesh);
-        return mesh;
+  placeArch(lists) {
+    for (const m of this.archMeshes) { this.archGroup.remove(m); m.dispose(); }
+    this.archMeshes = [];
+    this.archSets = [];
+    lists.forEach((list, v) => {
+      if (!list.length) return;
+      const lods = [0, 1, 2].map((lod) => {
+        const parts = this.archModel(v, lod);
+        if (!parts) return null;
+        return parts.map((p) => {
+          const mesh = new THREE.InstancedMesh(p.geometry, p.material, list.length);
+          mesh.castShadow = !p.material.transparent;
+          mesh.receiveShadow = true;
+          mesh.frustumCulled = false;
+          mesh.count = 0;
+          this.archGroup.add(mesh);
+          this.archMeshes.push(mesh);
+          return mesh;
+        });
       });
-      this.archLods.push(meshes);
-    }
+      this.archSets.push({ list, lods });
+    });
     this.archTimer = 0;
     this.updateArchLods(true);
   }
 
   updateArchLods(force) {
-    if (!this.archList || !this.archLods) return;
+    if (!this.archSets.length) return;
     if (!force && --this.archTimer > 0) return;
     this.archTimer = 20;
     const cam = this.e.camera.position;
     const m4 = this.m4, q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-    const counts = [0, 0, 0];
-    for (const [x, z, yaw] of this.archList) {
-      const d = Math.hypot(x - cam.x, this.H - cam.y, z - cam.z);
-      let lod = d < 16 ? 0 : d < 50 ? 1 : 2;
-      while (lod < 2 && !this.archLods[lod]) lod++;
-      while (lod > 0 && !this.archLods[lod]) lod--;
-      const set = this.archLods[lod];
-      if (!set) continue;
-      q.setFromAxisAngle(up, yaw); p.set(x, 0, z); m4.compose(p, q, s);
-      const i = counts[lod]++;
-      for (const mesh of set) mesh.setMatrixAt(i, m4);
+    for (const { list, lods } of this.archSets) {
+      const counts = [0, 0, 0];
+      for (const [x, z, yaw] of list) {
+        const d = Math.hypot(x - cam.x, cam.y, z - cam.z);
+        let lod = d < 16 ? 0 : d < 50 ? 1 : 2;
+        while (lod < 2 && !lods[lod]) lod++;
+        while (lod > 0 && !lods[lod]) lod--;
+        const set = lods[lod];
+        if (!set) continue;
+        q.setFromAxisAngle(up, yaw); p.set(x, 0, z); m4.compose(p, q, s);
+        const i = counts[lod]++;
+        for (const mesh of set) mesh.setMatrixAt(i, m4);
+      }
+      lods.forEach((set, lod) => {
+        if (!set) return;
+        for (const mesh of set) { mesh.count = counts[lod]; mesh.visible = counts[lod] > 0; mesh.instanceMatrix.needsUpdate = true; }
+      });
     }
-    this.archLods.forEach((set, lod) => {
-      if (!set) return;
-      for (const mesh of set) { mesh.count = counts[lod]; mesh.visible = counts[lod] > 0; mesh.instanceMatrix.needsUpdate = true; }
-    });
   }
 
   frame(time, night) {
     const g = this.g, tr = g.transit;
     if (tr.version !== this.version) this.rebuild();
     this.updateArchLods(false);
-    const H = this.H;
-    const fl = this.fleet;
-    fl.begin();
-    const glows = this.glowList;
-    glows.length = 0;
-    const L = VU.uLights.value;
-    // Züge: Wagen einzeln entlang der Strecke, Lage aus beiden Drehgestellen (weiche Kurven)
-    for (const t of tr.trains) {
-      const line = tr.lines.find((l) => l.id === t.line);
-      if (!line || !line.pts.length) continue;
-      const cars = 1 + t.wagons;
-      const col = LINE_COLORS[line.color];
-      for (let kc = 0; kc < cars; kc++) {
-        const d = t.d - t.dir * kc * CAR_SPACING;
-        const a = linePose(tr, line, d + BOGIE * t.dir, this.tmpA);
-        const b = linePose(tr, line, d - BOGIE * t.dir, this.tmpB);
-        const x = (a.x + b.x) / 2, z = (a.z + b.z) / 2;
-        let yaw = Math.atan2(a.x - b.x, a.z - b.z);
-        if (Math.abs(a.x - b.x) + Math.abs(a.z - b.z) < 1e-5) yaw = linePose(tr, line, d, this.tmp).yaw + (t.dir < 0 ? Math.PI : 0);
-        let model, flags = F.RAIL, yy = yaw;
-        if (cars === 1) { model = 'metro_single'; flags |= F.LEAD; }
-        else if (kc === 0) { model = 'metro_cab'; flags |= F.LEAD; }
-        else if (kc === cars - 1) { model = 'metro_cab'; yy = yaw + Math.PI; }
-        else model = 'metro_mid';
-        const seed = hashf(t.id * 13 + kc);
-        const d2 = fl.add(model, x, H, z, yy, 0, 0, col, seed, flags, 0);
-        // Spitzen- und Schlusslicht-Schein
-        if (d2 >= 0 && L > 0.05 && (kc === 0 || kc === cars - 1)) {
-          const fx = Math.sin(yaw), fz = Math.cos(yaw);
-          if (kc === 0) for (const s of [1, -1]) glows.push([x + fx * 0.252 + fz * s * 0.068, H + 0.058, z + fz * 0.252 - fx * s * 0.068, 0.08, 1, 0.93, 0.78, 0.55]);
-          if (kc === cars - 1) for (const s of [1, -1]) glows.push([x - fx * 0.252 + fz * s * 0.1, H + 0.058, z - fz * 0.252 - fx * s * 0.1, 0.05, 1, 0.08, 0.04, 0.5]);
-        }
-      }
-    }
-    fl.end();
-
-    // Wartende Fahrgäste über den Stationen
+    // Wartende Fahrgäste über den Eingängen
     const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
     for (const st of tr.stations.values()) {
       const x = st.x + 0.5 - g.W / 2, z = st.y + 0.5 - g.H / 2;
+      const base = this.iconY.get(st.id) ?? ICON_Y;
       const show = Math.min(st.waiting.length, 24);
       for (let kk = 0; kk < show; kk++) {
         const p = st.waiting[kk];
         const m = this.paxMesh[p.shape];
+        if (!m) continue;
         const i = counts[p.shape]++;
         if (i >= 1200) continue;
         const col = kk % 6, row = Math.floor(kk / 6);
-        this.p.set(x - 0.32 + col * 0.13, H + 0.64 + row * 0.07, z - 0.05);
+        this.p.set(x - 0.32 + col * 0.13, base + 0.11 + row * 0.07, z - 0.05);
         this.m4.makeTranslation(this.p.x, this.p.y, this.p.z);
         m.setMatrixAt(i, this.m4);
       }
@@ -737,7 +671,7 @@ export class TransitView {
         const segs = 48;
         const prog = Math.min(1, st.over);
         if (!ring) {
-          ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.72, segs, 1, 0, Math.PI * 2 * prog), new THREE.MeshBasicMaterial({ color: 0xe8543f, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
+          ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.72, segs, 1, Math.PI / 2, -Math.PI * 2 * prog), new THREE.MeshBasicMaterial({ color: 0xe8543f, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
           ring.rotation.x = -Math.PI / 2;
           ring.userData.prog = prog;
           this.ringGroup.add(ring);
@@ -748,7 +682,7 @@ export class TransitView {
           ring.geometry = new THREE.RingGeometry(0.62, 0.72, segs, 1, Math.PI / 2, -Math.PI * 2 * prog);
           ring.userData.prog = prog;
         }
-        ring.position.set(x, H + 0.56, z);
+        ring.position.set(x, base + 0.03, z);
         ring.material.opacity = 0.6 + 0.4 * Math.sin(time * 6) ** 2;
       } else if (ring) {
         this.ringGroup.remove(ring);
@@ -763,7 +697,10 @@ export class TransitView {
     void night;
   }
 
-  stats() { return { ...this.fleet.stats(), trackTris: this.trackTris }; }
+  stats() {
+    const u = this.e.underground;
+    return u ? { ...u.fleet.stats(), trackTris: u.stats.tris } : { draws: 0, tris: 0, inst: 0 };
+  }
 }
 
 export { lin };

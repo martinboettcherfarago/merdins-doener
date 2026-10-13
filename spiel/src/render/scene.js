@@ -23,6 +23,7 @@ import { RoadView } from './roads.js';
 import { BuildingView } from './buildings.js';
 import { VehicleView, TransitView } from './agents.js';
 import { OverlayView } from './overlay.js';
+import { UndergroundView } from './underground.js';
 import { EffectsView } from './effects.js';
 import { VIEWS } from '../registry.js';
 
@@ -122,6 +123,7 @@ export class Engine {
     this.buildings = new BuildingView(this);
     this.vehicles = new VehicleView(this);
     this.transit = new TransitView(this);
+    this.underground = new UndergroundView(this);
     this.overlay = new OverlayView(this);
     this.effects = new EffectsView(this);
     this.views = [];
@@ -498,6 +500,10 @@ export class Engine {
     }
   }
 
+  // Vertrag V1: Untergrund-Ansicht der Pulsbahn ein-/ausschalten (weich überblendet)
+  setUnderground(on) { if (this.underground) this.underground.setActive(on); }
+  get undergroundActive() { return !!(this.underground && this.underground.on); }
+
   frame(dt, simDt) {
     this.time += dt;
     this.frameNo++;
@@ -543,6 +549,7 @@ export class Engine {
     this.vehicles.frame(this.time, night, this.effects.lights);
     this.effects.endLights();
     this.transit.frame(this.time, night);
+    this.underground.frame(dt, this.time, night);
     this.effects.frame(dt, simDt, this.time, night);
     // Eine fehlerhafte Ansicht darf das Bild nicht verhindern (Fehler je Ansicht nur einmal melden)
     for (const v of this.views) {
@@ -553,8 +560,10 @@ export class Engine {
     }
 
     const r = this.renderer;
-    if (this.post) this.post.render(this.scene, this.camera);
-    else { r.setRenderTarget(null); r.render(this.scene, this.camera); }
+    // Untergrund-Ansicht (U-Bahn) als zweiter Durchgang über der Oberwelt, bei Nachbearbeitung noch vor Bloom/Tonwert
+    const ug = this.underground;
+    if (this.post) this.post.render(this.scene, this.camera, ug.kv > 0.002 ? this._ugPass || (this._ugPass = (rr) => ug.render(rr, this.camera)) : null);
+    else { r.setRenderTarget(null); r.render(this.scene, this.camera); ug.render(r, this.camera); }
     if (this.hud.children.length) {
       const ac = r.autoClear;
       r.autoClear = false;

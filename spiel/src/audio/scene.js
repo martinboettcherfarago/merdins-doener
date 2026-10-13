@@ -110,6 +110,8 @@ export class Listener {
     const R = (s.radius = clamp(3 + cur.dist * 0.32, 4, 26));
     s.speed = g.speed;
     s.paused = g.speed === 0 || !!g.blocking;
+    // Pulsbahn fährt im Tunnel: gedämpft, außer in der Untergrund-Ansicht
+    s.underground = engine && engine.undergroundActive ? 1 : 0;
 
     // Zeit und Wetter
     s.hour = g.hour();

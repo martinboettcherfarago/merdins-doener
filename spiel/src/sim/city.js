@@ -1,5 +1,5 @@
 // Zonen-Simulation: Nachfrage, Wachstum, Belegung, Stufenaufstieg, Verfall, Brände, Bildung.
-import { LEVELS, Z, T, RES, TRANSIT, MILESTONES, BUILDINGS, SPEC_MAX_LEVEL } from '../config.js';
+import { LEVELS, Z, T, RES, MILESTONES, BUILDINGS, SPEC_MAX_LEVEL } from '../config.js';
 import { clamp } from '../util.js';
 import { DEMAND_MODIFIERS, CAPACITY_MODIFIERS, warnOnce } from '../registry.js';
 
@@ -8,7 +8,7 @@ const LEVEL_GATE = [2, 2, 3, 4, 5, 5, 5, 5];
 export function maxLevelAt(g, x, y) {
   let m = g.sandbox ? 5 : LEVEL_GATE[g.milestone] ?? 5;
   if (g.policies.has('lowrise')) m = Math.min(m, 3);
-  if (g.trackCount[y * g.W + x] > 0) m = Math.min(m, TRANSIT.maxLevelUnderTrack);
+  // Die Pulsbahn fährt im Tunnel: über der Strecke gibt es keine Höhenbegrenzung mehr.
   return m;
 }
 
