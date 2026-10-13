@@ -679,7 +679,7 @@ export class Game extends Emitter {
       this.dirty.coverage = false;
     }
     if (h % 2 === 0) computeFields(this);
-    computeHappiness(this);
+    computeHappiness(this, h & 1);
     this.traffic.hourly();
     this.transit.hourly();
     hourlyFires(this);

@@ -348,19 +348,27 @@ export function happinessFactors(g, b, out, ctx) {
   return clamp(h, 0, 100);
 }
 
-export function computeHappiness(g) {
+// Glück aller Zonengebäude. Mit `part` (0 oder 1) nur die Hälfte mit passender ID-Parität – der Kern ruft das
+// stündlich abwechselnd auf (halbe Rechenzeit); die Glättung ist so gewählt, dass sie zwei Stundenschritten entspricht.
+export function computeHappiness(g, part) {
   let sum = 0, w = 0;
   const ctx = happyCtx(g);
   const unemp = g.stats.unemployment;
+  const half = part === 0 || part === 1;
+  const k = half ? 0.5775 : 0.35; // 1 − 0,65²
+  const bigCity = g.stats.pop > 1500 ? 0.06 : 0, garb = g.stats.pop > 300;
+  const W = g.W, police = g.cov.police, garbage = g.cov.garbage;
   for (const b of g.buildings.values()) {
     if (!b.zone || b.construct < 1) continue;
-    const i = b.y * g.W + b.x;
-    // Kriminalität im Gebäude
-    b.crime = clamp(0.04 + unemp * 0.5 + b.level * 0.03 + (1 - b.happy / 100) * 0.14 + (g.stats.pop > 1500 ? 0.06 : 0) - g.cov.police[i] * 0.75, 0, 1);
-    b.problemGarbage = g.cov.garbage[i] < 0.25 && g.stats.pop > 300;
-    if (b.abandoned) { b.happy = 0; continue; }
-    const target = happinessFactors(g, b, null, ctx);
-    b.happy += (target - b.happy) * 0.35;
+    if (!half || (b.id & 1) === part) {
+      const i = b.y * W + b.x;
+      // Kriminalität im Gebäude
+      b.crime = clamp(0.04 + unemp * 0.5 + b.level * 0.03 + (1 - b.happy / 100) * 0.14 + bigCity - police[i] * 0.75, 0, 1);
+      b.problemGarbage = garbage[i] < 0.25 && garb;
+      if (b.abandoned) { b.happy = 0; continue; }
+      const target = happinessFactors(g, b, null, ctx);
+      b.happy += (target - b.happy) * k;
+    } else if (b.abandoned) continue;
     const weight = Math.max(1, b.occ);
     sum += b.happy * weight;
     w += weight;

@@ -6,6 +6,8 @@ import { Session } from 'node:inspector/promises';
 import { Game } from '../src/sim/game.js';
 import { R, Z, T, BUILDINGS } from '../src/config.js';
 import { SYSTEMS } from '../src/registry.js';
+import * as SV from '../src/sim/services.js';
+import * as CITY from '../src/sim/city.js';
 import * as TPS from '../src/sim/systems/transport.js';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, arr) => {
@@ -90,19 +92,51 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   wrap(g.traffic, 'hourly', 'core:traffic.hourly');
   wrap(g.transit, 'update', 'core:transit.update');
   wrap(g.transit, 'hourly', 'core:transit.hourly');
+  // Trefferquote des Wege-Zwischenspeichers
+  const pc = { get: 0, hit: 0, set: 0 };
+  { const c = g.pathCache, get = c.get.bind(c), set = c.set.bind(c); c.get = (x, y) => { pc.get++; const r = get(x, y); if (r !== undefined) pc.hit++; return r; }; c.set = (x, y, p) => { pc.set++; return set(x, y, p); }; }
   // Aufwärmen: ein Tag
   for (let k = 0; k < 300; k++) g.update(0.1);
   acc.clear();
+  if (args.micro) {
+    // Einzelmessung der Kernfunktionen und System-Hooks: Minimum aus mehreren Läufen (robust gegen Fremdlast)
+    const K = +(args.micro === true ? 7 : args.micro);
+    const h = Math.floor(g.hour());
+    const items = [
+      ['aggregate', () => CITY.aggregate(g)], ['updateDemand', () => CITY.updateDemand(g)], ['constructionStep', () => CITY.constructionStep(g, 0)],
+      ['computeUtilities', () => SV.computeUtilities(g)], ['computeCoverage', () => SV.computeCoverage(g)], ['computeFields', () => SV.computeFields(g)],
+      ['computeHappiness', () => SV.computeHappiness(g)], ['traffic.hourly', () => g.traffic.hourly()], ['transit.hourly', () => g.transit.hourly()],
+      ['dailyBuildings', () => CITY.dailyBuildings(g)],
+      ...SYSTEMS.filter((s) => s.hourly).map((s) => [`sys:${s.id}.hourly`, () => s.hourly(g, h)]),
+      ...SYSTEMS.filter((s) => s.step).map((s) => [`sys:${s.id}.step`, () => s.step(g, 10)]),
+    ];
+    console.log(`Einzelmessung (min/median aus ${K} Läufen, ms pro Aufruf):`);
+    let sumH = 0;
+    for (const [name, fn] of items) {
+      const t = [];
+      for (let k = 0; k < K; k++) { const a0 = now(); fn(); t.push(now() - a0); }
+      t.sort((x, y) => x - y);
+      if (/hourly|Happiness|Coverage|Utilities|Fields/.test(name)) sumH += t[0];
+      console.log(`  ${name.padEnd(28)} ${t[0].toFixed(2).padStart(8)} ${t[K >> 1].toFixed(2).padStart(8)}`);
+    }
+    console.log(`  Summe stündlicher Arbeit (min) ≈ ${sumH.toFixed(1)} ms pro Spielstunde`);
+    process.exit(0);
+  }
   let session = null;
   if (args.profile) { session = new Session(); session.connect(); await session.post('Profiler.enable'); await session.post('Profiler.setSamplingInterval', { interval: 200 }); await session.post('Profiler.start'); }
   g.speed = 1;
-  const tS = now();
+  const tS = now(), cS = process.cpuUsage();
   const d0 = g.day();
   let frames = 0;
-  while (g.day() < d0 + days) { g.update(0.1); frames++; if (g.blocking) { g.pendingCards = null; g.pendingEvent = null; } }
+  const ft = [];
+  while (g.day() < d0 + days) { const f0 = now(); g.update(0.1); ft.push(now() - f0); frames++; if (g.blocking) { g.pendingCards = null; g.pendingEvent = null; } }
+  ft.sort((a, b) => a - b);
   const tTot = now() - tS;
+  const cpu = process.cpuUsage(cS), tCpu = (cpu.user + cpu.system) / 1000;
   console.log(`Karte ${size}² (${args.map || 'river'}) · ${g.buildings.size} Gebäude (${info.buildings} Zonen) · ${info.lines} Linien · ${Math.round(g.stats.pop)} Einw. · Aufbau ${Math.round(tBuild)} ms`);
-  console.log(`Rechenzeit: ${(tTot / days).toFixed(0)} ms pro Spieltag (${days} Tage, ${frames} Bilder, ${(tTot / frames).toFixed(2)} ms pro Bild bei 1×)`);
+  console.log(`Rechenzeit: ${(tTot / days).toFixed(0)} ms pro Spieltag (CPU ${(tCpu / days).toFixed(0)} ms; ${days} Tage, ${frames} Bilder, ${(tTot / frames).toFixed(2)} ms pro Bild bei 1×) · Last ${(await import('node:os')).loadavg()[0].toFixed(1)}`);
+  console.log(`Bildzeit Simulation: Median ${ft[ft.length >> 1].toFixed(1)} ms · 95 % ${ft[Math.floor(ft.length * 0.95)].toFixed(1)} ms · max ${ft[ft.length - 1].toFixed(0)} ms (Stundenwechsel)`);
+  console.log(`Wegesuche: ${pc.get} Anfragen/${days} Tage, Treffer ${pc.get ? Math.round(100 * pc.hit / pc.get) : 0} %, ${pc.set} neu berechnet`);
   const rows = [...acc.entries()].sort((a, b) => b[1] - a[1]);
   for (const [k, v] of rows.slice(0, 30)) if (v / days >= 0.5) console.log(`  ${k.padEnd(34)} ${(v / days).toFixed(1).padStart(8)} ms/Tag`);
   if (session) {
@@ -120,6 +154,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     void dt;
     console.log(`Profil (Eigenzeit, ${total} Proben):`);
     for (const [k, c] of [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, top)) console.log(`  ${(100 * c / total).toFixed(1).padStart(5)} %  ${k}`);
+    // --lines name: heißeste Zeilen einer Funktion (aus positionTicks)
+    if (args.lines) {
+      const lt = new Map();
+      for (const n of profile.nodes) if (n.callFrame.functionName === args.lines && n.positionTicks) for (const p of n.positionTicks) lt.set(`${n.callFrame.url.replace(/^.*\/src\//, '')}:${p.line}`, (lt.get(`${n.callFrame.url.replace(/^.*\/src\//, '')}:${p.line}`) || 0) + p.ticks);
+      console.log(`Heiße Zeilen in ${args.lines}:`);
+      for (const [k, c] of [...lt.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) console.log(`  ${(100 * c / total).toFixed(1).padStart(5)} %  ${k}`);
+    }
     // Gesamtzeit (inklusive Aufrufe) der Kernfunktionen in sim/*.js
     const parent = new Map();
     for (const n of profile.nodes) for (const c of n.children || []) parent.set(c, n.id);
