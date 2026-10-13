@@ -86,7 +86,7 @@ function menuHint(c, { cat, catName, items, itemText, why }) {
   return { target: [...items.map((k) => 'item-' + k), 'cat-' + cat, 'group-' + gid], texts, text: texts['cat-' + cat] };
 }
 function pickHint(c, o) {
-  if (placing(c, o.cat)) return { target: [], text: c.touch ? `${o.placeTouch} ${CONFIRM}` : o.placeText };
+  if (placing(c, o.cat)) { const t = typeof o.placeText === 'function' ? o.placeText(c) : o.placeText; return { target: [], text: c.touch ? `${o.placeTouch} ${CONFIRM}` : t }; }
   return menuHint(c, o);
 }
 
@@ -115,9 +115,9 @@ const STEPS = [
   {
     id: 'power', title: 'Strom liefern', build: (c) => placing(c, 'power'),
     done: (c) => c.g.countBuilt('power') > 0,
-    hint: (c) => pickHint(c, { cat: 'power', catName: 'Strom', items: ['coal', 'wind'], why: 'Ohne Strom zieht niemand ein.',
-      itemText: 'Wähle das Kohlekraftwerk: günstig und stark. Windräder sind sauberer, liefern aber wenig.',
-      placeText: 'Setze das Kraftwerk an eine Straße, etwas weg von den Häusern – es macht Abgase. Der Strom fließt über die Straßen zu allen Häusern.',
+    hint: (c) => pickHint(c, { cat: 'power', catName: 'Strom', items: ['wind', 'coal'], why: 'Ohne Strom zieht niemand ein.',
+      itemText: 'Wähle das Windrad: günstig und sauber – für den Anfang reicht es. Das Kohlekraftwerk liefert mehr, macht aber Abgase.',
+      placeText: (c) => (c.tool.key === 'coal' ? 'Setze das Kraftwerk an eine Straße, etwas weg von den Häusern – es macht Abgase.' : 'Setze das Windrad an eine Straße.') + ' Der Strom fließt über die Straßen zu allen Häusern.',
       placeTouch: 'Tippe auf einen Platz an einer Straße, etwas weg von den Häusern. Der Strom fließt über die Straßen.' }),
   },
   {
