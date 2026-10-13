@@ -1,6 +1,7 @@
 // Screenshot- und Prüfwerkzeug (headless Chromium mit Software-WebGL).
 // Beispiele:
 //   node tools/shot.mjs --scenario city --out /tmp/city.png
+//   node tools/shot.mjs --scenario city --quality low --out /tmp/city-low.png
 //   node tools/shot.mjs --scenario night --days 20 --out /tmp/night.png
 //   node tools/shot.mjs --scenario closeup --out /tmp/close.png
 //   node tools/shot.mjs --scenario gallery --gallery "res&fp=1x1,2x1" --out /tmp/res.png
@@ -84,6 +85,15 @@ const browser = await chromium.launch({
 const logs = [];
 try {
   const page = await browser.newPage({ viewport: { width: W, height: H } });
+  // --quality low|medium|high|ultra: setzt die Qualitätsstufe samt Voreinstellung (wie die Oberfläche), vor dem Laden
+  if (args.quality) {
+    const PRE = { low: { postfx: false, ao: false, bloom: false, shadows: 'off' }, medium: { postfx: true, ao: false, bloom: true, shadows: 'low' },
+      high: { postfx: true, ao: true, bloom: true, shadows: 'high' }, ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' } };
+    const q = String(args.quality);
+    await page.addInitScript(({ q, pre }) => {
+      try { const s = JSON.parse(localStorage.getItem('stadtpuls.settings') || '{}'); localStorage.setItem('stadtpuls.settings', JSON.stringify({ ...s, quality: q, ...pre })); } catch (e) { /* egal */ }
+    }, { q, pre: PRE[q] || {} });
+  }
   let consoleErrors = 0;
   page.on('console', (m) => {
     if (m.type() !== 'error' && m.type() !== 'warning') return;
