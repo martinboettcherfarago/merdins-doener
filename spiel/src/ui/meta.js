@@ -160,7 +160,7 @@ export const PANEL_GROUPS = [
   { id: 'menschen', name: 'Menschen' },
   { id: 'verkehr', name: 'Verkehr' },
   { id: 'umwelt', name: 'Umwelt' },
-  { id: 'fortschritt', name: 'Fortschritt' },
+  { id: 'fortschritt', name: 'Ziele & Neuigkeiten' },
   { id: 'stadtfunk', name: 'Stadtfunk' },
   { id: 'mehr', name: 'Weitere' },
 ];
@@ -175,9 +175,9 @@ export const PANEL_META = {
   districts: { group: 'menschen', order: 22, color: '#8f5ad8', desc: 'Stadtteile mit eigenen Regeln', when: ms(2) },
   transit: { group: 'verkehr', order: 30, color: '#e8543f', desc: 'U-Bahn-Linien, Züge und Takt', when: (g) => g.isUnlocked('transit') || g.transit.lines.length > 0 },
   transport: { group: 'verkehr', order: 32, color: '#10a9a3', desc: 'Bus, Straßenbahn und Verkehrsfluss', when: ms(1) },
-  weather: { group: 'umwelt', order: 40, color: '#38a3d1', desc: 'Wetter, Jahreszeiten und Katastrophenschutz', when: ms(1) },
+  weather: { group: 'umwelt', order: 40, color: '#38a3d1', desc: 'Vorhersage, Warnungen und Vorsorge', when: ms(1) },
   progression: { group: 'fortschritt', order: 50, color: '#e9a514', desc: 'Ziele, Meilensteine und Aufträge' },
-  news: { group: 'stadtfunk', order: 60, color: '#1d2330', desc: 'Was die Leute in der Stadt erzählen' },
+  news: { group: 'fortschritt', order: 60, color: '#1d2330', desc: 'Was die Leute in der Stadt erzählen' },
 };
 export function panelMeta(p) {
   const m = PANEL_META[p.id] || {};
