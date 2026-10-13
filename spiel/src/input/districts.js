@@ -14,7 +14,7 @@ export const districtTool = { brush: 3, active: 0, stroke: null };
 export const BRUSH_MAX = 7;
 
 const hexCss = (n) => '#' + n.toString(16).padStart(6, '0');
-const lockText = (g) => (g.sandbox || g.milestone >= 1 ? null : `Ab „${MILESTONES[1].name}" (${MILESTONES[1].pop} Einwohner)`);
+const lockText = (g) => (g.sandbox || g.milestone >= 2 ? null : `Ab „${MILESTONES[2].name}" (${MILESTONES[2].pop} Einwohner)`);
 
 function modeOf(input, e) {
   const t = input.tool.type || 'paint';

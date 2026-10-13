@@ -30,8 +30,8 @@ const STYLE = `
   --pb-card: var(--card, #ffffff); --pb-cta: var(--cta, #ffb12b); --pb-cta2: var(--cta-2, #ff7417); --pb-edge: var(--cta-edge, #c4500a);
   position: fixed; left: 0; top: 0; z-index: 47; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
   padding: 8px; min-width: 216px; max-width: calc(100vw - 16px); box-sizing: border-box;
-  background: var(--pb-card); color: var(--pb-ink); border-radius: 20px;
-  box-shadow: 0 12px 30px -8px rgba(76, 38, 160, 0.42), 0 2px 0 rgba(76, 38, 160, 0.12);
+  background: var(--pb-card); color: var(--pb-ink); border-radius: 22px;
+  box-shadow: var(--shadow-s, 0 12px 30px -8px rgba(76, 38, 160, 0.42)), 0 14px 30px -12px rgba(52, 19, 122, 0.35);
   font-family: var(--f-ui, 'Nunito', system-ui, sans-serif); font-weight: 700; touch-action: manipulation;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
   transition: opacity 0.12s ease; will-change: transform;
@@ -39,7 +39,7 @@ const STYLE = `
 .placebar[hidden] { display: none; }
 .placebar.pb-drag { opacity: 0.55; pointer-events: none; }
 .placebar .pb-info { display: flex; flex-direction: column; gap: 1px; padding: 2px 6px 0; min-width: 0; text-align: center; }
-.placebar .pb-t { font-size: 14px; font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.placebar .pb-t { font-family: var(--f-display, inherit); font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .placebar .pb-s { font-size: 12px; font-weight: 700; line-height: 1.25; color: var(--pb-accent); max-width: 300px; }
 .placebar .pb-s.bad { color: var(--bad, #d6363a); }
 .placebar .pb-s.warn { color: #b8620a; }
@@ -50,19 +50,20 @@ const STYLE = `
   flex: none; width: 48px; height: 48px; display: grid; place-items: center; border-radius: 15px;
   background: var(--pb-soft); color: var(--pb-accent); box-shadow: inset 0 -3px 0 rgba(76, 38, 160, 0.16);
 }
-.placebar .pb-k:active { transform: translateY(1px); box-shadow: inset 0 -1px 0 rgba(76, 38, 160, 0.16); }
+.placebar .pb-k:active { transform: translateY(2px); box-shadow: inset 0 -1px 0 rgba(76, 38, 160, 0.16); }
 .placebar .pb-k[hidden] { display: none; }
-.placebar .pb-x { background: var(--pb-accent); color: #fff; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.22); }
+.placebar .pb-x { background: var(--v-grad, var(--pb-accent)); color: #fff; box-shadow: var(--v-edge, inset 0 -3px 0 rgba(0, 0, 0, 0.22)); }
+.placebar .pb-x:active { box-shadow: 0 1px 0 var(--accent-edge, #3a1a80); }
 .placebar .pb-ok {
   flex: 1; min-width: 132px; height: 48px; padding: 0 14px 3px; display: flex; align-items: center; justify-content: center; gap: 8px;
-  border-radius: 15px; color: #fff; background: linear-gradient(180deg, var(--pb-cta), var(--pb-cta2));
-  box-shadow: inset 0 -4px 0 var(--pb-edge), 0 4px 10px -4px rgba(196, 80, 10, 0.55); text-shadow: 0 1px 0 rgba(120, 40, 0, 0.35);
+  border-radius: 15px; color: #fff; background: var(--o-grad, linear-gradient(180deg, var(--pb-cta), var(--pb-cta2)));
+  box-shadow: var(--o-edge, inset 0 -4px 0 var(--pb-edge)); text-shadow: 0 1px 0 rgba(120, 40, 0, 0.35);
 }
-.placebar .pb-ok:active { transform: translateY(2px); box-shadow: inset 0 -2px 0 var(--pb-edge); }
-.placebar .pb-ok .pb-l { font-size: 15px; font-weight: 800; }
-.placebar .pb-ok .pb-p { font-size: 16px; font-weight: 900; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.placebar .pb-ok:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--pb-edge); }
+.placebar .pb-ok .pb-l { font-family: var(--f-display, inherit); font-size: 16px; font-weight: 600; }
+.placebar .pb-ok .pb-p { font-family: var(--f-display, inherit); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .placebar .pb-ok .pb-p:empty { display: none; }
-.placebar .pb-ok:disabled { background: linear-gradient(180deg, #d9d4e6, #c3bdd3); box-shadow: inset 0 -4px 0 #a9a2bd; color: #f7f5fb; text-shadow: none; cursor: not-allowed; }
+.placebar .pb-ok:disabled { background: var(--pb-soft); box-shadow: inset 0 -3px 0 rgba(76, 38, 160, 0.14); color: var(--ink-3, #8a80a8); text-shadow: none; cursor: not-allowed; }
 .pb-hs { position: fixed; inset: 0; z-index: 27; pointer-events: none; overflow: hidden; }
 .pb-hs[hidden] { display: none; }
 .pb-h {
@@ -133,6 +134,7 @@ export class PlaceBar {
     q.undo.hidden = !st.undo;
     if (!this.visible) {
       this.visible = true;
+      document.documentElement.classList.add('placebar-on');
       this.el.hidden = false;
       this.hs.hidden = false;
       this.pos.side = 0;
@@ -144,6 +146,7 @@ export class PlaceBar {
   hide() {
     if (!this.visible) return;
     this.visible = false;
+    document.documentElement.classList.remove('placebar-on');
     this.el.hidden = true;
     this.hs.hidden = true;
     this.el.classList.remove('pb-drag');
@@ -191,7 +194,7 @@ export class PlaceBar {
     this.el.classList.toggle('pb-drag', dragging);
     const W = window.innerWidth, H = window.innerHeight;
     const bw = this.el.offsetWidth, bh = this.el.offsetHeight;
-    const top0 = 64, bottom0 = H - 86;
+    const top0 = 64, bottom0 = H - this.bottomGap();
     const b = s.box;
     const cx = (b.x0 + b.x1) / 2;
     const above = b.y0 - 26 - bh, below = b.y1 + 30;
@@ -222,6 +225,20 @@ export class PlaceBar {
       this.pos.x = x; this.pos.y = y;
       this.el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
     }
+  }
+
+  // Platz unten: Dock (DESIGN: --gap + --bb-h) plus 16 px, mit dem Zoom der Oberfläche (--ui); Rückfall 86 px
+  bottomGap() {
+    const now = performance.now();
+    if (this._gap && now - this._gapAt < 1000) return this._gap;
+    let gap = 86;
+    try {
+      const cs = getComputedStyle(document.documentElement);
+      const px = (n, d) => { const v = parseFloat(cs.getPropertyValue(n)); return Number.isFinite(v) ? v : d; };
+      gap = Math.round((px('--gap', 14) + px('--bb-h', 56) + 16) * px('--ui', 1));
+    } catch (e) { /* Rückfall */ }
+    this._gap = gap; this._gapAt = now;
+    return gap;
   }
 
   // Für Prüfskripte: Lage der Knöpfe

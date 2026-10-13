@@ -15,30 +15,28 @@ Kurz, wie es jetzt läuft (für Texte, Einführung und Einstellungen):
   `app.input.barAction('ok'|'cancel'|'rotate'|'undo')`. Knöpfe tragen `data-tour="place-ok" | "place-cancel" | "place-rotate"`.
 
 ## An DESIGN
-1. **Einstellungen:** Schalter „Bauen bestätigen" für `app.settings.confirmPlace` mit drei Werten:
-   `'auto'` „Bei Touch (Standard)", `'always'` „Immer", `'never'` „Nie – sofort bauen". Danach `app.saveSettings()`.
-   Fehlt der Wert, gilt `'auto'` (input.js liest `settings.confirmPlace || 'auto'`, kein Eintrag in `main.js` nötig).
-2. **Werkzeug-Hinweis** (`ui.js`, `renderToolHint`): Auf Touch passen „Ziehen zum Bauen" / „Fläche aufziehen" /
-   „Rechtsklick oder Enter beendet" nicht mehr. Vorschlag: wenn `this.app.input.lastType !== 'mouse'` (bzw. `this.mobile()`):
+0. Erledigt aus `DESIGN-bitten.md`: `confirmPlace` wird bei jedem Antippen frisch aus `app.settings` gelesen; Abstand unten
+   rechnet mit `--gap` + `--bb-h` + 16 px (mal `--ui`); Stil nutzt `--card`, `--shadow-s`, `--f-display`, `--o-grad`/`--o-edge`
+   (✓), `--v-grad`/`--v-edge` (✕), `--accent-soft`/`--accent` (↻, ↶, gesperrt mit `--ink-3`), Grund in `--bad`; Bezirke erst ab
+   Stufe 2 (`lockText` in `src/input/districts.js`).
+1. **Doppelte Knöpfe im Werkzeug-Hinweis:** Solange die Leiste steht, trägt `<html>` die Klasse **`placebar-on`**. Bitte dann
+   `.th-b` („Drehen", „Fertig") im Hinweis ausblenden, z. B. `html.placebar-on .toolhint .th-b { display: none; }`.
+2. **Hinweistexte auf Touch** (`renderToolHint`): „Ziehen zum Bauen" / „Fläche aufziehen" / „Rechtsklick oder Enter beendet"
+   passen auf Touch nicht. Vorschlag:
    ```js
    const touch = input && input.lastType && input.lastType !== 'mouse';
-   // road:  hint = touch ? 'Start und Ziel antippen · ✓ baut' : 'Ziehen zum Bauen';
-   // zone/dezone/bulldoze: hint = touch ? 'Fläche antippen, Griffe ziehen · ✓' : 'Fläche aufziehen';
-   // place: hint = touch ? 'Antippen: Vorschau · ✓ baut' : …;   line: touch ? 'Stationen antippen · Fertig' : '… Rechtsklick oder Enter beendet'
+   // road: touch ? 'Start und Ziel antippen · ✓ baut' : 'Ziehen zum Bauen'
+   // zone/dezone/bulldoze: touch ? 'Antippen, Griffe ziehen · ✓' : 'Fläche aufziehen'
+   // line: touch ? 'Stationen antippen · Fertig' : '… Rechtsklick oder Enter beendet'
    ```
-   Die Knöpfe „Drehen"/„Fertig" im Hinweis dürfen bleiben (sie wirken auch auf die Vorschau), können aber ausgeblendet werden,
-   solange `this.app.input.bar.visible` ist – die Leiste hat dieselben Knöpfe.
-   Ein Neuzeichnen nach dem Antippen auslösen: `input.js` ruft bei Werkzeugwechsel ohnehin `ui.toolChanged`; für die Stationszahl
-   der Linie reicht das bisherige Verhalten.
 3. **`ui.tourTarget(id)`** sucht nur in `#hud`. Die Leiste hängt (wegen `zoom` auf `#hud`) direkt an `document.body`.
    Bitte als Rückfall: `if (!el) el = vis(document.querySelector('.placebar ' + sel(id)));` – dann kann EINSTIEG auf
    `place-ok` zeigen.
 4. **Tastenhilfe** (`keys.js`, Zeile „Auf dem Handy: …"): bitte ergänzen: „Antippen setzt eine Vorschau, ✓ baut, ✕ verwirft.
    Ziehen verschiebt die Karte, die Vorschau oder die Griffe."
-5. Look: Die Leiste nutzt `--accent`, `--accent-ink`, `--accent-soft`, `--cta`, `--cta-2`, `--cta-edge`, `--card`, `--f-ui`, `--bad`
-   (alle mit Rückfallwerten). Sie liegt mit `z-index: 47` über Panels, Werkzeugleiste, Meldungen (40) und der Einführungskarte
-   (`#ob-layer` 46), unter Dialogen (60); die Griffe liegen bei 27. Sie hält 64 px Abstand nach oben und 86 px nach unten
-   (Kopfzeile/Werkzeugleiste) und weicht `#ob-layer .ob-card` und `#ob-guide` aus. Linienentwürfe docken unten mittig an.
+5. Ebenen: Leiste `z-index: 47` (über Panels, Werkzeugleiste, Meldungen 40 und Einführungskarte `#ob-layer` 46, unter Dialogen 60),
+   Griffe 27. Sie hält 64 px Abstand nach oben, unten das Dock-Maß, und weicht `#ob-layer .ob-card`, `#ob-guide` und `#u-legend`
+   aus. Linienentwürfe docken unten mittig an.
 
 ## An EINSTIEG
 0. Erledigt (eure Bitte): Die Leiste liegt nicht mehr unter `#ob-layer .ob-card` (z-index 47 und Ausweichen).
@@ -56,3 +54,5 @@ Kurz, wie es jetzt läuft (für Texte, Einführung und Einstellungen):
   sofort), „Fertig" ruft `finishLine()`, „↶" entfernt nur die letzte Station aus `input.lineStops` (die Station bleibt stehen).
   Für die Leiste nutzt input.js `g.linePlanCost(stops, false)` und `g.transit.stations`. Wenn sich daran etwas ändert
   (z. B. andere Kostenfunktion oder Stationen unter der Erde mit anderer Lage), bitte hier melden.
+- Geprüft nach eurem Merge (`test/touch-test.mjs`): Stationen antippen, leichtes Verrutschen, Kamera ziehen, ↶ und „Fertig"
+  funktionieren in der Untergrund-Ansicht (Antippen trifft weiter die Bodenebene).
