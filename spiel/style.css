@@ -932,6 +932,7 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 /* ---------- Mittlere Bildschirme */
 @media (max-width: 1520px) {
   .stat.opt-wide { display: none; }
+  .stat.opt:not(.opt-wide) { border-right: 0; }
 }
 /* Mit Wetteranzeige: Datum steckt in der Jahreszeit, Kopfzeile bleibt einzeilig */
 @media (max-width: 1440px) {
@@ -942,6 +943,14 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 @media (max-width: 1280px) {
   .ticker { max-width: min(440px, calc(100% - 640px)); }
 }
+/* 1280–1366 px: Kopfzeile mit großen Zahlen (Kasse in Millionen) bleibt einzeilig und im Bild */
+@media (max-width: 1366px) {
+  .cityplate { padding-right: 12px; gap: 10px; }
+  .cityplate .rank { letter-spacing: 0.06em; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+  .stat { padding: 6px 9px; }
+  .clock .wx .wt small { display: none; }
+  .demand { padding: 8px 10px; }
+}
 @media (max-width: 1180px) {
   .clock .date { display: none; }
   .cityplate .rankbar { width: 110px; }
@@ -951,6 +960,7 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 }
 @media (max-width: 1100px) {
   .stat.opt { display: none; }
+  .stat[data-stat="money"] { border-right: 0; }
   .demand { display: none; }
   .clock .wx .wt small { display: none; }
 }
@@ -992,6 +1002,7 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
   .stat .v { font-size: 17px; }
   .stat .d { font-size: 11.5px; }
   .stat.opt:not(.opt-wide) { display: flex; }
+  .stat[data-stat="money"] { border-right: 1px solid var(--rule); }
   .sysbtns { order: 4; padding: 3px; }
   .sysbtns button { width: 34px; height: 36px; }
   .sysbtns .dk { display: none; }
