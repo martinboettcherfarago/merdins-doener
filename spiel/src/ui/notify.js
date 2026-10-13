@@ -9,7 +9,7 @@ import { DISASTER_NAMES } from './meta.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const KIND = {
-  fire: ['Feuer', 'flame'], money: ['Finanzen', 'coin'], transit: ['Pulsbahn', 'transit'], event: ['Ereignis', 'news'], card: ['Wochenkarte', 'star'],
+  fire: ['Feuer', 'flame'], money: ['Finanzen', 'coin'], transit: ['U-Bahn', 'transit'], event: ['Ereignis', 'news'], card: ['Wochenkarte', 'star'],
   report: ['Wochenbilanz', 'budget'], info: ['Stadtverwaltung', 'info'], milestone: ['Meilenstein', 'trophy'], disaster: ['Katastrophe', 'warn'],
   weather: ['Wetter', 'weather'], traffic: ['Verkehr', 'car'], health: ['Gesundheit', 'cross'], crime: ['Sicherheit', 'shield'], economy: ['Wirtschaft', 'economy'],
   industry: ['Industrie', 'industry'], citizens: ['Bürger', 'citizens'], achievement: ['Erfolg', 'trophy'], district: ['Bezirk', 'districts'],
@@ -83,7 +83,7 @@ export class Notifier {
     const list = this.items.filter((it) => this.filter === 'all' || (this.filter === 'bad' ? it.mood === 'bad' : !!it.where));
     const when = (t) => { const d = Math.floor(t / 1440), h = String(Math.floor((t % 1440) / 60)).padStart(2, '0'), m = String(Math.floor(t % 60)).padStart(2, '0'); return d === g.day() ? `heute, ${h}:${m}` : `Tag ${d}, ${h}:${m}`; };
     return `
-<div class="sec"><h3>Lage der Stadt</h3>${probs.length ? `<div class="probs">${probs.map((p) => `<button class="prob ${p.sev}" data-act="prob" data-id="${p.id}">${icon(p.icon, 16, 2.2)}<span class="pt">${esc(p.text)}</span>${p.view ? `<span class="pv">${icon('eye', 14)}</span>` : ''}</button>`).join('')}</div>` : `<div class="allgood">${icon('check', 18, 2.6)}<span>Keine akuten Probleme. Die Stadt läuft rund.</span></div>`}</div>
+${probs.length ? `<div class="sec"><button class="prob ${probs.some((p) => p.sev === 'bad') ? 'bad' : 'warn'}" data-act="check" data-tip="Stadt-Check" data-tip-desc="Alle offenen Punkte mit Lösungen zeigen." style="width:100%">${icon('pulse', 16, 2.2)}<span class="pt">${probs.length === 1 ? 'Eine Sache braucht' : `${probs.length} Dinge brauchen`} Aufmerksamkeit</span>${icon('arrowR', 15, 2.4)}</button></div>` : ''}
 <div class="sec"><h3>Meldungen</h3>
 <div class="chips filt">${[['all', 'Alle'], ['bad', 'Wichtig'], ['where', 'Mit Ort']].map(([k, n]) => `<button class="chip${this.filter === k ? ' on' : ''}" data-act="nfilter" data-v="${k}">${n}</button>`).join('')}<span class="grow"></span>${this.items.length ? '<button class="chip" data-act="nclear">Leeren</button>' : ''}</div>
 ${list.length ? `<div class="notes">${list.slice(0, 60).map((it) => `<div class="note ${it.mood}${it.read ? '' : ' unread'}"><span class="ni">${iconAny(it.icon, 'info', 16, 2.2)}</span><div class="nb"><div class="nt">${esc(it.title)}${it.count > 1 ? ` <span class="cnt">×${it.count}</span>` : ''}<span class="nw">${when(it.time)}</span></div><div class="nx">${esc(it.text)}</div></div>${it.where ? `<button class="mini" data-act="goto" data-x="${it.where.x}" data-y="${it.where.y}" data-tip="Hinfliegen" data-tip-fast="1">${icon('pin', 15, 2.2)}</button>` : ''}</div>`).join('')}</div>` : '<p class="empty">Noch keine Meldungen.</p>'}</div>`;
@@ -95,6 +95,7 @@ ${list.length ? `<div class="notes">${list.slice(0, 60).map((it) => `<div class=
     if (act === 'nclear') { this.clear(); return true; }
     if (act === 'goto') { ui.focusTile(+el.dataset.x, +el.dataset.y); return false; }
     if (act === 'prob') { const p = problems(ui.g).find((x) => x.id === el.dataset.id); if (p) ui.runAction(p); return true; }
+    if (act === 'check') { ui.closePanels(); if (ui.openPop) ui.openPop('check'); return false; }
     return false;
   }
 }
@@ -104,10 +105,10 @@ export function problems(g) {
   const s = g.stats, out = [];
   const add = (id, sev, ic, text, extra = {}) => out.push({ id, sev, icon: ic, text, ...extra });
   if (s.burning) add('burning', 'bad', 'flame', `${fmt(s.burning)} ${s.burning === 1 ? 'Gebäude brennt' : 'Gebäude brennen'}`, { view: 'fire', cat: 'services', count: s.burning });
-  if (s.unpowered) add('power', s.unpowered > 8 ? 'bad' : 'warn', 'power', `${fmt(s.unpowered)} ohne Strom`, { view: 'power', cat: 'power', count: s.unpowered });
-  if (s.unwatered) add('water', s.unwatered > 8 ? 'bad' : 'warn', 'water', `${fmt(s.unwatered)} ohne Wasser`, { view: 'water', cat: 'water', count: s.unwatered });
-  if (s.garbageProb) add('garbage', s.garbageProb > 10 ? 'bad' : 'warn', 'garbage', `${fmt(s.garbageProb)} mit Müllproblem`, { view: 'garbage', cat: 'garbage', count: s.garbageProb });
-  if (s.noRoad) add('noroad', 'warn', 'roads', `${fmt(s.noRoad)} ohne Straßenanschluss`, { cat: 'roads', count: s.noRoad });
+  if (s.unpowered) add('power', s.unpowered > 8 ? 'bad' : 'warn', 'power', `${fmt(s.unpowered)} Gebäude ohne Strom`, { view: 'power', cat: 'power', count: s.unpowered });
+  if (s.unwatered) add('water', s.unwatered > 8 ? 'bad' : 'warn', 'water', `${fmt(s.unwatered)} Gebäude ohne Wasser`, { view: 'water', cat: 'water', count: s.unwatered });
+  if (s.garbageProb) add('garbage', s.garbageProb > 10 ? 'bad' : 'warn', 'garbage', `${fmt(s.garbageProb)} Gebäude mit Müllproblem`, { view: 'garbage', cat: 'garbage', count: s.garbageProb });
+  if (s.noRoad) add('noroad', 'warn', 'roads', `${fmt(s.noRoad)} Gebäude ohne Straßenanschluss`, { cat: 'roads', count: s.noRoad });
   if (s.abandoned > 2) add('abandoned', 'warn', 'house', `${fmt(s.abandoned)} verlassene Gebäude`, { view: 'happiness', count: s.abandoned });
   const u = g.util;
   if (u.powerSupply > 0 && u.powerDemand > u.powerSupply * 0.92 && !s.unpowered) add('powercap', 'warn', 'power', `Stromnetz zu ${Math.round((u.powerDemand / u.powerSupply) * 100)} % ausgelastet`, { cat: 'power', count: 1 });

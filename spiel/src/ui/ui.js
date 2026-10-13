@@ -1,10 +1,15 @@
-// Spieloberfläche im Netzplan-Stil: Kopfzeile, Werkzeugleiste als Liniennetz mit Baukatalog (3D-Vorschaubilder),
-// Infoansichten (links), Panels (rechts), Inspektor, Minikarte, Meldungen, Ratgeberin, Fotomodus, Modale.
-// Öffentliche Schnittstelle für andere Module (Panels, Werkzeuge, Inspektoren):
+// Spieloberfläche (Runde 3: ruhig und aufgeräumt). Die Stadt steht im Mittelpunkt, die Bedienung sitzt an den Rändern:
+//   oben    eine schlanke Kopfzeile (Stadt, Einwohner, Kasse, Glück, Nachfrage · Wetter, Zeit, Tempo, Stadt-Check, Meldungen, Hilfe, Menü)
+//   unten   „Ansichten" · Werkzeugleiste mit wenigen beschrifteten Hauptgruppen (Unterpunkte als Reiter im Baukatalog) · „Stadt"
+//   rechts  Panels und Inspektor, links Ratgeberin und Minikarte (eingeklappt)
+// Ansichten, Stadt-Panels, Stadt-Check und Menü öffnen ein gemeinsames Aufklappmenü (auf dem Handy ein Blatt von unten).
+// Öffentliche Schnittstelle für andere Module (Panels, Werkzeuge, Inspektoren, Einführung):
 //   ui.g, ui.app, ui.toast(text, 'good'|'bad'|'', { where, icon }), ui.renderPanel(), ui.openPanel(id), ui.closePanels(),
 //   ui.inspect(sel), ui.setView(id), ui.tooltip(text, mouse, ok), ui.refreshHUD(), ui.openModal(html, onClick), ui.queueModal(fn),
-//   ui.focusTile(x, y, dist?), ui.notify({ title, text, mood, where, icon }), ui.openTray(cat), ui.closeTray()
-// Panels (registerPanel) dürfen zusätzlich input(ui, el, e), change(ui, el, e), badge(ui) → Zahl|Text, group, color haben.
+//   ui.focusTile(x, y, dist?), ui.notify({ title, text, mood, where, icon }), ui.openTray(cat), ui.openGroup(id), ui.closeTray(),
+//   ui.openHelp(topic?), ui.openHelpFor(hinweis), ui.tourTarget(id) → Element | null, ui.openPop(art), ui.closePop()
+// Panels (registerPanel) dürfen zusätzlich input(ui, el, e), change(ui, el, e), badge(ui) → Zahl|Text, group, color, desc,
+// available(ui) → bool (erst zeigen, wenn es gebraucht wird) haben.
 import { BUILDINGS, ZONE_INFO, ROADS, MILESTONES, CATEGORIES } from '../config.js';
 import { fmt, fmtMoney, fmtShort, clamp } from '../util.js';
 import { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, BUDGET_LINES, emit, on as onBus } from '../registry.js';
@@ -13,16 +18,16 @@ import { cardById } from '../sim/progress.js';
 import * as wxSys from '../sim/systems/weather.js';
 import * as wxPanel from './panels/weather.js';
 import { icon, iconAny, logo } from './icons.js';
-import { toolbarCategories, lineById, viewList, VIEW_GROUPS, dockPanels, PANEL_GROUPS, catMeta } from './meta.js';
+import { viewList, VIEW_GROUPS, dockPanels, PANEL_GROUPS, catMeta, catLabel, toolbarGroups, groupOfCat, panelAvailable } from './meta.js';
 import { CORE_PANELS } from './corepanels.js';
 import { inspectorHTML, inspectorClick } from './inspector.js';
-import { catalogItems, searchCatalog, cardHTML, detailHTML, isActive, bindThumbSwap, allCatalogItems, freshCats } from './catalog.js';
+import { catalogItems, searchCatalog, cardHTML, detailHTML, isActive, bindThumbSwap, allCatalogItems, freshCats, tourKey } from './catalog.js';
 import { pumpThumbs, thumbsPending } from './thumbs.js';
 import { Notifier, problems } from './notify.js';
 import { Advisor, tutorialSteps, adviceLevel } from './advisor.js';
 import { Minimap } from './minimap.js';
 import { PhotoMode } from './photo.js';
-import { keysHTML, KEY_HINT } from './keys.js';
+import { keysHTML } from './keys.js';
 import { settingsHTML, settingsClick, settingsInput, settingsChange, ensureSettings, applyUiScale, gfxSnapshot } from './settings.js';
 import { bindTips, hideTip, setTipsEnabled } from './tips.js';
 import { showLoader, hideLoader, loaderVisible, setLoader, painted } from './loading.js';
@@ -48,11 +53,20 @@ function wxKind(w) {
 }
 const itemKey = (it) => `${it.kind}:${it.key || it.type || it.zone || it.panel || ''}`;
 const SEASON = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' };
+// Themen der Hilfe zu Kategorien und Begriffen (die Hilfe gehört EINSTIEG – hier nur die Zuordnung, erste Übereinstimmung gewinnt)
+const HELP_HINTS = {
+  roads: ['roads', 'strassen', 'street'], zones: ['zones', 'zonen', 'demand', 'nachfrage'], districts: ['districts', 'bezirke'],
+  power: ['power', 'strom', 'utilities', 'versorgung'], water: ['water', 'wasser', 'utilities', 'versorgung'], garbage: ['garbage', 'muell', 'waste'],
+  services: ['services', 'dienste'], education: ['education', 'bildung', 'services', 'dienste'], safety: ['safety', 'services', 'dienste', 'disasters'],
+  parks: ['parks', 'happiness', 'glueck'], landmarks: ['landmarks', 'parks', 'happiness'], transit: ['ubahn', 'metro', 'transit', 'pulsbahn'],
+  transport: ['transport', 'verkehr', 'traffic', 'ubahn'], industry: ['industry', 'zones'], money: ['money', 'geld', 'budget'], happy: ['happiness', 'glueck'],
+  demand: ['demand', 'nachfrage', 'zones'], cards: ['cards', 'karten', 'wochenkarten'], disasters: ['disasters', 'katastrophen', 'weather'],
+};
 
 // Zustand, der einen Neustart der Ansicht überlebt (Grafik-Einstellungen übernehmen)
 let restore = null;
 
-// System-Panels (über die Kopfzeile erreichbar, nicht im Panel-Dock)
+// System-Panels (über Kopfzeile und Menü erreichbar, nicht im Stadt-Menü)
 const SYS_PANELS = [
   { id: 'advisor', title: 'Ratgeberin', icon: 'advisor', hidden: true, color: '#e8543f', render: (ui) => ui.advisor.html(), click: (ui, act, el) => ui.advisor.click(act, el) },
   { id: 'notes', title: 'Meldungen', icon: 'bell', hidden: true, color: '#1d2330', render: (ui) => ui.notes.html(), click: (ui, act, el) => ui.notes.click(act, el), opened: (ui) => ui.notes.markRead() },
@@ -91,9 +105,14 @@ export class UI {
     this.toasts = document.getElementById('toasts');
     this.modalRoot = document.getElementById('modal-root');
     this.cat = null;
+    this.group = null;
+    this.groupCat = {};
+    this.groups = [];
+    this.pop = null;
     this.panel = null;
     this.sel = null;
     this.view = 'none';
+    this.ugManual = false;
     this.timer = 0;
     this.panelTimer = 0;
     this.chartKey = 'pop';
@@ -107,18 +126,27 @@ export class UI {
     this.gfxSnap = gfxSnapshot(app.settings);
     this.hudHidden = false;
     this.frames = 0;
+    this.newsUnread = false;
     this.notes = new Notifier(this);
     this.advisor = new Advisor(this);
     this.photo = new PhotoMode(this);
     this.advisor.compute();
     this.mount();
     this.bindGame();
-    this.onboarding = new Onboarding(this);
-    this.openHelp = (topic) => openHelp(this, topic);
+    try { this.onboarding = new Onboarding(this); } catch (e) { console.warn('Einführung', e); this.onboarding = null; }
+    // Hilfe (EINSTIEG). Solange es noch keine Themen gibt, öffnet sich der Reiter „Hilfe" der Optionen.
+    this.openHelp = (topic) => {
+      let n = 0;
+      try { n = (helpTopics() || []).length; } catch (e) { n = 0; }
+      this.closePop();
+      if (!n) { this.setTab = 'hilfe'; this.openPanel('settings'); return; }
+      try { openHelp(this, topic); } catch (e) { console.warn('Hilfe', e); }
+    };
     this.helpTopics = helpTopics;
     bindTips();
     setTipsEnabled(app.settings.tooltips !== false);
     this.refreshBadges();
+    this.refreshTutorial();
     this.unbus = [
       onBus('ui:rebuild', () => this.rebuild()),
       onBus('simError', (e) => { try { this.notes.push({ title: 'Technischer Hinweis', text: `Ein Spielsystem${e && e.where ? ` (${e.where})` : ''} ist gestolpert und wurde übersprungen. Das Spiel läuft weiter.`, mood: 'info', icon: 'info', key: 'simError', silent: true }); } catch (err) { /* egal */ } }),
@@ -133,88 +161,84 @@ export class UI {
     const r = this.root;
     r.hidden = false;
     const zoneCol = (z) => hex(ZONE_INFO[z].color);
+    const sp = (v, ic, w, name, desc, key) => `<button data-speed="${v}" data-tip="${name}" data-tip-desc="${desc}" data-key="${key}" data-tip-pos="bottom" aria-label="${name}">${icon(ic, w[0], w[1])}</button>`;
     r.innerHTML = `
 <div class="topbar">
-  <div class="sign cityplate" data-tip="Stadtrang" data-tip-desc="Der Balken zeigt den Weg zum nächsten Meilenstein.">
-    <div class="logo">${logo(24)}</div>
-    <div class="cp-txt">
-      <div class="name" id="u-name"></div>
-      <div class="rank" id="u-rank"></div>
-      <div class="rankbar"><i id="u-rankbar"></i></div>
+  <div class="sign hud-l">
+    <button class="cityplate" id="u-plate" data-tour="rank" data-tip="Stadtrang" data-tip-desc="Der Balken zeigt den Weg zum nächsten Meilenstein. Klick: Ziele und Meilensteine." data-tip-pos="bottom">
+      <span class="logo">${logo(22)}</span>
+      <span class="cp-txt"><span class="name" id="u-name"></span><span class="rank" id="u-rank"></span><span class="rankbar"><i id="u-rankbar"></i></span></span>
+    </button>
+    <span class="vr"></span>
+    <div class="stats">
+      <button class="stat" data-stat="pop" data-tour="stat-pop" data-tip="Einwohner" data-tip-desc="So viele Menschen leben in der Stadt, darunter die Veränderung seit gestern. Klick: Bevölkerung." data-tip-pos="bottom"><span class="k">Einwohner</span><span class="v num" id="u-pop">0</span><span class="d num" id="u-popd"></span></button>
+      <button class="stat" data-stat="money" data-tour="stat-money" data-tip="Stadtkasse" data-tip-desc="Geld für neue Bauten, darunter Gewinn oder Verlust pro Tag. Klick: Haushalt." data-tip-pos="bottom"><span class="k">Kasse</span><span class="v num" id="u-money"></span><span class="d num" id="u-net"></span></button>
+      <button class="stat" data-stat="happy" data-tour="stat-happy" data-tip="Glück" data-tip-desc="Wie zufrieden die Leute sind. Unglückliche ziehen weg. Klick: Glückskarte der Stadt." data-tip-pos="bottom"><span class="k">Glück</span><span class="v num" id="u-happy"></span><span class="d" id="u-happyd"></span></button>
     </div>
-  </div>
-  <div class="sign stats">
-    <button class="stat" data-stat="pop" data-tip="Einwohner" data-tip-desc="Veränderung seit gestern. Klick: Statistik"><span class="k">Einwohner</span><span class="v" id="u-pop">0</span><span class="d" id="u-popd"></span></button>
-    <button class="stat" data-stat="money" data-tip="Stadtkasse" data-tip-desc="Saldo pro Tag. Klick: Haushalt"><span class="k">Kasse</span><span class="v" id="u-money"></span><span class="d" id="u-net"></span></button>
-    <button class="stat opt" data-stat="happy" data-tip="Glück" data-tip-desc="Durchschnitt aller Bewohner. Klick: Infoansicht Glück"><span class="k">Glück</span><span class="v" id="u-happy"></span><span class="d" id="u-happyd"></span></button>
-    <button class="stat opt opt-wide" data-stat="jobs" data-tip="Arbeitsmarkt" data-tip-desc="Arbeitslosenquote und Arbeitsplätze"><span class="k">Arbeitslos</span><span class="v" id="u-unemp"></span><span class="d" id="u-jobs"></span></button>
-    <button class="stat opt opt-wide" data-stat="transit" data-tip="Pulsbahn" data-tip-desc="Fahrgäste heute und Verkehrsfluss"><span class="k">Pulsbahn</span><span class="v" id="u-riders"></span><span class="d" id="u-flow"></span></button>
-  </div>
-  <div class="sign demand">
-    ${[1, 2, 3, 4].map((z) => `<div class="col" id="u-demc${z}" data-tip="Nachfrage ${ZONE_INFO[z].name}" data-tip-pos="bottom"><div class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></div><div class="lbl" style="color:color-mix(in srgb, ${zoneCol(z)} 58%, #1d2330)">${ZONE_INFO[z].short}</div></div>`).join('')}
+    <span class="vr"></span>
+    <button class="demand" id="u-demand" data-tour="demand" data-tip="Nachfrage" data-tip-desc="Was die Stadt gerade braucht: Wohnen, Gewerbe, Industrie, Büro. Hoher Balken – mehr davon ausweisen. Klick: Zonen." data-tip-pos="bottom">
+      <span class="k">Nachfrage</span>
+      <span class="bars">${[1, 2, 3, 4].map((z) => `<span class="col" id="u-demc${z}"><span class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></span><span class="lbl">${ZONE_INFO[z].short}</span></span>`).join('')}</span>
+    </button>
   </div>
   <div class="spacer"></div>
-  <div class="sign clock">
+  <div class="sign hud-r">
     <button class="wx" id="u-weather" hidden></button>
-    <div class="when"><span class="time num" id="u-time"></span><span class="date" id="u-date"></span></div>
-    <div class="speed" id="u-speed">
-      <button data-speed="0" data-tip="Pause" data-key="Leertaste" data-tip-pos="bottom" aria-label="Pause">${icon('pause', 16, 2.4)}</button>
-      <button data-speed="1" data-tip="Normal" data-key="1" data-tip-pos="bottom" aria-label="Normal">${icon('play', 15, 2.2)}</button>
-      <button data-speed="2" data-tip="Schnell" data-key="2" data-tip-pos="bottom" aria-label="Schnell">${icon('fast', 17, 2)}</button>
-      <button data-speed="3" data-tip="Sehr schnell" data-key="3" data-tip-pos="bottom" aria-label="Sehr schnell">${icon('faster', 19, 1.8)}</button>
+    <div class="when" data-tour="time" data-tip="Uhrzeit und Datum" data-tip-desc="Ein Spieltag dauert 30 Sekunden. Steuern, Wachstum und Wochenkarten richten sich danach." data-tip-pos="bottom"><span class="time num" id="u-time"></span><span class="date" id="u-date"></span></div>
+    <div class="speed" id="u-speed" data-tour="speed">
+      ${sp(0, 'pause', [15, 2.4], 'Pause', 'Die Zeit anhalten und in Ruhe planen.', 'Leertaste')}${sp(1, 'play', [14, 2.2], 'Normal', 'Ein Spieltag in 30 Sekunden.', '1')}${sp(2, 'fast', [16, 2], 'Schnell', 'Doppeltes Tempo.', '2')}${sp(3, 'faster', [18, 1.8], 'Sehr schnell', 'Dreifaches Tempo – gut, wenn die Stadt rund läuft.', '3')}
+    </div>
+    <span class="vr"></span>
+    <div class="sysbtns" id="u-sys">
+      <button class="check ok" id="u-check" data-pop="check" data-tour="check" data-tip="Stadt-Check" data-tip-desc="Zeigt, was gerade Aufmerksamkeit braucht – mit einem Klick zur Lösung." data-key="H" data-tip-pos="bottom" aria-label="Stadt-Check">${icon('pulse', 17, 2.2)}<span class="ck-l">Stadt-Check</span><span class="ck-n num" id="u-checkn"></span></button>
+      <button data-sys="notes" data-tour="notes" data-tip="Meldungen" data-tip-desc="Alles Wichtige der letzten Tage mit Ort und Zeit." data-key="N" data-tip-pos="bottom" aria-label="Meldungen">${icon('bell', 18)}<span class="count" id="u-notecount" hidden></span></button>
+      <button data-sys="help" data-tour="help" data-tip="Hilfe" data-tip-desc="So funktioniert's: Straßen, Zonen, Versorgung, Glück, Geld und U-Bahn kurz erklärt." data-key="F1" data-tip-pos="bottom" aria-label="Hilfe">${icon('help', 18)}</button>
+      <button data-pop="menu" data-tour="settings" id="u-menubtn" data-tip="Menü" data-tip-desc="Speichern und Laden, Optionen, Fotomodus und Hauptmenü." data-tip-pos="bottom" aria-label="Menü">${icon('menu', 18)}</button>
     </div>
   </div>
-  <div class="sign sysbtns" id="u-sys">
-    <button data-sys="advisor" data-tip="Ratgeberin" data-tip-desc="Hinweise und Lagebericht" data-key="H" data-tip-pos="bottom" aria-label="Ratgeberin">${icon('advisor')}<span class="dot" id="u-advdot" hidden></span></button>
-    <button data-sys="notes" data-tip="Meldungen" data-tip-desc="Wichtiges mit Ort und Zeit" data-key="N" data-tip-pos="bottom" aria-label="Meldungen">${icon('bell')}<span class="count" id="u-notecount" hidden></span></button>
-    <button data-sys="photo" class="dk" data-tip="Fotomodus" data-key="P" data-tip-pos="bottom" aria-label="Fotomodus">${icon('camera')}</button>
-    <button data-sys="keys" class="dk" data-tip="Tastenkürzel" data-key="?" data-tip-pos="bottom" aria-label="Tastenkürzel">${icon('keyboard')}</button>
-    <button data-sys="settings" data-tip="Optionen" data-tip-desc="Grafik, Klang, Spielstand" data-tip-pos="bottom" aria-label="Optionen">${icon('settings')}</button>
-    <button data-sys="more" class="mb" aria-label="Übersicht">${icon('grid')}</button>
-  </div>
 </div>
-<div class="ticker" id="u-ticker" hidden><span class="pip" id="u-tickpip"></span><span class="who" id="u-tickwho"></span><span class="txt" id="u-ticktxt"></span></div>
 <div class="toolhint" id="u-toolhint" hidden></div>
-<div class="rstack" id="u-rstack"><div id="u-objectives"></div><div class="probs-hud" id="u-probs"></div></div>
-<div class="sign dock views" id="u-views"></div>
+<div class="rstack" id="u-rstack"><div id="u-objectives"></div></div>
 <div class="sign legend" id="u-legend" hidden></div>
-<div class="sign dock panels" id="u-dock"></div>
 <div class="leftstack" id="u-leftstack"><div class="sign bubble" id="u-bubble" hidden></div><div class="sign tutorial" id="u-tutorial" hidden></div></div>
 <div class="sign minimap" id="u-mini"></div>
-<button class="sign mm-open" id="u-mmopen" data-tip="Minikarte zeigen" data-key="K" hidden>${icon('minimap', 20)}</button>
-<div class="sign tray" id="u-tray" hidden></div>
-<div class="sign toolbar" id="u-toolbar"><button class="tb-nav l" data-nav="-1" aria-label="Zurück">${icon('chevronL', 18, 2.4)}</button><div class="track" id="u-cats"></div><button class="tb-nav r" data-nav="1" aria-label="Weiter">${icon('chevronR', 18, 2.4)}</button></div>
+<button class="sign mm-open" id="u-mmopen" data-tip="Minikarte" data-tip-desc="Übersichtskarte der ganzen Stadt. Ein Klick in die Karte springt dorthin." data-key="K" aria-label="Minikarte zeigen" hidden>${icon('minimap', 19)}</button>
+<div class="sign tray" id="u-tray" data-tour="tray" hidden></div>
+<div class="bottombar" id="u-bottom">
+  <div class="sign cap"><button class="capbtn" id="u-viewsbtn" data-pop="views" data-tour="views" data-tip="Ansichten" data-tip-desc="Farbige Karten für Strom, Wasser, Glück, Verkehr und mehr – und der Blick in den U-Bahn-Untergrund." aria-label="Ansichten"><span class="stop">${icon('layers', 20)}</span><span class="lbl" id="u-viewlbl">Ansichten</span></button></div>
+  <div class="sign toolbar" id="u-toolbar" data-tour="toolbar"><div class="track" id="u-cats"></div></div>
+  <div class="sign cap"><button class="capbtn" id="u-citybtn" data-pop="city" data-tour="city" data-tip="Stadt" data-tip-desc="Stadtverwaltung: Haushalt, Statistik, Verordnungen, U-Bahn-Linien und mehr." aria-label="Stadt"><span class="stop">${icon('city', 20)}<span class="dot" id="u-citydot" hidden></span></span><span class="lbl">Stadt</span></button></div>
+</div>
 <div class="sign panel" id="u-panel" hidden></div>
 <div class="sign inspector" id="u-insp" hidden></div>
-<div class="sheet" id="u-sheet" hidden></div>
+<div class="pop-scrim" id="u-scrim" hidden></div>
+<div class="sign pop" id="u-pop" role="menu" hidden></div>
 `;
     const $ = (id) => document.getElementById(id);
     this.el = {};
-    for (const id of ['name', 'rank', 'rankbar', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'unemp', 'jobs', 'riders', 'flow', 'date', 'time', 'speed', 'weather', 'sys', 'advdot', 'notecount', 'ticker', 'tickpip', 'tickwho', 'ticktxt', 'toolhint', 'probs', 'views', 'legend', 'dock', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'toolbar', 'cats', 'panel', 'insp', 'sheet', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
+    for (const id of ['name', 'rank', 'rankbar', 'plate', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'demand', 'date', 'time', 'speed', 'weather', 'sys', 'check', 'checkn', 'notecount', 'menubtn', 'toolhint', 'legend', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'bottom', 'viewsbtn', 'viewlbl', 'citybtn', 'citydot', 'toolbar', 'cats', 'panel', 'insp', 'scrim', 'pop', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
     this.el.name.textContent = this.g.name;
     this.renderToolbar();
-    this.renderViews();
-    this.renderDock();
     this.minimap = new Minimap(this, this.el.mini);
-    this.toggleMinimap(this.app.settings.minimap !== false && !this.mobile(), true);
+    // Minikarte standardmäßig eingeklappt (Einstellung „Minikarte" oder Taste K blendet sie ein)
+    this.toggleMinimap(this.app.settings.minimap === true && !this.mobile(), true);
     this.unswap = bindThumbSwap(this.root);
 
     const on = (el, ev, fn) => el.addEventListener(ev, fn);
     on(this.el.speed, 'click', (e) => { const b = e.target.closest('button[data-speed]'); if (b) { this.app.audio.play('click'); this.setSpeed(+b.dataset.speed); } });
-    on(this.el.sys, 'click', (e) => { const b = e.target.closest('button[data-sys]'); if (b) { if (b.dataset.sys === 'photo' || b.dataset.sys === 'keys' || b.dataset.sys === 'more') this.app.audio.play('click'); this.sysAction(b.dataset.sys); } });
-    on(this.root.querySelector('.stats'), 'click', (e) => { const b = e.target.closest('[data-stat]'); if (b) this.statAction(b.dataset.stat); });
-    on(this.el.weather, 'click', () => { if (PANELS.find((p) => p.id === 'weather')) this.togglePanel('weather'); });
-    on(this.el.dock, 'click', (e) => { const b = e.target.closest('button[data-panel]'); if (b) this.togglePanel(b.dataset.panel); });
-    on(this.el.views, 'click', (e) => { const b = e.target.closest('button[data-view]'); if (b) { this.app.audio.play('click'); this.setView(this.view === b.dataset.view ? 'none' : b.dataset.view); } });
+    on(this.el.sys, 'click', (e) => { const b = e.target.closest('button[data-sys]'); if (b) this.sysAction(b.dataset.sys); });
+    on(this.root, 'click', (e) => { const b = e.target.closest('[data-pop]'); if (b && this.root.contains(b)) { this.app.audio.play('click'); this.togglePop(b.dataset.pop, b); } });
+    on(this.root.querySelector('.stats'), 'click', (e) => { const b = e.target.closest('[data-stat]'); if (b) { if (b.dataset.stat === 'happy') this.app.audio.play('click'); this.statAction(b.dataset.stat); } });
+    on(this.el.plate, 'click', () => { this.togglePanel(this.panelDef('progression') ? 'progression' : 'stats'); });
+    on(this.el.demand, 'click', () => { this.app.audio.play('click'); if (this.group === 'zones') this.closeTray(); else this.openTray('zones'); });
+    on(this.el.weather, 'click', () => { if (this.panelDef('weather')) this.togglePanel('weather'); });
     on(this.el.cats, 'click', (e) => {
       const b = e.target.closest('button.cat');
       if (!b) return;
       this.app.audio.play('click');
       if (b.dataset.tool) { this.closeTray(); this.app.input.setTool({ kind: b.dataset.tool }); }
-      else if (b.dataset.cat) { if (this.cat === b.dataset.cat) this.closeTray(); else this.openTray(b.dataset.cat); }
+      else if (b.dataset.group) { if (this.group === b.dataset.group && !this.el.tray.hidden) this.closeTray(); else this.openGroup(b.dataset.group); }
     });
-    on(this.el.toolbar, 'click', (e) => { const b = e.target.closest('[data-nav]'); if (b) this.el.cats.scrollBy({ left: +b.dataset.nav * 240, behavior: 'smooth' }); });
-    on(this.el.cats, 'scroll', () => this.updateTrackNav());
     on(this.el.tray, 'click', (e) => this.trayClick(e));
     on(this.el.tray, 'input', (e) => { if (e.target.id === 'u-search') { this.search = e.target.value; this.renderTrayBody(); } });
     on(this.el.tray, 'keydown', (e) => {
@@ -229,14 +253,14 @@ export class UI {
       if (it && it !== this.hoverItem) { this.hoverItem = it; const d = this.el.tray.querySelector('.detail'); if (d) d.innerHTML = detailHTML(it); }
     });
     on(this.el.tray, 'wheel', (e) => {
-      const strip = e.target.closest('.strip');
+      const strip = e.target.closest('.strip, .tr-tabs');
       if (!strip || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
       strip.scrollLeft += e.deltaY;
     });
-    on(this.el.ticker, 'click', () => this.openPanel('news'));
     on(this.el.toolhint, 'click', (e) => this.toolHintClick(e));
-    on(this.el.probs, 'click', (e) => { const b = e.target.closest('[data-prob]'); if (b) { const p = problems(this.g).find((x) => x.id === b.dataset.prob); if (p) { this.app.audio.play('click'); this.runAction(p); } } });
+    on(this.el.pop, 'click', (e) => this.popClick(e));
+    on(this.el.scrim, 'click', () => this.closePop());
     on(this.el.panel, 'pointerdown', (e) => {
       this.panelBusy = true;
       if (this.mobile() && e.target.closest('header') && !e.target.closest('button')) this.swipe = { y: e.clientY, id: e.pointerId };
@@ -250,6 +274,15 @@ export class UI {
     on(this.el.panel, 'pointerup', () => { this.swipe = null; this.el.panel.style.transform = ''; });
     this.onUp = () => { this.panelBusy = false; };
     window.addEventListener('pointerup', this.onUp);
+    // Aufklappmenü schließt bei Klick daneben (auch in die Stadt)
+    this.onDown = (e) => {
+      if (!this.pop) return;
+      const t = e.target;
+      if (this.el.pop.contains(t) || (t.closest && t.closest('[data-pop]'))) return;
+      if (t.closest && t.closest('#uitip')) return;
+      this.closePop();
+    };
+    window.addEventListener('pointerdown', this.onDown, true);
     on(this.el.panel, 'click', (e) => this.panelClick(e));
     on(this.el.panel, 'input', (e) => this.panelEvent(e, 'input'));
     on(this.el.panel, 'change', (e) => this.panelEvent(e, 'change'));
@@ -261,42 +294,44 @@ export class UI {
       const li = e.target.closest('[data-step]');
       if (li) { const st = tutorialSteps(this.g, this)[+li.dataset.step]; if (st && st[2]) this.runAction(st[2]); }
     });
-    on(this.el.mmopen, 'click', () => this.toggleMinimap(true));
-    on(this.el.sheet, 'click', (e) => this.sheetClick(e));
+    on(this.el.mmopen, 'click', () => { this.app.audio.play('click'); this.toggleMinimap(true); });
     on(this.el.panel, 'animationend', () => this.el.panel.classList.remove('enter'));
     on(this.el.tray, 'animationend', () => this.el.tray.classList.remove('enter'));
     on(this.el.insp, 'animationend', () => this.el.insp.classList.remove('enter'));
     this.onKey = (e) => this.key(e);
     window.addEventListener('keydown', this.onKey);
-    this.onResize = () => { this.updateTrackNav(); this.fitTop(); if (this.minimap) this.minimap.resize(); };
+    this.onResize = () => { this.fitTop(); if (this.minimap) this.minimap.resize(); if (this.pop) this.positionPop(); };
     window.addEventListener('resize', this.onResize);
     this.refreshSpeed();
     this.refreshHUD();
-    this.refreshTutorial();
-    requestAnimationFrame(() => { this.updateTrackNav(); this.fitTop(); });
+    requestAnimationFrame(() => this.fitTop());
   }
 
-  // Handy: Die Kopfzeile bricht auf zwei bis drei Zeilen um – Lage-Chips, Laufband und Meldungen beginnen darunter
+  // Kopfzeile kann (Handy, schmale Fenster) umbrechen – Hinweise, Ziele und Meldungen beginnen darunter
   fitTop() {
     const de = document.documentElement.style;
     const tb = this.root.querySelector('.topbar');
-    if (!tb || this.root.hidden || (!this.mobile() && tb.offsetHeight <= 84)) { if (de.getPropertyValue('--top')) de.removeProperty('--top'); return; }
-    const v = Math.round(tb.getBoundingClientRect().bottom + 8) + 'px';
+    if (!tb || this.root.hidden) return;
+    const z = this.uiZoom();
+    const v = Math.round(tb.getBoundingClientRect().bottom / z + 10) + 'px';
     if (de.getPropertyValue('--top') !== v) de.setProperty('--top', v);
   }
+  uiZoom() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || 1; }
 
   dispose() {
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('pointerup', this.onUp);
+    window.removeEventListener('pointerdown', this.onDown, true);
     window.removeEventListener('resize', this.onResize);
     if (this.photo.active) this.photo.exit();
     for (const u of this.unbind || []) u();
     for (const u of this.unbus || []) u();
     this.notes.dispose();
     this.advisor.dispose();
-    if (this.onboarding) this.onboarding.dispose();
+    if (this.onboarding) { try { this.onboarding.dispose(); } catch (e) { /* egal */ } }
     if (this.minimap) this.minimap.dispose();
     if (this.unswap) this.unswap();
+    try { if (this.app.engine && this.app.engine.undergroundActive && typeof this.app.engine.setUnderground === 'function') this.app.engine.setUnderground(false); } catch (e) { /* egal */ }
     hideTip();
     this.root.innerHTML = '';
     this.root.hidden = true;
@@ -310,28 +345,33 @@ export class UI {
     const g = this.g;
     this.unbind = [
       g.on('news', (n) => this.onNews(n)),
-      g.on('milestone', (i) => { setTimeout(() => this.markFresh(), 0); this.notes.push({ title: 'Meilenstein', text: `${MILESTONES[i].name} erreicht!`, mood: 'good', icon: 'trophy', kind: 'milestone', silent: true }); this.queueModal(() => this.showMilestone(i)); if (this.cat) this.renderTray(); }),
+      g.on('milestone', (i) => { setTimeout(() => { this.renderToolbar(); }, 0); this.notes.push({ title: 'Meilenstein', text: `${MILESTONES[i].name} erreicht!`, mood: 'good', icon: 'trophy', kind: 'milestone', silent: true }); this.queueModal(() => this.showMilestone(i)); if (this.cat) this.renderTray(); }),
       g.on('cards', (ids) => this.queueModal(() => this.showCards(ids))),
       g.on('event', (ev) => this.queueModal(() => this.showEvent(ev))),
       g.on('bankrupt', () => this.queueModal(() => this.showBankrupt())),
-      g.on('day', () => { if (this.panel) this.renderPanel(); }),
+      g.on('day', () => { if (this.panel) this.renderPanel(); this.refreshAvail(); }),
       g.on('transitChanged', () => { if (this.cat === 'transit') this.renderTray(); }),
     ];
   }
 
   mobile() { return window.innerWidth <= 760; }
 
+  // Einführung (EINSTIEG) über Bedienschritte informieren – Fehler dort stören die Oberfläche nie
+  ob(name, data) {
+    const o = this.onboarding;
+    if (!o || typeof o.onEvent !== 'function') return;
+    try { o.onEvent(name, data); } catch (e) { console.warn('Einführung', e); }
+  }
+
   // Register neu einlesen (falls Module nach dem Start Panels, Kategorien oder Ansichten ergänzen)
   rebuild() {
     this.renderToolbar();
-    this.renderViews();
-    this.renderDock();
+    if (this.pop) this.renderPop();
     this.markPanelButtons();
     this.refreshBadges();
-    requestAnimationFrame(() => this.updateTrackNav());
   }
 
-  // ---------- Kopfzeile, Werkzeuge der Kopfzeile
+  // ---------- Kopfzeile
   setSpeed(s) {
     if (this.photo.active && s > 0 && !this.photo.opts.run) return;
     if (s > 0) this.lastSpeed = s;
@@ -343,55 +383,43 @@ export class UI {
     this.root.classList.toggle('paused', this.g.speed === 0);
   }
   sysAction(a) {
-    if (a === 'photo') { this.photo.toggle(); return; }
-    if (a === 'keys') { this.showKeys(); return; }
-    if (a === 'more') { this.toggleSheet(); return; }
+    if (a === 'photo') { this.app.audio.play('click'); this.closePop(); this.photo.toggle(); return; }
+    if (a === 'keys') { this.app.audio.play('click'); this.closePop(); this.showKeys(); return; }
+    if (a === 'help') { this.app.audio.play('click'); this.openHelp(); return; }
+    this.closePop();
     this.togglePanel(a);
   }
   statAction(s) {
-    if (s === 'pop') this.togglePanel(PANELS.find((p) => p.id === 'citizens') ? 'citizens' : 'stats');
+    if (s === 'pop') { const c = this.panelDef('citizens'); this.togglePanel(c && panelAvailable(c, this) ? 'citizens' : 'stats'); }
     else if (s === 'money') this.togglePanel('budget');
     else if (s === 'happy') this.setView(this.view === 'happiness' ? 'none' : 'happiness');
-    else if (s === 'jobs') this.togglePanel(PANELS.find((p) => p.id === 'economy') ? 'economy' : 'stats');
-    else if (s === 'transit') this.togglePanel(PANELS.find((p) => p.id === 'transport') ? 'transport' : 'transit');
   }
 
   refreshHUD() {
     const g = this.g, s = g.stats;
     const ms = MILESTONES[g.milestone], next = MILESTONES[g.milestone + 1];
-    this.el.rank.textContent = next ? `${ms.name} → ${next.name} (${fmt(next.pop)})` : ms.name;
+    const rank = next ? `${ms.name} → ${next.name}` : ms.name;
+    if (this.el.rank.textContent !== rank) this.el.rank.textContent = rank;
+    this.el.plate.dataset.tipDesc = next ? `${ms.name}. Ab ${fmt(next.pop)} Einwohnern wird ${g.name} zur ${next.name} und schaltet Neues frei. Klick: Ziele und Meilensteine.` : `${ms.name} – der höchste Rang. Klick: Ziele und Meilensteine.`;
     this.el.rankbar.style.width = next ? `${clamp((s.pop - ms.pop) / (next.pop - ms.pop), 0, 1) * 100}%` : '100%';
     this.el.pop.textContent = fmt(s.pop);
     const hist = g.history;
     const prev = hist.length >= 2 ? hist[hist.length - 2].pop : 0;
     const dp = hist.length ? hist[hist.length - 1].pop - prev : 0;
     this.el.popd.textContent = hist.length >= 2 ? `${dp >= 0 ? '+' : '−'}${fmt(Math.abs(dp))} / Tag` : 'Neugründung';
-    this.el.popd.className = 'd ' + (dp >= 0 ? 'pos' : 'neg');
+    this.el.popd.className = 'd num ' + (hist.length < 2 ? '' : dp >= 0 ? 'pos' : 'neg');
     this.el.money.textContent = g.sandbox ? '∞' : (Math.abs(g.money) >= 1e6 ? fmtShort(g.money) : fmt(g.money)) + ' €';
-    this.el.money.className = 'v' + (g.money < 0 ? ' neg' : '');
+    this.el.money.className = 'v num' + (g.money < 0 ? ' neg' : '');
     const net = g.lastBudget ? g.lastBudget.net : 0;
     this.el.net.textContent = `${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))} € / Tag`;
-    this.el.net.className = 'd ' + (net >= 0 ? 'pos' : 'neg');
+    this.el.net.className = 'd num ' + (net >= 0 ? 'pos' : 'neg');
     this.el.happy.textContent = `${Math.round(s.happiness)} %`;
     const hp = s.happiness;
     this.el.happyd.textContent = hp >= 75 ? 'begeistert' : hp >= 60 ? 'zufrieden' : hp >= 45 ? 'durchwachsen' : hp >= 30 ? 'unzufrieden' : 'wütend';
     this.el.happyd.className = 'd ' + (hp >= 50 ? 'pos' : 'neg');
-    this.el.unemp.textContent = `${Math.round(s.unemployment * 100)} %`;
-    this.el.jobs.textContent = `${fmt(s.jobs)} Jobs`;
-    // ÖPNV: Pulsbahn heute + Bus und Tram (S3, gestern), falls vorhanden
-    const tp = g.ext && g.ext.transport && g.ext.transport.day;
-    const busRiders = tp && typeof tp.riders === 'number' ? tp.riders : null;
-    this.el.riders.textContent = fmt((s.ridersToday || 0) + (busRiders || 0));
-    if (busRiders !== null && !this._oepnv) {
-      this._oepnv = true;
-      const st = this.el.riders.parentElement;
-      st.querySelector('.k').textContent = 'ÖPNV';
-      st.dataset.tip = 'Öffentlicher Verkehr';
-      st.dataset.tipDesc = 'Fahrgäste Pulsbahn (heute) plus Bus und Tram (gestern) · Verkehrsfluss';
-    }
-    this.el.flow.textContent = `Verkehr ${Math.round((s.trafficFlow || 1) * 100)} %`;
     this.el.date.textContent = g.dateText();
     this.el.time.textContent = g.clockText();
+    const best = [1, 2, 3, 4].reduce((a, z) => (g.demand[z] > g.demand[a] ? z : a), 1);
     for (let z = 1; z <= 4; z++) {
       const v = g.demand[z];
       const el = this.el['dem' + z];
@@ -399,10 +427,10 @@ export class UI {
       el.style.height = hgt + '%';
       el.style.bottom = v >= 0 ? '50%' : `${50 - hgt}%`;
       el.style.opacity = v >= 0 ? 1 : 0.45;
-      const col = el.parentElement.parentElement;
-      const d = `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(Math.round(v))} · ${v > 40 ? 'stark gefragt' : v > 8 ? 'gefragt' : v < -8 ? 'Überangebot' : 'ausgeglichen'}`;
-      if (col.dataset.tipDesc !== d) col.dataset.tipDesc = d;
+      el.parentElement.parentElement.classList.toggle('top', z === best && v > 8);
     }
+    const dd = `Was die Stadt gerade braucht – hoher Balken: mehr davon ausweisen. ${[1, 2, 3, 4].map((z) => { const v = g.demand[z]; return `${ZONE_INFO[z].name} ${v > 40 ? 'stark gefragt' : v > 8 ? 'gefragt' : v < -8 ? 'zu viel' : 'ausgeglichen'}`; }).join(' · ')}. Klick: Zonen.`;
+    if (this.el.demand.dataset.tipDesc !== dd) this.el.demand.dataset.tipDesc = dd;
     // Wetter (falls ein Wetter-System läuft)
     const w = g.ext && g.ext.weather;
     if (w && typeof w.temp === 'number') {
@@ -413,11 +441,12 @@ export class UI {
       try { st = typeof fText === 'function' ? fText(g) : ''; } catch (e) { st = ''; }
       const season = (st.split(' · ')[0]) || SEASON[w.season] || '';
       let pic = '';
-      try { pic = typeof fIcon === 'function' ? fIcon(wxKind(w), 26, night) : ''; } catch (e) { pic = ''; }
+      try { pic = typeof fIcon === 'function' ? fIcon(wxKind(w), 24, night) : ''; } catch (e) { pic = ''; }
       const html = `${pic || icon(ic, 18)}<span class="wt"><b class="num">${Math.round(w.temp)}°</b>${season ? `<small>${esc(season)}</small>` : ''}</span>`;
       if (this._wx !== html) { this._wx = html; this.el.weather.innerHTML = html; }
       this.el.weather.dataset.tip = st || SEASON[w.season] || 'Wetter';
-      this.el.weather.dataset.tipDesc = `${Math.round(w.temp)} °C${w.rain > 0.15 ? ' · Regen' : ''}${w.snow > 0.15 ? ' · Schnee' : ''}${w.fog > 0.4 ? ' · Nebel' : ''}${w.wind > 0.6 ? ' · windig' : ''}${PANELS.find((p) => p.id === 'weather') ? ' · Klick: Wetter & Katastrophenschutz' : ''}`;
+      this.el.weather.dataset.tipDesc = `${Math.round(w.temp)} °C${w.rain > 0.15 ? ' · Regen' : ''}${w.snow > 0.15 ? ' · Schnee' : ''}${w.fog > 0.4 ? ' · Nebel' : ''}${w.wind > 0.6 ? ' · windig' : ''}${this.panelDef('weather') ? ' · Klick: Wetter und Katastrophenschutz' : ''}`;
+      this.el.weather.dataset.tipPos = 'bottom';
       this.el.weather.hidden = false;
       this.el.weather.parentElement.classList.add('has-wx');
     } else { this.el.weather.hidden = true; this.el.weather.parentElement.classList.remove('has-wx'); }
@@ -427,68 +456,113 @@ export class UI {
     const n = this.notes.unread;
     this.el.notecount.hidden = !n;
     this.el.notecount.textContent = n > 99 ? '99+' : String(n);
+    // Stadt-Check: ein Knopf mit Zähler statt vieler Chips; die Ratgeberin meldet sich als Punkt
+    const probs = problems(this.g);
     const lvl = adviceLevel(this.advisor);
-    this.el.advdot.hidden = lvl < 2;
-    this.el.advdot.className = 'dot' + (lvl >= 3 ? '' : ' warn');
-    // Lage-Chips
-    const probs = problems(this.g).slice(0, 5);
-    const key = probs.map((p) => p.id + p.count + p.sev).join('|');
+    const sev = probs.some((p) => p.sev === 'bad') ? 'bad' : probs.length ? 'warn' : 'ok';
+    const key = probs.map((p) => p.id + p.count + p.sev).join('|') + '/' + lvl;
     if (key !== this._probKey) {
       this._probKey = key;
-      this.el.probs.innerHTML = probs.map((p) => `<button class="pchip ${p.sev}" data-prob="${p.id}" data-tip="${esc(p.text)}" data-tip-desc="${p.view ? 'Klick: Infoansicht' : p.panel ? 'Klick: Fenster öffnen' : 'Klick: Bauen'}" data-tip-pos="bottom">${icon(p.icon, 15, 2.3)}<span class="num">${p.count > 1 ? fmt(p.count) : '!'}</span></button>`).join('');
+      const c = this.el.check;
+      c.classList.remove('ok', 'warn', 'bad');
+      c.classList.add(sev);
+      c.classList.toggle('adv', lvl >= 2 && !probs.length);
+      this.el.checkn.textContent = probs.length ? String(probs.length) : '';
+      c.dataset.tipDesc = probs.length ? `${probs.length === 1 ? 'Eine Sache braucht' : `${probs.length} Dinge brauchen`} Aufmerksamkeit: ${probs.slice(0, 3).map((p) => p.text).join(' · ')}. Klick: Lösungen zeigen.` : 'Alles im grünen Bereich. Klick: Lagebericht und Rat der Ratgeberin.';
+      if (this.pop === 'check') this.renderPop();
     }
-    // Badges im Panel-Dock
-    for (const b of this.el.dock.querySelectorAll('button[data-panel]')) {
-      const p = PANELS.find((x) => x.id === b.dataset.panel);
-      if (!p || !p.badge) continue;
+    // Abzeichen der Stadt-Panels (z. B. neue Aufträge) als Punkt am Knopf „Stadt"
+    let any = false;
+    for (const { p } of this.cityPanels()) {
+      if (!p.badge) continue;
       let v = null;
       try { v = p.badge(this); } catch (e) { v = null; }
-      let el = b.querySelector('.count');
-      if (v === null || v === undefined || v === 0 || v === '') { if (el) el.remove(); continue; }
-      if (!el) { el = document.createElement('span'); el.className = 'count'; b.appendChild(el); }
-      el.textContent = String(v);
+      if (v !== null && v !== undefined && v !== 0 && v !== '') { any = true; break; }
     }
+    this.el.citydot.hidden = !any;
   }
 
-  // ---------- Werkzeugleiste (Liniennetz)
+  // ---------- Werkzeugleiste: wenige beschriftete Hauptgruppen, die Kategorien sind Reiter im Katalog
+  // Sichtbare Kategorien einer Gruppe: ganz gesperrte Reiter bleiben weg (fortschreitende Enthüllung), der erste bleibt immer.
+  visibleCats(gr) {
+    if (!gr) return [];
+    const out = [];
+    for (const c of gr.cats) {
+      let items = [];
+      try { items = catalogItems(this, c); } catch (e) { items = []; }
+      const open = items.some((it) => !it.locked || it.built);
+      if (open || c === gr.cats[0] || c === this.cat) out.push(c);
+    }
+    return out;
+  }
+  groupById(id) { return this.groups.find((x) => x.id === id) || null; }
   renderToolbar() {
-    const cats = toolbarCategories();
-    const groups = [];
-    for (const c of cats) { let gr = groups.find((x) => x.line === c.line); if (!gr) groups.push(gr = { line: c.line, cats: [] }); gr.cats.push(c); }
-    const stop = (c) => `<button class="cat" data-cat="${c.id}" data-tip="${esc(c.name)}" data-tip-desc="Linie ${esc(lineById(c.line).name)}" ${c.key ? `data-key="${c.key.toUpperCase()}"` : ''} aria-label="${esc(c.name)}"><span class="stop">${iconAny(c.icon, 'layers', 21)}</span><span class="lbl">${esc(c.name)}</span></button>`;
-    this.el.cats.innerHTML = `<div class="lg term"><button class="cat" data-tool="select" data-tip="Auswählen" data-tip-desc="Gebäude und Felder anklicken" data-key="Esc" aria-label="Auswählen"><span class="stop">${icon('select', 20)}</span><span class="lbl">Info</span></button></div>
-${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" style="--lc:${L.color}" data-line="${gr.line}"><i class="rail"></i>${gr.cats.map(stop).join('')}</div>`; }).join('')}
-<div class="lg term"><button class="cat danger" data-tool="bulldoze" data-tip="Abriss" data-tip-desc="Fläche aufziehen zum Abreißen" data-key="B" aria-label="Abriss"><span class="stop">${icon('bulldoze', 21)}</span><span class="lbl">Abriss</span></button></div>`;
+    const groups = toolbarGroups();
+    this.groups = groups;
+    this.visCache = new Map(groups.map((gr) => [gr.id, this.visibleCats(gr)]));
+    const stop = (gr) => {
+      const vis = this.visCache.get(gr.id) || [];
+      const single = vis.length === 1;
+      const locked = vis.every((c) => { try { return catalogItems(this, c).every((it) => it.locked && !it.built); } catch (e) { return false; } });
+      const desc = locked ? `${gr.desc} Noch gesperrt – kommt, wenn die Stadt wächst.` : gr.desc;
+      return `<button class="cat${locked ? ' dim' : ''}" data-group="${gr.id}" data-tour="${single ? `cat-${vis[0]}` : `group-${gr.id}`}" style="--lc:${gr.color}" data-tip="${esc(gr.name)}" data-tip-desc="${esc(desc)}" ${gr.key ? `data-key="${gr.key}"` : ''} aria-label="${esc(gr.name)}"><span class="stop">${iconAny(gr.icon, 'layers', 20, 2.1)}</span><span class="lbl">${esc(gr.name)}</span></button>`;
+    };
+    this.el.cats.innerHTML = `<div class="line"><i class="rail"></i>${groups.map(stop).join('')}</div><span class="tb-sep"></span><button class="cat danger" data-tool="bulldoze" data-tour="cat-bulldoze" data-tip="Abriss" data-tip-desc="Gebäude, Straßen und Zonen entfernen: Fläche aufziehen. Rechtsklick oder Esc beendet." data-key="B" aria-label="Abriss"><span class="stop">${icon('bulldoze', 20, 2.1)}</span><span class="lbl">Abriss</span></button>`;
     this.markToolButtons();
     this.markFresh();
+    if (this.cat && !this.el.tray.hidden) this.renderTray();
   }
-  // Punkt an Haltestellen mit neu freigeschalteten Gebäuden (bis die Kategorie geöffnet wurde)
+  // Punkt an Gruppen (und Reitern) mit neu freigeschalteten Gebäuden, bis man sie geöffnet hat
   markFresh() {
     const fresh = freshCats(this);
     const seen = this.seenFresh || (this.seenFresh = new Map());
-    for (const b of this.el.cats.querySelectorAll('.cat[data-cat]')) {
-      const c = b.dataset.cat;
-      const on = fresh.has(c) && seen.get(c) !== this.g.milestone;
+    const isNew = (c) => fresh.has(c) && seen.get(c) !== this.g.milestone;
+    for (const b of this.el.cats.querySelectorAll('.cat[data-group]')) {
+      const gr = this.groupById(b.dataset.group);
+      const on = !!gr && gr.cats.some(isNew);
       let d = b.querySelector('.nd');
       if (on && !d) { d = document.createElement('span'); d.className = 'nd'; b.querySelector('.stop').appendChild(d); }
       else if (!on && d) d.remove();
     }
+    this._isNew = isNew;
   }
-  updateTrackNav() {
-    const t = this.el.cats;
-    if (!t) return;
-    const over = t.scrollWidth > t.clientWidth + 4;
-    this.el.toolbar.classList.toggle('scrolls', over);
-    this.el.toolbar.classList.toggle('at-start', t.scrollLeft <= 2);
-    this.el.toolbar.classList.toggle('at-end', t.scrollLeft + t.clientWidth >= t.scrollWidth - 2);
+  // Gruppe zum aktiven Werkzeug (Ring an der Haltestelle, auch wenn der Katalog zu ist)
+  toolGroup(t) {
+    if (!t) return null;
+    if (t.kind === 'road') return 'roads';
+    if (t.kind === 'zone' || t.kind === 'dezone') return 'zones';
+    if (t.kind === 'line' || t.kind === 'extend') return groupOfCat('transit');
+    if (t.kind === 'place') { const d = BUILDINGS[t.key]; return d ? groupOfCat(d.cat) : null; }
+    const tr = TRAY_ITEMS.find((x) => { try { const it = x.item(this.g); return it && it.kind === 'tool' && it.key === t.kind; } catch (e) { return false; } });
+    return tr ? groupOfCat(tr.cat) : null;
   }
+  markToolButtons() {
+    const t = this.app.input ? this.app.input.tool : { kind: 'select' };
+    const tg = this.toolGroup(t);
+    for (const b of this.el.cats.querySelectorAll('.cat')) {
+      if (b.dataset.tool) b.classList.toggle('on', b.dataset.tool === t.kind && !this.cat);
+      else { b.classList.toggle('on', b.dataset.group === this.group && !this.el.tray.hidden); b.classList.toggle('using', b.dataset.group === tg && t.kind !== 'select'); }
+    }
+  }
+  updateTrackNav() { /* alte Schnittstelle: die Leiste scrollt nicht mehr */ }
 
+  openGroup(gid) {
+    const gr = this.groupById(gid);
+    if (!gr) return;
+    const vis = this.visCache && this.visCache.get(gid) || this.visibleCats(gr);
+    const last = this.groupCat[gid];
+    this.openTray(last && vis.includes(last) ? last : vis[0] || gr.cats[0]);
+  }
   openTray(cat) {
+    if (!cat) return;
+    const gid = cat === '__search' ? null : groupOfCat(cat);
     this.cat = cat;
+    this.group = gid;
+    if (gid) this.groupCat[gid] = cat;
     if (this.seenFresh || freshCats(this).has(cat)) { (this.seenFresh || (this.seenFresh = new Map())).set(cat, this.g.milestone); this.markFresh(); }
     if (cat !== '__search') this.search = '';
     this.hoverItem = null;
-    for (const b of this.el.cats.querySelectorAll('.cat')) b.classList.toggle('on', b.dataset.cat === cat);
+    this.closePop();
     const wasHidden = this.el.tray.hidden;
     this.renderTray();
     this.el.tray.hidden = false;
@@ -496,8 +570,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.root.classList.add('tray-open');
     this.el.tutorial.hidden = true;
     if (!this.el.insp.hidden && this.mobile()) this.closeInspector();
-    const btn = this.el.cats.querySelector(`.cat[data-cat="${cat}"]`);
-    if (btn) btn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    this.markToolButtons();
+    this.ob('cat', cat);
   }
   openSearch() {
     this.openTray('__search');
@@ -506,9 +580,9 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   }
   closeTray() {
     this.cat = null;
+    this.group = null;
     this.el.tray.hidden = true;
     this.root.classList.remove('tray-open');
-    for (const b of this.el.cats.querySelectorAll('.cat')) b.classList.toggle('on', false);
     this.markToolButtons();
     this.refreshTutorial();
   }
@@ -517,14 +591,21 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const cat = this.cat;
     if (!cat) return;
     const isSearch = cat === '__search';
-    const cm = isSearch ? { name: 'Baukatalog', color: '#1d2330', icon: 'search', line: 'bau' } : catMeta(cat);
-    const L = lineById(cm.line);
-    this.el.tray.style.setProperty('--lc', isSearch ? '#1d2330' : cm.color);
-    this.el.tray.innerHTML = `<div class="tr-head"><span class="tr-badge" style="background:${isSearch ? '#1d2330' : cm.color}">${iconAny(cm.icon, 'layers', 16, 2.2)}</span><span class="tr-name">${esc(cm.name)}</span><span class="tr-line">${isSearch ? 'Alle Kategorien' : 'Linie ' + esc(L.name)}</span><span class="tr-count" id="u-traycount"></span><span class="grow"></span>
-<label class="tr-search">${icon('search', 15)}<input id="u-search" type="search" placeholder="Gebäude suchen …" value="${esc(this.search)}" autocomplete="off" spellcheck="false"><kbd>F</kbd></label>
-<button class="close" data-act="closetray" aria-label="Schließen">${icon('close', 16)}</button></div>
+    const gr = isSearch ? null : this.groupById(this.group);
+    const cm = isSearch ? { name: 'Baukatalog', color: '#1d2330', icon: 'search' } : gr ? { name: gr.name, color: gr.color, icon: gr.icon } : catMeta(cat);
+    const vis = gr ? (this.visibleCats(gr)) : [];
+    if (gr && this.visCache) this.visCache.set(gr.id, vis);
+    this.el.tray.style.setProperty('--lc', cm.color);
+    const tabs = vis.length > 1 ? `<div class="tr-tabs" role="tablist">${vis.map((c) => { const m = catMeta(c); const lbl = catLabel(c); return `<button class="tr-tab${c === cat ? ' on' : ''}" role="tab" data-tab="${c}" data-tour="cat-${c}" style="--tc:${m.color}" data-tip="${esc(lbl)}" data-tip-desc="${esc(this.catDesc(c))}" data-tip-fast="1">${iconAny(m.icon, 'layers', 15, 2.2)}<span>${esc(lbl)}</span>${this._isNew && this._isNew(c) ? '<i class="nd"></i>' : ''}</button>`; }).join('')}</div>` : '';
+    this.el.tray.innerHTML = `<div class="tr-head"><span class="tr-badge" style="background:${cm.color}">${iconAny(cm.icon, 'layers', 15, 2.2)}</span><span class="tr-name">${esc(isSearch ? 'Suche' : vis.length > 1 ? cm.name : catLabel(cat))}</span>${tabs}<span class="grow"></span><span class="tr-count" id="u-traycount"></span>
+<label class="tr-search" data-tip="Suchen" data-tip-desc="Alle Gebäude und Werkzeuge nach Namen durchsuchen." data-key="F" data-tip-fast="1">${icon('search', 15)}<input id="u-search" type="search" placeholder="Suchen …" value="${esc(this.search)}" autocomplete="off" spellcheck="false" aria-label="Gebäude suchen"></label>
+<button class="close" data-act="closetray" data-tip="Schließen" data-tip-desc="Baukatalog zuklappen." data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 16)}</button></div>
 <div class="tr-body"><div class="detail"></div><div class="strip" id="u-strip"></div></div>`;
     this.renderTrayBody();
+  }
+  catDesc(c) {
+    const D = { roads: 'Gassen, Straßen und Alleen.', zones: 'Wohnen, Gewerbe, Industrie und Büro ausweisen.', districts: 'Stadtteile zeichnen und eigene Regeln geben.', power: 'Kraftwerke für Strom. Ohne Strom wächst nichts.', water: 'Wasser und Abwasser für alle Häuser.', garbage: 'Müllabfuhr, Deponien und Recycling.', services: 'Arztpraxen, Krankenhäuser und Friedhöfe.', education: 'Schulen und Hochschulen für gute Jobs.', safety: 'Polizei, Feuerwehr und Katastrophenschutz.', parks: 'Parks und Plätze machen glücklich.', landmarks: 'Besondere Bauten, einmal pro Stadt.', transit: 'Die U-Bahn fährt im Tunnel und nimmt Autos von der Straße.', transport: 'Buslinien, Straßenbahn und Ampeln.', industry: 'Lager, Güterbahnhof und Hafen für Waren.' };
+    return D[c] || catMeta(c).name;
   }
   renderTrayBody() {
     const strip = document.getElementById('u-strip');
@@ -551,8 +632,10 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     if (d) d.innerHTML = detailHTML(this.hoverItem);
   }
   trayClick(e) {
-    const c = e.target.closest('[data-act=closetray]');
-    if (c) { this.closeTray(); return; }
+    if (e.target.closest('[data-act=closetray]')) { this.app.audio.play('close'); this.closeTray(); return; }
+    const tab = e.target.closest('[data-tab]');
+    if (tab) { this.app.audio.play('tab'); this.openTray(tab.dataset.tab); return; }
+    if (e.target.closest('[data-act=trayhelp]')) { const it = this.hoverItem; this.openHelpFor(it ? (it.kind === 'place' ? it.cat : it.cat) : this.cat); return; }
     const b = e.target.closest('button.item');
     if (!b || !this.trayList) return;
     const it = this.trayList[+b.dataset.i];
@@ -582,10 +665,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     if (tool.kind === 'line' && this.view === 'none') this.setView('transit', true);
     if (tool.kind !== 'line' && tool.kind !== 'extend' && this.autoTransitView) this.setView('none');
     this.renderToolHint();
-  }
-  markToolButtons() {
-    const k = this.app.input ? this.app.input.tool.kind : 'select';
-    for (const b of this.el.cats.querySelectorAll('.cat[data-tool]')) b.classList.toggle('on', b.dataset.tool === k && !this.cat);
+    this.syncUnderground();
+    this.ob('tool', tool);
   }
 
   // Hinweisleiste zum aktiven Werkzeug (auf dem Handy mit Knöpfen statt Rechtsklick)
@@ -603,18 +684,18 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     else if (t.kind === 'place') {
       const d = BUILDINGS[t.key]; name = d ? d.name : t.key; ic = d ? catMeta(d.cat).icon : 'layers'; col = d ? catMeta(d.cat).color : col;
       hint = `${d ? fmtMoney(this.g.buildingCost(t.key)) : ''}${d && d.size[0] !== d.size[1] ? ' · R dreht' : ''}`;
-      if (d && d.size[0] !== d.size[1]) extra.push(['rotate', 'Drehen', 'rotate']);
+      if (d && d.size[0] !== d.size[1]) extra.push(['rotate', 'Drehen', 'rotate', 'Gebäude um 90° drehen.']);
     } else if (t.kind === 'line' || t.kind === 'extend') {
-      name = t.kind === 'line' ? 'Linie zeichnen' : 'Linie verlängern'; ic = 'line'; col = '#e8543f';
+      name = t.kind === 'line' ? 'U-Bahn-Linie zeichnen' : 'Linie verlängern'; ic = 'line'; col = '#e8543f';
       hint = `${input.lineStops.length} ${input.lineStops.length === 1 ? 'Station' : 'Stationen'} · Rechtsklick oder Enter beendet`;
-      extra.push(['finish', 'Fertig', 'check']);
+      extra.push(['finish', 'Fertig', 'check', 'Linie abschließen und Züge fahren lassen.']);
     } else {
       const T2 = TOOLS[t.kind] || {};
       name = T2.name || (this.trayList && (this.trayList.find((x) => x.kind === 'tool' && x.key === t.kind) || {}).name) || t.kind;
       try { hint = T2.hint ? T2.hint(input) || '' : ''; } catch (e) { hint = ''; }
       ic = T2.icon || 'brush';
     }
-    const html = `<span class="th-i" style="background:${col}">${iconAny(ic, 'select', 15, 2.3)}</span><b>${esc(name)}</b>${hint ? `<span class="th-h">${esc(hint)}</span>` : ''}${extra.map(([a, n, ii]) => `<button class="th-b" data-th="${a}">${icon(ii, 14, 2.4)}${n}</button>`).join('')}<button class="th-x" data-th="cancel" data-tip="Abbrechen" data-key="Esc" data-tip-fast="1" aria-label="Werkzeug abbrechen">${icon('close', 14, 2.4)}</button>`;
+    const html = `<span class="th-i" style="background:${col}">${iconAny(ic, 'select', 14, 2.3)}</span><b>${esc(name)}</b>${hint ? `<span class="th-h">${esc(hint)}</span>` : ''}${extra.map(([a, n, ii, d]) => `<button class="th-b" data-th="${a}" data-tip="${n}" data-tip-desc="${d}" data-tip-fast="1">${icon(ii, 14, 2.4)}${n}</button>`).join('')}<button class="th-x" data-th="cancel" data-tip="Abbrechen" data-tip-desc="Werkzeug weglegen und wieder auswählen." data-key="Esc" data-tip-fast="1" aria-label="Werkzeug abbrechen">${icon('close', 14, 2.4)}</button>`;
     if (html !== this._thHtml) { this._thHtml = html; el.innerHTML = html; }
     el.style.setProperty('--tc', col);
     el.hidden = false;
@@ -630,29 +711,36 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     else if (b.dataset.th === 'rotate') { input.rot = (input.rot + 1) % 4; if (input.lastMove) input.pointerMove(input.lastMove); }
   }
 
-  // ---------- Infoansichten
-  renderViews() {
-    const list = viewList();
-    let last = null, html = '';
-    for (const o of list) {
-      if (o.group !== last && o.id !== 'none' && last !== null) html += '<div class="sep"></div>';
-      last = o.group;
-      html += `<button data-view="${o.id}" data-tip="${esc(o.id === 'none' ? 'Normale Ansicht' : o.name)}" data-tip-desc="${esc(o.id === 'none' ? 'Infoansicht ausschalten' : o.text || (VIEW_GROUPS.find((g) => g.id === o.group) || {}).name || '')}" ${o.id === 'none' ? 'data-key="V"' : ''} data-tip-pos="right" aria-label="${esc(o.name)}">${iconAny(o.icon, 'layers', 19)}</button>`;
-    }
-    this.el.views.innerHTML = html;
-    const two = list.length > 11;
-    this.el.views.classList.toggle('two', two);
-    this.root.style.setProperty('--legend-x', two ? '104px' : '66px');
-    for (const b of this.el.views.querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === this.view);
+  // ---------- Untergrund-Ansicht (V1): an beim Linien-Werkzeug, im U-Bahn-Panel oder per Schalter in den Ansichten
+  undergroundAvailable() { const e = this.app.engine; return !!(e && typeof e.setUnderground === 'function'); }
+  undergroundOn() { const e = this.app.engine; return this.undergroundAvailable() ? !!e.undergroundActive : this.ugManual; }
+  syncUnderground() {
+    const e = this.app.engine;
+    if (!this.undergroundAvailable()) return;
+    const t = this.app.input ? this.app.input.tool : null;
+    const want = !!(this.ugManual || (t && (t.kind === 'line' || t.kind === 'extend')) || this.panel === 'transit');
+    if (!!e.undergroundActive !== want) { try { e.setUnderground(want); } catch (err) { console.warn('Untergrund', err); } }
+    this.root.classList.toggle('ug-on', want);
+    this.markViewButton();
   }
+  toggleUnderground(v) {
+    this.ugManual = v === undefined ? !this.ugManual : !!v;
+    if (this.undergroundAvailable()) this.syncUnderground();
+    else this.setView(this.ugManual ? 'transit' : (this.view === 'transit' ? 'none' : this.view));
+    this.ob('view', this.ugManual ? 'underground' : 'surface');
+    this.markViewButton();
+  }
+
+  // ---------- Infoansichten
   setView(id, auto = false) {
     this.view = id;
     this.autoTransitView = auto;
     this.app.engine.overlay.setMode(id);
-    for (const b of this.el.views.querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === id);
-    if (this.el.sheet && !this.el.sheet.hidden) this.renderSheet();
     const def = viewList().find((o) => o.id === id);
     this.root.classList.toggle('view-on', id !== 'none' && !!def);
+    this.markViewButton();
+    if (this.pop === 'views' || this.pop === 'menu') this.renderPop();
+    if (!auto) this.ob('view', id);
     if (id === 'none' || !def) { this.el.legend.hidden = true; return; }
     const bad = def.bad;
     let ramp = `linear-gradient(90deg, ${bad ? '#45c46b, #f2c230, #e5483c' : '#e5483c, #f2c230, #45c46b'})`;
@@ -660,36 +748,247 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     if (id === 'traffic') ramp = 'linear-gradient(90deg,#45c46b,#f2c230,#e5483c)';
     let leg = `<div class="ramp" style="background:${ramp}"></div><div class="ends"><span>${ends[0]}</span><span>${ends[1]}</span></div>`;
     let lg = def.legend;
-    if (typeof lg === 'function') { try { lg = lg(this.g); } catch (e) { console.error(e); lg = null; } }
+    if (typeof lg === 'function') { try { lg = lg(this.g); } catch (e) { console.warn(e); lg = null; } }
     const items = Array.isArray(lg) ? lg : lg && lg.items;
     if (id === 'resources' && !def.legend) leg = `<div class="litems"><span><i style="background:#78be46"></i>Acker</span><span><i style="background:#2e6b3a"></i>Wald</span><span><i style="background:#966e5a"></i>Erz</span><span><i style="background:#4a4a58"></i>Öl</span></div>`;
     else if (items) leg = `<div class="litems">${items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
     else if (lg && lg.gradient) { leg = `<div class="ramp" style="background:${lg.gradient}"></div><div class="ends"><span>${esc((lg.ends || [])[0] || '')}</span><span>${esc((lg.ends || [])[1] || '')}</span></div>`; }
     else if (id === 'power' || id === 'water') leg = `<div class="litems"><span><i style="background:${id === 'power' ? '#45c46b' : '#3fa0e0'}"></i>versorgt</span><span><i style="background:#e5483c"></i>fehlt</span></div>`;
-    this.el.legend.innerHTML = `<h4>${iconAny(def.icon, 'layers', 16)}<span>${esc(def.name)}</span><button class="close" data-act="offview" aria-label="Ansicht schließen">${icon('close', 14)}</button></h4>${leg}<p>${esc(def.text || '')}</p>`;
+    this.el.legend.innerHTML = `<h4><span class="lg-i">${iconAny(def.icon, 'layers', 15, 2.2)}</span><span>${esc(def.name)}</span><button class="close" data-act="offview" data-tip="Ansicht schließen" data-tip-desc="Zurück zur normalen Stadt." data-key="V" data-tip-fast="1" aria-label="Ansicht schließen">${icon('close', 14)}</button></h4>${leg}<p>${esc(def.text || '')}</p>`;
     this.el.legend.hidden = false;
-    this.el.legend.onclick = (e) => { if (e.target.closest('[data-act=offview]')) this.setView('none'); };
+    this.el.legend.onclick = (e) => { if (e.target.closest('[data-act=offview]')) { this.app.audio.play('close'); this.setView('none'); } };
+  }
+  markViewButton() {
+    if (!this.el || !this.el.viewsbtn) return;
+    const def = this.view !== 'none' ? viewList().find((o) => o.id === this.view) : null;
+    const ug = this.undergroundOn();
+    this.el.viewsbtn.classList.toggle('on', !!def || ug);
+    const lbl = def ? def.name : ug ? 'Untergrund' : 'Ansichten';
+    if (this.el.viewlbl.textContent !== lbl) this.el.viewlbl.textContent = lbl;
   }
 
-  // ---------- Panel-Dock
+  // ---------- Stadt-Panels (fortschreitend: nur, was schon relevant ist)
   panelDef(id) { return PANELS.find((p) => p.id === id) || CORE_PANELS.find((p) => p.id === id) || SYS_PANELS.find((p) => p.id === id) || null; }
-  renderDock() {
-    const list = dockPanels(CORE_PANELS);
-    let last = null, html = '';
-    for (const { p, m } of list) {
-      if (last !== null && m.group !== last) html += '<div class="sep"></div>';
-      last = m.group;
-      html += `<button data-panel="${p.id}" style="--pc:${m.color}" data-tip="${esc(p.title)}" data-tip-desc="${esc((PANEL_GROUPS.find((g) => g.id === m.group) || {}).name || '')}" data-tip-pos="left" aria-label="${esc(p.title)}">${iconAny(p.icon, 'layers', 20)}${p.id === 'news' ? '<span class="dot" id="u-newsdot" hidden></span>' : ''}</button>`;
+  cityPanels(all = false) { return dockPanels(CORE_PANELS).filter(({ p }) => all || panelAvailable(p, this) || this.panel === p.id); }
+  // Neu verfügbare Panels einmal kurz ankündigen
+  refreshAvail() {
+    const ids = this.cityPanels().map(({ p }) => p.id).join(',');
+    if (this._availIds && ids !== this._availIds) {
+      const before = new Set(this._availIds.split(','));
+      const fresh = this.cityPanels().filter(({ p }) => !before.has(p.id));
+      if (fresh.length) { this.freshPanels = new Set([...(this.freshPanels || []), ...fresh.map(({ p }) => p.id)]); this.el.citydot.hidden = false; }
     }
-    this.el.dock.innerHTML = html;
-    this.el.newsdot = document.getElementById('u-newsdot');
+    this._availIds = ids;
   }
 
-  // ---------- Erste Schritte
+  // ---------- Aufklappmenüs: Ansichten, Stadt, Stadt-Check, Menü (Handy: Blatt von unten)
+  togglePop(kind, anchor) { if (this.pop === kind) this.closePop(); else this.openPop(kind, anchor); }
+  openPop(kind, anchor) {
+    hideTip();
+    this.pop = kind;
+    this.popAnchor = anchor || this.root.querySelector(`[data-pop="${kind}"]`);
+    if (kind === 'city') this.refreshAvail();
+    this.renderPop();
+    const el = this.el.pop;
+    el.hidden = false;
+    el.className = `sign pop pop-${kind}${this.mobile() ? ' sheet' : ''}`;
+    el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter');
+    this.el.scrim.hidden = !this.mobile();
+    this.positionPop();
+    for (const b of this.root.querySelectorAll('[data-pop]')) { const on = b.dataset.pop === kind; b.classList.toggle('open', on); b.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+    this.ob('pop', kind);
+  }
+  closePop() {
+    if (!this.pop) return;
+    this.pop = null;
+    this.el.pop.hidden = true;
+    this.el.scrim.hidden = true;
+    for (const b of this.root.querySelectorAll('[data-pop]')) { b.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); }
+  }
+  positionPop() {
+    const el = this.el.pop, st = el.style, a = this.popAnchor;
+    st.left = st.right = st.top = st.bottom = '';
+    if (this.mobile() || !a) return;
+    const z = this.uiZoom();
+    const r = a.getBoundingClientRect();
+    const W = window.innerWidth / z, H = window.innerHeight / z;
+    const L = r.left / z, R = r.right / z, T = r.top / z, B = r.bottom / z;
+    const w = el.offsetWidth;
+    const below = T < H / 2;
+    if (below) { st.top = Math.round(B + 8) + 'px'; } else { st.bottom = Math.round(H - T + 10) + 'px'; }
+    const alignLeft = this.pop === 'views';
+    const x = clamp(alignLeft ? L : R - w, 10, Math.max(10, W - w - 10));
+    st.left = Math.round(x) + 'px';
+    el.style.setProperty('--ox', `${Math.round(clamp((alignLeft ? L + 24 : R - 24) - x, 0, w))}px`);
+    el.style.setProperty('--oy', below ? '0%' : '100%');
+    const maxH = below ? H - B - 24 : T - 24;
+    st.maxHeight = Math.max(200, Math.round(maxH)) + 'px';
+  }
+  renderPop() {
+    const k = this.pop;
+    if (!k) return;
+    let html = '';
+    try {
+      if (k === 'views') html = this.popViews();
+      else if (k === 'city') html = this.popCity();
+      else if (k === 'check') html = this.popCheck();
+      else if (k === 'menu') html = this.popMenu();
+    } catch (e) { console.warn('Menü', e); html = `<p class="empty">${esc(e.message)}</p>`; }
+    const sc = this.el.pop.scrollTop;
+    this.el.pop.innerHTML = html;
+    this.el.pop.scrollTop = sc;
+  }
+  popHead(title, sub, ic) {
+    return `<div class="pop-h">${this.mobile() ? '<div class="sh-grab"></div>' : ''}<span class="pop-hi">${icon(ic, 16, 2.2)}</span><div class="grow"><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div><button class="close" data-pa="close" data-tip="Schließen" data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 16)}</button></div>`;
+  }
+  popViewsBody() {
+    const list = viewList().filter((o) => o.id !== 'none');
+    const ug = this.undergroundOn();
+    const groups = VIEW_GROUPS.map((gr) => ({ ...gr, items: list.filter((o) => o.group === gr.id) }));
+    const rest = list.filter((o) => !VIEW_GROUPS.some((gr) => gr.id === o.group));
+    if (rest.length) { const m = groups.find((gr) => gr.id === 'mehr'); if (m) m.items.push(...rest.filter((o) => !m.items.includes(o))); }
+    return `<button class="pop-row ug${ug ? ' on' : ''}" data-pa="underground" data-tour="underground" data-tip="Untergrund" data-tip-desc="Die Oberwelt tritt zurück: Tunnel, Bahnsteige und fahrende U-Bahn-Züge werden sichtbar."><span class="pi" style="--pc:#2f8fe0">${icon('underground', 17, 2.1)}</span><span class="t"><b>Untergrund</b><small>U-Bahn-Tunnel und Züge sehen</small></span><span class="switch${ug ? ' on' : ''}" aria-hidden="true"></span></button>
+${groups.filter((gr) => gr.items.length).map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4><div class="pop-grid">${gr.items.map((o) => `<button class="pop-tile${this.view === o.id ? ' on' : ''}" data-pa="view" data-v="${esc(o.id)}" data-tip="${esc(o.name)}" data-tip-desc="${esc(o.text || '')}">${iconAny(o.icon, 'layers', 16, 2.1)}<span>${esc(o.name)}</span></button>`).join('')}</div></div>`).join('')}
+${this.view !== 'none' ? `<button class="pop-foot" data-pa="view" data-v="none" data-tip="Normale Ansicht" data-tip-desc="Farbige Karte ausblenden." data-key="V">${icon('eye', 15)}<span>Normale Ansicht</span><kbd>V</kbd></button>` : ''}`;
+  }
+  popViews() { return `${this.popHead('Ansichten', 'Farbige Karten über der Stadt', 'layers')}<div class="pop-b">${this.popViewsBody()}</div>`; }
+  popCityBody() {
+    const list = this.cityPanels();
+    const hidden = this.cityPanels(true).length - list.length;
+    const groups = PANEL_GROUPS.map((gr) => ({ ...gr, items: list.filter(({ m }) => m.group === gr.id) })).filter((gr) => gr.items.length);
+    const row = ({ p, m }) => {
+      let v = null;
+      if (p.badge) { try { v = p.badge(this); } catch (e) { v = null; } }
+      if (p.id === 'news' && this.newsUnread) v = v || 'neu';
+      if (this.freshPanels && this.freshPanels.has(p.id)) v = v || 'neu';
+      const title = p.id === 'transit' ? 'U-Bahn' : p.title;
+      return `<button class="pop-row${this.panel === p.id ? ' on' : ''}" data-pa="panel" data-v="${esc(p.id)}" style="--pc:${m.color}" data-tip="${esc(title)}" data-tip-desc="${esc(m.desc || title)}" ${m.key ? `data-key="${m.key}"` : ''}><span class="pi">${iconAny(p.icon, 'layers', 17, 2.1)}</span><span class="t"><b>${esc(title)}</b>${m.desc ? `<small>${esc(m.desc)}</small>` : ''}</span>${v !== null && v !== undefined && v !== 0 && v !== '' ? `<span class="pb">${esc(v)}</span>` : ''}</button>`;
+    };
+    return `${groups.map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4>${gr.items.map(row).join('')}</div>`).join('')}${hidden > 0 ? `<p class="pop-note">${icon('lock', 13, 2.2)}<span>${hidden === 1 ? 'Ein weiterer Bereich kommt' : `${hidden} weitere Bereiche kommen`} dazu, wenn die Stadt wächst.</span></p>` : ''}`;
+  }
+  popCity() { return `${this.popHead('Stadt', 'Verwaltung, Zahlen und Pläne', 'city')}<div class="pop-b">${this.popCityBody()}</div>`; }
+  popCheck() {
+    const probs = problems(this.g);
+    const lvl = adviceLevel(this.advisor);
+    const how = (p) => p.view ? 'Zeigt die passende Ansicht' : p.panel ? 'Öffnet das passende Fenster' : p.cat ? 'Öffnet das passende Werkzeug' : '';
+    const body = probs.length
+      ? probs.map((p) => `<button class="pop-row prob ${p.sev}" data-pa="prob" data-v="${esc(p.id)}" data-tip="${esc(p.text)}" data-tip-desc="${esc(how(p))}."><span class="pi">${icon(p.icon, 16, 2.3)}</span><span class="t"><b>${esc(p.text)}</b><small>${esc(how(p))}</small></span><span class="go">${icon('arrowR', 15, 2.4)}</span></button>`).join('')
+      : `<div class="allgood">${icon('check', 18, 2.6)}<span><b>Alles im grünen Bereich.</b><small>Strom, Wasser, Müll, Geld und Verkehr laufen.</small></span></div>`;
+    return `${this.popHead('Stadt-Check', probs.length ? 'Was gerade Aufmerksamkeit braucht' : 'Deine Stadt läuft rund', 'pulse')}<div class="pop-b">${body}
+<button class="pop-foot" data-pa="advisor" data-tip="Ratgeberin" data-tip-desc="Lagebericht und Tipps, was als Nächstes sinnvoll ist." data-key="H">${icon('advisor', 15)}<span>Ratgeberin fragen</span>${lvl >= 2 ? '<i class="pdot"></i>' : ''}<kbd>H</kbd></button></div>`;
+  }
+  popMenu() {
+    const mm = !this.el.mini.hidden && (!this.mobile() || this.el.mini.classList.contains('force'));
+    const item = (pa, ic, n, d, key = '', extra = '') => `<button class="pop-row slim" data-pa="${pa}" data-tip="${esc(n)}" data-tip-desc="${esc(d)}" ${key ? `data-key="${key}"` : ''}><span class="pi">${icon(ic, 16, 2.1)}</span><span class="t"><b>${esc(n)}</b></span>${extra}${key ? `<kbd>${key}</kbd>` : ''}</button>`;
+    const game = `<div class="pop-sec">${this.mobile() ? '<h4>Spiel</h4>' : ''}
+${item('save', 'save', 'Schnell speichern', 'Spielstand in Platz 1 sichern.', 'Strg+S')}
+${item('slots', 'download', 'Spielstände', 'Speichern, Laden und als Datei sichern.')}
+${item('settings', 'settings', 'Optionen', 'Grafik, Klang und Bedienung einstellen.')}
+${item('help', 'help', 'Hilfe', 'So funktioniert\'s – kurz erklärt.', 'F1')}
+${item('keys', 'keyboard', 'Tastenkürzel', 'Alle Tasten auf einen Blick.', '?')}
+</div><div class="pop-sec">
+${item('photo', 'camera', 'Fotomodus', 'Oberfläche ausblenden, Kamera frei bewegen, Bild speichern.', 'P')}
+${item('mini', 'minimap', 'Minikarte', 'Übersichtskarte der Stadt ein- oder ausblenden.', 'K', `<span class="switch${mm ? ' on' : ''}" aria-hidden="true"></span>`)}
+${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die Stadt zeigen. U blendet alles wieder ein.', 'U')}
+</div><div class="pop-sec">${item('tomenu', 'menu', 'Zum Hauptmenü', 'Das Spiel wird vorher automatisch gesichert.')}</div>`;
+    if (!this.mobile()) return `${this.popHead('Menü', 'Spiel, Optionen, Fotomodus', 'menu')}<div class="pop-b">${game}</div>`;
+    // Handy: ein Blatt mit allem, was auf dem Desktop an den Rändern sitzt
+    return `${this.popHead('Menü', 'Stadt, Ansichten und Spiel', 'menu')}<div class="pop-b">
+<div class="pop-sec"><h4>Stadt</h4><div class="pop-grid city">${this.cityPanels().map(({ p, m }) => `<button class="pop-tile${this.panel === p.id ? ' on' : ''}" data-pa="panel" data-v="${esc(p.id)}" style="--pc:${m.color}">${iconAny(p.icon, 'layers', 18, 2.1)}<span>${esc(p.id === 'transit' ? 'U-Bahn' : p.short || (p.title.length > 14 ? p.title.split(' & ')[0] : p.title))}</span></button>`).join('')}</div></div>
+<div class="pop-sec"><h4>Ansichten</h4>${this.popViewsBody()}</div>${game}</div>`;
+  }
+  popClick(e) {
+    const b = e.target.closest('[data-pa]');
+    if (!b) return;
+    const a = b.dataset.pa, v = b.dataset.v;
+    this.app.audio.play(a === 'close' ? 'close' : a === 'underground' || a === 'mini' ? 'toggle' : 'click');
+    switch (a) {
+      case 'close': this.closePop(); return;
+      case 'view': this.setView(this.view === v ? 'none' : v); if (this.mobile()) this.closePop(); return;
+      case 'underground': this.toggleUnderground(); this.renderPop(); return;
+      case 'panel': this.closePop(); if (this.freshPanels) this.freshPanels.delete(v); this.openPanel(v); this.refreshBadges(); return;
+      case 'prob': { const p = problems(this.g).find((x) => x.id === v); this.closePop(); if (p) this.runAction(p); return; }
+      case 'advisor': this.closePop(); this.openPanel('advisor'); return;
+      case 'save': this.closePop(); if (this.app.save(1) !== false) this.toast('Gespeichert in Platz 1.', 'good'); return;
+      case 'slots': this.closePop(); this.setTab = 'spiel'; this.openPanel('settings'); return;
+      case 'settings': this.closePop(); if (this.setTab === 'spiel' || this.setTab === 'hilfe') this.setTab = 'grafik'; this.openPanel('settings'); return;
+      case 'help': this.openHelp(); return;
+      case 'keys': this.closePop(); this.showKeys(); return;
+      case 'photo': this.closePop(); this.photo.enter(); return;
+      case 'mini': this.toggleMinimap(); this.renderPop(); return;
+      case 'hud': this.closePop(); this.toggleHud(true); return;
+      case 'tomenu': this.closePop(); this.app.toMenu(); return;
+    }
+  }
+
+  // ---------- Spotlight-Ziele für die Einführung (V2): liefert das sichtbare Element oder null
+  tourTarget(id) {
+    if (!id || this.root.hidden) return null;
+    const vis = (el) => (el && el.isConnected && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' ? el : null);
+    const q = (sel) => this.root.querySelector(sel);
+    const sel = (t) => `[data-tour="${CSS.escape(t)}"]`;
+    try {
+      if ((id === 'views' || id === 'city') && this.mobile()) return vis(this.el.menubtn);
+      if (id === 'group-roads' || id === 'group-zones' || id.startsWith('group-')) {
+        const b = q(`.toolbar [data-group="${CSS.escape(id.slice(6))}"]`);
+        return vis(b);
+      }
+      if (id.startsWith('cat-') && id !== 'cat-bulldoze') {
+        const c = id.slice(4);
+        const direct = vis(q(`.toolbar ${sel(id)}`));
+        if (direct) return direct;
+        const gid = groupOfCat(c);
+        const gr = this.groupById(gid);
+        if (!gr || !this.visibleCats(gr).includes(c)) return null;
+        if (this.group !== gid || this.el.tray.hidden) this.openGroup(gid);
+        return vis(q(`.tray ${sel(id)}`));
+      }
+      if (id.startsWith('item-')) {
+        const key = id.slice(5);
+        let el = vis(q(`.tray ${sel(id)}`));
+        if (!el) {
+          for (const gr of this.groups) {
+            for (const c of this.visibleCats(gr)) {
+              let items = [];
+              try { items = catalogItems(this, c); } catch (e) { items = []; }
+              if (items.some((it) => tourKey(it) === key)) { this.openTray(c); el = vis(q(`.tray ${sel(id)}`)); break; }
+            }
+            if (el) break;
+          }
+        }
+        if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return el;
+      }
+      if (id === 'tray') return vis(this.el.tray);
+      if (id === 'menu') return vis(this.el.menubtn);
+      return vis(q(sel(id)));
+    } catch (e) { console.warn('tourTarget', id, e); return null; }
+  }
+
+  // ---------- Hilfe zu einer Kategorie, einem Gebäude oder Begriff
+  helpFor(hint) {
+    let topics = [];
+    try { topics = this.helpTopics() || []; } catch (e) { topics = []; }
+    if (!topics.length || !hint) return null;
+    const d = BUILDINGS[hint];
+    const cands = [hint, ...(HELP_HINTS[hint] || []), ...(d ? HELP_HINTS[d.cat] || [d.cat] : [])];
+    for (const c of cands) {
+      const t = topics.find((x) => x.id === c) || topics.find((x) => String(x.id).includes(c));
+      if (t) return t.id;
+    }
+    return null;
+  }
+  openHelpFor(hint) { this.openHelp(this.helpFor(hint) || undefined); }
+
+  // ---------- Erste Schritte (alte Karte – entfällt, sobald die geführte Einführung sie ersetzt)
   refreshTutorial() {
     const g = this.g;
+    const ob = this.onboarding;
+    let obActive = false;
+    try { obActive = !!(ob && (ob.replacesTutorial || (typeof ob.active === 'function' && ob.active()))); } catch (e) { obActive = false; }
+    this.root.classList.toggle('tour-on', !!(ob && (() => { try { return ob.active(); } catch (e) { return false; } })()));
     // Im Metro-Modus baut sich die Stadt selbst – dort passt die Einstiegsliste nicht
-    if (this.tutorialHidden || g.sandbox || (g.opts && g.opts.scenario === 'metro') || this.cat || this.panel || this.photo.active || this.mobile()) { this.el.tutorial.hidden = true; return; }
+    if (obActive || this.tutorialHidden || g.sandbox || (g.opts && g.opts.scenario === 'metro') || this.cat || this.panel || this.photo.active || this.mobile()) { this.el.tutorial.hidden = true; return; }
     const steps = tutorialSteps(g, this);
     const firstOpen = steps.findIndex((s) => !s[0]);
     if (firstOpen < 0) { this.el.tutorial.hidden = true; return; }
@@ -700,7 +999,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const body = open
       ? `<ol>${steps.map((s, i) => `<li class="${s[0] ? 'done' : i === firstOpen ? 'now' : ''}" ${s[2] && !s[0] ? `data-step="${i}"` : ''}>${esc(s[1])}</li>`).join('')}</ol>`
       : `<div class="tnow" ${cur[2] ? `data-step="${firstOpen}"` : ''}><span class="tn num">${firstOpen + 1}</span><span class="tt">${esc(cur[1])}</span>${cur[2] ? `<span class="tgo">${icon('arrowR', 14, 2.4)}</span>` : ''}</div>`;
-    const html = `<h4><span>Erste Schritte</span><span class="tprog num">${done} / ${steps.length}</span><button class="close" data-act="tuttoggle" data-tip="${open ? 'Weniger' : 'Alle Schritte'}" data-tip-fast="1" aria-label="Aufklappen">${icon(open ? 'chevronD' : 'chevronU', 15)}</button><button class="close" data-act="hidetut" data-tip="Ausblenden" data-tip-fast="1" aria-label="Ausblenden">${icon('close', 15)}</button></h4>${line}${body}`;
+    const html = `<h4><span>Erste Schritte</span><span class="tprog num">${done} / ${steps.length}</span><button class="close" data-act="tuttoggle" data-tip="${open ? 'Weniger zeigen' : 'Alle Schritte'}" data-tip-desc="${open ? 'Nur den nächsten Schritt zeigen.' : 'Die ganze Liste aufklappen.'}" data-tip-fast="1" aria-label="Aufklappen">${icon(open ? 'chevronD' : 'chevronU', 15)}</button><button class="close" data-act="hidetut" data-tip="Ausblenden" data-tip-desc="Die Liste lässt sich in den Optionen wieder einschalten." data-tip-fast="1" aria-label="Ausblenden">${icon('close', 15)}</button></h4>${line}${body}`;
     if (html !== this._tutHtml) { this._tutHtml = html; this.el.tutorial.innerHTML = html; }
     this.el.tutorial.hidden = false;
   }
@@ -725,14 +1024,9 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   }
   notify(n) { return this.notes.push(n); }
 
-  // ---------- Nachrichten
+  // ---------- Nachrichten (kein Laufband mehr: Wichtiges kommt als Meldung, Stadtgespräch steht im Stadtfunk)
   onNews(n) {
-    this.el.ticker.hidden = false;
-    this.el.tickwho.textContent = n.author;
-    this.el.ticktxt.textContent = n.text;
-    this.el.tickpip.style.background = n.mood === 'bad' ? 'var(--bad)' : n.mood === 'good' ? 'var(--good)' : 'var(--l-blue)';
-    this.el.ticker.classList.remove('flash'); void this.el.ticker.offsetWidth; this.el.ticker.classList.add('flash');
-    if (this.panel !== 'news') { if (this.el.newsdot) this.el.newsdot.hidden = false; } else this.renderPanel();
+    if (this.panel !== 'news') this.newsUnread = true; else this.renderPanel();
     if (n.kind !== 'chatter') this.notes.fromNews(n);
     if (n.kind !== 'chatter' && n.kind !== 'report' && n.kind !== 'card') {
       const where = n.x !== undefined && n.y !== undefined ? { x: n.x, y: n.y } : null;
@@ -761,19 +1055,20 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
       if (msg.startsWith(t._msg)) t.remove();
     }
     for (const t of this.toasts.children) {
-      if (t._msg === msg && !t.classList.contains('out')) { clearTimeout(t._t); t._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, opts.where ? 5200 : 3400); return; }
+      if (t._msg === msg && !t.classList.contains('out')) { clearTimeout(t._t); t._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 300); }, opts.where ? 5200 : 3400); return; }
     }
     if (type === 'bad') this._badToastAt = performance.now();
     const d = document.createElement('div');
     d._msg = msg;
     d.className = 'toast ' + type + (opts.where ? ' link' : '');
     const ic = opts.icon || (type === 'bad' ? 'warn' : type === 'good' ? 'check' : 'info');
-    d.innerHTML = `<span class="ti">${icon(ic, 15, 2.4)}</span><span class="tt"></span>${opts.where ? `<span class="tg">${icon('pin', 14, 2.2)}</span>` : ''}`;
+    d.innerHTML = `<span class="ti">${icon(ic, 14, 2.4)}</span><span class="tt"></span>${opts.where ? `<span class="tg">${icon('pin', 14, 2.2)}</span>` : ''}`;
     d.querySelector('.tt').textContent = msg;
     if (opts.where) d.addEventListener('click', () => { this.focusTile(opts.where.x, opts.where.y, 20); d.remove(); });
     this.toasts.appendChild(d);
-    while (this.toasts.children.length > (this.mobile() ? 2 : 3)) this.toasts.firstChild.remove();
-    d._t = setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 400); }, opts.where ? 5200 : 3400);
+    // Höchstens zwei Meldungen gleichzeitig (Handy: eine) – alles andere steht unter der Glocke
+    while (this.toasts.children.length > (this.mobile() ? 1 : 2)) this.toasts.firstChild.remove();
+    d._t = setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 300); }, opts.where ? 5200 : 3400);
   }
   floatMoney(amount, mouse) {
     if (!mouse || !amount || this.g.sandbox) return;
@@ -794,17 +1089,19 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const changed = this.panel !== name;
     this.panel = name;
     this.markPanelButtons();
-    if (name === 'news' && this.el.newsdot) this.el.newsdot.hidden = true;
+    if (name === 'news') this.newsUnread = false;
     this.el.panel.hidden = false;
     this.el.insp.hidden = true;
     this.sel = null;
     this.app.engine.overlay.select(null);
-    this.closeSheet();
+    this.closePop();
     if (this.mobile()) this.closeTray();
     if (changed) { this.el.panel.classList.remove('enter'); void this.el.panel.offsetWidth; this.el.panel.classList.add('enter'); this.panelScroll = 0; }
     if (def.opened) def.opened(this);
     this.renderPanel(changed);
     this.refreshTutorial();
+    this.syncUnderground();
+    if (changed) this.ob('panel', name);
   }
   closePanels() {
     this.panel = null;
@@ -812,9 +1109,14 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.markPanelButtons();
     this.closeInspector();
     this.refreshTutorial();
+    this.syncUnderground();
   }
   markPanelButtons() {
-    for (const b of this.root.querySelectorAll('#u-dock button[data-panel], #u-sys button[data-sys]')) b.classList.toggle('on', (b.dataset.panel || b.dataset.sys) === this.panel);
+    for (const b of this.root.querySelectorAll('#u-sys button[data-sys]')) b.classList.toggle('on', b.dataset.sys === this.panel);
+    const isCity = !!this.panel && this.cityPanels(true).some(({ p }) => p.id === this.panel);
+    if (this.el.citybtn) this.el.citybtn.classList.toggle('on', isCity);
+    if (this.el.check) this.el.check.classList.toggle('on', this.panel === 'advisor');
+    if (this.el.menubtn) this.el.menubtn.classList.toggle('on', this.panel === 'settings');
   }
   setCtx() {
     if (!this._setCtx) this._setCtx = { app: this.app, inGame: true, ui: this, tab: this.setTab, snap: this.gfxSnap, onTips: (v) => setTipsEnabled(v) };
@@ -832,8 +1134,12 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     try { body = def.render(this); } catch (e) { console.error('Panel', this.panel, e); body = `<p class="empty">Fehler im Panel: ${esc(e.message)}</p>`; }
     const old = this.el.panel.querySelector('.body');
     const scroll = fresh ? 0 : old ? old.scrollTop : 0;
-    const m = def.color || (dockPanels(CORE_PANELS).find((x) => x.p.id === def.id) || { m: {} }).m.color || '#1d2330';
-    const headHtml = `<header style="--pc:${m}"><span class="ph-badge">${iconAny(def.icon, 'layers', 17, 2.2)}</span><h2>${esc(def.title)}</h2><button class="close" data-act="close" aria-label="Schließen">${icon('close', 18)}</button></header>`;
+    const meta = dockPanels(CORE_PANELS).find((x) => x.p.id === def.id);
+    const m = def.color || (meta ? meta.m.color : '') || '#1d2330';
+    const desc = meta ? meta.m.desc : '';
+    const title = def.id === 'transit' ? 'U-Bahn' : def.title;
+    const help = this.helpFor(def.id === 'transit' ? 'transit' : def.id === 'budget' ? 'money' : def.id);
+    const headHtml = `<header style="--pc:${m}"><span class="ph-badge">${iconAny(def.icon, 'layers', 16, 2.2)}</span><div class="ph-t"><h2>${esc(title)}</h2>${desc ? `<small>${esc(desc)}</small>` : ''}</div>${help ? `<button class="close" data-act="panelhelp" data-v="${esc(help)}" data-tip="Was ist das?" data-tip-desc="Kurz erklärt in der Hilfe." data-tip-fast="1" aria-label="Hilfe">${icon('help', 17)}</button>` : ''}<button class="close" data-act="close" data-tip="Schließen" data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 18)}</button></header>`;
     if (!old || this._panelHead !== headHtml) {
       this._panelHead = headHtml;
       this.el.panel.innerHTML = `${headHtml}<div class="body">${body}</div>`;
@@ -849,6 +1155,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const act = b.dataset.act;
     this.app.audio.play(act === 'close' ? 'close' : b.classList.contains('switch') ? 'toggle' : act === 'settab' || b.closest('.tabs, .chart-tabs, .filt') ? 'tab' : 'click');
     if (act === 'close') { this.closePanels(); return; }
+    if (act === 'panelhelp') { this.openHelp(b.dataset.v); return; }
     const def = this.panelDef(this.panel);
     if (!def) return;
     let again = true;
@@ -866,6 +1173,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     if (!sel) { this.closeInspector(); return; }
     const fresh = !this.sel || this.sel.type !== sel.type || this.sel.id !== sel.id || this.sel.i !== sel.i;
     this.sel = sel;
+    this.closePop();
     if (this.mobile()) { this.closeTray(); if (this.panel) this.closePanels(); this.sel = sel; }
     this._inspHead = null;
     this.renderInspector();
@@ -906,7 +1214,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.app.engine.overlay.select(box && !box.flat ? box : null);
   }
 
-  // ---------- Minikarte, Übersicht (Handy), Oberfläche ausblenden
+  // ---------- Minikarte, Oberfläche ausblenden
   toggleMinimap(v, silent = false) {
     if (v === undefined) v = this.el.mini.hidden || (this.mobile() && !this.el.mini.classList.contains('force'));
     this.el.mini.classList.toggle('force', v && this.mobile());
@@ -920,30 +1228,9 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.root.classList.toggle('hud-hidden', this.hudHidden);
     if (this.hudHidden) this.toast('Oberfläche ausgeblendet · U zeigt sie wieder');
   }
-  toggleSheet() { if (this.el.sheet.hidden) this.openSheet(); else this.closeSheet(); }
-  openSheet() { this.renderSheet(); this.el.sheet.hidden = false; this.el.sheet.classList.remove('enter'); void this.el.sheet.offsetWidth; this.el.sheet.classList.add('enter'); }
-  closeSheet() { if (this.el.sheet) this.el.sheet.hidden = true; }
-  renderSheet() {
-    const panels = dockPanels(CORE_PANELS);
-    const views = viewList();
-    this.el.sheet.innerHTML = `<div class="sh-card"><div class="sh-grab"></div>
-<div class="sh-head"><b>Übersicht</b><button class="close" data-sh="close" aria-label="Schließen">${icon('close', 18)}</button></div>
-<h3>Fenster</h3><div class="sh-grid">${panels.map(({ p, m }) => `<button data-sh="panel" data-v="${p.id}" style="--pc:${m.color}" class="${this.panel === p.id ? 'on' : ''}">${iconAny(p.icon, 'layers', 22)}<span>${esc(p.short || (p.title.length > 16 ? p.title.split(' & ')[0] : p.title))}</span></button>`).join('')}
-<button data-sh="photo">${icon('camera', 22)}<span>Fotomodus</span></button><button data-sh="keys">${icon('keyboard', 22)}<span>Tasten</span></button><button data-sh="mini">${icon('minimap', 22)}<span>Minikarte</span></button></div>
-<h3>Infoansichten</h3><div class="sh-grid views">${views.map((o) => `<button data-sh="view" data-v="${o.id}" class="${this.view === o.id ? 'on' : ''}">${iconAny(o.icon, 'layers', 20)}<span>${esc(o.id === 'none' ? 'Normal' : o.name)}</span></button>`).join('')}</div></div>`;
-  }
-  sheetClick(e) {
-    const b = e.target.closest('[data-sh]');
-    if (!b) { if (e.target === this.el.sheet) this.closeSheet(); return; }
-    this.app.audio.play('click');
-    const a = b.dataset.sh, v = b.dataset.v;
-    if (a === 'close') this.closeSheet();
-    else if (a === 'panel') { this.closeSheet(); this.openPanel(v); }
-    else if (a === 'view') { this.setView(v); this.closeSheet(); }
-    else if (a === 'photo') { this.closeSheet(); this.photo.enter(); }
-    else if (a === 'keys') { this.closeSheet(); this.showKeys(); }
-    else if (a === 'mini') { this.closeSheet(); this.toggleMinimap(); }
-  }
+  // alte Schnittstelle (Übersicht auf dem Handy) – jetzt das Menü
+  toggleSheet() { this.togglePop('menu', this.el.menubtn); }
+  closeSheet() { if (this.pop === 'menu') this.closePop(); }
 
   // ---------- Tastatur
   key(e) {
@@ -959,6 +1246,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
       }
       return;
     }
+    if (e.code === 'Escape' && this.pop) { e.preventDefault(); e.stopImmediatePropagation(); this.closePop(); return; }
     const k = (e.key || '').toLowerCase();
     const ctrl = e.ctrlKey || e.metaKey;
     if (e.code === 'Space') { e.preventDefault(); this.setSpeed(this.g.speed === 0 ? (this.lastSpeed || 1) : 0); }
@@ -967,21 +1255,21 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     else if (e.code === 'Digit3' || e.code === 'Numpad3') this.setSpeed(3);
     else if (ctrl && e.code === 'KeyS') { e.preventDefault(); if (this.app.save(1) !== false) this.toast('Gespeichert in Platz 1.', 'good'); }
     else if (ctrl) return;
-    else if (e.key === '?' || e.code === 'F1') { e.preventDefault(); this.showKeys(); }
+    else if (e.code === 'F1') { e.preventDefault(); this.openHelp(); }
+    else if (e.key === '?') { e.preventDefault(); this.showKeys(); }
     else if (k === 'm') { this.app.settings.muted = !this.app.settings.muted; this.app.audio.applyVolumes(); this.app.saveSettings(); this.toast(this.app.settings.muted ? 'Ton aus' : 'Ton an'); }
     else if (k === 'i') { this.app.engine.effects.showIcons = !this.app.engine.effects.showIcons; this.toast(this.app.engine.effects.showIcons ? 'Problem-Symbole an' : 'Problem-Symbole aus'); }
     else if (k === 'p') this.photo.enter();
     else if (k === 'u') this.toggleHud();
     else if (k === 'n') this.togglePanel('notes');
-    else if (k === 'h') this.togglePanel('advisor');
+    else if (k === 'h') this.togglePop('check', this.el.check);
     else if (k === 'k') this.toggleMinimap();
     else if (k === 'v') this.setView('none');
     else if (k === 'f') { e.preventDefault(); this.openSearch(); }
-    else if (k === 'g') { if (this.cat === 'roads') this.closeTray(); else this.openTray('roads'); }
-    else if (k === 'z') { if (this.cat === 'zones') this.closeTray(); else this.openTray('zones'); }
+    else if (k === 'g') { if (this.group === 'roads') this.closeTray(); else this.openGroup('roads'); }
+    else if (k === 'z') { if (this.group === 'zones') this.closeTray(); else this.openGroup('zones'); }
     else if (k === 'l') { if (this.g.isUnlocked('transit')) this.app.input.setTool({ kind: 'line' }); else this.toast(this.g.lockReason('station') || 'Noch nicht freigeschaltet.', 'bad'); }
     else if (e.code === 'Escape' && this.hudHidden) this.toggleHud(false);
-    else if (e.code === 'Escape' && !this.el.sheet.hidden) this.closeSheet();
   }
 
   // ---------- Modale
@@ -996,6 +1284,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   }
   openModal(html, onClick) {
     hideTip();
+    this.closePop();
     const wrap = document.createElement('div');
     wrap.className = 'backdrop enter';
     wrap.innerHTML = html;
@@ -1016,8 +1305,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.app.audio.play('milestone');
     const unlocks = [];
     for (const [, d] of Object.entries(BUILDINGS)) if (!d.landmark && d.unlock === i) unlocks.push([catMeta(d.cat).icon, d.name, catMeta(d.cat).color]);
-    if (i === 2) unlocks.unshift(['zones', 'Büro-Zone', '#9466d2'], ['roads', 'Alleen', '#5d6470'], ['transit', 'Pulsbahn (2 Linien)', '#e8543f'], ['budget', 'Kredite', '#c98a0c']);
-    if (i >= 3 && i <= 5) unlocks.push(['line', '+1 Pulsbahn-Linie', '#e8543f']);
+    if (i === 2) unlocks.unshift(['zones', 'Büro-Zone', '#9466d2'], ['roads', 'Alleen', '#5d6470'], ['transit', 'U-Bahn (2 Linien)', '#e8543f'], ['budget', 'Kredite', '#c98a0c']);
+    if (i >= 3 && i <= 5) unlocks.push(['line', '+1 U-Bahn-Linie', '#e8543f']);
     const lvl = [0, 0, 3, 4, 5][i];
     if (lvl) unlocks.push(['house', `Gebäude bis Stufe ${lvl}`, '#4fae67']);
     for (const [, d] of Object.entries(BUILDINGS)) if (d.landmark && d.unlock + 1 === i) unlocks.push(['landmarks', `Wahrzeichen: ${d.name}`, '#c06a2b']);
@@ -1114,7 +1403,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = 0.25;
-      if (!this.hudHidden && !this.photo.active) { this.refreshHUD(); if (window.innerWidth <= 960) this.fitTop(); }
+      if (!this.hudHidden && !this.photo.active) { this.refreshHUD(); if (window.innerWidth <= 1100) this.fitTop(); }
       if (this.sel && !this.el.insp.hidden) this.renderInspector();
       if (this.app.input && this.app.input.tool.kind === 'line') this.renderToolHint();
     }
@@ -1129,7 +1418,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
       this.refreshTutorial();
     }
     this.advisor.update(dt);
-    if (this.onboarding) this.onboarding.update(dt);
+    if (this.onboarding) { try { this.onboarding.update(dt); } catch (e) { if (!this._obErr) { this._obErr = true; console.warn('Einführung', e); } } }
     this.photo.update(dt);
     if (this.minimap && !this.photo.active && !this.hudHidden) this.minimap.update(dt);
     // Vorschaubilder nur bei flüssiger Bildrate (Shader-Übersetzung kann auf schwachen Geräten und im Software-Renderer lange blockieren)

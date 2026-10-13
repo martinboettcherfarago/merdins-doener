@@ -35,7 +35,7 @@ function portrait(b, color) {
 }
 
 const head = (stripe, title, sub, pic = '') => `<div class="stripe" style="background:${stripe}"></div>
-<header>${pic}<div class="grow"><h2>${title}</h2><div class="sub">${sub}</div></div><div class="hbtns"><button class="close" data-act="focus" data-tip="Hinfliegen" data-tip-fast="1">${icon('target', 16)}</button><button class="close" data-act="close" aria-label="Schließen">${icon('close', 16)}</button></div></header>`;
+<header>${pic}<div class="grow"><h2>${title}</h2><div class="sub">${sub}</div></div><div class="hbtns"><button class="close" data-act="help" data-tip="Was ist das?" data-tip-desc="Kurz erklärt in der Hilfe." data-tip-fast="1" aria-label="Was ist das?">${icon('help', 16)}</button><button class="close" data-act="focus" data-tip="Hinfliegen" data-tip-desc="Die Kamera fährt zu diesem Ort." data-tip-fast="1" aria-label="Hinfliegen">${icon('target', 16)}</button><button class="close" data-act="close" data-tip="Schließen" data-tip-desc="Auswahl aufheben." data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 16)}</button></div></header>`;
 
 const pips = (level, color) => `<span class="pips" style="--c:${color}">${[1, 2, 3, 4, 5].map((k) => `<i class="${k <= level ? 'on' : ''}"></i>`).join('')}</span>`;
 
@@ -93,7 +93,7 @@ function inspZone(ui, b) {
   if (b.abandoned) next = '<span class="chip no">Verlassen – wird bald abgerissen</span>';
   else if (b.construct < 1) next = `<span class="chip warn">Im Bau · ${Math.round(b.construct * 100)} %</span>`;
   else if (b.level >= 5) next = 'Höchste Stufe erreicht.';
-  else if (b.level >= ml) next = g.trackCount[i] > 0 && ml === TRANSIT.maxLevelUnderTrack ? 'Unter der Hochbahn ist keine höhere Stufe möglich.' : g.policies.has('lowrise') && ml === 3 ? 'Hochhausverbot begrenzt die Höhe.' : `Höhere Stufen ab Meilenstein „${MILESTONES[[0, 0, 2, 3, 4, 4][b.level + 1] ?? 4].name}".`;
+  else if (b.level >= ml) next = g.trackCount[i] > 0 && ml === TRANSIT.maxLevelUnderTrack ? 'Über der U-Bahn-Strecke ist hier keine höhere Stufe möglich.' : g.policies.has('lowrise') && ml === 3 ? 'Hochhausverbot begrenzt die Höhe.' : `Höhere Stufen ab Meilenstein „${MILESTONES[[0, 0, 2, 3, 4, 4][b.level + 1] ?? 4].name}".`;
   else {
     const need = L.need[b.level + 1];
     const score = b.zone === Z.IND ? null : g.fields.landValue[i];
@@ -162,7 +162,7 @@ function inspStation(ui, st) {
   const sym = ['', '●', '▲', '■', '◆'];
   const over = st.over > 0.02 ? `<span class="chip no">Überfüllt · ${Math.round(st.over * 100)} %</span>` : '';
   const cap = TRANSIT.stationCapacity;
-  return `${head(lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999', esc(st.name), 'Pulsbahn-Station · Feld ' + st.x + ', ' + st.y, `<div class="portrait art roundel" style="--c:${lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999'}">${icon('station', 34, 2)}</div>`)}
+  return `${head(lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999', esc(st.name), 'U-Bahn-Station · Feld ' + st.x + ', ' + st.y, `<div class="portrait art roundel" style="--c:${lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999'}">${icon('station', 34, 2)}</div>`)}
 <div class="body">
   <div class="chips">${lines.map((l) => `<span class="chip" style="background:${hex(LINE_COLORS[l.color])};color:#fff">Linie ${LINE_COLOR_NAMES[l.color]}</span>`).join('') || '<span class="chip no">Keine Linie</span>'}${over}</div>
   <div class="kv"><span>Wartende Fahrgäste</span><span class="v ${st.waiting.length > cap ? 'neg' : ''}">${st.waiting.length} / ${cap}</span></div>
@@ -186,6 +186,14 @@ export function inspectorClick(ui, e) {
     try { if (fn && typeof fn.click === 'function' && fn.click(ui, act, b, s)) { ui._inspHead = null; ui.renderInspector(); return; } } catch (err) { console.error(err); }
   }
   if (act === 'focus') { const box = ui.selectedBox(); if (box) ui.focusTile(box.x + (box.w - 1) / 2, box.y + (box.h - 1) / 2, 16); return; }
+  if (act === 'help') {
+    let hint = 'roads';
+    if (s && s.type === 'station') hint = 'transit';
+    else if (s && s.type === 'building') { const bd = g.buildings.get(s.id); hint = bd ? (bd.zone ? 'zones' : (BUILDINGS[bd.key] || {}).cat || bd.key) : 'zones'; }
+    else if (s && s.type === 'tile') hint = 'zones';
+    if (ui.openHelpFor) ui.openHelpFor(hint);
+    return;
+  }
   if (act === 'demolish' && s) {
     const tiles = [];
     if (s.type === 'building') { const bd = g.buildings.get(s.id); if (bd) for (let y = bd.y; y < bd.y + bd.h; y++) for (let x = bd.x; x < bd.x + bd.w; x++) tiles.push(y * g.W + x); }

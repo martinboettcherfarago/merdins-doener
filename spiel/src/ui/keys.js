@@ -17,7 +17,7 @@ export const KEYMAP = [
   { group: 'Bauen', items: [
     [['G'], 'Straßen'],
     [['Z'], 'Zonen'],
-    [['L'], 'Pulsbahn-Linie zeichnen'],
+    [['L'], 'U-Bahn-Linie zeichnen'],
     [['F'], 'Baukatalog durchsuchen'],
     [['R'], 'Gebäude drehen'],
     [['B', 'Entf'], 'Abriss'],
@@ -27,13 +27,14 @@ export const KEYMAP = [
   { group: 'Ansichten & Fenster', items: [
     [['V'], 'Infoansicht ausschalten'],
     [['N'], 'Meldungen'],
-    [['H'], 'Ratgeber'],
+    [['H'], 'Stadt-Check und Ratgeberin'],
     [['K'], 'Minikarte ein/aus'],
     [['P'], 'Fotomodus'],
     [['U'], 'Oberfläche ausblenden'],
     [['I'], 'Problem-Symbole ein/aus'],
     [['M'], 'Ton an/aus'],
-    [['?', 'F1'], 'Diese Übersicht'],
+    [['?'], 'Diese Übersicht'],
+    [['F1'], 'Hilfe: So funktioniert es'],
     [['Strg + S'], 'Schnellspeichern'],
   ] },
 ];

@@ -501,6 +501,7 @@ if (hasDom && typeof window !== 'undefined') setInterval(() => { try { tick(); }
 // Hauptmenü: Szenarien, Metro-Modus, Ehrentafel
 // ---------------------------------------------------------------------------------------------
 MENU_SECTIONS.push({
+  place: 'modes', // Runde 3: Reiter „Herausforderungen" im Hauptmenü
   render(menu) {
     ensureCss();
     const s5 = (menu._s5 ||= { sel: null, map: 'river' });

@@ -12,8 +12,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const AV_COLORS = ['#e8543f', '#2f8fe0', '#f2b01e', '#22a866', '#8f5ad8', '#f06fae', '#10a9a3', '#ff8a1f'];
 const signed = (v) => `${v >= 0 ? '+' : '−'}${fmtMoney(Math.abs(v))}`;
 
-const INC_LABEL = { res: 'Steuern Wohnen', com: 'Steuern Gewerbe', ind: 'Steuern Industrie', off: 'Steuern Büro', tourism: 'Tourismus', fares: 'Pulsbahn-Tickets' };
-const EXP_LABEL = { services: 'Dienste & Versorgung', roads: 'Straßenunterhalt', transit: 'Pulsbahn', policies: 'Verordnungen', loans: 'Kreditzinsen' };
+const INC_LABEL = { res: 'Steuern Wohnen', com: 'Steuern Gewerbe', ind: 'Steuern Industrie', off: 'Steuern Büro', tourism: 'Tourismus', fares: 'U-Bahn-Tickets' };
+const EXP_LABEL = { services: 'Dienste & Versorgung', roads: 'Straßenunterhalt', transit: 'U-Bahn', policies: 'Verordnungen', loans: 'Kreditzinsen' };
 const INC_COL = { res: '#4fae67', com: '#3a8ad8', ind: '#dba22e', off: '#9466d2', tourism: '#ff8a1f', fares: '#e8543f' };
 const EXP_COL = { services: '#e8543f', roads: '#5d6470', transit: '#2f8fe0', policies: '#8f5ad8', loans: '#c98a0c' };
 const lineLabel = (id, map) => map[id] || (BUDGET_LINES.find((l) => l.id === id) || {}).label || id;
@@ -120,12 +120,12 @@ const policies = {
 };
 
 const transit = {
-  id: 'transit', title: 'Pulsbahn', icon: 'transit',
+  id: 'transit', title: 'U-Bahn', icon: 'transit',
   render(ui) {
     const g = ui.g, tr = g.transit;
     if (!g.isUnlocked('transit')) {
       return `<div class="lockcard">${icon('lock', 20)}<div><b>Ab „${MILESTONES[2].name}"</b><br>${fmt(MILESTONES[2].pop)} Einwohner</div></div>
-<p class="lede">Die <b>Pulsbahn</b> ist eine Hochbahn, die über den Dächern fährt. Fahrgäste warten an den Stationen. Ihre Form zeigt das Ziel: <b>●</b> nach Hause, <b>▲</b> zum Einkaufen, <b>■</b> in die Industrie, <b>◆</b> ins Büro. Ist eine Station zu lange überfüllt, geben die Leute auf und die Gegend wird unzufrieden.</p>`;
+<p class="lede">Die <b>Pulsbahn</b> ist die U-Bahn deiner Stadt: Ihre Züge fahren im Tunnel unter den Straßen, oben sieht man nur die Eingänge. Fahrgäste warten an den Stationen. Ihre Form zeigt das Ziel: <b>●</b> nach Hause, <b>▲</b> zum Einkaufen, <b>■</b> in die Industrie, <b>◆</b> ins Büro. Ist eine Station zu lange überfüllt, geben die Leute auf und die Gegend wird unzufrieden.</p>`;
     }
     const linesHtml = tr.lines.map((l) => {
       const ts = tr.trains.filter((t) => t.line === l.id);
@@ -155,7 +155,7 @@ const transit = {
 <div class="res-strip"><div><div class="k">Linien</div><div class="v">${tr.lines.length} / ${tr.linesMax}</div></div><div><div class="k">Züge im Depot</div><div class="v">${tr.freeTrains}</div></div><div><div class="k">Waggons</div><div class="v">${tr.freeWagons}</div></div></div>
 <div class="acts row-acts"><button class="btn" data-act="newline" ${tr.lines.length >= tr.linesMax ? 'disabled' : ''}>${icon('line', 16)} Neue Linie zeichnen</button><button class="btn ghost" data-act="station">${icon('station', 16)} Station setzen</button></div>
 ${linesHtml || '<p class="lede">Noch keine Linie. Klicke auf „Neue Linie zeichnen" und dann nacheinander auf Felder in Wohn- und Arbeitsvierteln. Ein Klick auf die erste Station schließt einen Ring.</p>'}
-<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3><p class="hint">Jede Station sammelt Fahrgäste im Umkreis von ${String(TRANSIT.catchment).replace(".", ",")} Feldern. Symbole über den Stationen zeigen das Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro. Wird eine Station zu voll, läuft ein roter Ring – mehr Züge oder Waggons helfen. Unter der Trasse wachsen Gebäude höchstens bis Stufe ${TRANSIT.maxLevelUnderTrack}.</p></div>`;
+<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3><p class="hint">Jede Station sammelt Fahrgäste im Umkreis von ${String(TRANSIT.catchment).replace(".", ",")} Feldern. Symbole über den Stationen zeigen das Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro. Wird eine Station zu voll, läuft ein roter Ring – mehr Züge oder Waggons helfen. Solange dieses Fenster offen ist, zeigt die Stadt den Untergrund mit Tunneln und Zügen.</p></div>`;
   },
   click(ui, act, el) {
     const g = ui.g;

@@ -31,7 +31,7 @@ export function ensureSettings(s) {
   if (typeof s.shadows === 'boolean') s.shadows = s.shadows ? p.shadows : 'off';
   if (s.uiScale === undefined) s.uiScale = 1;
   if (s.ambience === undefined) s.ambience = 1;
-  if (s.minimap === undefined) s.minimap = true;
+  if (s.minimap === undefined) s.minimap = false; // Runde 3: Minikarte startet eingeklappt (Taste K)
   if (s.advisor === undefined) s.advisor = true;
   if (s.tooltips === undefined) s.tooltips = true;
   return s;
@@ -104,7 +104,8 @@ ${ctx.extraPanels && ctx.extraPanels.length ? `<div class="sec"><h3>Weitere Eins
   <li>Die Nachfrage-Balken (W G I B) zeigen, was die Stadt gerade braucht.</li>
   <li>Jeden Montag wählst du eine von drei Wochenkarten. Gelegentlich musst du über Ereignisse entscheiden.</li>
   <li>Symbole über Gebäuden zeigen Probleme (fehlender Strom, Wasser, Müll …). Eine gestapelte Nadel heißt: mehrere Probleme in diesem Viertel – näher heranzoomen.</li>
-  <li>Die Ratgeberin (oben rechts) sagt dir, wo es gerade hakt.</li></ul></div>
+  <li>Der Stadt-Check oben rechts zeigt, wo es gerade hakt – mit einem Klick zur Lösung. Dort fragst du auch die Ratgeberin.</li>
+  <li>Die U-Bahn fährt im Tunnel. Beim Linienzeichnen und im U-Bahn-Fenster siehst du den Untergrund, sonst über „Ansichten" → „Untergrund".</li></ul></div>
 <div class="sec"><button class="btn ghost" data-act="keys">${icon('keyboard', 16)} Alle Tastenkürzel</button></div>`;
   }
   return `<div class="tabs">${tabs.map(([id, n, ic]) => `<button data-act="settab" data-v="${id}" class="${id === tab ? 'on' : ''}">${icon(ic, 15)}<span>${n}</span></button>`).join('')}</div><div class="tabbody">${body}</div>`;
@@ -125,7 +126,7 @@ export function settingsClick(ctx, act, el) {
     case 'icons': if (app.engine && app.engine.effects) app.engine.effects.showIcons = !app.engine.effects.showIcons; return true;
     case 'mute': s.muted = !s.muted; app.audio && app.audio.applyVolumes(); save(); return true;
     case 'uiScale': s.uiScale = +el.dataset.v; applyUiScale(s); save(); return true;
-    case 'minimap': s.minimap = !s.minimap; save(); ctx.ui && ctx.ui.minimap && ctx.ui.minimap.setVisible(s.minimap); return true;
+    case 'minimap': s.minimap = !s.minimap; save(); if (ctx.ui && ctx.ui.toggleMinimap) ctx.ui.toggleMinimap(s.minimap, true); return true;
     case 'advisor': s.advisor = !s.advisor; save(); return true;
     case 'tooltips': s.tooltips = !s.tooltips; save(); ctx.onTips && ctx.onTips(s.tooltips); return true;
     case 'tutorial': s.tutorialDone = !s.tutorialDone; save(); if (ctx.ui) { ctx.ui.tutorialHidden = s.tutorialDone; ctx.ui.refreshTutorial(); } return true;
