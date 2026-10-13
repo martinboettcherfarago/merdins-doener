@@ -255,7 +255,8 @@ export class Input {
       const r = def.service ? def.service.radius : def.parkRadius || (key === 'station' ? TRANSIT.catchment : def.lvRadius || 0);
       if (r) ov.showRadius(x + w / 2 - g.W / 2, y + h / 2 - g.H / 2, r, def.service ? 0xffffff : 0x9cf0b0);
       else ov.hideRadius();
-      this.ui.tooltip(err ? err : `${def.name} · ${fmtMoney(cost)}${w !== h ? ' · [R] drehen' : ''}`, this.mouse, !err && g.canAfford(cost));
+      const warn = err ? '' : this.waterWarning(key, x, y, w, h);
+      this.ui.tooltip(err ? err : `${def.name} · ${fmtMoney(cost)}${w !== h ? ' · [R] drehen' : ''}${warn ? ' · ' + warn : ''}`, this.mouse, !err && g.canAfford(cost) && !warn);
       this.placePos = { x, y };
     } else if (k === 'line' || k === 'extend') {
       const pts = this.linePreviewPoints(t);
@@ -369,6 +370,28 @@ export class Input {
       this.audio.play('error');
       this.ui.toast(res.msg, 'bad');
     }
+  }
+
+  // Trinkwasser und Abwasser (S2/Q2): Pumpwerk nicht neben verschmutztes Wasser, Auslass nicht oberhalb eines Pumpwerks
+  waterWarning(key, x, y, w, h) {
+    const g = this.g;
+    const C = g.ext && g.ext.citizens;
+    if (key === 'pump' || key === 'waterworks') {
+      const pol = C && C.waterPol;
+      if (!pol) return '';
+      let m = 0;
+      for (let yy = y - 1; yy <= y + h; yy++) for (let xx = x - 1; xx <= x + w; xx++) {
+        if (xx < 0 || yy < 0 || xx >= g.W || yy >= g.H) continue;
+        m = Math.max(m, pol[yy * g.W + xx] || 0);
+      }
+      return m > 0.1 ? 'Achtung: Hier ist das Wasser verschmutzt.' : '';
+    }
+    if (key === 'sewage_outlet') {
+      for (const b of g.buildings.values()) {
+        if ((b.key === 'pump' || b.key === 'waterworks') && Math.hypot(b.x - x, b.y - y) < 20) return 'Achtung: Ein Pumpwerk in der Nähe fördert dann verschmutztes Wasser.';
+      }
+    }
+    return '';
   }
 
   placeAt(t) {

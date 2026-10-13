@@ -45,7 +45,8 @@ function ensureStyles() {
 .cz-flow .st span { font-size:11.5px; font-weight:700; }
 .cz-flow .st em { font-style:normal; font-size:10.5px; color:var(--ink-3); }
 .cz-flow .st.over { background:#f6dcd8; } .cz-flow .st.over em { color:#9e2b23; }
-.cz-flow .st.none { background:var(--paper-3); opacity:.75; }
+.cz-flow .st.none { background:var(--paper-3); opacity:.9; }
+.cz-flow .st.none em { color:var(--bad); font-weight:700; }
 .cz-flow .st.ok { background:#e6e0f3; }
 .cz-flow .ar { align-self:center; color:var(--ink-3); font-weight:800; font-size:18px; }
 .cz-note { font-size:12.5px; color:var(--ink-2); line-height:1.45; margin:6px 0 0; }
@@ -88,7 +89,7 @@ function overview(ui) {
   const laborTxt = lr < 0.92 ? '<b>Fachkräftemangel:</b> Es gibt weniger Menschen im Erwerbsalter als gedacht. Firmen wachsen langsamer, die Stadt sucht Zuzug.' : lr > 1.08 ? 'Viele Menschen im Erwerbsalter – Firmen finden leicht Personal.' : 'Die Altersstruktur passt zum Arbeitsmarkt.';
   const nat = S.birthsToday - S.deathsToday;
   return `
-${strip([['Einwohner', fmt(g.stats.pop)], ['Ø Alter', S.avgAge.toFixed(0), '', ' J.'], ['Lebenserwartung', S.lifeExp.toFixed(0), '', ' J.']])}
+${strip([['Einwohner', fmt(g.stats.pop)], ['Ø Alter', S.avgAge.toFixed(0), '', ' J.'], ['Lebens­erwartung', S.lifeExp.toFixed(0), '', ' J.']])}
 ${strip([['Geburten heute', fmt(S.birthsToday), 'pos'], ['Sterbefälle heute', fmt(S.deathsToday), S.deathsToday > S.birthsToday ? 'neg' : ''], ['Zuzug − Wegzug', `${S.moveIn - S.moveOut >= 0 ? '+' : '−'}${fmt(Math.abs(S.moveIn - S.moveOut))}`, S.moveIn >= S.moveOut ? 'pos' : 'neg']])}
 <div class="sec"><h3>Alterspyramide</h3><canvas class="cz-canvas" id="cz-pyr" style="height:250px"></canvas></div>
 <div class="sec"><h3>Altersgruppen</h3><div class="cz-grp">${grp}</div>
@@ -147,7 +148,7 @@ function health(ui) {
   if (S.care.demand > S.care.cap * 1.1 && S.care.demand > 30) tips.push(`<b>Pflegeplätze fehlen</b>: ${fmt(S.care.demand)} Hochbetagte, ${fmt(S.care.cap)} Plätze in Seniorenheimen.`);
   const hist = C(ui).hist.slice(-60);
   return `
-${strip([['Krank', fmt(S.sick)], ['Krankenstand', pct(S.sickShare), S.sickShare > 0.08 ? 'neg' : ''], ['Lebenserwartung', S.lifeExp.toFixed(0), '', ' J.']])}
+${strip([['Krank', fmt(S.sick)], ['Krankenstand', pct(S.sickShare), S.sickShare > 0.08 ? 'neg' : ''], ['Lebens­erwartung', S.lifeExp.toFixed(0), '', ' J.']])}
 ${tips.length ? `<div class="cz-warn">${tips.join('<br><br>')}</div>` : '<div class="cz-ok">Die Gesundheitslage ist stabil.</div>'}
 <div class="sec"><h3>Krankenstand im Verlauf</h3><canvas class="cz-canvas" id="cz-sick" style="height:110px"></canvas></div>
 <div class="sec"><h3>Versorgung</h3><div class="kv">
@@ -182,7 +183,7 @@ function deaths(ui) {
   if (S.graveFill > 0.85) warn.push(`Die Friedhöfe sind zu <b>${pct(S.graveFill)}</b> belegt. Gräber werden erst nach 25 Jahren Ruhefrist wieder frei – ein Krematorium braucht keine.`);
   const dg = S.deathsByGroup.map((v) => Math.round(v * 10) / 10);
   return `
-${strip([['Sterbefälle heute', fmt(S.deathsToday)], ['Warten auf Bestattung', fmt(S.bodies), S.bodies >= 1 ? 'neg' : 'pos'], ['Lebenserwartung', S.lifeExp.toFixed(0), '', ' J.']])}
+${strip([['Sterbefälle heute', fmt(S.deathsToday)], ['Warten auf Bestattung', fmt(S.bodies), S.bodies >= 1 ? 'neg' : 'pos'], ['Lebens­erwartung', S.lifeExp.toFixed(0), '', ' J.']])}
 ${warn.length ? `<div class="${S.bodies >= 1 || S.graveFill > 0.85 ? 'cz-warn' : 'cz-ok'}">${warn.join('<br><br>')}</div>` : '<div class="cz-ok">Alle Verstorbenen werden würdig bestattet.</div>'}
 <div class="sec"><h3>Sterbefälle und wartende Verstorbene</h3><canvas class="cz-canvas" id="cz-dead" style="height:110px"></canvas>
 <div class="cz-legend" style="margin-top:6px"><span class="sw" style="background:#5d6470"></span><span>Sterbefälle pro Tag</span><span></span><span class="sw" style="background:#e8543f"></span><span>wartende Verstorbene</span><span></span></div></div>

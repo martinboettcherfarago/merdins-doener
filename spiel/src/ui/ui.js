@@ -64,10 +64,10 @@ const SYS_PANELS = [
       switch (act) {
         case 'applygfx': ui.restartView(); return false;
         case 'keys': ui.showKeys(); return false;
-        case 'save': app.save(+el.dataset.k); ui.toast(`Gespeichert in Platz ${el.dataset.k}.`, 'good'); return true;
+        case 'save': if (app.save(+el.dataset.k) !== false) ui.toast(`Gespeichert in Platz ${el.dataset.k}.`, 'good'); return true;
         case 'load': ui.withLoader('Spielstand wird geladen', () => app.loadSlot(+el.dataset.k)); return false;
-        case 'export': app.exportSave(); return true;
-        case 'copy': app.copySave(); return true;
+        case 'export': if (!window.STADTPULS_EMBED) app.exportSave(); return true;
+        case 'copy': try { app.copySave(); } catch (e) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); } return true;
         case 'tomenu': app.toMenu(); return false;
         case 'openpanel': ui.openPanel(el.dataset.v); return false;
       }
@@ -114,7 +114,10 @@ export class UI {
     bindTips();
     setTipsEnabled(app.settings.tooltips !== false);
     this.refreshBadges();
-    this.unbus = [onBus('ui:rebuild', () => this.rebuild())];
+    this.unbus = [
+      onBus('ui:rebuild', () => this.rebuild()),
+      onBus('simError', (e) => { try { this.notes.push({ title: 'Technischer Hinweis', text: `Ein Spielsystem${e && e.where ? ` (${e.where})` : ''} ist gestolpert und wurde übersprungen. Das Spiel läuft weiter.`, mood: 'info', icon: 'info', key: 'simError', silent: true }); } catch (err) { /* egal */ } }),
+    ];
     // Für Prüfskripte (tools/shot.mjs --eval): Register erreichbar machen
     window.__stadtpulsReg = { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, BUDGET_LINES, CATEGORIES, emit };
     if (restore) this.applyRestore();
@@ -143,7 +146,7 @@ export class UI {
     <button class="stat opt opt-wide" data-stat="transit" data-tip="Pulsbahn" data-tip-desc="Fahrgäste heute und Verkehrsfluss"><span class="k">Pulsbahn</span><span class="v" id="u-riders"></span><span class="d" id="u-flow"></span></button>
   </div>
   <div class="sign demand">
-    ${[1, 2, 3, 4].map((z) => `<div class="col" id="u-demc${z}" data-tip="Nachfrage ${ZONE_INFO[z].name}" data-tip-pos="bottom"><div class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></div><div class="lbl" style="color:${zoneCol(z)}">${ZONE_INFO[z].short}</div></div>`).join('')}
+    ${[1, 2, 3, 4].map((z) => `<div class="col" id="u-demc${z}" data-tip="Nachfrage ${ZONE_INFO[z].name}" data-tip-pos="bottom"><div class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></div><div class="lbl" style="color:color-mix(in srgb, ${zoneCol(z)} 58%, #1d2330)">${ZONE_INFO[z].short}</div></div>`).join('')}
   </div>
   <div class="spacer"></div>
   <div class="sign clock">
@@ -167,7 +170,7 @@ export class UI {
 </div>
 <div class="ticker" id="u-ticker" hidden><span class="pip" id="u-tickpip"></span><span class="who" id="u-tickwho"></span><span class="txt" id="u-ticktxt"></span></div>
 <div class="toolhint" id="u-toolhint" hidden></div>
-<div class="probs-hud" id="u-probs"></div>
+<div class="rstack" id="u-rstack"><div id="u-objectives"></div><div class="probs-hud" id="u-probs"></div></div>
 <div class="sign dock views" id="u-views"></div>
 <div class="sign legend" id="u-legend" hidden></div>
 <div class="sign dock panels" id="u-dock"></div>
@@ -260,12 +263,21 @@ export class UI {
     on(this.el.insp, 'animationend', () => this.el.insp.classList.remove('enter'));
     this.onKey = (e) => this.key(e);
     window.addEventListener('keydown', this.onKey);
-    this.onResize = () => { this.updateTrackNav(); if (this.minimap) this.minimap.resize(); };
+    this.onResize = () => { this.updateTrackNav(); this.fitTop(); if (this.minimap) this.minimap.resize(); };
     window.addEventListener('resize', this.onResize);
     this.refreshSpeed();
     this.refreshHUD();
     this.refreshTutorial();
-    requestAnimationFrame(() => this.updateTrackNav());
+    requestAnimationFrame(() => { this.updateTrackNav(); this.fitTop(); });
+  }
+
+  // Handy: Die Kopfzeile bricht auf zwei bis drei Zeilen um – Lage-Chips, Laufband und Meldungen beginnen darunter
+  fitTop() {
+    const de = document.documentElement.style;
+    const tb = this.root.querySelector('.topbar');
+    if (!tb || this.root.hidden || (!this.mobile() && tb.offsetHeight <= 84)) { if (de.getPropertyValue('--top')) de.removeProperty('--top'); return; }
+    const v = Math.round(tb.getBoundingClientRect().bottom + 8) + 'px';
+    if (de.getPropertyValue('--top') !== v) de.setProperty('--top', v);
   }
 
   dispose() {
@@ -283,6 +295,7 @@ export class UI {
     this.root.innerHTML = '';
     this.root.hidden = true;
     this.root.className = '';
+    document.documentElement.style.removeProperty('--top');
     this.modalRoot.innerHTML = '';
     this.tooltip(null);
   }
@@ -633,17 +646,19 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     for (const b of this.el.views.querySelectorAll('button')) b.classList.toggle('on', b.dataset.view === id);
     if (this.el.sheet && !this.el.sheet.hidden) this.renderSheet();
     const def = viewList().find((o) => o.id === id);
+    this.root.classList.toggle('view-on', id !== 'none' && !!def);
     if (id === 'none' || !def) { this.el.legend.hidden = true; return; }
     const bad = def.bad;
     let ramp = `linear-gradient(90deg, ${bad ? '#45c46b, #f2c230, #e5483c' : '#e5483c, #f2c230, #45c46b'})`;
     let ends = id === 'resources' ? ['fruchtbar', 'Erz'] : bad ? ['gering', 'hoch'] : id === 'traffic' ? ['frei', 'Stau'] : ['schlecht', 'gut'];
     if (id === 'traffic') ramp = 'linear-gradient(90deg,#45c46b,#f2c230,#e5483c)';
     let leg = `<div class="ramp" style="background:${ramp}"></div><div class="ends"><span>${ends[0]}</span><span>${ends[1]}</span></div>`;
-    const items = Array.isArray(def.legend) ? def.legend : def.legend && def.legend.items;
+    let lg = def.legend;
+    if (typeof lg === 'function') { try { lg = lg(this.g); } catch (e) { console.error(e); lg = null; } }
+    const items = Array.isArray(lg) ? lg : lg && lg.items;
     if (id === 'resources' && !def.legend) leg = `<div class="litems"><span><i style="background:#78be46"></i>Acker</span><span><i style="background:#2e6b3a"></i>Wald</span><span><i style="background:#966e5a"></i>Erz</span><span><i style="background:#4a4a58"></i>Öl</span></div>`;
     else if (items) leg = `<div class="litems">${items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
-    else if (def.legend && def.legend.items) leg = `<div class="litems">${def.legend.items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
-    else if (def.legend && def.legend.gradient) { leg = `<div class="ramp" style="background:${def.legend.gradient}"></div><div class="ends"><span>${esc((def.legend.ends || [])[0] || '')}</span><span>${esc((def.legend.ends || [])[1] || '')}</span></div>`; }
+    else if (lg && lg.gradient) { leg = `<div class="ramp" style="background:${lg.gradient}"></div><div class="ends"><span>${esc((lg.ends || [])[0] || '')}</span><span>${esc((lg.ends || [])[1] || '')}</span></div>`; }
     else if (id === 'power' || id === 'water') leg = `<div class="litems"><span><i style="background:${id === 'power' ? '#45c46b' : '#3fa0e0'}"></i>versorgt</span><span><i style="background:#e5483c"></i>fehlt</span></div>`;
     this.el.legend.innerHTML = `<h4>${iconAny(def.icon, 'layers', 16)}<span>${esc(def.name)}</span><button class="close" data-act="offview" aria-label="Ansicht schließen">${icon('close', 14)}</button></h4>${leg}<p>${esc(def.text || '')}</p>`;
     this.el.legend.hidden = false;
@@ -667,7 +682,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   // ---------- Erste Schritte
   refreshTutorial() {
     const g = this.g;
-    if (this.tutorialHidden || g.sandbox || this.cat || this.panel || this.photo.active || this.mobile()) { this.el.tutorial.hidden = true; return; }
+    // Im Metro-Modus baut sich die Stadt selbst – dort passt die Einstiegsliste nicht
+    if (this.tutorialHidden || g.sandbox || (g.opts && g.opts.scenario === 'metro') || this.cat || this.panel || this.photo.active || this.mobile()) { this.el.tutorial.hidden = true; return; }
     const steps = tutorialSteps(g, this);
     const firstOpen = steps.findIndex((s) => !s[0]);
     if (firstOpen < 0) { this.el.tutorial.hidden = true; return; }
@@ -731,15 +747,27 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   }
   toast(msg, type = '', opts = {}) {
     if (this._muteToast && / geladen\.$/.test(msg)) { this._muteToast = false; return; }
+    // Dieselbe Meldung steht schon da: nur auffrischen statt stapeln
+    // Kurzform und ausführliche Meldung zum selben Ereignis („Tornado!" / „Tornado! Ein Wirbelsturm …") nur einmal zeigen
+    for (const t of [...this.toasts.children]) {
+      if (!t._msg || t._msg === msg || t.classList.contains('out')) continue;
+      if (t._msg.startsWith(msg)) return;
+      if (msg.startsWith(t._msg)) t.remove();
+    }
+    for (const t of this.toasts.children) {
+      if (t._msg === msg && !t.classList.contains('out')) { clearTimeout(t._t); t._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, opts.where ? 5200 : 3400); return; }
+    }
+    if (type === 'bad') this._badToastAt = performance.now();
     const d = document.createElement('div');
+    d._msg = msg;
     d.className = 'toast ' + type + (opts.where ? ' link' : '');
     const ic = opts.icon || (type === 'bad' ? 'warn' : type === 'good' ? 'check' : 'info');
     d.innerHTML = `<span class="ti">${icon(ic, 15, 2.4)}</span><span class="tt"></span>${opts.where ? `<span class="tg">${icon('pin', 14, 2.2)}</span>` : ''}`;
     d.querySelector('.tt').textContent = msg;
     if (opts.where) d.addEventListener('click', () => { this.focusTile(opts.where.x, opts.where.y, 20); d.remove(); });
     this.toasts.appendChild(d);
-    while (this.toasts.children.length > 4) this.toasts.firstChild.remove();
-    setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 400); }, opts.where ? 5200 : 3400);
+    while (this.toasts.children.length > (this.mobile() ? 2 : 3)) this.toasts.firstChild.remove();
+    d._t = setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 400); }, opts.where ? 5200 : 3400);
   }
   floatMoney(amount, mouse) {
     if (!mouse || !amount || this.g.sandbox) return;
@@ -894,7 +922,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const views = viewList();
     this.el.sheet.innerHTML = `<div class="sh-card"><div class="sh-grab"></div>
 <div class="sh-head"><b>Übersicht</b><button class="close" data-sh="close" aria-label="Schließen">${icon('close', 18)}</button></div>
-<h3>Fenster</h3><div class="sh-grid">${panels.map(({ p, m }) => `<button data-sh="panel" data-v="${p.id}" style="--pc:${m.color}" class="${this.panel === p.id ? 'on' : ''}">${iconAny(p.icon, 'layers', 22)}<span>${esc(p.title)}</span></button>`).join('')}
+<h3>Fenster</h3><div class="sh-grid">${panels.map(({ p, m }) => `<button data-sh="panel" data-v="${p.id}" style="--pc:${m.color}" class="${this.panel === p.id ? 'on' : ''}">${iconAny(p.icon, 'layers', 22)}<span>${esc(p.short || (p.title.length > 16 ? p.title.split(' & ')[0] : p.title))}</span></button>`).join('')}
 <button data-sh="photo">${icon('camera', 22)}<span>Fotomodus</span></button><button data-sh="keys">${icon('keyboard', 22)}<span>Tasten</span></button><button data-sh="mini">${icon('minimap', 22)}<span>Minikarte</span></button></div>
 <h3>Infoansichten</h3><div class="sh-grid views">${views.map((o) => `<button data-sh="view" data-v="${o.id}" class="${this.view === o.id ? 'on' : ''}">${iconAny(o.icon, 'layers', 20)}<span>${esc(o.id === 'none' ? 'Normal' : o.name)}</span></button>`).join('')}</div></div>`;
   }
@@ -916,14 +944,22 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (this.photo.active) { if (this.photo.key(e)) { e.preventDefault(); e.stopImmediatePropagation(); } return; }
-    if (this.modalOpen()) { if (e.code === 'Escape' && this.modalRoot.querySelector('.keysheet')) this.closeTopModal(); return; }
+    if (this.modalOpen()) {
+      if (e.code === 'Escape') {
+        const top = this.modalRoot.lastElementChild;
+        const ok = top && top.querySelector('[data-act=ok]');
+        if (top && top.querySelector('.keysheet')) this.closeTopModal();
+        else if (ok && !top.querySelector('[data-card], [data-opt], [data-act=menu], [data-act=rescue]')) ok.click();
+      }
+      return;
+    }
     const k = (e.key || '').toLowerCase();
     const ctrl = e.ctrlKey || e.metaKey;
     if (e.code === 'Space') { e.preventDefault(); this.setSpeed(this.g.speed === 0 ? (this.lastSpeed || 1) : 0); }
     else if (e.code === 'Digit1' || e.code === 'Numpad1') this.setSpeed(1);
     else if (e.code === 'Digit2' || e.code === 'Numpad2') this.setSpeed(2);
     else if (e.code === 'Digit3' || e.code === 'Numpad3') this.setSpeed(3);
-    else if (ctrl && e.code === 'KeyS') { e.preventDefault(); this.app.save(1); this.toast('Gespeichert in Platz 1.', 'good'); }
+    else if (ctrl && e.code === 'KeyS') { e.preventDefault(); if (this.app.save(1) !== false) this.toast('Gespeichert in Platz 1.', 'good'); }
     else if (ctrl) return;
     else if (e.key === '?' || e.code === 'F1') { e.preventDefault(); this.showKeys(); }
     else if (k === 'm') { this.app.settings.muted = !this.app.settings.muted; this.app.audio.applyVolumes(); this.app.saveSettings(); this.toast(this.app.settings.muted ? 'Ton aus' : 'Ton an'); }
@@ -1072,7 +1108,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = 0.25;
-      if (!this.hudHidden && !this.photo.active) this.refreshHUD();
+      if (!this.hudHidden && !this.photo.active) { this.refreshHUD(); if (window.innerWidth <= 960) this.fitTop(); }
       if (this.sel && !this.el.insp.hidden) this.renderInspector();
       if (this.app.input && this.app.input.tool.kind === 'line') this.renderToolHint();
     }

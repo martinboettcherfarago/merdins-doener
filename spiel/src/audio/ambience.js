@@ -460,13 +460,15 @@ export class Ambience {
 
     // --- Gewitter: Blitz (Wetterzustand) → Donner mit Laufzeit; Rückfall ohne Blitzangabe bei Sturm
     const li = clamp(w.lightning || 0);
-    if (li > 0.4 && this.lastLightning <= 0.2) {
+    // Kommen Blitze schon als Ereignis aus der Darstellung (Audio.onLightning), nicht doppelt donnern
+    const busLit = now - (this.busLightning ?? -1e9) < 20;
+    if (li > 0.4 && this.lastLightning <= 0.2 && !busLit) {
       const close = li > 0.8 ? rand(0.65, 1) : rand(0, 0.6);
       const delay = close > 0.6 ? rand(0.1, 0.6) : rand(1.2, 4);
       this.thunder(now + delay, close);
     }
     this.lastLightning = li;
-    if (w.storm && w.rain > 0.5 && now - this.lastThunder > 18 && P(0.03)) this.thunder(now + rand(0, 1), rand(0, 0.5));
+    if (w.storm && w.rain > 0.5 && !busLit && now - this.lastThunder > 18 && P(0.03)) this.thunder(now + rand(0, 1), rand(0, 0.5));
   }
 
   thunder(t, close) {

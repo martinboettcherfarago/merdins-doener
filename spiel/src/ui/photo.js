@@ -17,7 +17,7 @@ export class PhotoMode {
   constructor(ui) {
     this.ui = ui;
     this.active = false;
-    this.opts = { filter: 'none', grid: false, cine: false, vignette: true, orbit: false, fov: 42, hour: null, dof: false, focus: 0, aperture: 0.4, run: false };
+    this.opts = { filter: 'none', grid: false, cine: false, vignette: true, orbit: false, fov: 42, hour: null, dof: false, tilt: false, focus: 0, aperture: 0.6, run: false };
   }
 
   get engine() { return this.ui.app.engine; }
@@ -67,6 +67,7 @@ export class PhotoMode {
     rig.goal.dist = Math.max(rig.minDist, rig.goal.dist);
     e.camera.fov = s.fov; e.camera.near = s.near; e.camera.updateProjectionMatrix();
     e.photoFx = null;
+    if (typeof e.setDepthOfField === 'function') { try { e.setDepthOfField(0); } catch (err) { console.error(err); } }
     if (e.overlay.zones && s.zonesVisible !== undefined) e.overlay.zones.visible = s.zonesVisible;
     e.canvas.style.filter = '';
     document.getElementById('app').classList.remove('photo');
@@ -93,12 +94,12 @@ export class PhotoMode {
   render() {
     const o = this.opts, e = this.engine;
     const hh = Math.floor(o.hour), mm = Math.round((o.hour - hh) * 60);
-    const dofOk = !!e.photoFxSupported;
+    const dofOk = this.dofOk();
     this.el.innerHTML = `
 <div class="pu-head"><span class="pu-t">${icon('camera', 16)} Fotomodus</span><span class="grow"></span><button class="close" data-pa="exit" data-tip="Beenden" data-key="Esc">${icon('close', 16)}</button></div>
 <div class="pu-row"><label>${icon('sun', 14)} Tageszeit</label><input type="range" min="0" max="23.75" step="0.25" value="${o.hour}" data-pi="hour" ${o.run ? 'disabled' : ''}><span class="num pv">${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}</span></div>
 <div class="pu-row"><label>${icon('aperture', 14)} Bildwinkel</label><input type="range" min="14" max="80" step="1" value="${o.fov}" data-pi="fov"><span class="num pv">${o.fov}°</span></div>
-${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><input type="range" min="0" max="1" step="0.02" value="${o.aperture}" data-pi="aperture" ${o.dof ? '' : 'disabled'}><button class="chip${o.dof ? ' on' : ''}" data-pa="dof">Tiefenschärfe</button></div>` : ''}
+${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><input type="range" min="0" max="1" step="0.02" value="${o.aperture}" data-pi="aperture" ${o.dof ? '' : 'disabled'}><button class="chip${o.dof ? ' on' : ''}" data-pa="dof">Tiefenschärfe</button><button class="chip${o.tilt ? ' on' : ''}" data-pa="tilt" data-tip="Miniatur-Look" data-tip-desc="Unschärfe oben und unten wie bei einer Modellstadt" ${o.dof ? '' : 'disabled'}>Miniatur</button></div>` : ''}
 <div class="pu-filters">${FILTERS.map(([id, n]) => `<button class="pf${o.filter === id ? ' on' : ''}" data-pa="filter" data-v="${id}"><span class="sw f-${id}"></span>${n}</button>`).join('')}</div>
 <div class="pu-toggles">
   <button class="chip${o.grid ? ' on' : ''}" data-pa="grid">${icon('grid', 14)} Raster</button>
@@ -124,7 +125,10 @@ ${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><inp
     e.rig.autoRotate = o.orbit ? 0.06 : 0;
     e.camera.fov = o.fov; e.camera.updateProjectionMatrix();
     e.photoFx = e.photoFxSupported ? { dof: o.dof, focus: o.focus, aperture: o.aperture } : null;
+    // Tiefenschärfe der Engine (G1): Stärke 0..1, optional Tilt-Shift
+    if (typeof e.setDepthOfField === 'function') { try { e.setDepthOfField(o.dof ? Math.max(0.05, o.aperture) : 0, { tilt: !!o.tilt }); } catch (err) { console.error(err); } }
   }
+  dofOk() { const e = this.engine; return !!e.photoFxSupported || (typeof e.setDepthOfField === 'function' && !!e.post); }
 
   setHour(h) {
     const g = this.ui.g;
@@ -247,13 +251,15 @@ ${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><inp
     let url = '';
     try { url = out.toDataURL('image/png'); } catch (err) { ui.toast('Foto konnte nicht erstellt werden.', 'bad'); return; }
     const name = `stadtpuls-${ui.g.name.replace(/[^a-z0-9äöüß-]+/gi, '_')}-tag${ui.g.day()}.png`;
-    ui.openModal(`<div class="modal photo-prev"><div class="eyebrow">Fotomodus</div><h2>Dein Foto von ${ui.g.name.replace(/[<>&"]/g, '')}</h2><img src="${url}" alt="Foto der Stadt"><div class="acts"><button class="btn ghost" data-act="copyimg">${icon('copy', 15)} Kopieren</button>${window.STADTPULS_EMBED ? '' : `<a class="btn ghost" download="${name}" href="${url}">${icon('download', 15)} Speichern</a>`}<button class="btn" data-act="ok">Weiter fotografieren</button></div><p class="hint">Tipp: Rechtsklick aufs Bild → „Bild speichern unter …" funktioniert immer.</p></div>`, (ev, close) => {
+    ui.openModal(`<div class="modal photo-prev"><div class="eyebrow">Fotomodus</div><h2>Dein Foto von ${ui.g.name.replace(/[<>&"]/g, '')}</h2><img src="${url}" alt="Foto der Stadt"><div class="acts"><button class="btn ghost" data-act="copyimg">${icon('copy', 15)} Kopieren</button>${window.STADTPULS_EMBED ? '' : `<a class="btn ghost" download="${name}" href="${url}">${icon('download', 15)} Speichern</a>`}<button class="btn" data-act="ok">Weiter fotografieren</button></div>${window.STADTPULS_EMBED ? '' : '<p class="hint">Tipp: Rechtsklick aufs Bild → „Bild speichern unter …“ geht auch.</p>'}</div>`, (ev, close) => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
       if (b.dataset.act === 'copyimg') {
-        out.toBlob((blob) => {
-          try { navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(() => ui.toast('Foto kopiert.', 'good'), () => ui.toast('Zwischenablage nicht verfügbar.', 'bad')); } catch (err2) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
-        });
+        try {
+          out.toBlob((blob) => {
+            try { navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(() => ui.toast('Foto kopiert.', 'good'), () => ui.toast('Zwischenablage nicht verfügbar.', 'bad')); } catch (err2) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
+          });
+        } catch (err3) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
         return;
       }
       if (b.dataset.act === 'ok') close();

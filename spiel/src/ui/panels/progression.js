@@ -72,7 +72,7 @@ const CSS = `
 .s5-ach.done{background:#fff;box-shadow:inset 0 0 0 2px var(--tier)}
 .s5-ach.locked{opacity:.55}
 .s5-ach .nm{font-weight:700;font-size:13.5px;line-height:1.2;display:flex;gap:6px;align-items:baseline}
-.s5-ach .nm .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tier);font-weight:800}
+.s5-ach .nm .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--tier) 60%,#1d2330);font-weight:800}
 .s5-ach .ds{font-size:12px;color:var(--ink-2);line-height:1.35;margin-top:2px}
 .s5-ach .pg{display:flex;align-items:center;gap:8px;margin-top:5px;font-family:var(--f-num);font-size:12.5px;font-weight:600;color:var(--ink-3)}
 .s5-ach .pg .meter{flex:1;height:6px}
@@ -137,6 +137,7 @@ const CSS = `
 .s5-hud .gl .bar i{display:block;height:100%;border-radius:2px}
 .s5-hud .tb{height:4px;border-radius:2px;background:var(--paper-3);margin-top:7px;overflow:hidden}
 .s5-hud .tb i{display:block;height:100%;border-radius:2px}
+.s5-hud .dt{display:flex;justify-content:flex-end;margin-top:6px}
 .s5-hud.mini .gl,.s5-hud.mini .tb,.s5-hud.mini .dt{display:none}
 .s5-hud .warn{margin-top:8px;padding:6px 8px;border-radius:9px;background:#f6dcd8;color:#9e2b23;font-weight:700;font-size:12px}
 .s5-hud .metro{display:flex;align-items:flex-end;gap:10px;margin-top:6px}
@@ -166,7 +167,7 @@ const CSS = `
 .s5-modal .bigstars .off{color:var(--paper-3)}
 @media (max-width:760px){
   .s5-hud{left:8px;right:auto;top:auto;bottom:calc(150px + var(--safe-b));width:min(270px,calc(100% - 16px));padding:8px 11px}
-  .s5-banner{left:8px;right:8px;top:calc(60px + var(--safe-t))}
+  .s5-banner{left:8px;right:8px;top:var(--top)}
   .s5-modal .facts{grid-template-columns:repeat(2,1fr)}
 }
 `;
@@ -436,7 +437,8 @@ function renderHud(ui) {
       hudMini = !(hudMini ?? isNarrow());
       renderHud(ui);
     });
-    hud.appendChild(hudEl);
+    // Halter der Oberfläche (rechte Spalte neben dem Panel-Dock), sonst direkt in #hud
+    (document.getElementById('u-objectives') || hud).appendChild(hudEl);
     hudGame = g;
   }
   const insp = ui.el?.insp && !ui.el.insp.hidden;
@@ -465,7 +467,7 @@ ${m.worst > 0.15 ? `<div class="warn">⚠ ${esc(m.worstName)} läuft über: ${Ma
 <div class="gl">${ss.goals.map((r) => `<span class="ck${r.done ? ' ok' : ''}"></span><span class="lb" title="${esc(r.goal.label)}">${esc(r.goal.label)}</span><span class="vl">${esc(r.text)}</span><span class="bar"><i style="width:${clamp(r.progress, 0, 1) * 100}%;background:${r.done ? 'var(--good)' : sc.color}"></i></span>`).join('')}</div>
 ${sc.days ? `<div class="tb"><i style="width:${clamp(ss.elapsed / sc.days, 0, 1) * 100}%;background:${ss.left <= 5 ? 'var(--bad)' : 'var(--ink-3)'}"></i></div>` : ''}`;
   }
-  html += `<div class="dt" style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn small ghost" data-s5="open" style="height:24px;font-size:12px">Details</button></div>`;
+  html += `<div class="dt"><button class="btn small ghost" data-s5="open" style="height:24px;font-size:12px">Details</button></div>`;
   if (hudEl._html !== html) { hudEl.innerHTML = html; hudEl._html = html; }
 }
 
@@ -530,9 +532,11 @@ MENU_SECTIONS.push({
     const s5 = (menu._s5 ||= { sel: null, map: 'river' });
     if (act === 's5-sel') { s5.sel = s5.sel === el.dataset.id ? null : el.dataset.id; menu.render(); return true; }
     if (act === 's5-map') { s5.map = el.dataset.v; menu.render(); return true; }
-    if (act === 's5-start') { menu.app.newGame(scenarioOptions(el.dataset.id)); return true; }
-    if (act === 's5-daily') { menu.app.newGame(scenarioOptions('metro', dailyMetro().opts)); return true; }
-    if (act === 's5-metro') { menu.app.newGame(scenarioOptions('metro', { mapType: s5.map, seed: Math.floor(Math.random() * 99999) })); return true; }
+    // Start mit Ladebildschirm (wie „Stadt gründen"); ohne launch() direkt
+    const go = (title, sub, fn) => { if (menu.launch) menu.launch(title, sub, fn); else fn(); };
+    if (act === 's5-start') { go('Szenario wird vorbereitet', 'Die Stadt wird aufgebaut …', () => menu.app.newGame(scenarioOptions(el.dataset.id))); return true; }
+    if (act === 's5-daily') { go('Metro-Tageskarte', 'Das Netz wird vorbereitet …', () => menu.app.newGame(scenarioOptions('metro', dailyMetro().opts))); return true; }
+    if (act === 's5-metro') { go('Metro-Modus', 'Das Netz wird vorbereitet …', () => menu.app.newGame(scenarioOptions('metro', { mapType: s5.map, seed: Math.floor(Math.random() * 99999) }))); return true; }
     return false;
   },
 });

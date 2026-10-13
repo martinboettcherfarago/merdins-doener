@@ -439,6 +439,7 @@ registerOverlay({
   id: 'sewage', name: 'Abwasser', bad: false,
   icon: svg('<path d="M3 7h9v4H3zM12 5h3v8h-3"/><path d="M15 9h4l2 2"/><path d="M8 14c1.5 2 2.5 3.3 2.5 4.5a2.5 2.5 0 0 1-5 0C5.5 17.3 6.5 16 8 14Z"/>'),
   text: 'Grün: am Kanal. Grau: Sickergrube (nur kleine Häuser). Rot: braucht einen Kanalanschluss. Ab Stufe 3 brauchen Gebäude Kläranlage oder Auslass im selben Straßennetz.',
+  legend: [[0x45c46b, 'am Kanal'], [0xb9b2a5, 'Sickergrube'], [0xe5483c, 'braucht Kanal'], [0x9a6a3a, 'Klärwerk']],
   building(g, b) {
     const cz = b.cz;
     const d = b.zone ? null : BUILDINGS[b.key];
@@ -460,6 +461,7 @@ registerOverlay({
   id: 'age', name: 'Altersstruktur', bad: false,
   icon: svg('<circle cx="8" cy="6" r="2.5"/><circle cx="17" cy="8" r="2"/><path d="M4 21v-6a4 4 0 0 1 8 0v6M14 21v-5a3 3 0 0 1 6 0v5"/>'),
   text: 'Durchschnittsalter der Bewohner: gelb = junge Familien, blau = mittleres Alter, violett = viele Senioren.',
+  legend: { gradient: 'linear-gradient(90deg, #f2c230, #4c9be8, #8f5ad8)', ends: ['jung', 'alt'] },
   building(g, b) {
     if (b.zone !== 1 || !b.cz || !b.cz.a || b.occ <= 0) return null;
     const age = avgAgeOf(b.cz.a);
@@ -470,6 +472,7 @@ registerOverlay({
   id: 'eduLevel', name: 'Bildungsstand', bad: false,
   icon: svg('<path d="M2 9l10-5 10 5-10 5L2 9Z"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5"/><path d="M12 14v7"/>'),
   text: 'Bildungsstand der Bewohner (Schulabschluss, Abitur, Hochschule). Hohe Wohnstufen und Büros brauchen gebildete Menschen.',
+  legend: { gradient: 'linear-gradient(90deg, #e5483c, #f2c230, #45c46b)', ends: ['gering', 'hoch'] },
   building(g, b) {
     if (b.zone !== 1 || !b.cz || !b.cz.a || b.occ <= 0) return null;
     const e = eduIndex(b.cz.a);
@@ -480,6 +483,12 @@ registerOverlay({
   id: 'districts', name: 'Bezirke', bad: false,
   icon: svg('<path d="M3 5l6-2 6 2 6-2v16l-6 2-6-2-6 2V5Z"/><path d="M9 3v16M15 5v16" stroke-dasharray="2 2.5"/>'),
   text: 'Gebäude in der Farbe ihres Bezirks. Bezirke malst du unter Zonen → Bezirk malen.',
+  // Legende mit den echten Bezirksfarben (die Oberfläche ruft Funktionen mit dem Spiel auf)
+  legend(g) {
+    const D = districtsOf(g);
+    if (!D || !D.list.length) return [[0xb9b2a5, 'noch keine Bezirke']];
+    return D.list.slice(0, 8).map((d) => [d.color, d.name]);
+  },
   building(g, b) {
     const D = districtsOf(g);
     if (!D) return null;

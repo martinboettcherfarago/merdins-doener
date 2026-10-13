@@ -9,15 +9,15 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 export const PRESETS = {
   low: { postfx: false, ao: false, bloom: false, shadows: 'off' },
-  medium: { postfx: true, ao: false, bloom: true, shadows: 'low' },
+  medium: { postfx: true, ao: true, bloom: true, shadows: 'low' },
   high: { postfx: true, ao: true, bloom: true, shadows: 'high' },
   ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' },
 };
 export const QUALITY = [
   ['low', 'Niedrig', 'Ohne Schatten und Nachbearbeitung – für ältere Geräte und lange Akkulaufzeit.'],
-  ['medium', 'Mittel', 'Weiche Schatten und Leuchten bei Nacht. Gut für die meisten Geräte.'],
-  ['high', 'Hoch', 'Feine Schatten, Umgebungsverdeckung, volle Auflösung.'],
-  ['ultra', 'Ultra', 'Alles auf Maximum – für starke Grafikkarten.'],
+  ['medium', 'Mittel', 'Weiche Schatten, Umgebungsverdeckung und Leuchten bei Nacht. Gut für die meisten Geräte.'],
+  ['high', 'Hoch', 'Feine Schatten und volle Auflösung – für starke Grafikkarten.'],
+  ['ultra', 'Ultra', 'Alles auf Maximum, stärkste Kantenglättung – für sehr starke Grafikkarten.'],
 ];
 export const GFX_KEYS = ['quality', 'postfx', 'ao', 'bloom', 'shadows'];
 const UI_SCALES = [[0.9, '90 %'], [1, '100 %'], [1.1, '110 %'], [1.25, '125 %']];
@@ -27,6 +27,8 @@ export function ensureSettings(s) {
   if (!PRESETS[s.quality]) s.quality = 'medium';
   const p = PRESETS[s.quality];
   for (const k of ['postfx', 'ao', 'bloom', 'shadows']) if (s[k] === undefined) s[k] = p[k];
+  // ältere Standardwerte (main.js) speichern Schatten als true/false
+  if (typeof s.shadows === 'boolean') s.shadows = s.shadows ? p.shadows : 'off';
   if (s.uiScale === undefined) s.uiScale = 1;
   if (s.ambience === undefined) s.ambience = 1;
   if (s.minimap === undefined) s.minimap = true;
@@ -55,19 +57,24 @@ export function settingsHTML(ctx) {
   if (tab === 'grafik') {
     const q = QUALITY.find((x) => x[0] === s.quality) || QUALITY[1];
     const pending = gfxChanged(s, ctx.snap);
+    // Die Engine übernimmt Grafikwerte sofort (G1, prüft alle 0,5 s); ältere Engines brauchen einen Neustart der Ansicht
+    const eng = ctx.app.engine;
+    const live = !!(eng && typeof eng.applyQuality === 'function');
+    const caps = eng && eng.caps ? eng.caps : { shadows: true, postfx: true, ao: true, bloom: true };
+    const noPost = eng && eng.canPost === false;
     body = `
 <div class="sec"><h3>Qualitätsstufe</h3>${seg('quality', s.quality, QUALITY.map((x) => [x[0], x[1]]))}<p class="hint">${esc(q[2])}</p></div>
-<div class="sec"><h3>Schatten</h3>${seg('shadows', s.shadows, [['off', 'Aus'], ['low', 'Weich'], ['high', 'Fein']])}</div>
-<div class="sec"><h3>Effekte</h3>
-  ${sw('postfx', s.postfx, 'Nachbearbeitung', 'Farbkorrektur, Kantenglättung und Licht-Effekte.')}
-  ${sw('ao', s.ao && s.postfx, 'Umgebungsverdeckung', 'Weiche Schatten in Ecken und Fugen – kostet Leistung.', !s.postfx)}
-  ${sw('bloom', s.bloom && s.postfx, 'Leuchten (Bloom)', 'Fenster, Laternen und Neon strahlen bei Nacht.', !s.postfx)}
-</div>
+${caps.shadows ? `<div class="sec"><h3>Schatten</h3>${seg('shadows', s.shadows, [['off', 'Aus'], ['low', 'Weich'], ['high', 'Fein']])}</div>` : ''}
+${caps.postfx || caps.ao || caps.bloom ? `<div class="sec"><h3>Effekte</h3>
+  ${caps.postfx ? sw('postfx', s.postfx && !noPost, 'Nachbearbeitung', noPost ? 'Dieser Browser unterstützt keine Nachbearbeitung (WebGL 2 fehlt).' : 'Farbkorrektur, Kantenglättung und Licht-Effekte.', noPost) : ''}
+  ${caps.ao ? sw('ao', s.ao && s.postfx && !noPost, 'Umgebungsverdeckung', 'Weiche Schatten in Ecken und Fugen – kostet Leistung.', !s.postfx || noPost) : ''}
+  ${caps.bloom ? sw('bloom', s.bloom && s.postfx && !noPost, 'Leuchten (Bloom)', 'Fenster, Laternen und Neon strahlen bei Nacht.', !s.postfx || noPost) : ''}
+</div>` : ''}
 <div class="sec"><h3>Darstellung</h3>
   ${sw('alwaysDay', s.alwaysDay, 'Immer Tag', 'Schaltet den Tag-Nacht-Wechsel ab.')}
-  ${ctx.inGame ? sw('icons', ctx.app.engine && ctx.app.engine.effects ? ctx.app.engine.effects.showIcons : true, 'Problem-Symbole', 'Blitz, Tropfen, Müll und Co. über Gebäuden (Taste I).') : ''}
+  ${ctx.inGame ? sw('icons', ctx.app.engine && ctx.app.engine.effects ? ctx.app.engine.effects.showIcons : true, 'Problem-Symbole', 'Blitz, Tropfen, Müll und Co. über Gebäuden (Taste I). Eine gestapelte Nadel bündelt mehrere Probleme in der Nähe – näher heranzoomen.') : ''}
 </div>
-<div class="apply${pending ? ' pending' : ''}">${pending ? `${icon('info', 16)}<span>Geänderte Grafikwerte gelten nach einem Neustart der Ansicht.</span>` : `${icon('check', 16)}<span>Die Ansicht entspricht diesen Einstellungen.</span>`}<button class="btn small" data-act="applygfx" ${pending ? '' : 'disabled'}>${ctx.inGame ? 'Ansicht neu starten' : 'Übernehmen'}</button></div>`;
+${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort.</span></div>` : `<div class="apply${pending ? ' pending' : ''}">${pending ? `${icon('info', 16)}<span>Geänderte Grafikwerte gelten nach einem Neustart der Ansicht.</span>` : `${icon('check', 16)}<span>Die Ansicht entspricht diesen Einstellungen.</span>`}<button class="btn small" data-act="applygfx" ${pending ? '' : 'disabled'}>${ctx.inGame ? 'Ansicht neu starten' : 'Übernehmen'}</button></div>`}`;
   } else if (tab === 'klang') {
     body = `<div class="sec"><h3>Lautstärke</h3>${slider('volume', 'Gesamt', s.volume)}${slider('music', 'Musik', s.music)}${slider('sfx', 'Effekte', s.sfx)}${slider('ambience', 'Umgebung', s.ambience ?? 1)}</div>
 <div class="sec">${sw('mute', !s.muted, 'Ton an', 'Taste M schaltet stumm.')}</div>`;
@@ -82,7 +89,7 @@ export function settingsHTML(ctx) {
   } else if (tab === 'spiel') {
     const slots = [1, 2, 3].map((k) => {
       const meta = ctx.app.slotMeta(k);
-      return `<div class="slot"><div class="grow"><div class="t">Platz ${k}${meta ? ': ' + esc(meta.name) : ''}</div><div class="s">${meta ? `${fmt(meta.pop)} Einwohner · ${new Date(meta.savedAt).toLocaleString('de-DE')}` : 'leer'}</div></div><button class="btn small" data-act="save" data-k="${k}">Speichern</button>${meta ? `<button class="btn small ghost" data-act="load" data-k="${k}">Laden</button>` : ''}</div>`;
+      return `<div class="slot"><div class="grow"><div class="t">Platz ${k}${meta ? ': ' + esc(meta.name) : ''}</div><div class="s">${meta ? `${fmt(meta.pop)} Einwohner · ${new Date(meta.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : 'leer'}</div></div><button class="btn small" data-act="save" data-k="${k}">Speichern</button>${meta ? `<button class="btn small ghost" data-act="load" data-k="${k}">Laden</button>` : ''}</div>`;
     }).join('');
     body = `<div class="sec"><h3>Spielstände</h3>${slots}
   <div class="acts">${window.STADTPULS_EMBED ? '' : '<button class="btn small ghost" data-act="export">Als Datei exportieren</button>'}<button class="btn small ghost" data-act="copy">In Zwischenablage</button></div>
@@ -96,6 +103,7 @@ ${ctx.extraPanels && ctx.extraPanels.length ? `<div class="sec"><h3>Weitere Eins
   <li>Gebäude steigen auf, wenn Bodenwert, Bildung und Glück stimmen. Höhere Stufen werden mit Meilensteinen frei.</li>
   <li>Die Nachfrage-Balken (W G I B) zeigen, was die Stadt gerade braucht.</li>
   <li>Jeden Montag wählst du eine von drei Wochenkarten. Gelegentlich musst du über Ereignisse entscheiden.</li>
+  <li>Symbole über Gebäuden zeigen Probleme (fehlender Strom, Wasser, Müll …). Eine gestapelte Nadel heißt: mehrere Probleme in diesem Viertel – näher heranzoomen.</li>
   <li>Die Ratgeberin (oben rechts) sagt dir, wo es gerade hakt.</li></ul></div>
 <div class="sec"><button class="btn ghost" data-act="keys">${icon('keyboard', 16)} Alle Tastenkürzel</button></div>`;
   }

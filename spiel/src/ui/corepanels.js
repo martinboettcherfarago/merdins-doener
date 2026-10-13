@@ -155,7 +155,7 @@ const transit = {
 <div class="res-strip"><div><div class="k">Linien</div><div class="v">${tr.lines.length} / ${tr.linesMax}</div></div><div><div class="k">Züge im Depot</div><div class="v">${tr.freeTrains}</div></div><div><div class="k">Waggons</div><div class="v">${tr.freeWagons}</div></div></div>
 <div class="acts row-acts"><button class="btn" data-act="newline" ${tr.lines.length >= tr.linesMax ? 'disabled' : ''}>${icon('line', 16)} Neue Linie zeichnen</button><button class="btn ghost" data-act="station">${icon('station', 16)} Station setzen</button></div>
 ${linesHtml || '<p class="lede">Noch keine Linie. Klicke auf „Neue Linie zeichnen" und dann nacheinander auf Felder in Wohn- und Arbeitsvierteln. Ein Klick auf die erste Station schließt einen Ring.</p>'}
-<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3><p class="hint">Jede Station sammelt Fahrgäste im Umkreis von ${TRANSIT.catchment} Feldern. Symbole über den Stationen zeigen das Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro. Wird eine Station zu voll, läuft ein roter Ring – mehr Züge oder Waggons helfen. Unter der Trasse wachsen Gebäude höchstens bis Stufe ${TRANSIT.maxLevelUnderTrack}.</p></div>`;
+<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3><p class="hint">Jede Station sammelt Fahrgäste im Umkreis von ${String(TRANSIT.catchment).replace(".", ",")} Feldern. Symbole über den Stationen zeigen das Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro. Wird eine Station zu voll, läuft ein roter Ring – mehr Züge oder Waggons helfen. Unter der Trasse wachsen Gebäude höchstens bis Stufe ${TRANSIT.maxLevelUnderTrack}.</p></div>`;
   },
   click(ui, act, el) {
     const g = ui.g;

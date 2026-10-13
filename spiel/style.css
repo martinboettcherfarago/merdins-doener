@@ -23,7 +23,7 @@
   --z-com: #3a8ad8;
   --z-ind: #dba22e;
   --z-off: #9466d2;
-  --good: #2b9a57;
+  --good: #23864b;
   --warn: #c98a0c;
   --bad: #d4433a;
   --shadow: 0 10px 30px rgba(18, 24, 38, 0.18), 0 2px 6px rgba(18, 24, 38, 0.12);
@@ -65,7 +65,7 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 .noscript { color: #fff; padding: 2rem; }
 .grow { flex: 1; min-width: 0; }
 
-#app { position: fixed; inset: 0; overflow: hidden; }
+#app { position: fixed; inset: 0; overflow: hidden; overflow: clip; } /* clip: kein Scroll-Container – Fokus oder scrollIntoView dürfen die Oberfläche nie verschieben */
 #stage { position: absolute; inset: 0; }
 #stage canvas { width: 100%; height: 100%; display: block; touch-action: none; transition: filter 0.35s ease; }
 #hud { position: absolute; inset: 0; pointer-events: none; zoom: var(--ui); transition: opacity 0.35s ease; }
@@ -163,6 +163,7 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 .ticker .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); }
 .ticker .pip { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--l-blue); box-shadow: 0 0 0 3px rgba(47,143,224,0.15); }
 #hud.tool-on .ticker { display: none; }
+#hud:has(.panel:not([hidden])) .ticker { max-width: min(560px, calc(100% - 916px)); }
 
 /* Werkzeug-Hinweis */
 .toolhint {
@@ -192,6 +193,16 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 @keyframes chipIn { from { opacity: 0; transform: scale(0.8); } }
 #hud:has(.panel:not([hidden])) .probs-hud, #hud:has(.inspector:not([hidden])) .probs-hud { display: none; }
 #hud.tray-open .leftstack { display: none; }
+/* Rechte Spalte neben dem Panel-Dock: Zielanzeige (S5) und darunter die Lage-Chips – nichts verdeckt das Dock */
+@media (min-width: 761px) {
+  .rstack { position: absolute; top: var(--top); right: 66px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; z-index: 5; }
+  .rstack > * { pointer-events: auto; }
+  .rstack .probs-hud, .rstack .s5-hud { position: static; }
+  .rstack .probs-hud:empty, #u-objectives:empty { display: none; }
+  #hud:has(.s5-hud) .inspector { max-height: calc(100% - var(--top) - var(--tb-h) - 92px); }
+}
+@media (max-width: 760px) { .rstack, #u-objectives { display: contents; } }
+@media (min-width: 761px) { body:has(#u-panel:not([hidden])) #toasts { left: calc((100% - 450px) / 2); } body:has(#u-panel:not([hidden])) .toast { max-width: min(540px, calc(100vw - 490px)); } }
 
 /* ---------- Docks: Infoansichten (links) und Panels (rechts) */
 .dock {
@@ -264,9 +275,9 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 
 /* ---------- Baukatalog */
 .tray {
-  position: absolute; left: var(--left0); right: 12px; bottom: calc(12px + var(--tb-h) + 10px + var(--safe-b));
-  width: fit-content; max-width: calc(100% - var(--left0) - 12px); margin: 0 auto;
-  min-width: min(720px, calc(100% - var(--left0) - 12px));
+  position: absolute; left: var(--left0); right: 66px; bottom: calc(12px + var(--tb-h) + 10px + var(--safe-b));
+  width: fit-content; max-width: calc(100% - var(--left0) - 66px); margin: 0 auto;
+  min-width: min(720px, calc(100% - var(--left0) - 66px));
   padding: 0; overflow: hidden; display: flex; flex-direction: column;
 }
 .tray.enter { animation: trayIn 0.28s var(--ease-out); }
@@ -294,9 +305,9 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 .dt-facts { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .fact { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
 .fact svg { color: var(--ink-3); flex: none; }
-.dt-lock, .dt-note { display: flex; gap: 6px; align-items: flex-start; margin-top: 8px; font-size: 12px; font-weight: 600; line-height: 1.3; }
-.dt-lock { color: var(--bad); }
-.dt-note { color: #8a5a10; }
+.detail .dt-lock, .detail .dt-note { display: flex; gap: 6px; align-items: flex-start; margin-top: 8px; font-size: 12px; font-weight: 600; line-height: 1.3; }
+.detail .dt-lock { color: var(--bad); }
+.detail .dt-note { color: #8a5a10; }
 .strip { display: flex; gap: 8px; padding: 10px 12px 12px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--paper-3) transparent; flex: 1; min-width: 0; scroll-snap-type: x proximity; }
 .strip::-webkit-scrollbar { height: 6px; }
 .strip::-webkit-scrollbar-thumb { background: var(--paper-3); border-radius: 3px; }
@@ -410,7 +421,14 @@ input[type=range] { width: 100%; accent-color: var(--ink); }
 .seg button.on { background: var(--ink); color: var(--paper); }
 .tabs { display: flex; gap: 4px; padding: 4px; background: var(--paper-2); border-radius: 12px; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
 .tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 8px; border-radius: 9px; font-weight: 700; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; }
-.tabs button.on { background: var(--paper-hi); color: var(--ink); box-shadow: var(--shadow-s); }
+.tabs button.on { background: var(--ink); color: var(--paper); box-shadow: none; }
+.tabs button:hover:not(.on) { background: var(--paper-3); }
+/* Gleiche Reiterleiste für die Panels der Systeme (Bevölkerung, Wirtschaft, Verkehr, Wetter, Ziele) */
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) { display: flex; flex-wrap: wrap; gap: 1px; padding: 3px; margin: 0 0 14px; background: var(--paper-2); border-radius: 11px; }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs)::-webkit-scrollbar { display: none; }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button { flex: 1 1 auto; padding: 7px 5px; border-radius: 9px; background: transparent; font-weight: 700; font-size: 12px; color: var(--ink-2); white-space: nowrap; position: relative; }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button:hover:not(.on) { background: var(--paper-3); }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button.on { background: var(--ink); color: var(--paper); }
 .panel .tabs button svg { display: none; }
 .panel .tabs button { padding: 7px 4px; }
 .apply { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--paper-2); font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
@@ -426,15 +444,15 @@ input[type=range] { width: 100%; accent-color: var(--ink); }
 .hero.pos .v { color: var(--good); }
 .hero.neg .v { color: var(--bad); }
 .hbars { display: flex; flex-direction: column; gap: 5px; }
-.hb { display: grid; grid-template-columns: 132px 1fr 64px; gap: 8px; align-items: center; font-size: 12.5px; }
+.hb { display: grid; grid-template-columns: 164px 1fr 64px; gap: 8px; align-items: center; font-size: 12.5px; }
 .hb .hl { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hb .ht { height: 8px; border-radius: 4px; background: var(--paper-3); overflow: hidden; }
 .hb .ht i { display: block; height: 100%; border-radius: 4px; transition: width 0.5s var(--ease); }
 .hb .hv { text-align: right; font-weight: 600; font-size: 14px; }
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .tile { background: var(--paper-2); border-radius: 10px; padding: 7px 9px; display: flex; flex-direction: column; min-width: 0; }
-.tile .k { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile .v { font-size: 19px; font-weight: 600; }
+.tile .k { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v { font-size: 19px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .v.sm { font-size: 15px; }
 .donutrow { display: flex; align-items: center; gap: 14px; }
 .donut-l { font-family: var(--f-num); font-weight: 700; font-size: 17px; fill: var(--ink); }
@@ -590,6 +608,7 @@ button.chip:hover { background: var(--paper-3); }
 /* ---------- Links unten: Ratgeber-Blase, Erste Schritte */
 .leftstack { position: absolute; left: var(--legend-x, 66px); bottom: calc(12px + var(--mm) + 40px + var(--safe-b)); width: 300px; display: flex; flex-direction: column-reverse; gap: 10px; pointer-events: none; }
 #hud.mm-off .leftstack { bottom: calc(12px + var(--tb-h) + 14px + var(--safe-b)); }
+@media (max-height: 940px) { #hud.view-on .leftstack { display: none; } }
 .leftstack > * { pointer-events: auto; }
 .bubble { display: flex; gap: 10px; padding: 12px 12px 12px 12px; position: relative; align-items: flex-start; }
 .bubble.enter { animation: bubbleIn 0.4s var(--ease-out); }
@@ -905,13 +924,15 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 .sh-head { display: flex; align-items: center; justify-content: space-between; font-family: var(--f-display); font-size: 16px; }
 .sh-card h3 { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); margin: 12px 0 8px; }
 .sh-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.sh-grid button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px 8px; border-radius: 12px; background: var(--paper-2); font-size: 11.5px; font-weight: 700; color: var(--ink-2); text-align: center; line-height: 1.15; }
+.sh-grid button span { max-width: 100%; overflow-wrap: anywhere; }
+.sh-grid button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 2px 8px; border-radius: 12px; background: var(--paper-2); font-size: 11px; letter-spacing: -0.01em; font-weight: 700; color: var(--ink-2); text-align: center; line-height: 1.15; }
 .sh-grid button.on { background: var(--pc, var(--ink)); color: #fff; }
 .sh-grid.views button.on { background: var(--ink); }
 
 /* ---------- Mittlere Bildschirme */
 @media (max-width: 1520px) {
   .stat.opt-wide { display: none; }
+  .stat.opt:not(.opt-wide) { border-right: 0; }
 }
 /* Mit Wetteranzeige: Datum steckt in der Jahreszeit, Kopfzeile bleibt einzeilig */
 @media (max-width: 1440px) {
@@ -922,6 +943,14 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 @media (max-width: 1280px) {
   .ticker { max-width: min(440px, calc(100% - 640px)); }
 }
+/* 1280–1366 px: Kopfzeile mit großen Zahlen (Kasse in Millionen) bleibt einzeilig und im Bild */
+@media (max-width: 1366px) {
+  .cityplate { padding-right: 12px; gap: 10px; }
+  .cityplate .rank { letter-spacing: 0.06em; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+  .stat { padding: 6px 9px; }
+  .clock .wx .wt small { display: none; }
+  .demand { padding: 8px 10px; }
+}
 @media (max-width: 1180px) {
   .clock .date { display: none; }
   .cityplate .rankbar { width: 110px; }
@@ -931,8 +960,16 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 }
 @media (max-width: 1100px) {
   .stat.opt { display: none; }
+  .stat[data-stat="money"] { border-right: 0; }
   .demand { display: none; }
   .clock .wx .wt small { display: none; }
+}
+/* Schmale Fenster (Tablet hochkant): Wetter nur als Symbol, Kopfzeile darf umbrechen (--top folgt in ui.fitTop) */
+@media (max-width: 960px) {
+  .clock .wx .wt { display: none; }
+  .topbar { flex-wrap: wrap; row-gap: 6px; }
+  .sysbtns { margin-left: auto; }
+  #hud:has(.panel:not([hidden])) .leftstack, #hud:has(.inspector:not([hidden])) .leftstack { display: none; }
 }
 @media (max-width: 1020px) {
   :root { --mm: 140px; }
@@ -965,6 +1002,7 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
   .stat .v { font-size: 17px; }
   .stat .d { font-size: 11.5px; }
   .stat.opt:not(.opt-wide) { display: flex; }
+  .stat[data-stat="money"] { border-right: 1px solid var(--rule); }
   .sysbtns { order: 4; padding: 3px; }
   .sysbtns button { width: 34px; height: 36px; }
   .sysbtns .dk { display: none; }
@@ -1020,7 +1058,8 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
   .pu-filters { grid-template-columns: repeat(6, 1fr); }
   .pf { font-size: 0; gap: 0; }
   .pf .sw { height: 24px; }
-  .hb { grid-template-columns: 108px 1fr 58px; }
+  .hb { grid-template-columns: 124px 1fr 58px; }
+  .hb .hl { white-space: normal; line-height: 1.15; }
   #toasts { top: calc(var(--top) + 38px); }
 }
 @media (max-width: 420px) {
@@ -1035,3 +1074,11 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 /* Langsame Bildrate (schwache Geräte, Software-Renderer): Übergänge sofort ans Ende */
 .lowfps *, .lowfps *::before, .lowfps *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; transition-delay: 0s !important; }
 .lowfps .ld-tip.in { opacity: 1; }
+@media (max-width: 760px) {
+  .panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs, .tabs) { flex-wrap: wrap; }
+}
+/* Handy: Meldungen kurz halten (zwei Zeilen) und bei offenem Panel/Inspektor nur die neueste zeigen */
+@media (max-width: 760px) {
+  .toast .tt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  body:has(#u-panel:not([hidden])) #toasts > :not(:last-child), body:has(#u-insp:not([hidden])) #toasts > :not(:last-child) { display: none; }
+}
