@@ -100,7 +100,8 @@ export function tileCost(g, i) {
   if (!def) return 99;
   const cong = g.congestion[i];
   const slow = cong > 0.75 ? 1 + (cong - 0.75) * 3 : 1;
-  return (2 / def.speed) * slow;
+  // g.tileDelay: zusätzliche Wartezeit (z. B. Ampeln), als Anteil der Fahrzeit
+  return (2 / def.speed) * slow * (1 + (g.tileDelay ? g.tileDelay[i] : 0));
 }
 
 export class PathCache {

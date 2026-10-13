@@ -2,6 +2,7 @@
 import { ROADS, R, Z } from '../config.js';
 import { findPath } from './network.js';
 import { WeightedList } from '../util.js';
+import { makeRng } from './rng.js';
 
 export const VT = { CAR: 0, TRUCK: 1, VAN: 2, FIRE: 3, POLICE: 4, GARBAGE: 5 };
 
@@ -21,6 +22,10 @@ export class Traffic {
     this.nextId = 1;
     this.tripsHour = 0;
     this.flow = 1;
+    // Anteil des pauschalen Lieferverkehrs; Systeme mit eigenem Güterverkehr setzen 0
+    this.freightShare = 0.28;
+    // Eigener, reproduzierbarer Zufall (stört die Zufallsfolge der Stadt nicht)
+    this.rng = makeRng(((g.opts && g.opts.seed) || 1) * 2654435761 ^ 0x7f4a7c15);
   }
 
   rebuildLists() {
@@ -57,9 +62,10 @@ export class Traffic {
     }
     if (this.spawnAcc > 3) this.spawnAcc = 3;
     // Dienstfahrzeuge
-    if (Math.random() < simSec * 0.25 * Math.min(4, g.buildings.size / 60)) this.spawnService();
+    if (this.rng() < simSec * 0.25 * Math.min(4, g.buildings.size / 60)) this.spawnService();
 
-    const slowGlobal = g.policies.has('tempo30') ? 0.78 : 1;
+    // Tempo: Verordnung Tempo 30 und Effekt 'roadSpeed' (Schnee, Glätte, Hochwasser …)
+    const slowGlobal = (g.policies.has('tempo30') ? 0.78 : 1) * Math.max(0.15, 1 + g.eff('roadSpeed'));
     const cars = this.cars;
     let w = 0;
     for (let k = 0; k < cars.length; k++) {
@@ -72,13 +78,14 @@ export class Traffic {
 
   spawnTrip(h) {
     const g = this.g;
-    const rng = Math.random;
+    const rng = this.rng;
     const L = this.lists;
     const night = h < 5 || h > 22.5 ? 0.35 : 1;
     const wWork = gauss(h, 7.8, 1.5) * 1.2 * night;
     const wHome = gauss(h, 17.5, 1.8) * night;
     const wShop = (0.3 + gauss(h, 13, 3) * 0.6) * night;
-    const wFreight = L.ind.total > 0 ? 0.28 : 0;
+    const fs = Number.isFinite(this.freightShare) ? Math.max(0, this.freightShare) : 0.28;
+    const wFreight = L.ind.total > 0 ? fs : 0;
     const total = wWork + wHome + wShop + wFreight;
     let r = rng() * total;
     let o = null, d = null, type = VT.CAR, from = -1, to = -1, kind = '';
@@ -109,10 +116,10 @@ export class Traffic {
 
   spawnService() {
     const g = this.g;
-    const b = this.lists.any.sample(Math.random);
+    const b = this.lists.any.sample(this.rng);
     if (!b) return;
     const i = b.y * g.W + b.x;
-    const isG = Math.random() < 0.6;
+    const isG = this.rng() < 0.6;
     const facId = isG ? g.nearestFac.garbage[i] : g.nearestFac.police[i];
     const fac = g.buildings.get(facId);
     if (!fac || fac.access < 0 || fac.access === b.access) return;
@@ -144,10 +151,10 @@ export class Traffic {
     if (!force && this.cars.length >= this.maxCars) return;
     const c = {
       id: this.nextId++, type, path, piece: 0, s: 0, target,
-      color: Math.floor(Math.random() * 1000),
+      color: Math.floor(this.rng() * 1000),
       weight: type >= VT.FIRE ? 0.5 : this.weight || 1,
       x: 0, z: 0, yaw: 0,
-      speedVar: 0.85 + Math.random() * 0.3,
+      speedVar: 0.85 + this.rng() * 0.3,
     };
     this.hourCount[path[0]] += c.weight;
     this.pose(c);
@@ -171,7 +178,7 @@ export class Traffic {
     const def = ROADS[road];
     if (!def) return false; // Straße wurde abgerissen
     const cong = g.congestion[tile];
-    const slow = cong > 0.75 ? 1 / (1 + (cong - 0.75) * 3) : 1;
+    const slow = (cong > 0.75 ? 1 / (1 + (cong - 0.75) * 3) : 1) / (1 + (g.tileDelay ? g.tileDelay[tile] : 0));
     let v = 2.1 * def.speed * slow * slowGlobal * c.speedVar;
     if (c.type === VT.FIRE) v *= 1.35;
     if (c.type === VT.TRUCK || c.type === VT.GARBAGE) v *= 0.85;
@@ -233,7 +240,7 @@ export class Traffic {
 
   hourly() {
     const g = this.g;
-    const load = g.trafficLoad, cong = g.congestion, road = g.road;
+    const load = g.trafficLoad, cong = g.congestion, road = g.road, delay = g.tileDelay;
     let sumW = 0, sumFlow = 0;
     for (let i = 0; i < g.N; i++) {
       if (!road[i]) { load[i] = 0; cong[i] = 0; this.hourCount[i] = 0; continue; }
@@ -242,7 +249,7 @@ export class Traffic {
       const c = load[i] / ROADS[road[i]].capacity;
       cong[i] = c;
       if (load[i] > 0) {
-        const slow = c > 0.75 ? 1 / (1 + (c - 0.75) * 3) : 1;
+        const slow = (c > 0.75 ? 1 / (1 + (c - 0.75) * 3) : 1) / (1 + (delay ? delay[i] : 0));
         sumW += load[i];
         sumFlow += load[i] * slow;
       }

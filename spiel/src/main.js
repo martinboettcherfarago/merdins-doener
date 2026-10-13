@@ -1,5 +1,5 @@
 // Einstieg: Hauptmenü, Spielstart, Hauptschleife, Speichern/Laden.
-import { Game } from './sim/game.js';
+import { Game, SaveError } from './sim/game.js';
 import { buildDemoCity } from './sim/demo.js';
 import { Engine } from './render/scene.js';
 import { Input } from './input.js';
@@ -7,6 +7,8 @@ import { UI } from './ui/ui.js';
 import { Menu } from './ui/menu.js';
 import { Audio } from './audio.js';
 import { runGallery } from './render/gallery.js';
+import { hideLoader } from './ui/loading.js';
+import { registerIcon } from './registry.js';
 import './sim/systems/index.js';
 import './render/views/index.js';
 import './ui/panels/index.js';
@@ -19,9 +21,50 @@ const LS = {
 };
 const KEY = (slot) => `stadtpuls.save.${slot}`;
 
+// Standardwerte laut Vertrag 6.7 (Stufe „medium“: Nachbearbeitung und Bloom an, AO aus, weiche Schatten niedrig)
 function loadSettings() {
-  const def = { volume: 0.7, music: 0.7, sfx: 0.8, ambience: 1, muted: false, alwaysDay: false, quality: 'medium', postfx: true, ao: true, bloom: true, shadows: true, uiScale: 1, tutorialDone: false };
-  try { return { ...def, ...(JSON.parse(LS.get('stadtpuls.settings') || '{}')) }; } catch (e) { return def; }
+  const def = {
+    volume: 0.7, music: 0.7, sfx: 0.8, ambience: 1, muted: false, alwaysDay: false, quality: 'medium', postfx: true, ao: false, bloom: true, shadows: 'low',
+    tutorialDone: false, uiScale: 1, minimap: true, advisor: true, tooltips: true,
+  };
+  let s = def;
+  try {
+    const raw = JSON.parse(LS.get('stadtpuls.settings') || '{}');
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) s = { ...def, ...raw };
+  } catch (e) { s = { ...def }; }
+  // Ältere Einstellungen speicherten Schatten als true/false
+  if (typeof s.shadows === 'boolean') s.shadows = s.shadows ? 'low' : 'off';
+  if (!['off', 'low', 'high'].includes(s.shadows)) s.shadows = 'low';
+  if (!['low', 'medium', 'high', 'ultra'].includes(s.quality)) s.quality = 'medium';
+  for (const k of ['volume', 'music', 'sfx', 'ambience', 'uiScale']) if (!Number.isFinite(s[k])) s[k] = def[k];
+  return s;
+}
+
+// Problemsymbol „wird repariert“ (Schraubenschlüssel) für Gebäude, die nach einer Katastrophe instand gesetzt werden.
+// Die Anzeige liest g.isRepairing(b) (siehe render/effects.js).
+registerIcon({
+  id: 'repair', color: '#f08c00',
+  draw(ctx, cx, cy, r) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-Math.PI / 4);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-r * 0.12, -r * 0.2, r * 0.24, r * 0.85);
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.38, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f08c00';
+    ctx.fillRect(-r * 0.1, -r * 0.75, r * 0.2, r * 0.36);
+    ctx.restore();
+  },
+});
+
+// Ansicht abbauen und den WebGL-Kontext sofort freigeben (Browser erlauben nur ~16 gleichzeitig;
+// sonst gehen nach mehreren Wechseln Menü ↔ Spiel ältere Kontexte verloren).
+function releaseEngine(e) {
+  if (!e) return;
+  try { e.dispose(); } catch (err) { console.warn('Stadtpuls: Ansicht nicht sauber abgebaut', err); }
+  try { if (e.renderer && e.renderer.forceContextLoss) e.renderer.forceContextLoss(); } catch (err) { /* egal */ }
 }
 
 function webglOk() {
@@ -49,7 +92,7 @@ const app = {
   teardown() {
     if (this.ui) { this.ui.dispose(); this.ui = null; }
     if (this.input) { this.input.dispose(); this.input = null; }
-    if (this.engine) { this.engine.dispose(); this.engine = null; }
+    if (this.engine) { releaseEngine(this.engine); this.engine = null; }
     this.game = null;
   },
 
@@ -63,7 +106,7 @@ const app = {
   },
   menuPreview(opts) {
     if (this.mode !== 'menu') return;
-    if (this.engine) { this.engine.dispose(); this.engine = null; }
+    if (this.engine) { releaseEngine(this.engine); this.engine = null; }
     let g;
     if (opts) {
       g = new Game({ size: opts.size, seed: opts.seed, mapType: opts.mapType, difficulty: 'sandbox', name: 'Vorschau' });
@@ -111,7 +154,7 @@ const app = {
     this.ui = new UI(this);
     this.input = new Input(this.engine, this.ui, this.audio);
     this.ui.markToolButtons();
-    g.on('day', () => this.save('auto'));
+    g.on('day', () => this.queueAutosave());
     window.__stadtpuls = this;
     this.debug = { buildDemoCity };
   },
@@ -122,11 +165,30 @@ const app = {
   },
 
   // ---------- Speichern
+  // Automatisch speichern nicht mitten im Tageswechsel (der ist schon teuer), sondern im nächsten ruhigen Moment
+  queueAutosave() {
+    if (this._autoQ) return;
+    this._autoQ = true;
+    const g = this.game;
+    const run = () => { this._autoQ = false; if (this.game === g && this.mode === 'game') this.save('auto'); };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 3000 });
+    else setTimeout(run, 60);
+  },
   save(slot) {
     if (!this.game) return false;
-    const data = this.game.serialize();
-    const ok = LS.set(KEY(slot), JSON.stringify(data));
+    let data, txt;
+    try { data = this.game.serialize(); txt = JSON.stringify(data); } catch (e) {
+      console.error(e);
+      if (this.ui && slot !== 'auto') this.ui.toast('Speichern fehlgeschlagen.', 'bad');
+      return false;
+    }
+    const ok = LS.set(KEY(slot), txt);
     if (ok) LS.set(KEY(slot) + '.meta', JSON.stringify({ name: data.name, pop: data.pop, savedAt: data.savedAt }));
+    else if (this.ui && (slot !== 'auto' || !this._quotaWarned)) {
+      // Browser-Speicher voll (große Karten brauchen über 1 MB pro Platz) – der alte Stand auf dem Platz bleibt erhalten
+      this._quotaWarned = true;
+      setTimeout(() => this.ui && this.ui.toast(`Speichern ${slot === 'auto' ? '(automatisch) ' : ''}fehlgeschlagen: Der Browser-Speicher ist voll. Alte Plätze löschen oder den Spielstand als Datei exportieren.`, 'bad'), 50);
+    }
     return ok;
   },
   slotMeta(slot) {
@@ -134,18 +196,39 @@ const app = {
   },
   loadSlot(slot) {
     const raw = LS.get(KEY(slot));
-    if (!raw) { this.ui ? this.ui.toast('Kein Spielstand gefunden.', 'bad') : null; return; }
-    this.loadData(JSON.parse(raw));
+    if (!raw) {
+      if (this.ui) this.ui.toast('Kein Spielstand gefunden.', 'bad');
+      else alertBox('Auf diesem Platz ist kein Spielstand gespeichert.');
+      hideLoader();
+      return false;
+    }
+    return this.loadData(raw);
   },
-  loadData(data) {
+  // Lädt einen Spielstand (Objekt oder JSON-Text). Bei Fehlern bleibt das laufende Spiel bzw. das Menü erhalten.
+  loadData(data, opts = {}) {
+    let g;
     try {
-      const g = Game.fromSave(data);
+      g = Game.fromSave(data);
+    } catch (e) {
+      if (!(e instanceof SaveError)) console.warn('Stadtpuls: Spielstand nicht ladbar', e);
+      hideLoader();
+      alertBox(e instanceof SaveError ? e.message : 'Der Spielstand konnte nicht geladen werden – er ist beschädigt oder stammt aus einer unbekannten Version.');
+      return false;
+    }
+    try {
       this.startGame(g);
-      this.ui.toast(`${g.name} geladen.`, 'good');
     } catch (e) {
       console.error(e);
-      alertBox('Der Spielstand konnte nicht geladen werden.');
+      hideLoader();
+      alertBox('Der Spielstand wurde gelesen, aber das Spiel konnte nicht gestartet werden: ' + e.message);
+      this.showMenu();
+      return false;
     }
+    if (this.ui && !opts.quiet) {
+      this.ui.toast(`${g.name} geladen.`, 'good');
+      for (const n of g.loadNotes || []) this.ui.toast(n, 'info');
+    }
+    return true;
   },
   exportSave() {
     if (!this.game) return;
@@ -165,9 +248,8 @@ const app = {
   },
   importFile(file) {
     const r = new FileReader();
-    r.onload = () => {
-      try { this.loadData(JSON.parse(r.result)); } catch (e) { alertBox('Die Datei ist kein gültiger Stadtpuls-Spielstand.'); }
-    };
+    r.onload = () => { this.loadData(String(r.result || '')); };
+    r.onerror = () => { hideLoader(); alertBox('Die Datei konnte nicht gelesen werden.'); };
     r.readAsText(file);
   },
 
@@ -175,19 +257,24 @@ const app = {
   frame(now) {
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
-    try {
-      if (this.mode === 'game' && this.game && this.engine) {
-        const simDt = this.game.update(dt);
-        this.engine.frame(dt, simDt);
-        this.ui.update(dt);
-        this.audio.update(this.game, this.engine, dt);
-      } else if (this.mode === 'menu' && this.engine && this.demo) {
-        const simDt = this.demo.update(dt);
-        this.engine.frame(dt, simDt);
+    // Jeder Teil einzeln abgesichert: Ein Fehler in Darstellung, Oberfläche oder Klang hält die anderen nicht an.
+    const part = (name, fn) => {
+      try { return fn(); } catch (e) {
+        console.error(e);
+        if (!this._errShown) { this._errShown = true; alertBox(`Es ist ein Fehler aufgetreten (${name}): ${e.message}. Das Spiel läuft weiter; bitte speichern.`); }
+        return 0;
       }
-    } catch (e) {
-      console.error(e);
-      if (!this._errShown) { this._errShown = true; alertBox('Es ist ein Fehler aufgetreten: ' + e.message); }
+    };
+    if (this.mode === 'game' && this.game && this.engine) {
+      const g = this.game, en = this.engine;
+      const simDt = part('Simulation', () => g.update(dt));
+      part('Darstellung', () => en.frame(dt, simDt));
+      if (this.ui) part('Oberfläche', () => this.ui.update(dt));
+      if (this.audio) part('Klang', () => this.audio.update(g, en, dt));
+    } else if (this.mode === 'menu' && this.engine && this.demo) {
+      const d = this.demo, en = this.engine;
+      const simDt = part('Vorschau', () => d.update(dt));
+      part('Darstellung', () => en.frame(dt, simDt));
     }
     requestAnimationFrame((t) => this.frame(t));
   },
@@ -210,13 +297,14 @@ function boot(hotData) {
     document.getElementById('menu').innerHTML = '<div class="loading">Dein Browser unterstützt kein WebGL – Stadtpuls braucht 3D-Grafik.</div>';
     return;
   }
+  window.__stadtpuls = app; // Debug- und Prüfzugriff (app.mode, app.game, app.engine)
   app.audio = new Audio(app.settings);
   // Ton startet nach der ersten Interaktion
   const unlock = () => { app.audio.start(); if (app.audio.ctx && app.audio.ctx.state === 'suspended') app.audio.ctx.resume(); };
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', unlock);
   if (hotData && hotData.save) {
-    try { app.startGame(Game.fromSave(hotData.save)); } catch (e) { app.showMenu(); }
+    try { app.startGame(Game.fromSave(hotData.save)); } catch (e) { console.warn('Stadtpuls: Stand nach Aktualisierung nicht ladbar', e); app.showMenu(); }
   } else app.showMenu();
   requestAnimationFrame((t) => { app.last = t; app.frame(t); });
 }
