@@ -212,16 +212,16 @@ export class UI {
 <div class="sign panel" id="u-panel" hidden></div>
 <div class="sign inspector" id="u-insp" hidden></div>
 <div class="pop-scrim" id="u-scrim" hidden></div>
-<div class="sign pop" id="u-pop" role="menu" hidden></div>
+<div class="sign pop" id="u-popover" role="menu" hidden></div>
 `;
     const $ = (id) => document.getElementById(id);
     this.el = {};
-    for (const id of ['name', 'rank', 'rankbar', 'plate', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'demand', 'date', 'time', 'speed', 'weather', 'sys', 'check', 'checkn', 'notecount', 'menubtn', 'toolhint', 'legend', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'bottom', 'viewsbtn', 'viewlbl', 'citybtn', 'citydot', 'toolbar', 'cats', 'panel', 'insp', 'scrim', 'pop', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
+    for (const id of ['name', 'rank', 'rankbar', 'plate', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'demand', 'date', 'time', 'speed', 'weather', 'sys', 'check', 'checkn', 'notecount', 'menubtn', 'toolhint', 'legend', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'bottom', 'viewsbtn', 'viewlbl', 'citybtn', 'citydot', 'toolbar', 'cats', 'panel', 'insp', 'scrim', 'popover', 'pop', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
     this.el.name.textContent = this.g.name;
     this.renderToolbar();
     this.minimap = new Minimap(this, this.el.mini);
     // Minikarte standardmäßig eingeklappt (Einstellung „Minikarte" oder Taste K blendet sie ein)
-    this.toggleMinimap(this.app.settings.minimap === true && !this.mobile(), true);
+    this.toggleMinimap(this.app.settings.minimapOpen === true && !this.mobile(), true);
     this.unswap = bindThumbSwap(this.root);
 
     const on = (el, ev, fn) => el.addEventListener(ev, fn);
@@ -259,7 +259,7 @@ export class UI {
       strip.scrollLeft += e.deltaY;
     });
     on(this.el.toolhint, 'click', (e) => this.toolHintClick(e));
-    on(this.el.pop, 'click', (e) => this.popClick(e));
+    on(this.el.popover, 'click', (e) => this.popClick(e));
     on(this.el.scrim, 'click', () => this.closePop());
     on(this.el.panel, 'pointerdown', (e) => {
       this.panelBusy = true;
@@ -278,7 +278,7 @@ export class UI {
     this.onDown = (e) => {
       if (!this.pop) return;
       const t = e.target;
-      if (this.el.pop.contains(t) || (t.closest && t.closest('[data-pop]'))) return;
+      if (this.el.popover.contains(t) || (t.closest && t.closest('[data-pop]'))) return;
       if (t.closest && t.closest('#uitip')) return;
       this.closePop();
     };
@@ -624,6 +624,8 @@ export class UI {
     const sl = strip.scrollLeft;
     strip.innerHTML = list.length ? list.map((it, i) => cardHTML(it, i, isActive(it, t), isSearch)).join('') : `<div class="empty strip-empty">${q ? `Nichts gefunden für „${esc(q)}".` : 'Tippe einen Namen, z. B. „Schule", „Park" oder „Strom". Hier erscheint auch, was du zuletzt gebaut hast.'}</div>`;
     strip.scrollLeft = sl;
+    // Ohne Detailspalte (schmale Fenster) erklärt ein Tooltip jede Karte
+    if (window.innerWidth <= 1100) for (const b of strip.querySelectorAll('button.item')) { const it = list[+b.dataset.i]; if (!it) continue; b.dataset.tip = it.name; b.dataset.tipDesc = `${it.cost ? it.cost + ' · ' : ''}${it.locked || it.desc || ''}`; }
     const cnt = document.getElementById('u-traycount');
     if (cnt) cnt.textContent = list.length ? `${list.length} ${list.length === 1 ? 'Eintrag' : 'Einträge'}` : '';
     const active = list.find((it) => isActive(it, t));
@@ -789,7 +791,7 @@ export class UI {
     this.popAnchor = anchor || this.root.querySelector(`[data-pop="${kind}"]`);
     if (kind === 'city') this.refreshAvail();
     this.renderPop();
-    const el = this.el.pop;
+    const el = this.el.popover;
     el.hidden = false;
     el.className = `sign pop pop-${kind}${this.mobile() ? ' sheet' : ''}`;
     el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter');
@@ -801,12 +803,12 @@ export class UI {
   closePop() {
     if (!this.pop) return;
     this.pop = null;
-    this.el.pop.hidden = true;
+    this.el.popover.hidden = true;
     this.el.scrim.hidden = true;
     for (const b of this.root.querySelectorAll('[data-pop]')) { b.classList.remove('open'); b.setAttribute('aria-expanded', 'false'); }
   }
   positionPop() {
-    const el = this.el.pop, st = el.style, a = this.popAnchor;
+    const el = this.el.popover, st = el.style, a = this.popAnchor;
     st.left = st.right = st.top = st.bottom = '';
     if (this.mobile() || !a) return;
     const z = this.uiZoom();
@@ -834,9 +836,9 @@ export class UI {
       else if (k === 'check') html = this.popCheck();
       else if (k === 'menu') html = this.popMenu();
     } catch (e) { console.warn('Menü', e); html = `<p class="empty">${esc(e.message)}</p>`; }
-    const sc = this.el.pop.scrollTop;
-    this.el.pop.innerHTML = html;
-    this.el.pop.scrollTop = sc;
+    const sc = this.el.popover.scrollTop;
+    this.el.popover.innerHTML = html;
+    this.el.popover.scrollTop = sc;
   }
   popHead(title, sub, ic) {
     return `<div class="pop-h">${this.mobile() ? '<div class="sh-grab"></div>' : ''}<span class="pop-hi">${icon(ic, 16, 2.2)}</span><div class="grow"><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div><button class="close" data-pa="close" data-tip="Schließen" data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 16)}</button></div>`;
@@ -1221,7 +1223,7 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
     this.minimap.setVisible(v);
     this.el.mmopen.hidden = v || this.mobile();
     this.root.classList.toggle('mm-off', !v);
-    if (!silent) { this.app.settings.minimap = v; this.app.saveSettings(); }
+    if (!silent) { this.app.settings.minimapOpen = v; this.app.saveSettings(); }
   }
   toggleHud(v) {
     this.hudHidden = v === undefined ? !this.hudHidden : v;

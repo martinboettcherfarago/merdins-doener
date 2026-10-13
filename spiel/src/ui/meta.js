@@ -30,7 +30,7 @@ export const CAT_META = {
   industry: { icon: 'industry', color: '#8a6a55', line: 'verkehr' },
   transport: { icon: 'transport', color: '#10a9a3', line: 'verkehr' },
   transit: { icon: 'transit', color: '#e8543f', line: 'verkehr' },
-  districts: { icon: 'districts', color: '#8f5ad8', line: 'mehr' },
+  districts: { name: 'Bezirke', icon: 'districts', color: '#8f5ad8', line: 'bau' },
 };
 
 // Kategorie-Metadaten mit Rückfall auf Felder der Kategorie selbst (CATEGORIES.push({ id, name, icon, color, group }))

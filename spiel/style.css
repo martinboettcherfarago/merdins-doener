@@ -244,9 +244,9 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 
 /* ---------- Baukatalog (über der Werkzeugleiste) */
 .tray {
-  position: absolute; left: 12px; right: 12px; bottom: calc(12px + var(--bb-h) + 10px + var(--safe-b));
-  width: fit-content; max-width: min(1120px, calc(100% - 24px)); margin: 0 auto;
-  min-width: min(760px, calc(100% - 24px));
+  --tl: calc(12px + var(--mm) * 1.14); position: absolute; left: var(--tl); right: 12px; bottom: calc(12px + var(--bb-h) + 10px + var(--safe-b));
+  width: fit-content; max-width: min(1120px, calc(100% - var(--tl) - 12px)); margin: 0 auto;
+  min-width: min(760px, calc(100% - var(--tl) - 12px));
   padding: 0; overflow: hidden; display: flex; flex-direction: column; z-index: 4;
 }
 .tray.enter { animation: trayIn 0.22s var(--ease-out); }
@@ -966,10 +966,12 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
   .hud-r.has-wx .when .date { display: none; }
 }
 @media (max-width: 1366px) {
-  .check .ck-l { display: none; }
-  .check { padding: 0 10px; }
   .cityplate .name, .cityplate .rank { max-width: 160px; }
   .stat { padding: 0 10px; }
+}
+@media (max-width: 1279px) {
+  .check .ck-l { display: none; }
+  .check { padding: 0 10px; }
 }
 @media (max-width: 1240px) {
   .hud-r .wx .wt small { display: none; }

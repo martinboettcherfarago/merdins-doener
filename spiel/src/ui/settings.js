@@ -31,7 +31,8 @@ export function ensureSettings(s) {
   if (typeof s.shadows === 'boolean') s.shadows = s.shadows ? p.shadows : 'off';
   if (s.uiScale === undefined) s.uiScale = 1;
   if (s.ambience === undefined) s.ambience = 1;
-  if (s.minimap === undefined) s.minimap = false; // Runde 3: Minikarte startet eingeklappt (Taste K)
+  if (s.minimap === undefined) s.minimap = true;
+  if (s.minimapOpen === undefined) s.minimapOpen = false; // Runde 3: Minikarte startet eingeklappt (Taste K)
   if (s.advisor === undefined) s.advisor = true;
   if (s.tooltips === undefined) s.tooltips = true;
   return s;
@@ -81,7 +82,7 @@ ${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort
   } else if (tab === 'bedienung') {
     body = `<div class="sec"><h3>Größe der Oberfläche</h3>${seg('uiScale', s.uiScale, UI_SCALES)}</div>
 <div class="sec"><h3>Hilfen</h3>
-  ${sw('minimap', s.minimap, 'Minikarte', 'Übersichtskarte unten links (Taste K).')}
+  ${sw('minimap', s.minimapOpen, 'Minikarte', 'Übersichtskarte unten links (Taste K).')}
   ${sw('advisor', s.advisor, 'Ratgeber-Hinweise', 'Die Stadtplanerin meldet sich, wenn etwas fehlt.')}
   ${sw('tooltips', s.tooltips, 'Tooltips', 'Erklärungen beim Überfahren von Knöpfen.')}
   ${sw('tutorial', !s.tutorialDone, 'Erste Schritte', 'Die Checkliste für den Einstieg anzeigen.')}
@@ -126,7 +127,7 @@ export function settingsClick(ctx, act, el) {
     case 'icons': if (app.engine && app.engine.effects) app.engine.effects.showIcons = !app.engine.effects.showIcons; return true;
     case 'mute': s.muted = !s.muted; app.audio && app.audio.applyVolumes(); save(); return true;
     case 'uiScale': s.uiScale = +el.dataset.v; applyUiScale(s); save(); return true;
-    case 'minimap': s.minimap = !s.minimap; save(); if (ctx.ui && ctx.ui.toggleMinimap) ctx.ui.toggleMinimap(s.minimap, true); return true;
+    case 'minimap': s.minimapOpen = !s.minimapOpen; save(); if (ctx.ui && ctx.ui.toggleMinimap) ctx.ui.toggleMinimap(s.minimapOpen, true); return true;
     case 'advisor': s.advisor = !s.advisor; save(); return true;
     case 'tooltips': s.tooltips = !s.tooltips; save(); ctx.onTips && ctx.onTips(s.tooltips); return true;
     case 'tutorial': s.tutorialDone = !s.tutorialDone; save(); if (ctx.ui) { ctx.ui.tutorialHidden = s.tutorialDone; ctx.ui.refreshTutorial(); } return true;
