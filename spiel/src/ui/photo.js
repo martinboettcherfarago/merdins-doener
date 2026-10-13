@@ -241,7 +241,7 @@ ${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><inp
     }
     if (o.cine) { const bh = Math.max(0, (h - w / 2.39) / 2); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, bh); ctx.fillRect(0, h - bh, w, bh); }
     const s = Math.max(1, w / 1400);
-    ctx.font = `600 ${Math.round(13 * s)}px Barlow, system-ui, sans-serif`;
+    ctx.font = `600 ${Math.round(13 * s)}px "Stadtpuls Rund", Fredoka, system-ui, sans-serif`;
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(255,255,255,0.78)';
     ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 6 * s;

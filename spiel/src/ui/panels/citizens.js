@@ -250,7 +250,7 @@ function drawPyramid(c, ages) {
   for (let k = 0; k < rows; k++) max = Math.max(max, ages[k] * Math.max(fem(k), 1 - fem(k)));
   const half = mid - labelW / 2 - 4;
   const colOf = (k) => AGE_GROUPS.find((gr) => k >= gr.from && k <= gr.to).color;
-  ctx.font = '600 10.5px "Barlow Condensed", Barlow, sans-serif';
+  ctx.font = '600 10.5px "Stadtpuls Rund", Fredoka, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (let k = 0; k < rows; k++) {
@@ -267,16 +267,16 @@ function drawPyramid(c, ages) {
     if (k % 2 === 0) { ctx.fillStyle = '#7a8294'; ctx.fillText(String(k * 5), mid, y + rh / 2 + 0.5); }
   }
   ctx.fillStyle = '#4a5263';
-  ctx.font = '700 11px Barlow, sans-serif';
+  ctx.font = '700 11px "Stadtpuls Text", Nunito, sans-serif';
   ctx.textAlign = 'left'; ctx.fillText('Männer', 2, h - 7);
   ctx.textAlign = 'right'; ctx.fillText('Frauen', w - 2, h - 7);
-  ctx.textAlign = 'center'; ctx.fillStyle = '#7a8294'; ctx.font = '600 10.5px Barlow, sans-serif'; ctx.fillText('Alter', mid, h - 7);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#7a8294'; ctx.font = '600 10.5px "Stadtpuls Text", Nunito, sans-serif'; ctx.fillText('Alter', mid, h - 7);
 }
 function drawSeries(c, series, opts = {}) {
   const [ctx, w, h] = prepCanvas(c);
   const padL = 34, padR = 6, padT = 8, padB = 16;
   const n = Math.max(...series.map((s) => s.values.length));
-  if (n < 2) { ctx.fillStyle = '#7a8294'; ctx.font = '12px Barlow, sans-serif'; ctx.fillText('Noch keine Daten – ein Spieltag dauert 30 Sekunden.', 6, h / 2); return; }
+  if (n < 2) { ctx.fillStyle = '#7a8294'; ctx.font = '12px "Stadtpuls Text", Nunito, sans-serif'; ctx.fillText('Noch keine Daten – ein Spieltag dauert 30 Sekunden.', 6, h / 2); return; }
   let max = 0;
   for (const s of series) for (const v of s.values) max = Math.max(max, v);
   if (opts.pct) max = Math.max(0.05, max) * 1.15;
@@ -289,7 +289,7 @@ function drawSeries(c, series, opts = {}) {
   const X = (i) => padL + (i / (n - 1)) * (w - padL - padR);
   const Y = (v) => padT + (1 - v / max) * (h - padT - padB);
   ctx.strokeStyle = 'rgba(29,35,48,0.08)'; ctx.lineWidth = 1;
-  ctx.fillStyle = '#7a8294'; ctx.font = '600 10.5px "Barlow Condensed", Barlow, sans-serif'; ctx.textAlign = 'right';
+  ctx.fillStyle = '#7a8294'; ctx.font = '600 10.5px "Stadtpuls Rund", Fredoka, sans-serif'; ctx.textAlign = 'right';
   for (let k = 0; k <= 2; k++) {
     const v = (max * k) / 2;
     ctx.beginPath(); ctx.moveTo(padL, Y(v)); ctx.lineTo(w - padR, Y(v)); ctx.stroke();
