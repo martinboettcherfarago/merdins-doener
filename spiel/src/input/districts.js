@@ -138,7 +138,7 @@ registerTool('district', {
   },
 });
 
-// Werkzeugleiste: unter „Zonen"
+// Werkzeugleiste: Reiter „Bezirke" in der Gruppe „Zonen" (erscheint, sobald Bezirke freigeschaltet sind)
 const item = (type, name, desc) => (g) => {
   const D = districtsOf(g);
   const act = D && D.byId[districtTool.active];
@@ -146,8 +146,8 @@ const item = (type, name, desc) => (g) => {
   return { kind: 'tool', key: 'district', type, name, cost: 'kostenlos', desc, color, locked: lockText(g) };
 };
 TRAY_ITEMS.push(
-  { cat: 'zones', item: item('paint', 'Bezirk malen', 'Mit dem Pinsel Bezirke malen. Beginnt der Strich in einem Bezirk, wächst dieser. [,] [.] ändern die Pinselgröße.') },
-  { cat: 'zones', item: item('fill', 'Block füllen', 'Ein Klick füllt den Straßenblock unter dem Zeiger mit dem aktiven Bezirk.') },
-  { cat: 'zones', item: item('new', 'Neuer Bezirk', 'Der nächste Pinselstrich gründet einen neuen Bezirk mit eigenem Namen und eigenen Verordnungen.') },
-  { cat: 'zones', item: item('erase', 'Bezirk radieren', 'Entfernt Bezirksflächen. Beim Malen geht das auch mit gedrückter Umschalttaste.') },
+  { cat: 'districts', item: item('paint', 'Bezirk malen', 'Mit dem Pinsel Bezirke malen. Beginnt der Strich in einem Bezirk, wächst dieser. [,] [.] ändern die Pinselgröße.') },
+  { cat: 'districts', item: item('fill', 'Block füllen', 'Ein Klick füllt den Straßenblock unter dem Zeiger mit dem aktiven Bezirk.') },
+  { cat: 'districts', item: item('new', 'Neuer Bezirk', 'Der nächste Pinselstrich gründet einen neuen Bezirk mit eigenem Namen und eigenen Verordnungen.') },
+  { cat: 'districts', item: item('erase', 'Bezirk radieren', 'Entfernt Bezirksflächen. Beim Malen geht das auch mit gedrückter Umschalttaste.') },
 );

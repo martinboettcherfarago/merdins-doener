@@ -99,16 +99,16 @@ export class PhotoMode {
 <div class="pu-head"><span class="pu-t">${icon('camera', 16)} Fotomodus</span><span class="grow"></span><button class="close" data-pa="exit" data-tip="Beenden" data-key="Esc">${icon('close', 16)}</button></div>
 <div class="pu-row"><label>${icon('sun', 14)} Tageszeit</label><input type="range" min="0" max="23.75" step="0.25" value="${o.hour}" data-pi="hour" ${o.run ? 'disabled' : ''}><span class="num pv">${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}</span></div>
 <div class="pu-row"><label>${icon('aperture', 14)} Bildwinkel</label><input type="range" min="14" max="80" step="1" value="${o.fov}" data-pi="fov"><span class="num pv">${o.fov}°</span></div>
-${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><input type="range" min="0" max="1" step="0.02" value="${o.aperture}" data-pi="aperture" ${o.dof ? '' : 'disabled'}><button class="chip${o.dof ? ' on' : ''}" data-pa="dof">Tiefenschärfe</button><button class="chip${o.tilt ? ' on' : ''}" data-pa="tilt" data-tip="Miniatur-Look" data-tip-desc="Unschärfe oben und unten wie bei einer Modellstadt" ${o.dof ? '' : 'disabled'}>Miniatur</button></div>` : ''}
-<div class="pu-filters">${FILTERS.map(([id, n]) => `<button class="pf${o.filter === id ? ' on' : ''}" data-pa="filter" data-v="${id}"><span class="sw f-${id}"></span>${n}</button>`).join('')}</div>
+${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><input type="range" min="0" max="1" step="0.02" value="${o.aperture}" data-pi="aperture" ${o.dof ? '' : 'disabled'}><button class="chip${o.dof ? ' on' : ''}" data-pa="dof" data-tip="Tiefenschärfe" data-tip-desc="Vorder- und Hintergrund weich zeichnen. Der Regler bestimmt die Stärke.">Tiefenschärfe</button><button class="chip${o.tilt ? ' on' : ''}" data-pa="tilt" data-tip="Miniatur-Look" data-tip-desc="Unschärfe oben und unten wie bei einer Modellstadt" ${o.dof ? '' : 'disabled'}>Miniatur</button></div>` : ''}
+<div class="pu-filters">${FILTERS.map(([id, n]) => `<button class="pf${o.filter === id ? ' on' : ''}" data-pa="filter" data-v="${id}" data-tip="Filter: ${n}" data-tip-desc="Farbstimmung des Fotos."><span class="sw f-${id}"></span>${n}</button>`).join('')}</div>
 <div class="pu-toggles">
-  <button class="chip${o.grid ? ' on' : ''}" data-pa="grid">${icon('grid', 14)} Raster</button>
-  <button class="chip${o.cine ? ' on' : ''}" data-pa="cine">${icon('film', 14)} Kino</button>
-  <button class="chip${o.vignette ? ' on' : ''}" data-pa="vignette">${icon('aperture', 14)} Vignette</button>
-  <button class="chip${o.orbit ? ' on' : ''}" data-pa="orbit">${icon('orbit', 14)} Kamerafahrt</button>
-  <button class="chip${o.run ? ' on' : ''}" data-pa="run">${icon('play', 14)} Zeit läuft</button>
+  <button class="chip${o.grid ? ' on' : ''}" data-pa="grid" data-tip="Raster" data-tip-desc="Drittel-Linien helfen beim Aufbau des Bildes.">${icon('grid', 14)} Raster</button>
+  <button class="chip${o.cine ? ' on' : ''}" data-pa="cine" data-tip="Kino" data-tip-desc="Schwarze Balken im Breitbild-Format.">${icon('film', 14)} Kino</button>
+  <button class="chip${o.vignette ? ' on' : ''}" data-pa="vignette" data-tip="Vignette" data-tip-desc="Dunklere Ränder lenken den Blick zur Mitte.">${icon('aperture', 14)} Vignette</button>
+  <button class="chip${o.orbit ? ' on' : ''}" data-pa="orbit" data-tip="Kamerafahrt" data-tip-desc="Die Kamera kreist langsam um den Bildmittelpunkt.">${icon('orbit', 14)} Kamerafahrt</button>
+  <button class="chip${o.run ? ' on' : ''}" data-pa="run" data-tip="Zeit läuft" data-tip-desc="Die Stadt lebt weiter, während du fotografierst.">${icon('play', 14)} Zeit läuft</button>
 </div>
-<div class="pu-acts"><button class="btn" data-pa="shot">${icon('camera', 16)} Foto aufnehmen</button><button class="btn ghost" data-pa="exit">Fertig</button></div>`;
+<div class="pu-acts"><button class="btn" data-pa="shot" data-tip="Foto aufnehmen" data-tip-desc="Bild ohne Oberfläche speichern." data-key="Leertaste">${icon('camera', 16)} Foto aufnehmen</button><button class="btn ghost" data-pa="exit" data-tip="Fertig" data-tip-desc="Fotomodus beenden." data-key="Esc">Fertig</button></div>`;
     this.applyFilter();
   }
 

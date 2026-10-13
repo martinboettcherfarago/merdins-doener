@@ -193,7 +193,7 @@ function renderWeather(ui) {
   }
   if (w.heatNeed > 0.2) row('Fernwärme deckt', `${Math.round((imp.cover || 0) * 100)} %`, (imp.cover || 0) < 0.5 ? 'neg' : 'pos', (imp.cover || 0) < 0.9 ? 'Ohne Fernwärme heizen viele mit Strom. Heizkraftwerke helfen.' : 'Die Wohnungen sind warm.');
   if (imp.tour !== undefined) row('Touristen', `${imp.tour >= 0 ? '+' : '−'}${Math.abs(Math.round(imp.tour))} %`, imp.tour < 0 ? 'neg' : 'pos', imp.beach > 0 ? `Badewetter: +${Math.round(imp.beach)} Badegäste pro Tag` : '');
-  if (imp.rid !== undefined && Math.abs(imp.rid) > 0.005) row('Pulsbahn-Fahrgäste', pct(imp.rid), '', imp.rid > 0 ? 'Bei Schmuddelwetter lassen viele das Auto stehen.' : 'Bei Sonne gehen viele zu Fuß oder fahren Rad.');
+  if (imp.rid !== undefined && Math.abs(imp.rid) > 0.005) row('U-Bahn-Fahrgäste', pct(imp.rid), '', imp.rid > 0 ? 'Bei Schmuddelwetter lassen viele das Auto stehen.' : 'Bei Sonne gehen viele zu Fuß oder fahren Rad.');
   if (imp.mood !== undefined && Math.abs(imp.mood) >= 0.5) row('Stimmung durch das Wetter', `${imp.mood >= 0 ? '+' : '−'}${Math.abs(imp.mood).toFixed(0)}`, imp.mood < 0 ? 'neg' : 'pos');
   const farms = [...g.buildings.values()].some((b) => b.spec === 'farm');
   if (farms) row('Bauernhöfe', { spring: 'Aussaat', summer: 'Wachstum +10 %', autumn: 'Ernte +25 %', winter: 'Winterruhe −40 %' }[w.season], w.season === 'winter' ? 'neg' : w.season === 'autumn' ? 'pos' : '', 'Saisonale Arbeitsplätze auf den Höfen');
@@ -489,10 +489,11 @@ registerOverlay({
 
 // ---------- Hauptmenü: Katastrophen für neue Städte
 MENU_SECTIONS.push({
+  place: 'newcity', // Runde 3: im Formular „Neue Stadt" unter „Mehr Optionen"
   render(menu) {
     const o = menu.opts;
     const v = o.disasters || (o.difficulty === 'sandbox' ? 'off' : o.difficulty === 'relaxed' ? 'rare' : 'normal');
-    return `<div class="card"><h3>Wetter & Katastrophen</h3><div class="field"><label>Katastrophen</label><div class="seg">${FREQS.map((f) => `<button data-act="wx-mfreq" data-v="${f.id}" class="${v === f.id ? 'on' : ''}">${f.name}</button>`).join('')}</div><div class="seg-hint">${v === 'off' ? 'Nur Wetter und Jahreszeiten – keine Unglücke.' : 'Hochwasser, Stürme, Tornados, Erdbeben, Blitze, Waldbrände und Meteoriten – mit Vorwarnung und Wiederaufbau. Jederzeit im Panel „Wetter" änderbar.'}</div></div></div>`;
+    return `<div class="field"><label>Katastrophen</label><div class="seg">${FREQS.map((f) => `<button data-act="wx-mfreq" data-v="${f.id}" class="${v === f.id ? 'on' : ''}">${f.name}</button>`).join('')}</div><div class="seg-hint">${v === 'off' ? 'Nur Wetter und Jahreszeiten – keine Unglücke.' : 'Hochwasser, Stürme, Tornados, Erdbeben, Blitze, Waldbrände und Meteoriten – mit Vorwarnung und Wiederaufbau. Jederzeit im Panel „Wetter" änderbar.'}</div></div>`;
   },
   click(menu, act, el) {
     if (act !== 'wx-mfreq') return false;
