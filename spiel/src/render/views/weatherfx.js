@@ -468,7 +468,7 @@ registerView(class WeatherView {
       u.uCount.value = Math.min(1, 0.15 + rain * 0.95) * (wx.storm > 0.5 ? 1 : 0.85);
       const lum = 0.35 + 0.65 * (1 - night);
       u.uColor.value.setRGB(0.62, 0.68, 0.76).multiplyScalar(lum * (0.6 + amb * 0.35) * (1 + this.flash * 3));
-      u.uAlpha.value = 0.22 + 0.2 * rain;
+      u.uAlpha.value = (0.2 + 0.14 * rain) * (1 - 0.25 * wx.storm);
       this.splash.visible = dist < 60;
       this.splashU.uTime.value = t;
       this.splashU.uCount.value = rain;

@@ -118,6 +118,7 @@ vec3 atmoFogTint(vec3 rd, vec3 horizon, vec3 sunSide, vec4 fb) {
 }
 `;
 
+// Diagnose: index.html?g1skip=fog|light|all schaltet die globalen Shader-Erweiterungen ab.
 const SKIP = (() => { try { return new URLSearchParams(location.search).get('g1skip') || ''; } catch (e) { return ''; } })();
 
 function patchChunks() {
@@ -156,7 +157,7 @@ function patchChunks() {
 		float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
 	#endif
 	vec3 fogTint = fogColor;
-	if ( uAtmoFogA.w > 0.5 ${SKIP.includes('fvary') ? '&& false' : ''} ) {
+	if ( uAtmoFogA.w > 0.5 ) {
 		vec3 atmoRd;
 		fogFactor = atmoFogFactor( vFogWorld, cameraPosition, uAtmoFogA, uAtmoFogC, atmoRd );
 		fogTint = atmoFogTint( atmoRd, fogColor, uAtmoFogSun, uAtmoFogB );
@@ -171,15 +172,14 @@ function patchChunks() {
 uniform vec4 uAtmoCloud;
 uniform vec4 uAtmoCloudB;
 uniform vec3 uAtmoCloudDir;
-${SKIP.includes('csamp') ? '' : 'uniform sampler2D uAtmoCloudTex;'}
+uniform sampler2D uAtmoCloudTex;
 float atmoCloudShadow(vec3 viewPos) {
-  ${SKIP.includes('ctex') || SKIP.includes('csamp') ? 'return 1.0;' : ''}
   if (uAtmoCloud.w <= 0.001) return 1.0;
   vec3 wp = ${VIEW_TO_WORLD('viewPos')};
   vec3 L = uAtmoCloudDir;
   vec2 p = wp.xz + L.xz * ((uAtmoCloudB.z - wp.y) / max(L.y, 0.25));
   p = p * uAtmoCloud.z + uAtmoCloud.xy;
-  float n = ${SKIP.includes('csamp') ? '0.5' : 'texture2D(uAtmoCloudTex, p * 0.25).r'};
+  float n = texture2D(uAtmoCloudTex, p * 0.25).r;
   float edge = 1.0 - uAtmoCloudB.x;
   float c = smoothstep(edge - uAtmoCloudB.y, edge + uAtmoCloudB.y, n);
   return 1.0 - c * uAtmoCloud.w;

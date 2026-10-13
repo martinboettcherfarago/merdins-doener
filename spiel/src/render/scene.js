@@ -348,7 +348,7 @@ export class Engine {
 
     // Himmel
     const st = this.skyState;
-    const exposure = 1 + night * 0.55 + overcast * 0.12 * (1 - night) + wx.fog * 0.05;
+    const exposure = 1 + night * 0.4 + overcast * 0.12 * (1 - night) + wx.fog * 0.05;
     st.s = s; st.night = night; st.cloud = Math.max(cloud, storm * 0.95, wx.rain * 0.85, wx.snow * 0.8); st.storm = storm;
     st.flash = this.flash; st.time = this.time; st.exposure = exposure;
     st.sunColor.copy(L.sunColor).multiplyScalar(sunUp);
@@ -373,17 +373,20 @@ export class Engine {
     this.hemi.color.copy(amb).lerp(new THREE.Color(1, 1, 1), 0.25);
     this.hemi.groundColor.setRGB(0.42, 0.36, 0.28).multiplyScalar(0.25 + 0.75 * sunUp);
     const hemiDay = 0.42 + 0.35 * overcast;
-    const hemiNight = 0.55;
+    const hemiNight = 0.34;
     this.hemi.intensity = (hemiDay * (1 - night) + hemiNight * night) * (1 + this.flash * 4);
     if (night > 0.5) { this.hemi.color.setRGB(0.42, 0.52, 0.85); this.hemi.groundColor.setRGB(0.16, 0.14, 0.16); }
     this.hemi.color.multiplyScalar(1 / Math.max(0.6, this.hemi.color.r * 0.3 + this.hemi.color.g * 0.6 + this.hemi.color.b * 0.1));
 
     // Nebel und Dunst (Atmosphäre in allen Materialien)
     const fog = this.scene.fog;
-    fog.color.copy(pal.hor).multiplyScalar(1 / exposure);
+    // Bei Wetternebel neutrales, helles Grau statt Horizontfarbe (kein Sepia-Stich durch die Morgensonne)
+    const wf = wx.fog;
+    const mistLum = (0.12 + 0.6 * sunUp * (1 - 0.4 * overcast)) * (1 - 0.6 * night) + 0.02;
+    _c3.setRGB(0.78, 0.8, 0.83).multiplyScalar(mistLum);
+    fog.color.copy(pal.hor).lerp(_c3, Math.min(0.85, wf * 1.1)).multiplyScalar(1 / exposure);
     const dist = this.rig.cur.dist;
     fog.near = dist * 2.2 + 30; fog.far = dist * 6 + 200;
-    const wf = wx.fog;
     atmo.fogA[0] = (0.0016 + 0.012 * wf + 0.0035 * wx.rain + 0.003 * wx.snow + 0.002 * storm) * (1 - 0.35 * night);
     atmo.fogA[1] = 0.22 + 0.25 * wf;
     atmo.fogA[2] = 0;
@@ -391,7 +394,7 @@ export class Engine {
     atmo.fogC[0] = 0.006 + 0.11 * wf + 0.01 * wx.rain;
     atmo.fogC[1] = Math.max(0, dist * (0.55 - 0.45 * wf));
     atmo.fogC[2] = 0.86 + 0.12 * wf;
-    const sunSide = _c1.copy(pal.horSun).multiplyScalar(1 / exposure);
+    const sunSide = _c1.copy(pal.horSun).lerp(_c3, Math.min(0.9, wf * 1.2)).multiplyScalar(1 / exposure);
     atmo.fogSun[0] = sunSide.r; atmo.fogSun[1] = sunSide.g; atmo.fogSun[2] = sunSide.b;
     atmo.fogB[0] = L.sunDir.x; atmo.fogB[1] = L.sunDir.y; atmo.fogB[2] = L.sunDir.z;
     atmo.fogB[3] = 0.65 * sunUp * (1 - overcast * 0.8);
@@ -568,4 +571,4 @@ export class Engine {
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]];
 const _up = new THREE.Vector3(0, 1, 0);
 const _u = new THREE.Vector3(), _v = new THREE.Vector3(), _p = new THREE.Vector3(), _p2 = new THREE.Vector3(), _p3 = new THREE.Vector3();
-const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _c3 = new THREE.Color();

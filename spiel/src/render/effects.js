@@ -659,8 +659,8 @@ void main() {
     const a = Math.min(1, (night - 0.15) * 1.5);
     for (let i = 0; i < lampPositions.length; i += 3) {
       const x = lampPositions[i], y = lampPositions[i + 1], z = lampPositions[i + 2];
-      this.lights.add(x, y, z, 0.26, 2.2, 1.65, 0.95, a * 0.85);
-      this.pools.add(x, 0.03, z, 0.62, 1.0, 0.7, 0.38, a * 0.42);
+      this.lights.add(x, y, z, 0.15, 2.0, 1.45, 0.8, a * 0.75);
+      this.pools.add(x, 0.03, z, 0.55, 1.0, 0.68, 0.36, a * 0.38);
     }
   }
   addFireLights() {
