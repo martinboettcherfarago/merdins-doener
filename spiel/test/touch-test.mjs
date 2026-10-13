@@ -132,6 +132,8 @@ const pause = (page, ms = 250) => page.waitForTimeout(ms);
 
 // Touch über CDP: Ziehen mit einem Finger, Zwei-Finger-Geste
 async function touchDrag(page, cdp, a, b, steps = 8, holdMs = 0) {
+  const on = await page.evaluate(([x, y]) => window.__T.onCanvas(x, y), [a.x, a.y]);
+  if (on !== true) console.log(`  (Hinweis: Ziehen beginnt bei ${Math.round(a.x)},${Math.round(a.y)} über ${on})`);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: a.x, y: a.y, id: 1 }] });
   if (holdMs) await page.waitForTimeout(holdMs);
   for (let k = 1; k <= steps; k++) {
@@ -229,7 +231,7 @@ try {
   console.log('-- Kamera bei stehender Vorschau');
   await tapTile(page, bx + 6, ry - 1);
   const s1 = await st(page);
-  p = await scr(page, bx + 1, ry + 3);
+  p = await scr(page, bx + 3, ry + 3);
   await touchDrag(page, cdp, p, { x: p.x + 70, y: p.y - 50 }, 8);
   let s2 = await st(page);
   check('Ziehen auf freier Karte verschiebt die Kamera', !same(s1.goal, s2.goal));
@@ -243,7 +245,7 @@ try {
   s2 = await st(page);
   check('nach Kamerabewegung: ✓ baut an der Vorschau', s2.blds === s1.blds + 1 && !!(await page.evaluate(([x, y]) => window.__T.bld(x, y), [bx + 6, ry - 1])));
   // Kamera zurück
-  await page.evaluate(([x, y]) => { const a = window.__stadtpuls, rig = a.engine.rig; rig.focus(x - a.game.W / 2, y - a.game.H / 2, 30); rig.cur = { ...rig.cur, ...rig.goal }; }, [bx + 5, ry + 1]);
+  await page.evaluate(([x, y]) => { const a = window.__stadtpuls, rig = a.engine.rig; rig.focus(x - a.game.W / 2, y - a.game.H / 2, 30); rig.goal.pitch = 1.05; rig.goal.yaw = 0; rig.cur = { ...rig.cur, ...rig.goal }; }, [bx + 5, ry + 1]);
   await pause(page, 600);
 
   // 4) Straße mit Griffen
@@ -286,7 +288,7 @@ try {
   await tapTile(page, bx + 1, ry - 3);
   await touchDrag(page, cdp, await scr(page, bx + 1, ry - 3), await scr(page, bx + 4, ry - 2), 10);
   s = await st(page);
-  check('Zonenfläche per Griff aufgezogen', s.pend && s.pend.ex === bx + 4 && s.pend.ey === ry - 2 && s.label === 'Ausweisen', JSON.stringify(s.pend));
+  check('Zonenfläche per Griff aufgezogen', s.pend && s.pend.ex === bx + 4 && s.pend.ey === ry - 2 && s.label === 'Bauen', JSON.stringify(s.pend));
   check('vor ✓ keine Zone', !(await page.evaluate(([x, y]) => window.__T.zone(x, y), [bx + 2, ry - 3])));
   await shot(page, 'touch-5-zone');
   await tapBar(page, 'ok');
@@ -317,7 +319,7 @@ try {
   await touchDrag(page, cdp, p, { x: p.x - 70, y: p.y + 60 }, 8);
   s = await st(page);
   check('echtes Ziehen verschiebt nur die Kamera', s.stops === 2 && s.stations === l0.stations + 2);
-  await page.evaluate(([x, y]) => { const a = window.__stadtpuls, rig = a.engine.rig; rig.focus(x - a.game.W / 2, y - a.game.H / 2, 30); rig.cur = { ...rig.cur, ...rig.goal }; }, [bx + 5, ry - 2]);
+  await page.evaluate(([x, y]) => { const a = window.__stadtpuls, rig = a.engine.rig; rig.focus(x - a.game.W / 2, y - a.game.H / 2, 30); rig.goal.pitch = 1.05; rig.goal.yaw = 0; rig.cur = { ...rig.cur, ...rig.goal }; }, [bx + 5, ry - 2]);
   await pause(page, 500);
   await tapTile(page, bx + 8, ry - 5);
   await tapTile(page, bx + 8, ry - 5);
@@ -353,7 +355,8 @@ try {
   await mp.mouse.click(q.x, q.y);
   await pause(mp, 300);
   s = await st(mp);
-  check('Maus: Klick baut sofort, keine Leiste', s.blds === m0 + 1 && !s.bar && !s.pend);
+  const diag = async (pt) => JSON.stringify({ el: await mp.evaluate(([a, b]) => window.__T.onCanvas(a, b), [pt.x, pt.y]), toast: await mp.evaluate(() => (document.getElementById('toasts') || {}).innerText || ''), s: await st(mp) });
+  check('Maus: Klick baut sofort, keine Leiste', s.blds === m0 + 1 && !s.bar && !s.pend, await diag(q));
   await setTool(mp, { kind: 'road', type: 2 });
   q = await scr(mp, mb.bx + 1, mb.ry + 2);
   const q2 = await scr(mp, mb.bx + 6, mb.ry + 2);
@@ -367,15 +370,16 @@ try {
   // Einstellung „always": auch mit der Maus bestätigen
   await mp.evaluate(() => { window.__stadtpuls.settings.confirmPlace = 'always'; });
   await setTool(mp, { kind: 'place', key: 'police' });
+  const m1 = (await st(mp)).blds;
   q = await scr(mp, mb.bx + 4, mb.ry - 1);
   await mp.mouse.move(q.x, q.y); await mp.mouse.click(q.x, q.y);
   await pause(mp, 300);
   s = await st(mp);
-  check('always: Mausklick setzt nur die Vorschau', s.pend && s.blds === m0 + 1 && s.bar);
+  check('always: Mausklick setzt nur die Vorschau', s.pend && s.blds === m1 && s.bar, await diag(q));
   await shot(mp, 'maus-always');
-  await mp.mouse.click(s.ok.x, s.ok.y);
+  if (s.ok) await mp.mouse.click(s.ok.x, s.ok.y);
   await pause(mp, 300);
-  check('always: Klick auf ✓ baut', (await st(mp)).blds === m0 + 2);
+  check('always: Klick auf ✓ baut', (await st(mp)).blds === m1 + 1);
   await M.ctx.close();
 } catch (e) {
   fails++;

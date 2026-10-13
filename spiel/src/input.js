@@ -279,7 +279,7 @@ export class Input {
       const sub = `${n} ${n === 1 ? 'Feld' : 'Felder'}`;
       const reason = !n ? (z ? 'Hier ist keine freie Fläche' : 'Hier sind keine Zonen') : z && !g.canAfford(plan.cost) ? 'Nicht genug Geld' : '';
       return { tip: z ? `${ZONE_INFO[z].name}: ${n} Felder · ${fmtMoney(plan.cost)}` : `Zonen entfernen: ${n} Felder`, tipOk: true,
-        title: z ? ZONE_INFO[z].name : 'Zonen entfernen', sub, ok: !reason, reason, okLabel: z ? 'Ausweisen' : 'Entfernen', price: z && plan.cost ? fmtMoney(plan.cost) : '' };
+        title: z ? ZONE_INFO[z].name : 'Zonen entfernen', sub, ok: !reason, reason, okLabel: z ? 'Bauen' : 'Entfernen', price: z && plan.cost ? fmtMoney(plan.cost) : '' };
     } else if (k === 'bulldoze') {
       const tiles = this.rectTiles(d);
       const p = g.planBulldoze(tiles);

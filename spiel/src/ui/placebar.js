@@ -4,6 +4,7 @@
 // Ist der Platz ungültig, ist ✓ gesperrt und die Zeile darüber nennt den Grund.
 // Griffe (Straßen-/Flächenenden, Verschiebe-Marke der Gebäudevorschau) sind reine Anzeige (pointer-events: none):
 // Die Geste wertet input.js auf der Karte aus, damit Zwei-Finger-Zoom und Kamera immer greifen.
+// Ebenen: Leiste z-index 47 (über der Einführungskarte #ob-layer 46, der sie zusätzlich ausweicht), Griffe 27.
 // Aussehen über die CSS-Variablen von DESIGN (--accent, --accent-ink, --accent-soft, --cta, --cta-2, --cta-edge, --card,
 // --r-pill, --f-ui) – jeweils mit Rückfallwert, falls sie (noch) fehlen.
 //
@@ -27,7 +28,7 @@ const STYLE = `
 .placebar {
   --pb-accent: var(--accent, #7b3fe4); --pb-ink: var(--accent-ink, #3b1d78); --pb-soft: var(--accent-soft, #efe7ff);
   --pb-card: var(--card, #ffffff); --pb-cta: var(--cta, #ffb12b); --pb-cta2: var(--cta-2, #ff7417); --pb-edge: var(--cta-edge, #c4500a);
-  position: fixed; left: 0; top: 0; z-index: 28; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  position: fixed; left: 0; top: 0; z-index: 47; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
   padding: 8px; min-width: 216px; max-width: calc(100vw - 16px); box-sizing: border-box;
   background: var(--pb-card); color: var(--pb-ink); border-radius: 20px;
   box-shadow: 0 12px 30px -8px rgba(76, 38, 160, 0.42), 0 2px 0 rgba(76, 38, 160, 0.12);
@@ -197,16 +198,23 @@ export class PlaceBar {
     const fitsAbove = above >= top0, fitsBelow = below + bh <= bottom0;
     let side = this.pos.side;
     if (first || !side || (side < 0 && !fitsAbove && fitsBelow) || (side > 0 && !fitsBelow && fitsAbove)) side = fitsAbove || !fitsBelow ? -1 : 1;
-    let y = side < 0 ? above : below;
-    y = Math.max(top0, Math.min(bottom0 - bh, y));
-    let x = Math.max(8, Math.min(W - bw - 8, cx - bw / 2));
+    const x = Math.max(8, Math.min(W - bw - 8, cx - bw / 2));
+    const cl = (y) => Math.max(top0, Math.min(bottom0 - bh, y));
+    // Hindernisse: Finger (großzügig) und die Karte der Einführung (#ob-layer .ob-card) – die Leiste weicht beiden aus
     const f = s.finger;
-    if (f && f.x > x - 24 && f.x < x + bw + 24 && f.y > y - 24 && f.y < y + bh + 24) {
-      // Finger würde die Leiste verdecken: auf die andere Seite bzw. an den gegenüberliegenden Rand
-      const alt = side < 0 ? below : above;
-      const ay = Math.max(top0, Math.min(bottom0 - bh, alt));
-      if (!(f.y > ay - 24 && f.y < ay + bh + 24)) { y = ay; side = -side; } else y = f.y > H / 2 ? top0 : bottom0 - bh;
+    const obst = [];
+    if (f) obst.push({ left: f.x - 24, right: f.x + 24, top: f.y - 24, bottom: f.y + 24 });
+    for (const oc of document.querySelectorAll('#ob-layer .ob-card')) {
+      const r = oc.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0 && getComputedStyle(oc).visibility !== 'hidden') obst.push({ left: r.left - 8, right: r.right + 8, top: r.top - 8, bottom: r.bottom + 8 });
     }
+    const free = (y) => !obst.some((r) => x < r.right && x + bw > r.left && y < r.bottom && y + bh > r.top);
+    const cand = [[cl(side < 0 ? above : below), side], [cl(side < 0 ? below : above), -side]];
+    for (const r of obst) { cand.push([cl(r.top - bh), side]); cand.push([cl(r.bottom), side]); }
+    cand.push([top0, side], [bottom0 - bh, side]);
+    const pick = cand.find(([y]) => free(y)) || cand[0];
+    const y = pick[0];
+    side = pick[1];
     this.pos.side = side;
     if (Math.abs(x - this.pos.x) > 0.5 || Math.abs(y - this.pos.y) > 0.5) {
       this.pos.x = x; this.pos.y = y;
