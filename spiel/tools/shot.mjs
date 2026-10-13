@@ -152,15 +152,15 @@ try {
       await wait(opts.wait ?? waitMs);
     },
     async stats() {
-      return page.evaluate(() => {
-        const app = window.__stadtpuls; if (!app || !app.engine) return window.__gallery || null;
+      return page.evaluate(() => { try {
+        const app = window.__stadtpuls; if (!app || !app.engine || !app.engine.renderer) return window.__gallery || null;
         const info = app.engine.renderer.info;
         const g = app.game;
         if (!g) return { calls: info.render.calls, triangles: info.render.triangles };
         return { calls: info.render.calls, triangles: info.render.triangles, geometries: info.memory.geometries, textures: info.memory.textures,
           protos: app.engine.buildings && app.engine.buildings.protoMgr ? app.engine.buildings.protoMgr.stats() : null, pop: g.stats.pop, buildings: g.buildings.size, cars: g.traffic.cars.length,
           simErrors: (g.errors || []).map((e) => `${e.where}: ${e.msg}`) };
-      });
+      } catch (e) { return null; } });
     },
   };
   if (scenario === 'menu') await wait(waitMs + 3000);

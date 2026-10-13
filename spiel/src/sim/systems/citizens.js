@@ -799,7 +799,7 @@ function newsDaily(g, C, rnd) {
   if (S.schoolFill > 1.15 && S.stage.school) say(g, C, 'ed1', 7, `Die Schulen sind überfüllt: ${fmt(S.stage.school.pupils)} Kinder, ${fmt(S.stage.school.seats)} Plätze.`, 'bad');
   if (S.kitaFill > 1.3 && S.stage.kita && S.stage.kita.pupils > 40) say(g, C, 'ed2', 8, `Kita-Plätze fehlen: ${fmt(S.stage.kita.pupils)} Kleinkinder, ${fmt(S.stage.kita.seats)} Plätze.`, 'info');
   if (S.sickShare > 0.1 && S.pop > 300) say(g, C, 'hl1', 5, `${Math.round(S.sickShare * 100)} % der Menschen sind krank. Mehr Arztpraxen und Krankenhäuser helfen.`);
-  if (S.cold > 10) say(g, C, 'ht1', 4, `Frost bei ${Math.round(S.temp)} °C: ${fmt(S.cold)} Gebäude frieren ohne Fernwärme.`);
+  if (S.cold > 10) say(g, C, 'ht1', 4, `Kälte bei ${Math.round(S.temp)} °C: ${fmt(S.cold)} Gebäude frieren ohne Fernwärme.`);
   if (S.birthsToday > Math.max(12, S.pop * 0.02)) say(g, C, 'bb', 10, `Babyboom! Heute wurden ${fmt(S.birthsToday)} Kinder geboren.`, 'good');
   if (S.graduates[3] >= 1 && !C.flags.uni) { C.flags.uni = true; g.news('edu', 'Die ersten Absolventinnen und Absolventen der Universität feiern ihren Abschluss!', 'good'); }
   if (S.graduates[2] >= 1 && !C.flags.abi) { C.flags.abi = true; g.news('edu', 'Der erste Abiturjahrgang der Stadt wirft die Hüte in die Luft.', 'good'); }

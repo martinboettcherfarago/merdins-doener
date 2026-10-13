@@ -232,6 +232,7 @@ const app = {
   },
   exportSave() {
     if (!this.game) return;
+    if (window.STADTPULS_EMBED) { this.ui.toast('Datei-Export ist in dieser Fassung nicht möglich – bitte „In Zwischenablage" nutzen.'); return; }
     const blob = new Blob([JSON.stringify(this.game.serialize())], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -243,8 +244,11 @@ const app = {
   },
   copySave() {
     if (!this.game) return;
-    const txt = JSON.stringify(this.game.serialize());
-    navigator.clipboard?.writeText(txt).then(() => this.ui.toast('Spielstand in die Zwischenablage kopiert.', 'good'), () => this.ui.toast('Zwischenablage nicht verfügbar.', 'bad'));
+    try {
+      const txt = JSON.stringify(this.game.serialize());
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { this.ui.toast('Zwischenablage nicht verfügbar.', 'bad'); return; }
+      navigator.clipboard.writeText(txt).then(() => this.ui.toast('Spielstand in die Zwischenablage kopiert.', 'good'), () => this.ui.toast('Zwischenablage nicht verfügbar.', 'bad'));
+    } catch (e) { this.ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
   },
   importFile(file) {
     const r = new FileReader();
