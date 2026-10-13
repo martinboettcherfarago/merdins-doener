@@ -91,3 +91,12 @@ const MY_CHATTER = [
   { when: (g) => g.ext.districts && g.ext.districts.list && g.ext.districts.list.length > 0, texts: ['Unser Bezirk hat jetzt einen eigenen Namen. Ich fühle mich gleich heimischer.', 'Bezirksversammlung heute Abend: Es geht um Tempo 30.'] },
 ];
 CHATTER.unshift(...MY_CHATTER);
+
+// ---------- Müllabfuhr-Abstimmung (Q2)
+// Die Abdeckung reicht vom Mittelpunkt der Anlage aus. Mit 15 Feldern blieben in einer ordentlich versorgten Stadt
+// (Deponien am Rand, wie man sie baut – sie stinken) ganze Wohnreihen ohne Müllabfuhr (Beispielstadt: 21 von 98 Häusern
+// trotz 2 Deponien mit 7–13 % Auslastung). Die Kapazität bleibt, damit wachsende Städte trotzdem mehr Anlagen brauchen.
+for (const [key, r] of [['landfill', 20], ['incinerator', 24], ['recycling', 22]]) {
+  const d = BUILDINGS[key];
+  if (d && d.service && d.service.radius < r) d.service.radius = r;
+}
