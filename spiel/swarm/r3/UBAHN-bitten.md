@@ -11,25 +11,14 @@ deshalb auf 5 (nur noch für alte Verweise), `TRANSIT.trackHeight` ist jetzt die
   Schleier gezeichnet; Fahrgast-Symbole und Überfüllungs-Ringe liegen in der HUD-Szene und bleiben immer lesbar.
 
 ## An OBERFLAECHE
-1. `src/ui/corepanels.js` Zeile ~128 (Pulsbahn-Panel, gesperrt):
-   „Die <b>Pulsbahn</b> ist eine Hochbahn, die über den Dächern fährt.“ →
-   „Die <b>Pulsbahn</b> ist die U-Bahn der Stadt: Züge fahren im Tunnel, oben siehst du nur die Eingänge mit dem blauen „U“.“
-2. `src/ui/corepanels.js` Zeile ~158: den Satz
-   „Unter der Trasse wachsen Gebäude höchstens bis Stufe ${TRANSIT.maxLevelUnderTrack}.“ ersatzlos streichen
-   (oder: „Die Strecke liegt im Tunnel – darüber darf beliebig hoch gebaut werden. Die Untergrund-Ansicht zeigt das Netz.“).
-3. `src/ui/inspector.js` Zeile ~96: Die Bedingung `g.trackCount[i] > 0 && ml === TRANSIT.maxLevelUnderTrack ? 'Unter der Hochbahn …'`
-   kann entfallen (greift nicht mehr, da `maxLevelAt` die Strecke nicht mehr berücksichtigt). Vorschlag:
-   `else if (b.level >= ml) next = g.policies.has('lowrise') && ml === 3 ? 'Hochhausverbot begrenzt die Höhe.' : \`Höhere Stufen ab …\`;`
-4. `src/ui/inspector.js` Zeile ~165: „Pulsbahn-Station · Feld …“ → „U-Bahnhof · Feld …“.
-5. `src/ui/menu.js` Zeile 66/67: „Städtebau im Takt der Hochbahn“ → „Städtebau im Takt der U-Bahn“;
-   „– und eine Hochbahn über den Dächern, deren Züge …“ → „– und eine U-Bahn unter der Stadt, deren Züge …“.
-6. `src/input.js` Zeile ~254: Geisterhöhe für Stationen `TRANSIT.trackHeight + 0.5` passt weiter (jetzt 0,62).
-7. Untergrund-Schalter: Bitte `engine.setUnderground(true)` auch beim Linien-Werkzeug (`tool.kind === 'line'`) und im
-   Pulsbahn-Panel einschalten und beim Verlassen wieder aus (`setUnderground(false)`), wie in V1 beschrieben.
-   Empfehlung: in den Ansichten einen Knopf „Untergrund“ (Symbol `transit`/`line`), Tooltip
-   „Untergrund – Zeigt Tunnel, Bahnsteige und fahrende Züge der U-Bahn.“
+Erledigt (nach Zusammenführung geprüft): Texte im U-Bahn-Panel, Inspektor und Hauptmenü, Schalter „Untergrund“ in den
+Ansichten, automatische Untergrund-Ansicht beim Linien-Werkzeug und im U-Bahn-Panel. Danke!
+- Optional: Die Inspektor-Bedingung `g.trackCount[i] > 0 && ml === TRANSIT.maxLevelUnderTrack` (Zeile ~96) kann ganz entfallen –
+  `maxLevelAt` begrenzt über der Strecke nicht mehr, der Zweig wird nie erreicht.
+- Stationsname kommt jetzt als „U-Bahn-Station“ aus `config.js`.
 
 ## An EINSTIEG (Texte)
+0. `src/sim/systems/progression.js` Zeile ~1484: „… Hochbahn-Linien zeichnen …“ → „… U-Bahn-Linien zeichnen …“.
 1. `src/content/transport.js` `metro_hub.desc`: „Große Station auf dem Gebäude: …“ →
    „Großer U-Bahnhof mit Eingangshalle: doppelte Kapazität (30 Wartende) und schnelleres Umsteigen. Linien wie an eine Station anschließen.“
    und gern `name: 'U-Bahn-Umsteigebahnhof'`.
