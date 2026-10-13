@@ -26,6 +26,8 @@ import { keysHTML, KEY_HINT } from './keys.js';
 import { settingsHTML, settingsClick, settingsInput, settingsChange, ensureSettings, applyUiScale, gfxSnapshot } from './settings.js';
 import { bindTips, hideTip, setTipsEnabled } from './tips.js';
 import { showLoader, hideLoader, loaderVisible, setLoader, painted } from './loading.js';
+import { Onboarding } from './onboarding.js';
+import { openHelp, helpTopics } from './help.js';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -111,6 +113,9 @@ export class UI {
     this.advisor.compute();
     this.mount();
     this.bindGame();
+    this.onboarding = new Onboarding(this);
+    this.openHelp = (topic) => openHelp(this, topic);
+    this.helpTopics = helpTopics;
     bindTips();
     setTipsEnabled(app.settings.tooltips !== false);
     this.refreshBadges();
@@ -289,6 +294,7 @@ export class UI {
     for (const u of this.unbus || []) u();
     this.notes.dispose();
     this.advisor.dispose();
+    if (this.onboarding) this.onboarding.dispose();
     if (this.minimap) this.minimap.dispose();
     if (this.unswap) this.unswap();
     hideTip();
@@ -1123,6 +1129,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
       this.refreshTutorial();
     }
     this.advisor.update(dt);
+    if (this.onboarding) this.onboarding.update(dt);
     this.photo.update(dt);
     if (this.minimap && !this.photo.active && !this.hudHidden) this.minimap.update(dt);
     // Vorschaubilder nur bei flüssiger Bildrate (Shader-Übersetzung kann auf schwachen Geräten und im Software-Renderer lange blockieren)
