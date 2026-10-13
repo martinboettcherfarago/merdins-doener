@@ -1268,3 +1268,4 @@ kbd { font-family: var(--f-num); font-weight: 600; background: #fff; border: 1.5
 /* Langsame Bildrate (schwache Geräte, Software-Renderer): Übergänge sofort ans Ende */
 .lowfps *, .lowfps *::before, .lowfps *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; transition-delay: 0s !important; }
 .lowfps .ld-tip.in { opacity: 1; }
+html.placebar-on .toolhint .th-b { display: none; }

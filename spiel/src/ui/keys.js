@@ -46,5 +46,5 @@ export const KEY_HINT = {
 export function keysHTML() {
   return `<div class="modal keysheet"><div class="ks-head"><div><div class="eyebrow">Bedienung</div><h2>Tastenkürzel</h2></div><button class="close" data-act="ok" aria-label="Schließen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
 <div class="ks-grid">${KEYMAP.map((g) => `<section><h3>${g.group}</h3>${g.items.map(([keys, txt]) => `<div class="ks-row"><span class="ks-keys">${keys.map((k) => `<kbd>${k}</kbd>`).join('<i>·</i>')}</span><span class="ks-t">${txt}</span></div>`).join('')}</section>`).join('')}</div>
-<p class="ks-foot">Auf dem Handy: ein Finger verschiebt, zwei Finger zoomen und drehen. Antippen zeigt Infos zu Gebäuden.</p></div>`;
+<p class="ks-foot">Auf dem Handy: ein Finger verschiebt, zwei Finger zoomen und drehen. Antippen zeigt Infos zu Gebäuden. Beim Bauen setzt Antippen eine Vorschau, ✓ baut, ✕ verwirft; Ziehen verschiebt die Karte, die Vorschau oder die Griffe.</p></div>`;
 }

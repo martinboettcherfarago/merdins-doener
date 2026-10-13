@@ -727,17 +727,20 @@ export class UI {
     if (!t || t.kind === 'select' || this.photo.active) { el.hidden = true; this.root.classList.remove('tool-on'); return; }
     let name = '', hint = '', ic = 'select', col = '#1d2330';
     const extra = [];
-    if (t.kind === 'road') { name = ROADS[t.type].name; hint = 'Ziehen zum Bauen'; ic = 'roads'; col = '#5d6470'; }
-    else if (t.kind === 'zone') { name = ZONE_INFO[t.zone].name; hint = 'Fläche aufziehen'; ic = 'zones'; col = hex(ZONE_INFO[t.zone].color); }
-    else if (t.kind === 'dezone') { name = 'Zonen entfernen'; hint = 'Fläche aufziehen'; ic = 'dezone'; }
-    else if (t.kind === 'bulldoze') { name = 'Abriss'; hint = 'Fläche aufziehen'; ic = 'bulldoze'; col = '#d4433a'; }
+    // Auf Touch wird erst über die Bestätigungsleiste gebaut (placebar.js) – die Hinweise sagen das passend
+    const touch = !!(input && input.lastType && input.lastType !== 'mouse');
+    const areaHint = touch ? 'Antippen, Griffe ziehen · ✓' : 'Fläche aufziehen';
+    if (t.kind === 'road') { name = ROADS[t.type].name; hint = touch ? 'Start und Ziel antippen · ✓ baut' : 'Ziehen zum Bauen'; ic = 'roads'; col = '#5d6470'; }
+    else if (t.kind === 'zone') { name = ZONE_INFO[t.zone].name; hint = areaHint; ic = 'zones'; col = hex(ZONE_INFO[t.zone].color); }
+    else if (t.kind === 'dezone') { name = 'Zonen entfernen'; hint = areaHint; ic = 'dezone'; }
+    else if (t.kind === 'bulldoze') { name = 'Abriss'; hint = areaHint; ic = 'bulldoze'; col = '#d4433a'; }
     else if (t.kind === 'place') {
       const d = BUILDINGS[t.key]; name = d ? d.name : t.key; ic = d ? catMeta(d.cat).icon : 'layers'; col = d ? catMeta(d.cat).color : col;
       hint = `${d ? fmtMoney(this.g.buildingCost(t.key)) : ''}${d && d.size[0] !== d.size[1] ? ' · R dreht' : ''}`;
       if (d && d.size[0] !== d.size[1]) extra.push(['rotate', 'Drehen', 'rotate', 'Gebäude um 90° drehen.']);
     } else if (t.kind === 'line' || t.kind === 'extend') {
       name = t.kind === 'line' ? 'U-Bahn-Linie zeichnen' : 'Linie verlängern'; ic = 'line'; col = '#e8543f';
-      hint = `${input.lineStops.length} ${input.lineStops.length === 1 ? 'Station' : 'Stationen'} · Rechtsklick oder Enter beendet`;
+      hint = `${input.lineStops.length} ${input.lineStops.length === 1 ? 'Station' : 'Stationen'} · ${touch ? 'Stationen antippen · Fertig' : 'Rechtsklick oder Enter beendet'}`;
       extra.push(['finish', 'Fertig', 'check', 'Linie abschließen und Züge fahren lassen.']);
     } else {
       const T2 = TOOLS[t.kind] || {};
@@ -1018,7 +1021,8 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
       }
       if (id === 'tray') return vis(this.el.tray);
       if (id === 'menu') return vis(this.el.menubtn);
-      return vis(q(sel(id)));
+      // Die Bestätigungsleiste (placebar.js) hängt direkt an document.body
+      return vis(q(sel(id))) || vis(document.querySelector('.placebar ' + sel(id)));
     } catch (e) { console.warn('tourTarget', id, e); return null; }
   }
 
