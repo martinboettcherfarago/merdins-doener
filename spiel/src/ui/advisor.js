@@ -70,7 +70,7 @@ export const ADVISOR_RULES = [
   { id: 'budget', rank: 60, when: (g) => (!g.sandbox && g.money >= 0 && g.lastBudget && g.lastBudget.net < 0 && g.money < Math.max(8000, -g.lastBudget.net * 10) ? { text: `Die Stadt gibt ${fmt(Math.round(-g.lastBudget.net))} € pro Tag mehr aus, als sie einnimmt.`, why: 'Hebe die Steuern ein wenig an oder spare bei teuren Diensten.', act: { panel: 'budget' }, label: 'Haushalt öffnen', help: 'money' } : null) },
   { id: 'unemp', rank: 58, when: (g) => (g.stats.pop > 120 && g.stats.unemployment > 0.14 ? { text: `${pct(g.stats.unemployment)} der Menschen haben keine Arbeit.`, why: 'Gewerbe und Industrie schaffen Jobs.', act: zoneTool(g.demand[Z.IND] > g.demand[Z.COM] ? Z.IND : Z.COM), label: 'Jobs schaffen', help: 'demand' } : null) },
   { id: 'workers', rank: 56, when: (g) => (g.stats.jobs > 80 && g.stats.jobFill < 0.7 ? { text: 'Die Betriebe finden keine Arbeitskräfte.', why: 'Mehr Wohngebiet in der Nähe bringt neue Leute.', act: zoneTool(Z.RES), label: 'Wohngebiet', help: 'demand' } : null) },
-  { id: 'happy', rank: 55, when: (g) => (g.stats.pop > 80 && g.stats.happiness < 45 ? { text: `Die Stimmung ist schlecht (${Math.round(g.stats.happiness)} %).`, why: 'Klicke ein Wohnhaus an: Dort stehen die Gründe.', act: { view: 'happiness' }, label: 'Glück zeigen', help: 'happiness' } : null) },
+  { id: 'happy', rank: 55, when: (g) => (g.stats.pop > 30 && g.stats.happiness < 45 ? { text: `Die Stimmung ist schlecht (${Math.round(g.stats.happiness)} %).`, why: 'Klicke ein Wohnhaus an: Dort stehen die Gründe.', act: { view: 'happiness' }, label: 'Glück zeigen', help: 'happiness' } : null) },
   { id: 'nofire', rank: 54, when: (g) => (g.stats.pop > 200 && !has(g, 'fire', 'firehq') && g.isUnlocked('fire') ? { text: 'Baue eine Feuerwache.', why: 'Ein einziger Brand kann sonst ganze Straßen kosten.', act: { view: 'fire', ...placeTool(g, 'fire', 'services') }, label: 'Feuerwache', help: 'services' } : null) },
   { id: 'noschool', rank: 53, when: (g) => (g.stats.pop > 250 && !g.hasBuilt('school') && g.isUnlocked('school') ? { text: 'Baue eine Schule.', why: 'Gebildete Bürger bauen größere Häuser und zahlen mehr Steuern.', act: { view: 'edu', ...placeTool(g, 'school', 'education') }, label: 'Schule', help: 'services' } : null) },
   { id: 'nohealth', rank: 52, when: (g) => (g.stats.pop > 300 && !has(g, 'clinic', 'hospital') && g.isUnlocked('clinic') ? { text: 'Baue eine Arztpraxis.', why: 'Gesunde Bürger sind glücklicher und leben länger.', act: { view: 'health', ...placeTool(g, 'clinic', 'services') }, label: 'Arztpraxis', help: 'services' } : null) },
@@ -92,7 +92,7 @@ export const ADVISOR_RULES = [
     const n = MILESTONES[g.milestone + 1];
     if (!n) return { text: 'Deine Stadt hat alle Meilensteine erreicht. Bau sie, wie es dir gefällt!', act: null };
     const z = bestZone(g);
-    return { text: `Nächstes Ziel: „${n.name}" mit ${fmt(n.pop)} Einwohnern. Es fehlen noch ${fmt(Math.max(0, n.pop - g.stats.pop))}.`, why: `Dafür gibt es ${fmt(n.reward)} € und neue Gebäude. Gerade gefragt: ${ZONE_WORD[z][0]}.`, act: zoneTool(z), label: ZONE_WORD[z][1], help: 'cards' };
+    return { text: `Wachse zum Meilenstein „${n.name}": noch ${fmt(Math.max(0, n.pop - g.stats.pop))} Einwohner bis ${fmt(n.pop)}.`, why: `Dafür gibt es ${fmt(n.reward)} € und neue Gebäude. Gerade gefragt: ${ZONE_WORD[z][0]}.`, act: zoneTool(z), label: ZONE_WORD[z][1], help: 'cards' };
   } },
 ];
 

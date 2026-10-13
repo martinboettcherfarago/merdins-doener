@@ -115,8 +115,8 @@ const STEPS = [
     done: (c) => c.g.countBuilt('power') > 0,
     hint: (c) => pickHint(c, { cat: 'power', catName: 'Strom', items: ['coal', 'wind'], why: 'Ohne Strom zieht niemand ein.',
       itemText: 'Wähle das Kohlekraftwerk: günstig und stark. Windräder sind sauberer, liefern aber wenig.',
-      placeText: 'Setze das Kraftwerk direkt an eine Straße. Der Strom fließt über die Straßen zu allen Häusern.',
-      placeTouch: 'Tippe auf einen Platz direkt an einer Straße. Der Strom fließt über die Straßen zu allen Häusern.' }),
+      placeText: 'Setze das Kraftwerk an eine Straße, etwas weg von den Häusern – es macht Abgase. Der Strom fließt über die Straßen zu allen Häusern.',
+      placeTouch: 'Tippe auf einen Platz an einer Straße, etwas weg von den Häusern. Der Strom fließt über die Straßen.' }),
   },
   {
     id: 'water', title: 'Wasser liefern', build: (c) => placing(c, 'water'),
