@@ -15,6 +15,7 @@ import { fmt } from '../util.js';
 import { cityCounts } from './advisor.js';
 import { openHelp } from './help.js';
 import { icon } from './icons.js';
+import * as META from './meta.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ic = (name, size = 16, stroke = 2.2) => { try { return icon(name, size, stroke); } catch (e) { return ''; } };
@@ -67,9 +68,22 @@ function clippedInScroller(el) {
 // info: true → Schritt mit Knopf statt Aufgabe
 const verb = (c) => (c.touch ? 'Tippe' : 'Klicke');
 const placing = (c, cat) => c.tool.kind === 'place' && BUILDINGS[c.tool.key] && BUILDINGS[c.tool.key].cat === cat;
-function pickHint(c, { cat, catName, items, itemText, placeText, why }) {
-  if (placing(c, cat)) return { target: [], text: placeText };
-  return { target: [...items.map((k) => 'item-' + k), 'cat-' + cat], text: c.open(items) ? itemText : `${why} ${verb(c)} unten auf „${catName}".` };
+// Hauptgruppe der Werkzeugleiste zu einer Kategorie (neue Oberfläche: Straßen, Zonen, Versorgung …)
+const GROUP_FALLBACK = { roads: 'roads', zones: 'zones', power: 'versorgung', water: 'versorgung', garbage: 'versorgung' };
+function groupOf(cat) { try { return (META.groupOfCat && META.groupOfCat(cat)) || GROUP_FALLBACK[cat] || cat; } catch (e) { return GROUP_FALLBACK[cat] || cat; } }
+function groupName(gid) { try { const gr = (META.GROUPS || []).find((x) => x.id === gid); return gr ? gr.name : null; } catch (e) { return null; } }
+// Weg durch den Katalog: Eintrag → Reiter → Hauptgruppe. Das erste sichtbare Ziel gewinnt, der Text passt dazu.
+function menuHint(c, { cat, catName, items, itemText, why }) {
+  const gid = groupOf(cat), gname = groupName(gid) || catName;
+  const texts = {};
+  for (const k of items) texts['item-' + k] = itemText;
+  texts['cat-' + cat] = `${why} ${verb(c)} auf „${catName}".`;
+  texts['group-' + gid] = `${why} ${verb(c)} unten auf „${gname}".`;
+  return { target: [...items.map((k) => 'item-' + k), 'cat-' + cat, 'group-' + gid], texts, text: texts['cat-' + cat] };
+}
+function pickHint(c, o) {
+  if (placing(c, o.cat)) return { target: [], text: o.placeText };
+  return menuHint(c, o);
 }
 
 const STEPS = [
@@ -83,7 +97,7 @@ const STEPS = [
     done: (c) => c.n.roads >= 4,
     hint: (c) => {
       if (c.tool.kind === 'road') return { target: [], map: c.n.roads ? null : 'highway', text: c.n.roads ? 'Gut! Zieh die Straße noch ein Stück weiter ins Land.' : `${c.touch ? 'Ziehe mit dem Finger' : 'Halte die linke Maustaste gedrückt und ziehe'} vom Ende der Autobahn (roter Kreis) eine Straße ins Land.` };
-      return { target: ['item-street', 'cat-roads'], text: c.open(['street']) ? 'Wähle „Straße".' : `Alles in der Stadt braucht eine Straße. ${verb(c)} unten auf „Straßen".` };
+      return menuHint(c, { cat: 'roads', catName: 'Straßen', items: ['street'], itemText: 'Wähle „Straße".', why: 'Alles in der Stadt braucht eine Straße.' });
     },
   },
   {
@@ -91,7 +105,7 @@ const STEPS = [
     done: (c) => c.n.zone[Z.RES] >= 6,
     hint: (c) => {
       if (c.tool.kind === 'zone' && c.tool.zone === Z.RES) return { target: [], text: `Ziehe direkt neben der Straße eine Fläche auf. Dort bauen Familien ihre Häuser – Häuser entstehen nur an Straßen.` };
-      return { target: ['item-res', 'cat-zones'], text: c.open(['res']) ? 'Wähle „Wohnen" (grün).' : `Jetzt brauchst du Platz für Häuser. ${verb(c)} auf „Zonen".` };
+      return menuHint(c, { cat: 'zones', catName: 'Zonen', items: ['res'], itemText: 'Wähle „Wohnen" (grün).', why: 'Jetzt brauchst du Platz für Häuser.' });
     },
   },
   {
@@ -126,7 +140,7 @@ const STEPS = [
       const needCom = c.n.zone[Z.COM] < 4, z = needCom ? Z.COM : Z.IND;
       const name = needCom ? 'Gewerbe' : 'Industrie', key = needCom ? 'com' : 'ind';
       if (c.tool.kind === 'zone' && c.tool.zone === z) return { target: ['demand'], text: needCom ? 'Ziehe Gewerbe an eine Straße. Die Balken oben zeigen, was gefragt ist: W Wohnen, G Gewerbe, I Industrie.' : 'Ziehe Industrie an eine Straße – mit etwas Abstand zu den Häusern, denn Fabriken machen Abgase.' };
-      return { target: ['item-' + key, 'cat-zones'], text: c.open([key]) ? `Wähle „${name}" (${needCom ? 'blau' : 'gelb'}).` : `Deine Bürger brauchen Arbeit und Läden. ${verb(c)} auf „Zonen".` };
+      return menuHint(c, { cat: 'zones', catName: 'Zonen', items: [key], itemText: `Wähle „${name}" (${needCom ? 'blau' : 'gelb'}).`, why: 'Deine Bürger brauchen Arbeit und Läden.' });
     },
   },
   {
@@ -266,7 +280,10 @@ export class Onboarding {
     if (!this.layer) this.mountLayer();
     this.skipDone();
     this.render(true);
+    this.syncUi();
   }
+  // Oberfläche über Beginn/Ende informieren (#hud.tour-on blendet dort Störendes aus)
+  syncUi() { try { if (typeof this.ui.refreshTutorial === 'function') this.ui.refreshTutorial(); } catch (e) { /* egal */ } }
   stop(finished = false) {
     if (!this.running) return;
     this.running = false;
@@ -276,6 +293,7 @@ export class Onboarding {
     if (this.layer) this.layer.hidden = true;
     if (!finished) { try { this.ui.toast('Einführung beendet. Du kannst sie jederzeit in der Hilfe („?") neu starten.', '', { icon: 'help' }); } catch (e) { /* egal */ } }
     this.guideT = 0;
+    this.syncUi();
     this.renderGuide(true);
   }
   onEvent(name, data) {
@@ -324,7 +342,7 @@ export class Onboarding {
   // ---------- Ziele
   findTarget(id, quiet = false) {
     let el = queryVisible(`[data-tour="${id}"]`) || queryVisible(legacySelector(id));
-    if (!el && !quiet && !id.startsWith('item-') && typeof this.ui.tourTarget === 'function') {
+    if (!el && !quiet && !id.startsWith('item-') && !id.startsWith('cat-') && typeof this.ui.tourTarget === 'function') {
       // ui.tourTarget darf Gruppen öffnen – deshalb je Ziel höchstens alle 3 s fragen
       const now = performance.now(), at = this.tgtAsked.get(id) || 0;
       if (now - at > 3000) {
@@ -369,6 +387,8 @@ export class Onboarding {
     const c = this.ctx();
     const h = st.hint(c) || {};
     this.hint = h;
+    this.tid = this.resolveTarget(h);
+    if (h.texts && this.tid && h.texts[this.tid]) h.text = h.texts[this.tid];
     const title = typeof st.title === 'function' ? st.title(c) : st.title;
     const taskNo = STEPS.slice(0, this.idx + 1).filter((s) => !s.info || s.id === 'happy').length;
     const isWelcome = st.id === 'welcome', isFinish = st.id === 'finish';
@@ -397,6 +417,11 @@ export class Onboarding {
     }
   }
 
+  resolveTarget(h) {
+    for (const id of h.target || []) if (this.findTarget(id, true) || (!/^(cat|item)-/.test(id) && this.findTarget(id))) return id;
+    return null;
+  }
+
   hiddenNow() {
     const ui = this.ui;
     const hud = ui.root || document.getElementById('hud');
@@ -410,8 +435,9 @@ export class Onboarding {
     L.hidden = false;
     const h = this.hint || {};
     const vw = window.innerWidth, vh = window.innerHeight, mob = this.ui.mobile();
-    let el = null, tid = null;
-    for (const id of h.target || []) { el = this.findTarget(id); if (el) { tid = id; break; } }
+    let tid = this.resolveTarget(h);
+    if (tid !== this.tid) { this.render(); tid = this.tid; }
+    const el = tid ? this.findTarget(tid) : null;
     const tr = el ? el.getBoundingClientRect() : null;
     // Ring um das Ziel
     if (tr) {
@@ -553,6 +579,7 @@ export class Onboarding {
 
   // ---------- jedes Bild
   update(dt) {
+    if (this._synced !== this.running) { this._synced = this.running; this.syncUi(); }
     if (this.running) {
       this.poll -= dt;
       if (this.poll <= 0) {
