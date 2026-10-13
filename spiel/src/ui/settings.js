@@ -1,6 +1,7 @@
 // Einstellungen (Vertrag 6.7): Grafik, Klang, Bedienung, Spielstand, Hilfe – im Spiel als Panel, im Menü als Fenster.
 // app.settings: quality 'low'|'medium'|'high'|'ultra', postfx, ao, bloom, shadows 'off'|'low'|'high', alwaysDay,
-// volume, music, sfx, muted, tutorialDone – dazu Oberflächen-Werte uiScale, minimap, advisor, tooltips.
+// volume, music, sfx, muted, tutorialDone – dazu Oberflächen-Werte uiScale, minimap, advisor, tooltips,
+// confirmPlace 'auto'|'always'|'never' (Bauen bestätigen, ausgewertet von TOUCH in src/input/**).
 // Grafikwerte liest die Engine beim Start; geänderte Werte werden mit „Übernehmen" (Neustart der Ansicht) wirksam.
 import { fmt } from '../util.js';
 import { icon } from './icons.js';
@@ -21,6 +22,11 @@ export const QUALITY = [
 ];
 export const GFX_KEYS = ['quality', 'postfx', 'ao', 'bloom', 'shadows'];
 const UI_SCALES = [[0.9, '90 %'], [1, '100 %'], [1.1, '110 %'], [1.25, '125 %']];
+export const CONFIRM_PLACE = [
+  ['auto', 'Bei Touch', 'Mit Finger oder Stift erscheint erst eine Vorschau, gebaut wird mit ✓. Mit der Maus baut ein Klick sofort.'],
+  ['always', 'Immer', 'Jeder Bau – auch mit der Maus – zeigt erst eine Vorschau und wartet auf ✓.'],
+  ['never', 'Nie', 'Antippen bzw. Klicken baut sofort, ohne Vorschau.'],
+];
 
 // Fehlende Werte ergänzen (ältere Einstellungen) – vor dem Start der ersten Engine aufrufen.
 export function ensureSettings(s) {
@@ -35,6 +41,8 @@ export function ensureSettings(s) {
   if (s.minimapOpen === undefined) s.minimapOpen = false; // Runde 3: Minikarte startet eingeklappt (Taste K)
   if (s.advisor === undefined) s.advisor = true;
   if (s.tooltips === undefined) s.tooltips = true;
+  // Runde 3b (TOUCH): Bauen bestätigen – 'auto' = bei Touch/Stift mit Vorschau und ✓, mit der Maus sofort; 'always'; 'never'
+  if (!['auto', 'always', 'never'].includes(s.confirmPlace)) s.confirmPlace = 'auto';
   return s;
 }
 export const gfxSnapshot = (s) => Object.fromEntries(GFX_KEYS.map((k) => [k, s[k]]));
@@ -80,7 +88,9 @@ ${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort
     body = `<div class="sec"><h3>Lautstärke</h3>${slider('volume', 'Gesamt', s.volume)}${slider('music', 'Musik', s.music)}${slider('sfx', 'Effekte', s.sfx)}${slider('ambience', 'Umgebung', s.ambience ?? 1)}</div>
 <div class="sec">${sw('mute', !s.muted, 'Ton an', 'Taste M schaltet stumm.')}</div>`;
   } else if (tab === 'bedienung') {
+    const cp = CONFIRM_PLACE.find((x) => x[0] === s.confirmPlace) || CONFIRM_PLACE[0];
     body = `<div class="sec"><h3>Größe der Oberfläche</h3>${seg('uiScale', s.uiScale, UI_SCALES)}</div>
+<div class="sec" data-tour="confirmplace"><h3>Bauen bestätigen</h3>${seg('confirmPlace', s.confirmPlace, CONFIRM_PLACE.map((x) => [x[0], x[1]]))}<p class="hint">${esc(cp[2])}</p></div>
 <div class="sec"><h3>Hilfen</h3>
   ${sw('minimap', s.minimapOpen, 'Minikarte', 'Übersichtskarte unten links (Taste K).')}
   ${sw('advisor', s.advisor, 'Ratgeber-Hinweise', 'Die Stadtplanerin meldet sich, wenn etwas fehlt.')}
@@ -127,6 +137,7 @@ export function settingsClick(ctx, act, el) {
     case 'icons': if (app.engine && app.engine.effects) app.engine.effects.showIcons = !app.engine.effects.showIcons; return true;
     case 'mute': s.muted = !s.muted; app.audio && app.audio.applyVolumes(); save(); return true;
     case 'uiScale': s.uiScale = +el.dataset.v; applyUiScale(s); save(); return true;
+    case 'confirmPlace': if (CONFIRM_PLACE.some((x) => x[0] === el.dataset.v)) { s.confirmPlace = el.dataset.v; save(); } return true;
     case 'minimap': s.minimapOpen = !s.minimapOpen; save(); if (ctx.ui && ctx.ui.toggleMinimap) ctx.ui.toggleMinimap(s.minimapOpen, true); return true;
     case 'advisor': s.advisor = !s.advisor; save(); return true;
     case 'tooltips': s.tooltips = !s.tooltips; save(); ctx.onTips && ctx.onTips(s.tooltips); return true;
