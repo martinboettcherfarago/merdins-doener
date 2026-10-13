@@ -4,7 +4,7 @@
 // Farben als CSS-Farbe (#rrggbb). Alle Funktionen sind für Panels anderer Module freigegeben.
 
 const INK = '#7a8294';
-const FONT = '600 11px "Barlow Condensed", Barlow, sans-serif';
+const FONT = '600 11px "Stadtpuls Rund", Fredoka, sans-serif';
 const nf = (v) => Math.round(v).toLocaleString('de-DE');
 
 function prep(canvas, hDefault = 120) {
@@ -24,7 +24,7 @@ export function drawLineChart(canvas, values, opts = {}) {
   const padL = 44, padR = 8, padT = 10, padB = 18;
   const extra = opts.series || [];
   if (!values.length) {
-    ctx.fillStyle = INK; ctx.font = '12px Barlow, sans-serif';
+    ctx.fillStyle = INK; ctx.font = '12px "Stadtpuls Text", Nunito, sans-serif';
     ctx.fillText(opts.empty || 'Noch keine Daten – ein Spieltag vergeht in 30 Sekunden.', 8, h / 2);
     return;
   }
@@ -87,7 +87,7 @@ export function drawLineChart(canvas, values, opts = {}) {
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.stroke();
     const txt = (opts.label ? opts.label(i) + ' · ' : '') + (opts.fmt ? opts.fmt(values[i]) : nf(values[i]));
-    ctx.font = '700 12px "Barlow Condensed", Barlow, sans-serif';
+    ctx.font = '700 12px "Stadtpuls Rund", Fredoka, sans-serif';
     const tw = ctx.measureText(txt).width + 14;
     const bx = Math.max(padL, Math.min(w - padR - tw, hx - tw / 2)), by = Math.max(0, hy - 30);
     ctx.fillStyle = '#1d2330'; roundRect(ctx, bx, by, tw, 20, 6); ctx.fill();

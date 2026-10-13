@@ -93,7 +93,7 @@ function inspZone(ui, b) {
   if (b.abandoned) next = '<span class="chip no">Verlassen – wird bald abgerissen</span>';
   else if (b.construct < 1) next = `<span class="chip warn">Im Bau · ${Math.round(b.construct * 100)} %</span>`;
   else if (b.level >= 5) next = 'Höchste Stufe erreicht.';
-  else if (b.level >= ml) next = g.trackCount[i] > 0 && ml === TRANSIT.maxLevelUnderTrack ? 'Über der U-Bahn-Strecke ist hier keine höhere Stufe möglich.' : g.policies.has('lowrise') && ml === 3 ? 'Hochhausverbot begrenzt die Höhe.' : `Höhere Stufen ab Meilenstein „${MILESTONES[[0, 0, 2, 3, 4, 4][b.level + 1] ?? 4].name}".`;
+  else if (b.level >= ml) next = g.policies.has('lowrise') && ml === 3 ? 'Hochhausverbot begrenzt die Höhe.' : `Höhere Stufen ab Meilenstein „${MILESTONES[[0, 0, 2, 3, 4, 4][b.level + 1] ?? 4].name}".`;
   else {
     const need = L.need[b.level + 1];
     const score = b.zone === Z.IND ? null : g.fields.landValue[i];
