@@ -39,6 +39,7 @@ export class Menu {
 
   show() {
     this.root.hidden = false;
+    this._introDone = false;
     this.render();
     // Erster Start: Ladebildschirm übernimmt die Reihenfolge (Texturen, dann Menü-Stadt)
     if (!booted) {
@@ -67,10 +68,10 @@ export class Menu {
     const tab = modes && this.tab === 'modes' ? 'modes' : 'free';
     const more = !!this.moreOpts;
     this.root.innerHTML = `
-<div class="menu${this.previewing ? ' previewing' : ''}">
+<div class="menu${this.previewing ? ' previewing' : ''}${this._introDone ? '' : ' intro'}">
   <div class="side">
     <div class="brand">${logo(58)}<div><h1>Stadtpuls</h1><div class="tag">Städtebau im Takt der U-Bahn</div></div></div>
-    <p class="lede">Baue eine Stadt, die im Takt schlägt – mit einer U-Bahn, deren Züge bei jeder Ankunft einen Ton spielen.</p>
+    <p class="lede">Baue eine Stadt, die im Takt schlägt – mit einer U&#8209;Bahn, deren Züge bei jeder Ankunft einen Ton spielen.</p>
     ${auto ? `<div class="card continue"><div class="cc-line"></div><div class="cc-row"><div class="grow"><div class="eyebrow">Weiterspielen</div><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue" data-tip="Fortsetzen" data-tip-desc="Dort weiterspielen, wo du aufgehört hast.">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}" data-tip="Laden" data-tip-desc="Spielstand aus Platz ${k} laden.">Laden</button></div>`).join('')}</div>` : ''}</div>` : ''}
     ${modes ? `<div class="mtabs" role="tablist"><button role="tab" class="${tab === 'free' ? 'on' : ''}" data-act="mtab" data-v="free" data-tip="Freies Spiel" data-tip-desc="Eine eigene Stadt gründen – ohne Zeitdruck.">${icon('city', 16, 2.1)}<span>Freies Spiel</span></button><button role="tab" class="${tab === 'modes' ? 'on' : ''}" data-act="mtab" data-v="modes" data-tip="Herausforderungen" data-tip-desc="Szenarien mit Zielen, Metro-Modus und Ehrentafel.">${icon('trophy', 16, 2.1)}<span>Herausforderungen</span></button></div>` : ''}
     ${tab === 'free' ? `<div class="card newcity${this.formOpen ? '' : ' closed'}">
@@ -101,6 +102,7 @@ export class Menu {
   <div class="stage-note">${this.previewing ? `<span class="pv-tag">${icon('map', 14)} Vorschau · ${esc(mt.name)} · ${esc((MAP_SIZES.find((s) => s.id === o.size) || {}).name || '')} · Startwert ${o.seed}</span>` : ''}</div>
 </div>`;
     const r = this.root;
+    this._introDone = true;
     r.querySelector('.menu').addEventListener('click', (e) => this.click(e));
     r.querySelector('.menu').addEventListener('pointerdown', (e) => this.prelaunch(e));
     const nm = r.querySelector('#m-name'), sz = r.querySelector('#m-size'), sd = r.querySelector('#m-seed');
