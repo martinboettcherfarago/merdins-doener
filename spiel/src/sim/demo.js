@@ -1,5 +1,38 @@
 // Baut automatisch eine kleine Beispielstadt (Hintergrund des Hauptmenüs, Tests).
-import { R, Z } from '../config.js';
+import { R, Z, T } from '../config.js';
+
+// Setzt ein Gebäude, das am Wasser stehen muss (Abwasserauslass, Kläranlage), möglichst nah an (cx, cy)
+// und führt eine Straße von dort zur Stadt. Gibt true zurück, wenn es geklappt hat.
+export function placeAtShore(g, key, cx, cy, maxDist = 40) {
+  const W = g.W, H = g.H, ter = g.world.terrain;
+  const cands = [];
+  for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
+    const i = y * W + x;
+    if (ter[i] === T.WATER || ter[i] === T.ROCK || g.road[i] || g.bld[i]) continue;
+    if (![i - 1, i + 1, i - W, i + W].some((j) => ter[j] === T.WATER)) continue;
+    const d = Math.abs(x - cx) + Math.abs(y - cy);
+    if (d <= maxDist) cands.push([d, x, y]);
+  }
+  cands.sort((a, b) => a[0] - b[0]);
+  const dry = (x, y) => x >= 0 && y >= 0 && x < W && y < H && ter[y * W + x] !== T.WATER && ter[y * W + x] !== T.ROCK && !g.bld[y * W + x];
+  for (const [, bx, by] of cands.slice(0, 40)) {
+    // Zufahrt: ein trockenes Nachbarfeld des Bauplatzes, dann L-Weg zurück zur Stadt
+    for (const [nx, ny] of [[bx + 1, by], [bx - 1, by], [bx, by + 1], [bx, by - 1]]) {
+      if (!dry(nx, ny)) continue;
+      const path = [];
+      const sx = Math.sign(cx - nx), sy = Math.sign(cy - ny);
+      let x = nx, y = ny, ok = true;
+      path.push(y * W + x);
+      while (y !== cy) { y += sy; if (!dry(x, y) && !g.road[y * W + x]) { ok = false; break; } path.push(y * W + x); }
+      while (ok && x !== cx) { x += sx; if (!dry(x, y) && !g.road[y * W + x]) { ok = false; break; } path.push(y * W + x); }
+      if (!ok || path.includes(by * W + bx)) continue;
+      const fresh = path.filter((i) => !g.road[i]);
+      if (fresh.length && !g.buildRoad(fresh, R.STREET).ok) continue;
+      if (g.placeBuilding(key, bx, by).ok) return true;
+    }
+  }
+  return false;
+}
 
 export function buildDemoCity(g) {
   const W = g.W;
@@ -44,6 +77,10 @@ export function buildDemoCity(g) {
   place('plaza', x0 + 11, hy + 2);
   place('wind', x0 + len + 2, hy - 6);
   place('wind', x0 + len + 2, hy - 9);
+  // Abwasser, Friedhof und Bildung, damit die Bürger-Simulation (Kanal, Bestattung, Schulen) nicht klagt
+  if (!placeAtShore(g, 'sewage_outlet', x0 + Math.floor(len / 2), hy)) placeAtShore(g, 'sewage_outlet', x0 + Math.floor(len / 2), hy, 80);
+  place('cemetery', x0 + 33, hy - 8);
+  place('kindergarten', x0 + 26, hy - 8);
   if (g.sandbox) {
     // Im Sandkasten reichlich Versorgung, damit die Vorschau-Stadt gesund wächst
     place('coal', x0 + len - 14, hy + 12);

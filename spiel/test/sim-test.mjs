@@ -1,6 +1,7 @@
 // Headless-Test: baut automatisch eine Stadt und simuliert einige Wochen.
 import { Game } from '../src/sim/game.js';
 import { R, Z } from '../src/config.js';
+import { placeAtShore } from '../src/sim/demo.js';
 
 const days = +(process.argv[2] || 60);
 const mapType = process.argv[3] || 'river';
@@ -60,7 +61,7 @@ place('watertower', 8, hy - 3);
 place('watertower', 8, hy + 3);
 console.log('Start-Infrastruktur. Geld:', Math.round(g.money));
 
-let builtServices = false, builtTransit = false, built2 = false;
+let builtServices = false, builtTransit = false, built2 = false, builtCem = false;
 const t0 = Date.now();
 for (let d = 1; d <= days; d++) {
   for (let s = 0; s < 30 * 10; s++) g.update(0.1); // 30 Sekunden = 1 Tag
@@ -70,11 +71,19 @@ for (let d = 1; d <= days; d++) {
     place('police', 20, hy - 5); place('fire', 30, hy + 5); place('clinic', 15, hy + 7); place('school', 24, hy - 8);
     place('park', 12, hy - 4); place('park', 34, hy - 4);
     place('wind', 46, hy - 8); place('watertower', 46, hy - 4);
+    console.log('  Abwasserauslass:', placeAtShore(g, 'sewage_outlet', 27, hy) || placeAtShore(g, 'sewage_outlet', 27, hy, 80));
+    place('kindergarten', 18, hy - 3);
   }
-  if (!builtTransit && g.isUnlocked('transit')) {
+  if (!builtCem && g.milestone >= 2) {
+    builtCem = true;
+    place('cemetery', 36, hy - 9); place('landfill', 8, hy + 9);
+    console.log('  Kläranlage:', placeAtShore(g, 'sewage_plant', 27, hy, 80));
+  }
+  if (!builtTransit && g.isUnlocked('transit') && g.money > 9000) {
+    // Erst bauen, wenn genug Geld da ist (Stationen + Linie)
     builtTransit = true;
     const a = station(12, hy), b = station(26, hy), c = station(40, hy), e = station(26, hy - 10);
-    if (a && b && c) console.log('  Linie:', g.createLine([a.id, b.id, c.id], false).ok);
+    if (a && b && c) console.log('  Linie:', JSON.stringify(g.createLine([a.id, b.id, c.id], false)));
     if (e && b) console.log('  Linie2:', g.createLine([e.id, b.id], false).ok);
     zone(10, hy - 20, 44, hy - 13, Z.OFF);
     road(9, hy - 18, 45, hy - 18);

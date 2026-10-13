@@ -185,6 +185,8 @@ export class OverlayView {
         const r = g.world.resource[i];
         if (r === RES.FERTILE) { d[i * 4] = 120; d[i * 4 + 1] = 190; d[i * 4 + 2] = 70; d[i * 4 + 3] = 200; }
         else if (r === RES.ORE) { d[i * 4] = 150; d[i * 4 + 1] = 110; d[i * 4 + 2] = 90; d[i * 4 + 3] = 220; }
+        else if (RES.OIL !== undefined && r === RES.OIL) { d[i * 4] = 74; d[i * 4 + 1] = 74; d[i * 4 + 2] = 88; d[i * 4 + 3] = 220; }
+        else if (g.world.forest && g.world.forest[i]) { d[i * 4] = 46; d[i * 4 + 1] = 107; d[i * 4 + 2] = 58; d[i * 4 + 3] = 190; }
         else d[i * 4 + 3] = 0;
       }
     } else {

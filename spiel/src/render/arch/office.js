@@ -1,5 +1,6 @@
-// Architektur: Büro. Schlüssel: 'off'.
-// Startfassung ohne eigene Modelle – die Ansicht nutzt bis dahin die einfachen Ersatzmodelle.
-// Bausteine werden mit registerArch(key, { variants, build(ctx) }) angemeldet (siehe residential.js).
+// Architektur: Büro (Besitzer: G4). Schlüssel: 'off'.
+// Fassadensystem und Archetypen liegen in indoff_off.js; Stufen 1–5, Grundflächen 1×1, 2×1, 1×2, 2×2, je 6 Varianten.
 import { registerArch } from './index.js';
-void registerArch;
+import { buildOff } from './indoff_off.js';
+
+registerArch('off', { variants: 6, build: buildOff });

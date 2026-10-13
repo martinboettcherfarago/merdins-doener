@@ -1,5 +1,15 @@
-// Architektur: Industrie. Schlüssel: 'ind', 'farm', 'mine', 'forest', 'oil'.
-// Startfassung ohne eigene Modelle – die Ansicht nutzt bis dahin die einfachen Ersatzmodelle.
-// Bausteine werden mit registerArch(key, { variants, build(ctx) }) angemeldet (siehe residential.js).
+// Architektur: Industrie (Besitzer: G4). Schlüssel: 'ind' sowie die Spezialisierungen 'farm', 'mine', 'forest', 'oil'.
+// Die Archetypen liegen in indoff_*.js; hier werden sie beim Register angemeldet.
+// Stufen 1–5, Grundflächen 1×1, 2×1, 1×2, 2×2, je 6 Varianten (Variante = Archetyp der Stufe).
 import { registerArch } from './index.js';
-void registerArch;
+import { buildInd } from './indoff_ind.js';
+import { buildFarm } from './indoff_farm.js';
+import { buildOil } from './indoff_oil.js';
+import { buildMine } from './indoff_mine.js';
+import { buildForest } from './indoff_forest.js';
+
+registerArch('ind', { variants: 6, build: buildInd });
+registerArch('farm', { variants: 6, build: buildFarm });
+registerArch('oil', { variants: 6, build: buildOil });
+registerArch('mine', { variants: 6, build: buildMine });
+registerArch('forest', { variants: 6, build: buildForest });

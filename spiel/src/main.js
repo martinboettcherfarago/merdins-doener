@@ -20,7 +20,7 @@ const LS = {
 const KEY = (slot) => `stadtpuls.save.${slot}`;
 
 function loadSettings() {
-  const def = { volume: 0.7, music: 0.7, sfx: 0.8, muted: false, alwaysDay: false, quality: 'medium', tutorialDone: false };
+  const def = { volume: 0.7, music: 0.7, sfx: 0.8, ambience: 1, muted: false, alwaysDay: false, quality: 'medium', postfx: true, ao: true, bloom: true, shadows: true, uiScale: 1, tutorialDone: false };
   try { return { ...def, ...(JSON.parse(LS.get('stadtpuls.settings') || '{}')) }; } catch (e) { return def; }
 }
 
