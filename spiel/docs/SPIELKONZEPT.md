@@ -230,42 +230,63 @@ Ein Spieltag dauert bei 1× Tempo 30 Sekunden (2× 15 s, 4× 7,5 s), eine Woche 
 
 ## 9. Technik
 
-- **Three.js** (r160) mit WebGL, gebündelt per esbuild in eine einzige Datei. Keine weiteren Laufzeitabhängigkeiten.
-- **Getrennte Schichten**: Die Simulation (`src/sim/`) kennt keine Grafik und läuft auch headless in Node. Das nutzt der Balancing-Test in `test/sim-test.mjs`. Die Darstellung (`src/render/`) hört auf Ereignisse der Simulation.
-- **Instanzierung**: Gebäude, Bäume, Fahrzeuge, Laternen und Fahrgastsymbole sind `InstancedMesh`-Pools. So kommt die Stadt mit wenigen Dutzend Draw Calls aus.
-- **Shader-Erweiterungen**: prozedurale Fenster (Weltkoordinaten, Hash pro Feld), Wasserwellen, Himmelsverlauf, Punktwolken für Rauch, Feuer und Lichter, ein Symbol-Atlas als Point Sprites.
-- **Spielstände**: Typed Arrays als Base64, Gebäude als kompakte Tupel. Automatisches Speichern jeden Spieltag in `localStorage`, drei Speicherplätze, Export und Import als JSON.
+- **Three.js** (r160) mit WebGL 2, gebündelt per esbuild in eine einzige Datei. Keine weiteren Laufzeitabhängigkeiten, keine fremden Modelle oder Texturen: Alles entsteht prozedural.
+- **Getrennte Schichten**: Die Simulation (`src/sim/`) kennt keine Grafik und läuft auch headless in Node. Darauf bauen die Prüfstände in `test/` auf, darunter ein Bot, der ganze Partien und Szenarien durchspielt. Die Darstellung (`src/render/`) hört auf Ereignisse der Simulation.
+- **Register statt Verdrahtung** (`src/registry.js`): Systeme, Gebäudetypen, Glücksfaktoren, Bodenwert-Terme, Nachfrage-Modifikatoren, Haushaltsposten, Infoansichten, Panels, Werkzeuge, Inspektor-Erweiterungen, Wochenkarten, Ereignisse und Stadtfunk melden sich selbst an. So konnten 17 Agenten parallel an getrennten Dateien arbeiten.
+- **Prozedurale Architektur** (`src/render/arch/`): Ein Baukasten aus Wänden mit Fensteröffnungen, Dächern, Gauben, Balkonen, Schildern, Tanks, Kränen und vielem mehr. Jedes Modell gibt es in drei Detailstufen; die fernste kostet unter 8 % der Dreiecke.
+- **Gebäude-Renderer**: Alle undurchsichtigen Baustoffe liegen in einem Atlas-Material (`aMat` je Ecke). Prototypen werden instanziert, ferne Gebäude zu Bündeln pro Kartenabschnitt zusammengeführt. Eine Zustandstextur steuert Einfärbung, Fensterlicht, Verwitterung, Brand, Bauhöhe und Animation. Eine ganze Stadt braucht so nur wenige hundert Draw Calls.
+- **Materialien**: 43 kachelbare Muster, im Web Worker erzeugt. Ein gemeinsamer Shader projiziert sie in Weltkoordinaten und legt Schnee, Nässe, Herbstlaub und Schmutz darüber.
+- **Licht und Nachbearbeitung**:
+  - HDR-Puffer mit Kantenglättung, Umgebungsverdeckung aus dem Tiefenpuffer, Bloom, Tonwertkurve „Neutral" und Tiefenschärfe für den Fotomodus.
+  - Himmel mit Sonne, Mond und Sternen, daraus eine PMREM-Umgebungskarte für Spiegelungen.
+  - Höhennebel und Wolkenschatten für alle Materialien.
+  - Vier Qualitätsstufen, die live wirken.
+- **Spielstände**: Typed Arrays als Base64, Gebäude als kompakte Tupel, die Systeme speichern ihren Zustand in `ext`. Ältere Spielstände werden umgewandelt; beschädigte führen zu einer Meldung statt zu einem Absturz. Automatisches Speichern, drei Speicherplätze, Export und Import als JSON.
+- **Robustheit**: Fehler in einem System halten das Spiel nicht an. Sie werden gesammelt und einmal gemeldet. Die Simulation nutzt einen speicherbaren Zufallsgenerator und ist mit gleichem Startwert reproduzierbar.
 
 ```
 spiel/
 ├── index.html, style.css      Oberfläche
 ├── dist/stadtpuls.js          gebündeltes Spiel
 ├── src/
-│   ├── config.js              alle Spieldaten
-│   ├── sim/                   Simulation (headless lauffähig)
-│   │   ├── world.js           Kartengenerator
-│   │   ├── network.js         Straßennetz, A*
-│   │   ├── city.js            Nachfrage, Wachstum, Stufen, Brände
-│   │   ├── services.js        Versorgung, Abdeckung, Felder, Glück
-│   │   ├── economy.js         Haushalt
-│   │   ├── traffic.js         Fahrzeug-Agenten
-│   │   ├── transit.js         Pulsbahn
-│   │   ├── progress.js        Karten, Ereignisse, Stadtfunk
-│   │   └── game.js            Zustand, Aktionen, Zeit, Speichern
-│   ├── render/                Three.js-Darstellung
-│   ├── ui/                    Oberfläche, Menü, Diagramme, Icons
-│   ├── input.js, audio.js, main.js
-└── test/sim-test.mjs          Balancing-Test ohne Browser
+│   ├── config.js, registry.js Spieldaten und Erweiterungspunkte
+│   ├── sim/                   Simulationskern (headless lauffähig)
+│   │   └── systems/           Wirtschaft, Bürger, Bezirke, Verkehr, Wetter, Katastrophen, Fortschritt
+│   ├── content/               Gebäude, Wochenkarten, Ereignisse, Stadtfunk
+│   ├── render/                Szene, Himmel, Nachbearbeitung, Gelände, Wasser, Pflanzen, Straßen,
+│   │   │                      Gebäude-Renderer, Fahrzeuge, Effekte, Materialien
+│   │   ├── arch/              Architektur-Bausteine aller Gebäude
+│   │   └── views/             Infoansichten und Effekte der Systeme
+│   ├── ui/, input/            Oberfläche, Panels, Katalog, Minikarte, Fotomodus, Werkzeuge
+│   └── audio/                 Mischpult, Umgebung, generative Musik, Effekte
+├── test/                      Prüfstände und Spiel-Bot
+├── tools/                     Screenshot-, Mess- und Profilwerkzeuge
+└── swarm/                     Briefings und Absprachen des Agentenschwarms
 ```
 
-## 10. Ausblick
+## 10. Stadtpuls 2.0: umgesetzt
 
-Ideen, die ins System passen, aber noch nicht umgesetzt sind:
+Alle Punkte des früheren Ausblicks sind inzwischen eingebaut:
 
-- **Metro-Modus** als eigenständige Herausforderung: feste Stadt, nur Pulsbahn, Überfüllung beendet die Partie, Punktzahl = beförderte Fahrgäste.
-- **Szenarien** mit Zielen und Zeitlimit (zum Beispiel „5 000 Einwohner in einem Jahr bei über 70 % Glück").
-- **Distrikte** mit eigenen Verordnungen und Steuersätzen.
-- **Busse** als günstiger Zubringer zur Pulsbahn.
-- **Jahreszeiten** mit Schnee und Heizbedarf.
-- **Wetter** und weitere Ereignisse (Hochwasser am Fluss, Hitzewelle mit sichtbaren Folgen).
-- **Abwasser** als dritte Versorgung neben Strom und Wasser.
+- **Metro-Modus**: Die Stadt wächst von selbst, nur die Pulsbahn liegt in deiner Hand. Läuft eine Station über, endet die Partie. Es gibt eine Tageskarte, die für alle gleich ist, und eine Bestenliste.
+- **11 Szenarien** mit Startbedingungen, Zielen, Zeitlimit, Ratgeber-Skript und 1–3 Sternen: Flusstal-Rettung, Inselbrücken, Grüne Stadt, Erzrausch, Ferienparadies, Schuldenberg, Verkehrsinfarkt, Wissenschaftsstadt, Boomtown, Dorfidylle und Döner-Hauptstadt. Der Bot-Prüfstand gewinnt alle prüfbaren Szenarien in der vorgesehenen Zeit.
+- **Bezirke** mit automatischen Namen, elf Verordnungen und eigenem Steuerzuschlag.
+- **Busse und Straßenbahnen** mit Depots, Fahrgastmodell und Umstieg zur Pulsbahn. Dazu Fernzüge, Flughafen, Fähren, Taxis, Parkhäuser und Ampeln, die der Spieler schalten kann.
+- **Jahreszeiten und Wetter**:
+  - 4 × 28 Tage mit Temperatur, Regen, Schnee, Nebel, Wind und Gewitter.
+  - Wirkung auf Strom, Wasser, Tourismus, Ernte und Glück.
+  - Winterdienst und Fernwärme.
+- **Katastrophen**: Hochwasser, Orkan, Tornado, Erdbeben, Blitz, Waldbrand und Meteorit. Sie laufen mit Vorwarnung, Vorbereitung, Rettung, Trümmern und Wiederaufbau ab.
+- **Abwasser** als dritte Versorgung. Auslässe verschmutzen das Gewässer, Kläranlagen reinigen es.
+- **Weitere Systeme**:
+  - Warenwirtschaft mit Produktionsketten, Lagerhallen, Export und Konjunktur.
+  - Bürger mit Altersstruktur, Bildungskette, Gesundheit und Bestattung.
+  - 79 Erfolge, Bürgeraufträge und fünf Ratgeber.
+  - Generative Musik und eine räumliche Klangkulisse.
+
+## 11. Ausblick
+
+- Kreisverkehre und abgesenkte Bordsteine.
+- Mehr Varianten je Gebäudetyp und Farbvariationen, damit sich gleiche Häuser seltener wiederholen.
+- Fußgänger in Parks und auf Bahnsteigen, Hunde, Autos, die an roten Ampeln halten.
+- Eine native Fassung (z. B. mit WebGPU), wenn die Browser breit genug darauf umgestiegen sind.
