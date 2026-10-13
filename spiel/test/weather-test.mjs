@@ -6,7 +6,7 @@
 import { Game } from '../src/sim/game.js';
 import { R, Z, DAY } from '../src/config.js';
 import { on } from '../src/registry.js';
-import { YEAR_DAYS, SEASON_INFO, setWeatherNow } from '../src/sim/systems/weather.js';
+import { YEAR_DAYS, SEASON_INFO, setWeatherNow, weatherImpact } from '../src/sim/systems/weather.js';
 import { triggerDisaster, DISASTERS, rebuildRuin } from '../src/sim/systems/disasters.js';
 import { happinessFactors } from '../src/sim/services.js';
 const WX_LABELS = ['Wetter', 'Hitze', 'Kalte Wohnungen', 'Ungeräumte Straßen', 'Freibad offen', 'Weihnachtszeit', 'Sorge vor Katastrophen', 'Zerstörung in der Nachbarschaft', 'Trauer', 'Obdachlose nach Katastrophe', 'Überflutet', 'Kein Strom', 'Kein Wasser'];
@@ -109,7 +109,7 @@ for (let d = 1; d <= days; d++) {
   seenSeasons.add(w.season);
   wk.kinds[w.kind] = (wk.kinds[w.kind] || 0) + 1;
   wk.water.push(eff('waterUse')); wk.power.push(eff('powerMul')); wk.tour.push(eff('tourism'));
-  seasonWater[w.season].push(eff('waterUse')); seasonPower[w.season].push(eff('powerMul'));
+  seasonWater[w.season].push(eff('waterUse')); seasonPower[w.season].push(weatherImpact(g)?.powerMul ?? 0); // Strombilanz: Erzeugung nach Wetter ÷ Mehrverbrauch
   lightningCount = st.strikes.length > 0 ? lightningCount + st.strikes.filter((x) => g.time - x.t < DAY).length : lightningCount;
   maxDisplaced = Math.max(maxDisplaced, st.displaced);
   if (Object.keys(st.repairs).length) sawRepair = true;

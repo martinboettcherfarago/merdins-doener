@@ -1739,10 +1739,16 @@ function adjustCongestion(g) {
   }
   // Busspuren: Autos haben auf Busstrecken weniger Platz
   if (g.policies.has('tp_buslanes')) for (const l of T.lines) if (l.mode === 'bus') for (const t of l.path) cong[t] *= 1.08;
-  // Ampeln: Wartezeit an der Kreuzung
-  if (g.eff('greenWave') <= 0) for (const i of T.signals) cong[i] = Math.max(cong[i] + 0.06, 0.84);
-  // Unfälle blockieren die Kreuzung
-  for (const a of T.accidents) if (g.time < a.until) cong[a.tile] = Math.max(cong[a.tile], 1.75);
+  // Ampeln und Unfälle über die Kern-Schnittstelle g.tileDelay (Fahrzeit-Aufschlag), damit die Auslastung ehrlich bleibt
+  const delay = g.tileDelay;
+  if (delay) {
+    delay.fill(0);
+    if (g.eff('greenWave') <= 0) for (const i of T.signals) delay[i] = 0.27; // ≈ 21 % langsamer an der Kreuzung
+    for (const a of T.accidents) if (g.time < a.until) delay[a.tile] = 3; // Kreuzung fast dicht
+  } else {
+    if (g.eff('greenWave') <= 0) for (const i of T.signals) cong[i] = Math.max(cong[i] + 0.06, 0.84);
+    for (const a of T.accidents) if (g.time < a.until) cong[a.tile] = Math.max(cong[a.tile], 1.75);
+  }
 }
 
 function accidentsHour(g, h) {

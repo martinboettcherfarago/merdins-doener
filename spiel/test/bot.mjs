@@ -6,8 +6,11 @@
 import { R, Z, T, BUILDINGS, MILESTONES } from '../src/config.js';
 import { computeCoverage, computeUtilities } from '../src/sim/services.js';
 import * as TPS from '../src/sim/systems/transport.js';
+import { EVENTS } from '../src/sim/progress.js';
 
 const B = 5; // Straßen alle 5 Felder → Blöcke mit 4×4 Bauland
+// Versorgung und Grunddienste: werden auch gebaut, während der Bot für etwas Größeres spart
+const CORE = new Set(['coal', 'gas', 'wind', 'solar', 'watertower', 'pump', 'landfill', 'incinerator', 'station', 'bus_depot', 'cemetery', 'clinic', 'fire', 'police', 'school', 'kindergarten']);
 
 export class Bot {
   constructor(g, o = {}) {
@@ -39,7 +42,8 @@ export class Bot {
     // Geldziel im Szenario: ab dem ersten Drittel wird gespart (Ausbau läuft nur noch aus dem Überschuss)
     const mg = this.goal('money');
     if (mg && !mg.done && kind !== 'core' && this.o.status(g).elapsed > (this.o.status(g).sc.days || 60) * 0.35) res = Math.max(res, mg.goal.target * 0.9);
-    if (this.goal('loans') && g.loans.length) res = Math.max(res, 3000);
+    // Schuldenziel: für die Tilgung des kleinsten Kredits zurücklegen (Ausbau nur aus dem Überschuss)
+    if (this.goal('loans') && g.loans.length) res = Math.max(res, kind === 'core' ? 3000 : Math.min(...g.loans.map((l) => (l.amount / l.weeks) * l.weeksLeft)) + 3000);
     // Fahrgastziel: Geld für Züge und Waggons zurückhalten
     const rg = this.goal('riders');
     if (rg && !rg.done && kind === 'svc') res += 8000;
@@ -52,8 +56,15 @@ export class Bot {
   }
 
   // Karten: Ein Mensch nimmt meist die erste brauchbare; Ereignisse: die erste Antwort (meist die „vernünftige").
-  pickCard(ids) { return ids[0]; }
-  pickEvent() { return 0; }
+  pickCard(ids) { return ids[Math.min(ids.length - 1, this.o.cardPick || 0)]; }
+  // Wer sparen muss (Schulden- oder Geldziel), liest den Hinweis und lehnt Angebote ab, die später Geld zurückfordern.
+  pickEvent() {
+    const g = this.g, ev = EVENTS.find((e) => e.id === g.pendingEvent);
+    if (!ev || !(this.goal('loans') || this.goal('money'))) return 0;
+    const hint = (o) => { try { return String(o.hint ? o.hint(g) : ''); } catch (e) { return ''; } };
+    const k = ev.options.findIndex((o) => !/zurück/.test(hint(o)));
+    return k >= 0 ? k : 0;
+  }
 
   // ------------------------------------------------------------ Raster
   rect(k, m) { const xa = this.x0 + B * k, ya = this.hy + B * m; return { xa, ya, xb: xa + B, yb: ya + B }; }
@@ -139,7 +150,7 @@ export class Bot {
     if (g.isUnlocked('zone4')) zones.push(Z.OFF);
     if (this.noExpand()) return 0;
     const pmax = this.goal('popmax'), ind = this.goal('jobs3');
-    if (pmax && g.stats.pop > pmax.goal.target * 0.45) zones = zones.filter((z) => z !== Z.RES);
+    if (pmax && g.stats.pop > pmax.goal.target * 0.55) zones = zones.filter((z) => z !== Z.RES);
     // Einwohnerziel klar übertroffen, aber Glück/Bildung/Pendelzeit fehlen noch: nicht weiter wachsen, sondern verbessern
     const st = this.o.status && this.o.status(g), pg = this.goal('pop');
     if (st && pg && pg.done && g.stats.pop > pg.goal.target * 1.3 && st.goals.some((x) => !x.done && ['happy', 'edu', 'commute', 'water', 'pollution'].includes(x.goal.id))) zones = zones.filter((z) => z !== Z.RES);
@@ -181,7 +192,7 @@ export class Bot {
     const g = this.g, W = this.W;
     if (!g.isUnlocked(key) || this.banned(key)) return null;
     const cost = g.buildingCost(key);
-    const core = ['coal', 'gas', 'wind', 'solar', 'watertower', 'pump', 'landfill', 'incinerator', 'station', 'bus_depot', 'cemetery', 'clinic', 'fire'].includes(key);
+    const core = CORE.has(key);
     if (this.free(core ? 'core' : 'svc') < cost) return null;
     const cands = [];
     for (let y = Math.max(1, ty - maxR); y <= Math.min(this.H - 2, ty + maxR); y++) {
@@ -349,7 +360,7 @@ export class Bot {
   gap(type, key, thr, { zones = [Z.RES, Z.COM, Z.IND, Z.OFF], avoid = 0, r = 8, minPop = 0, max = 0 } = {}) {
     const g = this.g;
     if (g.stats.pop < minPop || !g.isUnlocked(key)) return false;
-    if (this.free('svc') < g.buildingCost(key)) return false;
+    if (this.free(CORE.has(key) ? 'core' : 'svc') < g.buildingCost(key)) return false;
     if (max && (this.count[key] || 0) >= max) return false;
     const cov = g.cov[type];
     if (!cov) return false;
@@ -614,6 +625,16 @@ export class Bot {
       this.policiesDone = true; this.say('schafft teure Verordnungen ab');
     }
     // Höchstzahl an Einwohnern: freie Wohnfelder entzonen und Hochhausverbot (wie ein Mensch, der bremst)
+    // Industrie-Obergrenze: freie Industriefelder entzonen, bei Überschreitung den größten Betrieb abreißen
+    const ic = G('jobs3');
+    if (ic && ic.goal.cmp === '<=') {
+      const jobs = g.stats.jobsByZone[Z.IND] || 0;
+      if (jobs > ic.goal.target * 0.8) { const free = [...g.zoneFree[Z.IND]].filter((i) => !g.bld[i]); if (free.length) g.zoneTiles(free, 0); }
+      if (jobs > ic.goal.target) {
+        const big = [...g.buildings.values()].filter((b) => b.zone === Z.IND).sort((a, b) => b.cap - a.cap)[0];
+        if (big) { const r = g.bulldoze([big.y * this.W + big.x]); if (r && r.ok !== false) this.say('reißt einen Industriebetrieb ab (Obergrenze)'); }
+      }
+    }
     const pm = G('popmax');
     if (pm && g.stats.pop > pm.goal.target * 0.65) {
       const free = [...g.zoneFree[Z.RES]].filter((i) => !g.bld[i]);

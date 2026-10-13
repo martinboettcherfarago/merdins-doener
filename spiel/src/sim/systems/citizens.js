@@ -397,7 +397,8 @@ function deathcareDaily(g, C, F, res, rnd) {
   const unlocked = g.isUnlocked('cemetery');
   // Übergang (Q2): Solange es noch keinen Friedhof gibt, nimmt das Umland deutlich mehr ab (gegen Gebühr) –
   // sonst stapeln sich die Verstorbenen schlagartig, sobald „Kleinstadt" erreicht ist.
-  let umlandCap = unlocked ? UMLAND_PER_DAY + (fac.length ? 0 : Math.floor(g.stats.pop / 250)) + g.eff('umland') : 1e9;
+  // Bis 1.500 Einwohner; danach braucht die Stadt wirklich einen eigenen Friedhof.
+  let umlandCap = unlocked ? UMLAND_PER_DAY + (fac.length || g.stats.pop >= 1500 ? 0 : Math.floor(g.stats.pop / 250)) + g.eff('umland') : 1e9;
   const umlandFree = g.eff('umland') > 0;
   let umland = 0, umlandPaid = 0, collected = 0;
   const trips = [];

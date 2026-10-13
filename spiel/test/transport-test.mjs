@@ -347,7 +347,9 @@ HB.run(14, () => {
   const a = T2.accidents[T2.accidents.length - 1];
   const sys = s.system('transport');
   sys.hourly(s, 12);
-  ok(a && s.congestion[a.tile] >= 1.7, `Unfallstelle blockiert die Kreuzung (Auslastung ${a ? Math.round(s.congestion[a.tile] * 100) : 0} %)`);
+  // Seit Q4 als Fahrzeit-Aufschlag g.tileDelay (vorher künstliche Auslastung in g.congestion)
+  const blk = a ? (s.tileDelay ? s.tileDelay[a.tile] : s.congestion[a.tile]) : 0;
+  ok(a && blk >= 1.7, `Unfallstelle blockiert die Kreuzung (Aufschlag ${Math.round(blk * 100)} %)`);
   const rs = s.renderables();
   ok(rs.some((o) => o.wreck) , 'Unfallwagen sichtbar');
   // Ampel: Wartezeit, aber deutlich seltener Unfälle

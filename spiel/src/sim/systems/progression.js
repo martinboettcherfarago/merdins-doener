@@ -600,7 +600,7 @@ export const SCENARIOS = [
       { day: 20, event: 'floodwarn' },
       { day: 25, who: 'bau', text: 'Halbzeit! Die Nachbarstadt hat schon Wetten gegen uns abgeschlossen. Zeigen wir es ihnen.' },
     ],
-    goals: [G.pop(3000), G.happy(58), G.net(500, 2), G.watered(3)],
+    goals: [G.pop(3000), G.happy(60), G.net(500, 2), G.watered(3)],
     fails: ['bankrupt'],
     setup(g) {
       g.milestone = 2;
@@ -657,7 +657,7 @@ export const SCENARIOS = [
       { day: 12, who: 'geld', text: 'Jeder Euro zählt im Bergland. Prüfe den Haushalt, bevor du baust.' },
       { day: 30, event: 'plantclose' },
     ],
-    goals: [G.jobs(3, 500, 'in der Industrie'), G.money(60000), G.pop(1500)],
+    goals: [G.jobs(3, 500, 'in der Industrie'), G.money(55000), G.pop(1500)],
     fails: ['bankrupt'],
     setup(g) { g.money = 30000; g.addEffect('indDemand', 30, 10, 'Erzfund'); },
   },
@@ -688,7 +688,7 @@ export const SCENARIOS = [
       { day: 15, event: 'citizenbond' },
       { day: 30, who: 'buerger', text: 'Die Bürger halten zu dir. Noch ein Endspurt!' },
     ],
-    goals: [G.noLoans(), G.money(20000), G.pop(1600, 3)],
+    goals: [G.noLoans(), G.money(15000), G.pop(1600, 3)],
     fails: ['bankrupt'],
     setup(g) {
       g.milestone = 2;
@@ -698,7 +698,7 @@ export const SCENARIOS = [
       ensureServices(g, ['fire', 'police', 'clinic', 'school', 'landfill'], 3);
       settle(g, 3);
       g.money = -8000;
-      g.loans.push({ amount: 60000, weeks: 30, weeksLeft: 22, rate: 0.015, weekly: 60000 * 0.015 });
+      g.loans.push({ amount: 60000, weeks: 30, weeksLeft: 18, rate: 0.015, weekly: 60000 * 0.015 });
       g.loans.push({ amount: 25000, weeks: 20, weeksLeft: 16, rate: 0.012, weekly: 25000 * 0.012 });
       for (const id of ['smoke', 'bikes', 'freetransit', 'recycling']) if (POLICIES.find((p) => p.id === id)) g.policies.add(id);
     },
@@ -769,7 +769,7 @@ export const SCENARIOS = [
       { day: 0, who: 'buerger', text: 'Niedrige Steuern, viele Parks und ein Spielplatz in jeder Straße – so wird man glücklich.' },
       { day: 15, event: 'market' },
     ],
-    goals: [G.happy(76, 5), G.pop(600), G.popMax(2500), G.jobs(3, 250, 'in der Industrie (höchstens)')].map((x) => (x.id === 'jobs3' ? { ...x, label: 'Höchstens 250 Industrie-Jobs', cmp: '<=' } : x)),
+    goals: [G.happy(72, 5), G.pop(600), G.popMax(2500), G.jobs(3, 250, 'in der Industrie (höchstens)')].map((x) => (x.id === 'jobs3' ? { ...x, label: 'Höchstens 250 Industrie-Jobs', cmp: '<=' } : x)),
     fails: ['bankrupt'],
     setup(g) { g.money = 45000; },
   },

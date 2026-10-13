@@ -213,7 +213,7 @@ check(g.stats.pop > 1500, `Stadt wächst (${g.stats.pop} Einwohner)`);
 // Bedienung: Dienstbudgets
 {
   const before = g.budget().exp.services;
-  const supBefore = g.util.powerSupply;
+  const supBefore = g.util.powerSupply, modBefore = g.mods.power;
   setServiceBudget(g, 'services', 0.5);
   setServiceBudget(g, 'power', 1.5);
   for (let s = 0; s < 40; s++) g.update(0.1);
@@ -222,7 +222,8 @@ check(g.stats.pop > 1500, `Stadt wächst (${g.stats.pop} Einwohner)`);
   check(g.util.powerSupply > supBefore * 1.15, `Strombudget 150 % erhöht Kraftwerksleistung (${Math.round(supBefore)} → ${Math.round(g.util.powerSupply)} MW)`);
   setServiceBudget(g, 'services', 1); setServiceBudget(g, 'power', 1);
   for (let s = 0; s < 40; s++) g.update(0.1);
-  check(Math.abs(g.util.powerSupply - supBefore) < supBefore * 0.02, `Zurück auf 100 % stellt die Leistung wieder her (${Math.round(g.util.powerSupply)} MW)`);
+  // Wind und Sonne ändern sich in den acht Spielstunden – darum den Budgetfaktor selbst vergleichen, nicht die MW
+  check(Math.abs(g.mods.power - modBefore) < 1e-6, `Zurück auf 100 % stellt die Leistung wieder her (Faktor ${g.mods.power.toFixed(3)}, ${Math.round(g.util.powerSupply)} MW)`);
 }
 // Bedienung: Exportpreise – teurer heißt weniger Nachfrage
 {

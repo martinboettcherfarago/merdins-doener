@@ -1186,7 +1186,8 @@ registerSystem({
     if (h === 0) closeDay(st);
     tick(g, st);
     // Der Lieferverkehr dieses Systems ersetzt den pauschalen Lkw-Anteil des Kerns.
-    if (g.traffic && g.traffic.lists && g.traffic.lists.ind && st.plan && st.plan.total > 0) g.traffic.lists.ind.total = 0;
+    // Kern-Schnittstelle (Q4): pauschalen Lkw-Anteil abschalten, solange der eigene Lieferplan fährt
+    if (g.traffic) g.traffic.freightShare = st.plan && st.plan.total > 0 ? 0 : 0.28;
   },
   daily(g) { daily(g, g.ext.industry); },
   weekly(g) {
