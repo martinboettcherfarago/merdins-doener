@@ -688,7 +688,7 @@ export const SCENARIOS = [
       { day: 15, event: 'citizenbond' },
       { day: 30, who: 'buerger', text: 'Die Bürger halten zu dir. Noch ein Endspurt!' },
     ],
-    goals: [G.noLoans(), G.money(15000), G.pop(1600, 3)],
+    goals: [G.noLoans(), G.money(12000), G.pop(1600, 3)],
     fails: ['bankrupt'],
     setup(g) {
       g.milestone = 2;
@@ -697,8 +697,8 @@ export const SCENARIOS = [
       ensureUtilities(g, { margin: 1.35 });
       ensureServices(g, ['fire', 'police', 'clinic', 'school', 'landfill'], 3);
       settle(g, 3);
-      g.money = -8000;
-      g.loans.push({ amount: 60000, weeks: 30, weeksLeft: 18, rate: 0.015, weekly: 60000 * 0.015 });
+      g.money = -3000;
+      g.loans.push({ amount: 60000, weeks: 30, weeksLeft: 16, rate: 0.015, weekly: 60000 * 0.015 });
       g.loans.push({ amount: 25000, weeks: 20, weeksLeft: 16, rate: 0.012, weekly: 25000 * 0.012 });
       for (const id of ['smoke', 'bikes', 'freetransit', 'recycling']) if (POLICIES.find((p) => p.id === id)) g.policies.add(id);
     },

@@ -651,7 +651,7 @@ export class Bot {
     }
     // Steuern: zu hoch für das Glücksziel?
     const hp = G('happy');
-    if (hp && !hp.done && (g.lastBudget?.net || 0) > 600 && g.day() % 3 === 0) {
+    if (hp && !hp.done && (g.lastBudget?.net || 0) > 600 && this.free('svc') > 4000 && g.day() % 3 === 0) {
       for (const z of [1, 2, 3, 4]) if (g.taxes[z] > 8) g.setTax(z, g.taxes[z] - 1);
     }
     // Gebäude, die das Szenario verlangt, und Gutscheine für Wahrzeichen
@@ -732,8 +732,8 @@ export class Bot {
     for (let k = 0; k < 4 && this.water(); k++);
     this.sewage();
     this.garbage();
+    this.services(); // Dienste vor neuen Blöcken: erst versorgen, dann wachsen
     this.expand();
-    this.services();
     this.buses();
     this.transit();
     this.upgradeRoads();

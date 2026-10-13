@@ -35,9 +35,14 @@ dann oft – die Zufahrtsstraße ist aber schon gebaut und bezahlt. Darum findet
 Vorlage, die zuverlässig klappt: `shorePlace()` in `test/bot.mjs` (Grundstück samt Drehung prüfen, Wasser an einer Kante,
 Zufahrt per Breitensuche bis ans Netz, erst dann bauen).
 
-### 4. Zufall im Verkehr (bekannt)
-Die Bot-Läufe streuen bei gleicher Saat um ±20 % Einwohner (z. B. Boomtown Sieg an Tag 46 bzw. 65). `Math.random` in `traffic.js`
-auf `g.rng` umstellen macht die Prüfstände vergleichbar.
+### 4. Zufall im Verkehr – erledigt
+Mit Q4s `g.traffic.rng` und Q2s Umstellung in `industry.js` ist die Simulation reproduzierbar (zwei Läufe gleicher Saat sind identisch).
+
+### 4b. Müllabfuhr (Hinweis, erledigt bei Q2)
+Ursache der vielen Müll-Symbole in Beispiel- und Teststadt: Beide Deponien liegen südlich der Hauptstraße, die Abdeckung (15 Felder
+vom Mittelpunkt) erreicht die nördlichen Wohnreihen nicht (Beispielstadt: 21 von 98 Häusern ohne Abdeckung, Deponien zu 7–13 % ausgelastet).
+Q2 hat die Reichweite in `content/services.js` angehoben (Deponie 20, Verbrennung 24, Recycling 22) → 0 Problemhäuser bei 2.000 Einwohnern.
+Optional für `demo.js`: zweite Deponie nördlich (`place('landfill', x0 + 29, hy - 13)`).
 
 ## Q3 – Oberfläche
 
