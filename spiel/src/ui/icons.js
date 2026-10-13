@@ -126,7 +126,22 @@ export function iconAny(v, fallback = 'layers', size = 20, stroke = 2) {
   return icon(v && P[v] ? v : fallback, size, stroke);
 }
 
+// Runde 3b (Vorlage): bunte, gefüllte Abzeichen für Pillen-Chips und Karten – Stern (Rang), Münze (Kasse),
+// Figur (Einwohner), Gesichter (Glück: smile|meh|sad), Sonne. Ohne Verläufe mit IDs, damit mehrfaches Einbetten sicher ist.
+const B = {
+  star: '<path d="M20 3.5l4.9 10 11 1.6-8 7.8 1.9 11L20 28.7 10.2 33.9l1.9-11-8-7.8 11-1.6L20 3.5Z" fill="#f7a90c" stroke="#d27f00" stroke-width="2" stroke-linejoin="round"/><path d="M20 7.5l3.6 7.4 8.1 1.2-2.6 2.5C24 17 17 19 12.2 24.9l.6-3.4-5.9-5.7 8.1-1.2L20 7.5Z" fill="#ffd34d"/>',
+  coin: '<circle cx="20" cy="20" r="17" fill="#e99a06"/><circle cx="20" cy="18.6" r="15.6" fill="#ffc21f"/><circle cx="20" cy="18.6" r="11.6" fill="none" stroke="#e99a06" stroke-width="2"/><path d="M24.6 13.8a6.4 6.4 0 1 0 0 9.6M12.6 17h9M12.6 20.4h9" fill="none" stroke="#b86a00" stroke-width="2.6" stroke-linecap="round"/>',
+  person: '<circle cx="20" cy="20" r="18" fill="#ffe0e4"/><path d="M8 34.5c1.2-7 6-10.5 12-10.5s10.8 3.5 12 10.5A17.9 17.9 0 0 1 20 38c-4.6 0-8.8-1.3-12-3.5Z" fill="#e5484d"/><circle cx="20" cy="15.5" r="7" fill="#f8c49b"/><path d="M13 14.6c0-4.6 3.2-7.4 7.2-7.4s6.8 2.6 6.8 6.4c-2.4.4-5.6-.6-7.6-2.6-1.4 2-3.8 3.4-6.4 3.6Z" fill="#7a3b1f"/>',
+  smile: '<circle cx="20" cy="20" r="17" fill="#ffc21f" stroke="#e99a06" stroke-width="2"/><circle cx="14.4" cy="16.4" r="2.4" fill="#5a2a00"/><circle cx="25.6" cy="16.4" r="2.4" fill="#5a2a00"/><path d="M12.4 23.2c2 3.6 4.6 5.2 7.6 5.2s5.6-1.6 7.6-5.2" fill="none" stroke="#5a2a00" stroke-width="2.6" stroke-linecap="round"/>',
+  meh: '<circle cx="20" cy="20" r="17" fill="#ffd66b" stroke="#e5a400" stroke-width="2"/><circle cx="14.4" cy="16.4" r="2.4" fill="#5a2a00"/><circle cx="25.6" cy="16.4" r="2.4" fill="#5a2a00"/><path d="M13.6 25.6h12.8" fill="none" stroke="#5a2a00" stroke-width="2.6" stroke-linecap="round"/>',
+  sad: '<circle cx="20" cy="20" r="17" fill="#ff9a7a" stroke="#e5484d" stroke-width="2"/><circle cx="14.4" cy="16.4" r="2.4" fill="#5a1a10"/><circle cx="25.6" cy="16.4" r="2.4" fill="#5a1a10"/><path d="M13 28c2-3 4.4-4.4 7-4.4s5 1.4 7 4.4" fill="none" stroke="#5a1a10" stroke-width="2.6" stroke-linecap="round"/>',
+  sun: '<g stroke="#ffb000" stroke-width="3" stroke-linecap="round"><path d="M20 2.5v5M20 32.5v5M2.5 20h5M32.5 20h5M7.6 7.6l3.5 3.5M28.9 28.9l3.5 3.5M7.6 32.4l3.5-3.5M28.9 11.1l3.5-3.5"/></g><circle cx="20" cy="20" r="9.5" fill="#ffc21f" stroke="#ff9d00" stroke-width="2"/>',
+};
+export function badge(name, size = 32) {
+  return `<svg class="bdg bdg-${name}" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">${B[name] || B.star}</svg>`;
+}
+
 // Logo: Pulslinie, die in eine Bahnlinie übergeht
-export function logo(size = 34, color = '#f6f2ea') {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M5 22h7l3-9 5 16 4-11 2 4h9" stroke="${color}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="35" cy="22" r="3" fill="#e8543f"/></svg>`;
+export function logo(size = 34, color = '#ffffff') {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M5 22h7l3-9 5 16 4-11 2 4h9" stroke="${color}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="35" cy="22" r="3.2" fill="#ffb020"/></svg>`;
 }

@@ -72,9 +72,9 @@ function drawLabel(ctx, w, h, name, sub, color) {
   let fs = 62;
   const maxText = w - 130;
   const measure = () => { let t = 0; for (const ch of label) t += ctx.measureText(ch).width + spacing; return t - spacing; };
-  ctx.font = `700 ${fs}px "Barlow Condensed", "Barlow", "Arial Narrow", sans-serif`;
+  ctx.font = `700 ${fs}px "Stadtpuls Rund", "Fredoka", "Nunito", "Arial Rounded MT Bold", sans-serif`;
   let tw = measure();
-  if (tw > maxText) { fs = Math.max(30, Math.floor((fs * maxText) / tw)); ctx.font = `700 ${fs}px "Barlow Condensed", "Barlow", "Arial Narrow", sans-serif`; tw = measure(); }
+  if (tw > maxText) { fs = Math.max(30, Math.floor((fs * maxText) / tw)); ctx.font = `700 ${fs}px "Stadtpuls Rund", "Fredoka", "Nunito", "Arial Rounded MT Bold", sans-serif`; tw = measure(); }
   const pw = Math.min(w - 8, Math.max(tw + 100, 220));
   const x0 = (w - pw) / 2, y0 = 10, ph = h - 20;
   // Schild: dunkle Pille mit Farbkante und weichem Schatten
@@ -93,7 +93,7 @@ function drawLabel(ctx, w, h, name, sub, color) {
   const ty = y0 + ph / 2 - (sub ? 15 : 0);
   for (const ch of label) { ctx.fillText(ch, x, ty); x += ctx.measureText(ch).width + spacing; }
   if (sub) {
-    ctx.font = '600 31px "Barlow", "Arial", sans-serif';
+    ctx.font = '600 31px "Stadtpuls Text", "Nunito", "Arial", sans-serif';
     ctx.fillStyle = 'rgba(246,242,234,0.8)';
     ctx.textAlign = 'center';
     ctx.fillText(sub, w / 2 + 14, y0 + ph / 2 + 27);

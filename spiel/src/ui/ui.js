@@ -17,7 +17,7 @@ import { cardById } from '../sim/progress.js';
 // Wetter von S4 (optional): seasonText(g) aus dem Wetter-System, wxIcon(kind, size, night) aus dem Wetter-Panel
 import * as wxSys from '../sim/systems/weather.js';
 import * as wxPanel from './panels/weather.js';
-import { icon, iconAny, logo } from './icons.js';
+import { icon, iconAny, logo, badge } from './icons.js';
 import { viewList, VIEW_GROUPS, dockPanels, PANEL_GROUPS, catMeta, catLabel, toolbarGroups, groupOfCat, panelAvailable } from './meta.js';
 import { CORE_PANELS } from './corepanels.js';
 import { inspectorHTML, inspectorClick } from './inspector.js';
@@ -53,6 +53,9 @@ function wxKind(w) {
 }
 const itemKey = (it) => `${it.kind}:${it.key || it.type || it.zone || it.panel || ''}`;
 const SEASON = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' };
+const ZONE_ICON = { 1: 'house', 2: 'shop', 3: 'industry', 4: 'office' };
+const ZONE_PL = { 1: 'Wohnzonen', 2: 'Gewerbezonen', 3: 'Industriezonen', 4: 'Bürozonen' };
+const DAY_NAMES = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 // Themen der Hilfe zu Kategorien und Begriffen (die Hilfe gehört EINSTIEG – hier nur die Zuordnung, erste Übereinstimmung gewinnt)
 const HELP_HINTS = {
   roads: ['roads', 'strassen', 'street'], zones: ['zones', 'zonen', 'demand', 'nachfrage'], districts: ['districts', 'bezirke'],
@@ -161,40 +164,41 @@ export class UI {
     const r = this.root;
     r.hidden = false;
     const zoneCol = (z) => hex(ZONE_INFO[z].color);
-    const sp = (v, ic, w, name, desc, key) => `<button data-speed="${v}" data-tip="${name}" data-tip-desc="${desc}" data-key="${key}" data-tip-pos="bottom" aria-label="${name}">${icon(ic, w[0], w[1])}</button>`;
+    const sp = (v, inner, name, desc, key) => `<button class="spd" data-speed="${v}" data-tip="${name}" data-tip-desc="${desc}" data-key="${key}" aria-label="${name}">${inner}</button>`;
+    // Runde 3b (Vorlage): oben links Rang- und Nachfrage-Chip, oben rechts Pillen für Kasse, Einwohner und Glück samt
+    // Stadt-Check, Meldungen und Hilfe; unten links das Dock (Menü, Bau-Gruppen, Abriss, Ansichten, Stadt), unten rechts die Zeit-Karte.
     r.innerHTML = `
 <div class="topbar">
-  <div class="sign hud-l">
-    <button class="cityplate" id="u-plate" data-tour="rank" data-tip="Stadtrang" data-tip-desc="Der Balken zeigt den Weg zum nächsten Meilenstein. Klick: Ziele und Meilensteine." data-tip-pos="bottom">
-      <span class="logo">${logo(22)}</span>
+  <div class="hud-l">
+    <button class="hchip cityplate" id="u-plate" data-tour="rank" data-tip="Stadtrang" data-tip-desc="Der Balken zeigt den Weg zum nächsten Meilenstein. Klick: Ziele und Meilensteine." data-tip-pos="bottom">
+      <span class="rk-star">${badge('star', 36)}<b class="num" id="u-lvl">1</b></span>
       <span class="cp-txt"><span class="name" id="u-name"></span><span class="rank" id="u-rank"></span><span class="rankbar"><i id="u-rankbar"></i></span></span>
     </button>
-    <span class="vr"></span>
-    <div class="stats">
-      <button class="stat" data-stat="pop" data-tour="stat-pop" data-tip="Einwohner" data-tip-desc="So viele Menschen leben in der Stadt, darunter die Veränderung seit gestern. Klick: Bevölkerung." data-tip-pos="bottom"><span class="k">Einwohner</span><span class="v num" id="u-pop">0</span><span class="d num" id="u-popd"></span></button>
-      <button class="stat" data-stat="money" data-tour="stat-money" data-tip="Stadtkasse" data-tip-desc="Geld für neue Bauten, darunter Gewinn oder Verlust pro Tag. Klick: Haushalt." data-tip-pos="bottom"><span class="k">Kasse</span><span class="v num" id="u-money"></span><span class="d num" id="u-net"></span></button>
-      <button class="stat" data-stat="happy" data-tour="stat-happy" data-tip="Glück" data-tip-desc="Wie zufrieden die Leute sind. Unglückliche ziehen weg. Klick: Glückskarte der Stadt." data-tip-pos="bottom"><span class="k">Glück</span><span class="v num" id="u-happy"></span><span class="d" id="u-happyd"></span></button>
-    </div>
-    <span class="vr"></span>
-    <button class="demand" id="u-demand" data-tour="demand" data-tip="Nachfrage" data-tip-desc="Was die Stadt gerade braucht: Wohnen, Gewerbe, Industrie, Büro. Hoher Balken – mehr davon ausweisen. Klick: Zonen." data-tip-pos="bottom">
+    <button class="hchip demand" id="u-demand" data-tour="demand" data-tip="Nachfrage" data-tip-desc="Was die Stadt gerade braucht: Wohnen, Gewerbe, Industrie, Büro. Hoher Balken – mehr davon ausweisen. Klick: Zonen." data-tip-pos="bottom">
       <span class="k">Nachfrage</span>
-      <span class="bars">${[1, 2, 3, 4].map((z) => `<span class="col" id="u-demc${z}"><span class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></span><span class="lbl">${ZONE_INFO[z].short}</span></span>`).join('')}</span>
+      <span class="bars">${[1, 2, 3, 4].map((z) => `<span class="col" id="u-demc${z}" style="--zc:${zoneCol(z)}" data-tip="${esc(ZONE_INFO[z].name)}" data-tip-pos="bottom" data-tip-fast="1"><span class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></span><span class="zi" aria-hidden="true">${icon(ZONE_ICON[z], 14, 2.5)}</span><span class="lbl">${ZONE_INFO[z].short}</span></span>`).join('')}</span>
     </button>
   </div>
   <div class="spacer"></div>
-  <div class="sign hud-r">
-    <button class="wx" id="u-weather" hidden></button>
-    <div class="when" data-tour="time" data-tip="Uhrzeit und Datum" data-tip-desc="Ein Spieltag dauert 30 Sekunden. Steuern, Wachstum und Wochenkarten richten sich danach." data-tip-pos="bottom"><span class="time num" id="u-time"></span><span class="date" id="u-date"></span></div>
-    <div class="speed" id="u-speed" data-tour="speed">
-      ${sp(0, 'pause', [15, 2.4], 'Pause', 'Die Zeit anhalten und in Ruhe planen.', 'Leertaste')}${sp(1, 'play', [14, 2.2], 'Normal', 'Ein Spieltag in 30 Sekunden.', '1')}${sp(2, 'fast', [16, 2], 'Schnell', 'Doppeltes Tempo.', '2')}${sp(3, 'faster', [18, 1.8], 'Sehr schnell', 'Dreifaches Tempo – gut, wenn die Stadt rund läuft.', '3')}
+  <div class="hud-r">
+    <div class="stats">
+      <button class="hchip stat" data-stat="money" data-tour="stat-money" data-tip="Stadtkasse" data-tip-desc="Geld für neue Bauten, darunter Gewinn oder Verlust pro Tag. Klick: Haushalt." data-tip-pos="bottom"><span class="sb">${badge('coin', 32)}</span><span class="st"><span class="v num" id="u-money"></span><span class="d num" id="u-net"></span></span><span class="trend" id="u-trend"></span></button>
+      <button class="hchip stat" data-stat="pop" data-tour="stat-pop" data-tip="Einwohner" data-tip-desc="So viele Menschen leben in der Stadt, darunter die Veränderung seit gestern. Klick: Bevölkerung." data-tip-pos="bottom"><span class="sb">${badge('person', 32)}</span><span class="st"><span class="v num" id="u-pop">0</span><span class="d num" id="u-popd"></span></span></button>
+      <span class="brk" aria-hidden="true"></span>
+      <button class="hchip stat happy" data-stat="happy" data-tour="stat-happy" data-tip="Glück" data-tip-desc="Wie zufrieden die Leute sind. Unglückliche ziehen weg. Klick: Glückskarte der Stadt." data-tip-pos="bottom"><span class="sb" id="u-smile">${badge('smile', 32)}</span><span class="st"><span class="v num" id="u-happy"></span><span class="d" id="u-happyd"></span></span></button>
     </div>
-    <span class="vr"></span>
     <div class="sysbtns" id="u-sys">
-      <button class="check ok" id="u-check" data-pop="check" data-tour="check" data-tip="Stadt-Check" data-tip-desc="Zeigt, was gerade Aufmerksamkeit braucht – mit einem Klick zur Lösung." data-key="H" data-tip-pos="bottom" aria-label="Stadt-Check">${icon('pulse', 17, 2.2)}<span class="ck-l">Stadt-Check</span><span class="ck-n num" id="u-checkn"></span></button>
-      <button data-sys="notes" data-tour="notes" data-tip="Meldungen" data-tip-desc="Alles Wichtige der letzten Tage mit Ort und Zeit." data-key="N" data-tip-pos="bottom" aria-label="Meldungen">${icon('bell', 18)}<span class="count" id="u-notecount" hidden></span></button>
-      <button data-sys="help" data-tour="help" data-tip="Hilfe" data-tip-desc="So funktioniert's: Straßen, Zonen, Versorgung, Glück, Geld und U-Bahn kurz erklärt." data-key="F1" data-tip-pos="bottom" aria-label="Hilfe">${icon('help', 18)}</button>
-      <button data-pop="menu" data-tour="settings" id="u-menubtn" data-tip="Menü" data-tip-desc="Speichern und Laden, Optionen, Fotomodus und Hauptmenü." data-tip-pos="bottom" aria-label="Menü">${icon('menu', 18)}</button>
+      <button class="hchip check ok" id="u-check" data-pop="check" data-tour="check" data-tip="Stadt-Check" data-tip-desc="Zeigt, was gerade Aufmerksamkeit braucht – mit einem Klick zur Lösung." data-key="H" data-tip-pos="bottom" aria-label="Stadt-Check"><span class="ck-i">${icon('pulse', 17, 2.6)}</span><span class="ck-l">Stadt-Check</span><span class="ck-n num" id="u-checkn"></span></button>
+      <button class="rbtn" data-sys="notes" data-tour="notes" data-tip="Meldungen" data-tip-desc="Alles Wichtige der letzten Tage mit Ort und Zeit." data-key="N" data-tip-pos="bottom" aria-label="Meldungen">${icon('bell', 19, 2.4)}<span class="count" id="u-notecount" hidden></span></button>
+      <button class="rbtn" data-sys="help" data-tour="help" data-tip="Hilfe" data-tip-desc="So funktioniert's: Straßen, Zonen, Versorgung, Glück, Geld und U-Bahn kurz erklärt." data-key="F1" data-tip-pos="bottom" aria-label="Hilfe">${icon('help', 19, 2.4)}</button>
     </div>
+  </div>
+</div>
+<div class="sign timecard" id="u-timecard">
+  <button class="wx" id="u-weather" hidden></button>
+  <div class="when" data-tour="time" data-tip="Uhrzeit und Datum" data-tip-desc="Ein Spieltag dauert 30 Sekunden. Steuern, Wachstum und Wochenkarten richten sich danach."><span class="date" id="u-date"></span><span class="time num" id="u-time"></span></div>
+  <div class="speed" id="u-speed" data-tour="speed">
+    ${sp(0, icon('pause', 17, 3.2), 'Pause', 'Die Zeit anhalten und in Ruhe planen. Noch einmal drücken: weiter.', 'Leertaste')}${sp(1, '<b>×1</b>', 'Normal', 'Ein Spieltag in 30 Sekunden.', '1')}${sp(2, '<b>×2</b>', 'Schnell', 'Doppeltes Tempo.', '2')}${sp(3, '<b>×3</b>', 'Sehr schnell', 'Dreifaches Tempo – gut, wenn die Stadt rund läuft.', '3')}
   </div>
 </div>
 <div class="toolhint" id="u-toolhint" hidden></div>
@@ -202,12 +206,14 @@ export class UI {
 <div class="sign legend" id="u-legend" hidden></div>
 <div class="leftstack" id="u-leftstack"><div class="sign bubble" id="u-bubble" hidden></div><div class="sign tutorial" id="u-tutorial" hidden></div></div>
 <div class="sign minimap" id="u-mini"></div>
-<button class="sign mm-open" id="u-mmopen" data-tip="Minikarte" data-tip-desc="Übersichtskarte der ganzen Stadt. Ein Klick in die Karte springt dorthin." data-key="K" aria-label="Minikarte zeigen" hidden>${icon('minimap', 19)}</button>
-<div class="sign tray" id="u-tray" data-tour="tray" hidden></div>
+<button class="sign mm-open" id="u-mmopen" data-tip="Minikarte" data-tip-desc="Übersichtskarte der ganzen Stadt. Ein Klick in die Karte springt dorthin." data-key="K" aria-label="Minikarte zeigen" hidden>${icon('minimap', 19, 2.3)}</button>
+<div class="tray" id="u-tray" data-tour="tray" hidden></div>
 <div class="bottombar" id="u-bottom">
-  <div class="sign cap"><button class="capbtn" id="u-viewsbtn" data-pop="views" data-tour="views" data-tip="Ansichten" data-tip-desc="Farbige Karten für Strom, Wasser, Glück, Verkehr und mehr – und der Blick in den U-Bahn-Untergrund." aria-label="Ansichten"><span class="stop">${icon('layers', 20)}</span><span class="lbl" id="u-viewlbl">Ansichten</span></button></div>
-  <div class="sign toolbar" id="u-toolbar" data-tour="toolbar"><div class="track" id="u-cats"></div></div>
-  <div class="sign cap"><button class="capbtn" id="u-citybtn" data-pop="city" data-tour="city" data-tip="Stadt" data-tip-desc="Stadtverwaltung: Haushalt, Statistik, Verordnungen, U-Bahn-Linien und mehr." aria-label="Stadt"><span class="stop">${icon('city', 20)}<span class="dot" id="u-citydot" hidden></span></span><span class="lbl">Stadt</span></button></div>
+  <div class="sign dock" id="u-dock">
+    <button class="dk-menu" data-pop="menu" data-tour="settings" id="u-menubtn" data-tip="Menü" data-tip-desc="Speichern und Laden, Optionen, Fotomodus und Hauptmenü." aria-label="Menü"><span class="stop">${icon('menu', 26, 2.8)}</span><span class="lbl">Menü</span></button>
+    <div class="toolbar" id="u-toolbar" data-tour="toolbar"><div class="track" id="u-cats"></div></div>
+    <div class="cap"><span class="dk-sep"></span><button class="capbtn" id="u-viewsbtn" data-pop="views" data-tour="views" data-tip="Ansichten" data-tip-desc="Farbige Karten für Strom, Wasser, Glück, Verkehr und mehr – und der Blick in den U-Bahn-Untergrund." aria-label="Ansichten"><span class="stop">${icon('layers', 21, 2.3)}</span><span class="lbl" id="u-viewlbl">Ansichten</span></button><button class="capbtn" id="u-citybtn" data-pop="city" data-tour="city" data-tip="Stadt" data-tip-desc="Stadtverwaltung: Haushalt, Statistik, Verordnungen, U-Bahn-Linien und mehr." aria-label="Stadt"><span class="stop">${icon('city', 21, 2.3)}<span class="dot" id="u-citydot" hidden></span></span><span class="lbl">Stadt</span></button></div>
+  </div>
 </div>
 <div class="sign panel" id="u-panel" hidden></div>
 <div class="sign inspector" id="u-insp" hidden></div>
@@ -216,7 +222,7 @@ export class UI {
 `;
     const $ = (id) => document.getElementById(id);
     this.el = {};
-    for (const id of ['name', 'rank', 'rankbar', 'plate', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'demand', 'date', 'time', 'speed', 'weather', 'sys', 'check', 'checkn', 'notecount', 'menubtn', 'toolhint', 'legend', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'bottom', 'viewsbtn', 'viewlbl', 'citybtn', 'citydot', 'toolbar', 'cats', 'panel', 'insp', 'scrim', 'popover', 'pop', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
+    for (const id of ['name', 'rank', 'rankbar', 'lvl', 'plate', 'trend', 'smile', 'timecard', 'dock', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'demand', 'date', 'time', 'speed', 'weather', 'sys', 'check', 'checkn', 'notecount', 'menubtn', 'toolhint', 'legend', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'bottom', 'viewsbtn', 'viewlbl', 'citybtn', 'citydot', 'toolbar', 'cats', 'panel', 'insp', 'scrim', 'popover', 'pop', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
     this.el.name.textContent = this.g.name;
     this.renderToolbar();
     this.minimap = new Minimap(this, this.el.mini);
@@ -225,10 +231,17 @@ export class UI {
     this.unswap = bindThumbSwap(this.root);
 
     const on = (el, ev, fn) => el.addEventListener(ev, fn);
-    on(this.el.speed, 'click', (e) => { const b = e.target.closest('button[data-speed]'); if (b) { this.app.audio.play('click'); this.setSpeed(+b.dataset.speed); } });
+    on(this.el.speed, 'click', (e) => {
+      const b = e.target.closest('button[data-speed]');
+      if (!b) return;
+      this.app.audio.play('click');
+      const v = +b.dataset.speed;
+      // Der erste Knopf schaltet zwischen Pause und Weiter (wie in der Vorlage: ▶ bzw. ❚❚)
+      this.setSpeed(v === 0 && this.g.speed === 0 ? (this.lastSpeed || 1) : v);
+    });
     on(this.el.sys, 'click', (e) => { const b = e.target.closest('button[data-sys]'); if (b) this.sysAction(b.dataset.sys); });
     on(this.root, 'click', (e) => { const b = e.target.closest('[data-pop]'); if (b && this.root.contains(b)) { this.app.audio.play('click'); this.togglePop(b.dataset.pop, b); } });
-    on(this.root.querySelector('.stats'), 'click', (e) => { const b = e.target.closest('[data-stat]'); if (b) { if (b.dataset.stat === 'happy') this.app.audio.play('click'); this.statAction(b.dataset.stat); } });
+    on(this.root.querySelector('.topbar'), 'click', (e) => { const b = e.target.closest('[data-stat]'); if (b) { if (b.dataset.stat === 'happy') this.app.audio.play('click'); this.statAction(b.dataset.stat); } });
     on(this.el.plate, 'click', () => { this.togglePanel(this.panelDef('progression') ? 'progression' : 'stats'); });
     on(this.el.demand, 'click', () => { this.app.audio.play('click'); if (this.group === 'zones') this.closeTray(); else this.openTray('zones'); });
     on(this.el.weather, 'click', () => { if (this.panelDef('weather')) this.togglePanel('weather'); });
@@ -253,7 +266,7 @@ export class UI {
       if (it && it !== this.hoverItem) { this.hoverItem = it; const d = this.el.tray.querySelector('.detail'); if (d) d.innerHTML = detailHTML(it); }
     });
     on(this.el.tray, 'wheel', (e) => {
-      const strip = e.target.closest('.strip, .tr-tabs');
+      const strip = e.target.closest('.tr-tabs');
       if (!strip || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
       strip.scrollLeft += e.deltaY;
@@ -380,7 +393,17 @@ export class UI {
   }
   refreshSpeed() {
     for (const b of this.el.speed.querySelectorAll('button')) b.classList.toggle('on', +b.dataset.speed === this.g.speed);
-    this.root.classList.toggle('paused', this.g.speed === 0);
+    const paused = this.g.speed === 0;
+    this.root.classList.toggle('paused', paused);
+    // Pause-Knopf zeigt, was er tut: ❚❚ hält an, ▶ läuft weiter
+    const pb = this.el.speed.querySelector('[data-speed="0"]');
+    if (pb && pb.dataset.p !== String(paused)) {
+      pb.dataset.p = String(paused);
+      pb.innerHTML = icon(paused ? 'play' : 'pause', 17, 3.2);
+      pb.dataset.tip = paused ? 'Weiter' : 'Pause';
+      pb.dataset.tipDesc = paused ? 'Die Zeit läuft wieder mit dem letzten Tempo.' : 'Die Zeit anhalten und in Ruhe planen. Noch einmal drücken: weiter.';
+      pb.setAttribute('aria-label', paused ? 'Weiter' : 'Pause');
+    }
   }
   sysAction(a) {
     if (a === 'photo') { this.app.audio.play('click'); this.closePop(); this.photo.toggle(); return; }
@@ -402,6 +425,8 @@ export class UI {
     if (this.el.rank.textContent !== rank) this.el.rank.textContent = rank;
     this.el.plate.dataset.tipDesc = next ? `Jetzt: ${ms.name}. Nächster Rang: ${next.name} ab ${fmt(next.pop)} Einwohnern – das schaltet Neues frei. Klick: Ziele und Meilensteine.` : `${ms.name} – der höchste Rang. Klick: Ziele und Meilensteine.`;
     this.el.rankbar.style.width = next ? `${clamp((s.pop - ms.pop) / (next.pop - ms.pop), 0, 1) * 100}%` : '100%';
+    const lvl = String(g.milestone + 1);
+    if (this.el.lvl.textContent !== lvl) this.el.lvl.textContent = lvl;
     this.el.pop.textContent = fmt(s.pop);
     const hist = g.history;
     const prev = hist.length >= 2 ? hist[hist.length - 2].pop : 0;
@@ -413,11 +438,22 @@ export class UI {
     const net = g.lastBudget ? g.lastBudget.net : 0;
     this.el.net.textContent = `${net >= 0 ? '+' : '−'}${fmt(Math.abs(net))} € / Tag`;
     this.el.net.className = 'd num ' + (net >= 0 ? 'pos' : 'neg');
+    // Trendpfeil wie in der Vorlage (grün steigt, rot fällt)
+    const tr = g.sandbox ? '' : net > 0 ? 'up' : net < 0 ? 'down' : '';
+    if (this.el.trend.dataset.t !== tr) { this.el.trend.dataset.t = tr; this.el.trend.innerHTML = tr ? icon('arrowR', 15, 3) : ''; }
     this.el.happy.textContent = `${Math.round(s.happiness)} %`;
     const hp = s.happiness;
     this.el.happyd.textContent = hp >= 75 ? 'begeistert' : hp >= 60 ? 'zufrieden' : hp >= 45 ? 'durchwachsen' : hp >= 30 ? 'unzufrieden' : 'wütend';
     this.el.happyd.className = 'd ' + (hp >= 50 ? 'pos' : 'neg');
-    this.el.date.textContent = g.dateText();
+    const mood = hp >= 60 ? 'smile' : hp >= 42 ? 'meh' : 'sad';
+    if (this.el.smile.dataset.m !== mood) { this.el.smile.dataset.m = mood; this.el.smile.innerHTML = badge(mood, 32); }
+    // Zeit-Karte: „Montag · Tag 37" (Woche und Jahr im Tooltip)
+    const wd = DAY_NAMES[g.weekday()] || '';
+    const dl = `${wd} · Tag ${fmt(g.day() + 1)}`;
+    if (this.el.date.textContent !== dl) this.el.date.textContent = dl;
+    const when = this.el.date.parentElement;
+    const wt = `${g.dateText()} · ${g.clockText()} Uhr`;
+    if (when.dataset.tip !== wt) when.dataset.tip = wt;
     this.el.time.textContent = g.clockText();
     const best = [1, 2, 3, 4].reduce((a, z) => (g.demand[z] > g.demand[a] ? z : a), 1);
     for (let z = 1; z <= 4; z++) {
@@ -427,7 +463,11 @@ export class UI {
       el.style.height = hgt + '%';
       el.style.bottom = v >= 0 ? '50%' : `${50 - hgt}%`;
       el.style.opacity = v >= 0 ? 1 : 0.45;
-      el.parentElement.parentElement.classList.toggle('top', z === best && v > 8);
+      const col = el.parentElement.parentElement;
+      col.classList.toggle('top', z === best && v > 8);
+      // Klartext je Zone (Symbol + Tooltip statt nur „W G I B")
+      const zd = `${v > 40 ? 'Stark gefragt' : v > 8 ? 'Gefragt' : v < -8 ? 'Zu viel davon' : 'Ausgeglichen'} – ${v > 8 ? `mehr ${ZONE_PL[z]} ausweisen` : v < -8 ? 'erst einmal keine neuen Zonen' : 'passt gerade'}. Klick: Zonen.`;
+      if (col.dataset.tipDesc !== zd) col.dataset.tipDesc = zd;
     }
     const dd = `Was die Stadt gerade braucht – hoher Balken: mehr davon ausweisen. ${[1, 2, 3, 4].map((z) => { const v = g.demand[z]; return `${ZONE_INFO[z].name} ${v > 40 ? 'stark gefragt' : v > 8 ? 'gefragt' : v < -8 ? 'zu viel' : 'ausgeglichen'}`; }).join(' · ')}. Klick: Zonen.`;
     if (this.el.demand.dataset.tipDesc !== dd) this.el.demand.dataset.tipDesc = dd;
@@ -466,7 +506,7 @@ export class UI {
       const c = this.el.check;
       c.classList.remove('ok', 'warn', 'bad');
       c.classList.add(sev);
-      c.classList.toggle('adv', lvl >= 2 && !probs.length);
+      c.classList.toggle('hasadv', lvl >= 2 && !probs.length);
       this.el.checkn.textContent = probs.length ? String(probs.length) : '';
       c.dataset.tipDesc = probs.length ? `${probs.length === 1 ? 'Eine Sache braucht' : `${probs.length} Dinge brauchen`} Aufmerksamkeit: ${probs.slice(0, 3).map((p) => p.text).join(' · ')}. Klick: Lösungen zeigen.` : 'Alles im grünen Bereich. Klick: Lagebericht und Rat der Ratgeberin.';
       if (this.pop === 'check') this.renderPop();
@@ -505,9 +545,9 @@ export class UI {
       const single = vis.length === 1;
       const locked = vis.every((c) => { try { return catalogItems(this, c).every((it) => it.locked && !it.built); } catch (e) { return false; } });
       const desc = locked ? `${gr.desc} Noch gesperrt – kommt, wenn die Stadt wächst.` : gr.desc;
-      return `<button class="cat${locked ? ' dim' : ''}" data-group="${gr.id}" data-tour="${single ? `cat-${vis[0]}` : `group-${gr.id}`}" style="--lc:${gr.color}" data-tip="${esc(gr.name)}" data-tip-desc="${esc(desc)}" ${gr.key ? `data-key="${gr.key}"` : ''} aria-label="${esc(gr.name)}"><span class="stop">${iconAny(gr.icon, 'layers', 20, 2.1)}</span><span class="lbl">${esc(gr.name)}</span></button>`;
+      return `<button class="cat${locked ? ' dim' : ''}" data-group="${gr.id}" data-tour="${single ? `cat-${vis[0]}` : `group-${gr.id}`}" style="--lc:${gr.color}" data-tip="${esc(gr.name)}" data-tip-desc="${esc(desc)}" ${gr.key ? `data-key="${gr.key}"` : ''} aria-label="${esc(gr.name)}"><span class="stop">${iconAny(gr.icon, 'layers', 22, 2.4)}</span><span class="lbl">${esc(gr.name)}</span></button>`;
     };
-    this.el.cats.innerHTML = `<div class="line"><i class="rail"></i>${groups.map(stop).join('')}</div><span class="tb-sep"></span><button class="cat danger" data-tool="bulldoze" data-tour="cat-bulldoze" data-tip="Abriss" data-tip-desc="Gebäude, Straßen und Zonen entfernen: Fläche aufziehen. Rechtsklick oder Esc beendet." data-key="B" aria-label="Abriss"><span class="stop">${icon('bulldoze', 20, 2.1)}</span><span class="lbl">Abriss</span></button>`;
+    this.el.cats.innerHTML = `<div class="line">${groups.map(stop).join('')}</div><span class="tb-sep"></span><button class="cat danger" data-tool="bulldoze" data-tour="cat-bulldoze" data-tip="Abriss" data-tip-desc="Gebäude, Straßen und Zonen entfernen: Fläche aufziehen. Rechtsklick oder Esc beendet." data-key="B" aria-label="Abriss"><span class="stop">${icon('bulldoze', 22, 2.4)}</span><span class="lbl">Abriss</span></button>`;
     this.markToolButtons();
     this.markFresh();
     if (this.cat && !this.el.tray.hidden) this.renderTray();
@@ -587,20 +627,25 @@ export class UI {
     this.refreshTutorial();
   }
   trayItems(cat) { return catalogItems(this, cat); }
+  // Baukatalog als Liste im Stil der Vorlage: Reiter oben (aktiv = Lavendel wie der Kopf darunter), Lavendel-Kopf mit
+  // Suche und violettem X, darunter weiße und lavendelfarbene Zeilen mit Bild, Name, „Mehr Infos" und orangem Preis-Knopf.
   renderTray() {
     const cat = this.cat;
     if (!cat) return;
     const isSearch = cat === '__search';
     const gr = isSearch ? null : this.groupById(this.group);
-    const cm = isSearch ? { name: 'Baukatalog', color: '#1d2330', icon: 'search' } : gr ? { name: gr.name, color: gr.color, icon: gr.icon } : catMeta(cat);
+    const cm = isSearch ? { name: 'Baukatalog', color: '#5b2fb3', icon: 'search' } : gr ? { name: gr.name, color: gr.color, icon: gr.icon } : catMeta(cat);
     const vis = gr ? (this.visibleCats(gr)) : [];
     if (gr && this.visCache) this.visCache.set(gr.id, vis);
     this.el.tray.style.setProperty('--lc', cm.color);
-    const tabs = vis.length > 1 ? `<div class="tr-tabs" role="tablist">${vis.map((c) => { const m = catMeta(c); const lbl = catLabel(c); return `<button class="tr-tab${c === cat ? ' on' : ''}" role="tab" data-tab="${c}" data-tour="cat-${c}" style="--tc:${m.color}" data-tip="${esc(lbl)}" data-tip-desc="${esc(this.catDesc(c))}" data-tip-fast="1">${iconAny(m.icon, 'layers', 15, 2.2)}<span>${esc(lbl)}</span>${this._isNew && this._isNew(c) ? '<i class="nd"></i>' : ''}</button>`; }).join('')}</div>` : '';
-    this.el.tray.innerHTML = `<div class="tr-head"><span class="tr-badge" style="background:${cm.color}">${iconAny(cm.icon, 'layers', 15, 2.2)}</span><span class="tr-name">${esc(isSearch ? 'Suche' : vis.length > 1 ? cm.name : catLabel(cat))}</span>${tabs}<span class="grow"></span>
-<label class="tr-search" data-tip="Suchen" data-tip-desc="Alle Gebäude und Werkzeuge nach Namen durchsuchen." data-key="F" data-tip-fast="1">${icon('search', 15)}<input id="u-search" type="search" placeholder="Suchen …" value="${esc(this.search)}" autocomplete="off" spellcheck="false" aria-label="Gebäude suchen"></label>
-<button class="close" data-act="closetray" data-tip="Schließen" data-tip-desc="Baukatalog zuklappen." data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 16)}</button></div>
-<div class="tr-body"><div class="detail"></div><div class="strip" id="u-strip"></div></div>`;
+    const tabs = vis.length > 1 ? `<div class="tr-tabs" role="tablist">${vis.map((c) => { const m = catMeta(c); const lbl = catLabel(c); return `<button class="tr-tab${c === cat ? ' on' : ''}" role="tab" aria-selected="${c === cat}" data-tab="${c}" data-tour="cat-${c}" style="--tc:${m.color}" data-tip="${esc(lbl)}" data-tip-desc="${esc(this.catDesc(c))}" data-tip-fast="1">${iconAny(m.icon, 'layers', 16, 2.4)}<span>${esc(lbl)}</span>${this._isNew && this._isNew(c) ? '<i class="nd"></i>' : ''}</button>`; }).join('')}</div>` : '';
+    const title = isSearch ? 'Suche' : vis.length > 1 ? cm.name : catLabel(cat);
+    const sub = isSearch ? 'Alle Gebäude und Werkzeuge' : this.catDesc(cat);
+    this.el.tray.classList.toggle('has-tabs', !!tabs);
+    this.el.tray.innerHTML = `${tabs}<div class="sign tr-card"><div class="tr-head"><span class="tr-badge">${iconAny(cm.icon, 'layers', 18, 2.4)}</span><div class="tr-t"><span class="tr-name">${esc(title)}</span><span class="tr-sub">${esc(sub)}</span></div>
+<label class="tr-search" data-tip="Suchen" data-tip-desc="Alle Gebäude und Werkzeuge nach Namen durchsuchen." data-key="F" data-tip-fast="1">${icon('search', 15, 2.6)}<input id="u-search" type="search" placeholder="Suchen …" value="${esc(this.search)}" autocomplete="off" spellcheck="false" aria-label="Gebäude suchen"></label>
+<button class="close" data-act="closetray" data-tip="Schließen" data-tip-desc="Baukatalog zuklappen." data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 18, 3.2)}</button></div>
+<div class="tr-body"><div class="strip list" id="u-strip" role="list"></div></div></div>`;
     this.renderTrayBody();
   }
   catDesc(c) {
@@ -621,23 +666,26 @@ export class UI {
     } else list = this.trayItems(this.cat);
     this.trayList = list;
     const t = this.app.input ? this.app.input.tool : { kind: 'select' };
-    const sl = strip.scrollLeft;
-    strip.innerHTML = list.length ? list.map((it, i) => cardHTML(it, i, isActive(it, t), isSearch)).join('') : `<div class="empty strip-empty">${q ? `Nichts gefunden für „${esc(q)}".` : 'Tippe einen Namen, z. B. „Schule", „Park" oder „Strom". Hier erscheint auch, was du zuletzt gebaut hast.'}</div>`;
-    strip.scrollLeft = sl;
-    // Ohne Detailspalte (schmale Fenster) erklärt ein Tooltip jede Karte
-    if (window.innerWidth <= 1100) for (const b of strip.querySelectorAll('button.item')) { const it = list[+b.dataset.i]; if (!it) continue; b.dataset.tip = it.name; b.dataset.tipDesc = `${it.cost ? it.cost + ' · ' : ''}${it.locked || it.desc || ''}`; }
-    const cnt = document.getElementById('u-traycount');
-    if (cnt) cnt.textContent = list.length ? `${list.length} ${list.length === 1 ? 'Eintrag' : 'Einträge'}` : '';
+    const st = strip.scrollTop;
+    strip.innerHTML = list.length ? list.map((it, i) => cardHTML(it, i, isActive(it, t), isSearch, this.moreKey === itemKey(it))).join('') : `<div class="empty strip-empty">${q ? `Nichts gefunden für „${esc(q)}".` : 'Tippe einen Namen, z. B. „Schule", „Park" oder „Strom". Hier erscheint auch, was du zuletzt gebaut hast.'}</div>`;
+    strip.scrollTop = st;
     const active = list.find((it) => isActive(it, t));
     if (!this.hoverItem || !list.includes(this.hoverItem)) this.hoverItem = active || list.find((it) => !it.locked) || list[0] || null;
-    const d = this.el.tray.querySelector('.detail');
-    if (d) d.innerHTML = detailHTML(this.hoverItem);
   }
   trayClick(e) {
     if (e.target.closest('[data-act=closetray]')) { this.app.audio.play('close'); this.closeTray(); return; }
     const tab = e.target.closest('[data-tab]');
-    if (tab) { this.app.audio.play('tab'); this.openTray(tab.dataset.tab); return; }
-    if (e.target.closest('[data-act=trayhelp]')) { const it = this.hoverItem; this.openHelpFor(it ? (it.kind === 'place' ? it.cat : it.cat) : this.cat); return; }
+    if (tab) { this.app.audio.play('tab'); this.moreKey = null; this.openTray(tab.dataset.tab); return; }
+    const rowOf = (el) => { const b = el && el.closest('button.item'); return b && this.trayList ? this.trayList[+b.dataset.i] : null; };
+    const th = e.target.closest('[data-act=trayhelp]');
+    if (th) { const it = rowOf(th) || this.hoverItem; this.openHelpFor(it ? (it.kind === 'place' ? it.key : it.cat) : this.cat); return; }
+    // „Mehr Infos" klappt die Zeile auf (Beschreibung, alle Werte), statt zu bauen
+    const more = e.target.closest('[data-more]');
+    if (more) {
+      const it = rowOf(more);
+      if (it) { const k = itemKey(it); this.moreKey = this.moreKey === k ? null : k; this.hoverItem = it; this.app.audio.play('tab'); this.renderTrayBody(); }
+      return;
+    }
     const b = e.target.closest('button.item');
     if (!b || !this.trayList) return;
     const it = this.trayList[+b.dataset.i];
@@ -818,7 +866,8 @@ export class UI {
     const w = el.offsetWidth;
     const below = T < H / 2;
     if (below) { st.top = Math.round(B + 8) + 'px'; } else { st.bottom = Math.round(H - T + 10) + 'px'; }
-    const alignLeft = this.pop === 'views';
+    // Dock unten links (Menü, Ansichten, Stadt): links bündig; Kopfzeile rechts (Stadt-Check): rechts bündig
+    const alignLeft = (L + R) / 2 < W / 2;
     const x = clamp(alignLeft ? L : R - w, 10, Math.max(10, W - w - 10));
     st.left = Math.round(x) + 'px';
     el.style.setProperty('--ox', `${Math.round(clamp((alignLeft ? L + 24 : R - 24) - x, 0, w))}px`);
@@ -935,7 +984,8 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
     const q = (sel) => this.root.querySelector(sel);
     const sel = (t) => `[data-tour="${CSS.escape(t)}"]`;
     try {
-      if ((id === 'views' || id === 'city') && this.mobile()) return vis(this.el.menubtn);
+      // Handy: Ansichten, Stadt und Hilfe stecken im Menü ☰ (links im Dock)
+      if ((id === 'views' || id === 'city' || id === 'help') && this.mobile()) return vis(this.el.menubtn);
       if (id === 'group-roads' || id === 'group-zones' || id.startsWith('group-')) {
         const b = q(`.toolbar [data-group="${CSS.escape(id.slice(6))}"]`);
         return vis(b);

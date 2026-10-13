@@ -379,7 +379,7 @@ function drawSankey(canvas, L) {
     ['fac', 'shop', v('facShop')], ['fac', 'exp', v('facExp')], ['fac', 'whT', v('facWh')], ['fac', 'left', v('facLeft')],
     ['imp', 'shop', v('impShop')], ['whS', 'shop', v('whShop')], ['whS', 'exp', v('whExp')],
   ].filter((l) => l[2] > 0.5);
-  ctx.font = '600 11px Barlow, sans-serif';
+  ctx.font = '600 11px "Stadtpuls Text", Nunito, sans-serif';
   if (!links.length) {
     ctx.fillStyle = '#7a8294';
     ctx.fillText('Noch keine Warenströme – weise Industrie und Gewerbe aus.', 6, h / 2);
@@ -431,14 +431,14 @@ function drawSankey(canvas, L) {
     ctx.lineJoin = 'round';
     ctx.lineWidth = 3.5;
     ctx.strokeStyle = 'rgba(246,242,234,0.92)';
-    ctx.font = '700 11px Barlow, sans-serif';
+    ctx.font = '700 11px "Stadtpuls Text", Nunito, sans-serif';
     const label = n.name, val = `${fmt(n.v)} t`;
     const two = n.h >= 22;
     ctx.strokeText(label, tx, two ? ty - 2 : ty + 4);
     ctx.fillStyle = '#1d2330';
     ctx.fillText(label, tx, two ? ty - 2 : ty + 4);
     if (two) {
-      ctx.font = '600 10.5px "Barlow Condensed", Barlow, sans-serif';
+      ctx.font = '600 10.5px "Stadtpuls Rund", Fredoka, sans-serif';
       ctx.strokeText(val, tx, ty + 10);
       ctx.fillStyle = '#4a5263';
       ctx.fillText(val, tx, ty + 10);
@@ -456,7 +456,7 @@ function drawMulti(canvas, series, opts = {}) {
   const ink = '#7a8294';
   const padL = 44, padR = 8, padT = 16, padB = 18;
   const n = Math.max(...series.map((s) => s.values.length));
-  ctx.font = '600 11px "Barlow Condensed", Barlow, sans-serif';
+  ctx.font = '600 11px "Stadtpuls Rund", Fredoka, sans-serif';
   if (n < 1) { ctx.fillStyle = ink; ctx.fillText('Noch keine Daten – ein Spieltag vergeht in 30 Sekunden.', 8, h / 2); return; }
   let max = 1;
   for (const s of series) for (const v of s.values) max = Math.max(max, v);
@@ -719,6 +719,6 @@ TRAY_ITEMS.push({
   item(g) {
     const S = g.ext && g.ext.industry;
     const t = S ? S.tot : {};
-    return { kind: 'panel', panel: 'economy', name: 'Wirtschaft & Handel', cost: `Fracht ${P(t.freightUse || 0)}`, desc: 'Warenströme, Exportpreise, Lagerhallen, Dienstbudgets und Steuern.', color: '#10a9a3' };
+    return { kind: 'panel', panel: 'economy', name: 'Wirtschaft & Handel', cost: `Fracht ${P(t.freightUse || 0)}`, desc: 'Warenströme, Exportpreise, Lagerhallen, Dienstbudgets und Steuern.', color: '#10a9a3', locked: g.sandbox || g.milestone >= 2 ? null : 'Ab „Kleinstadt" (500 Einwohner)', unlockName: 'Kleinstadt' };
   },
 });
