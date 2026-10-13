@@ -165,9 +165,9 @@ const CSS = `
 .hp .hp-x:active { transform: translateY(2px); box-shadow: var(--p-violet, none); }
 .hp .hp-body { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 0 16px 16px; }
 .hp .hp-nav { width: 224px; flex: none; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 2px 2px 6px; }
-.hp .hp-nav button { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 12px; border: 0; background: var(--m-white, var(--card, #fff)); box-shadow: var(--e-white, none); font: 700 14px/1.2 var(--f-ui, system-ui); color: var(--accent-ink, #2a1f5c); cursor: pointer; text-align: left; }
+.hp .hp-nav button { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 12px; border-radius: 12px; border: 0; background: var(--card-bg, var(--card, #fff)); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(91, 47, 179, .08), 0 1px 0 rgba(91, 47, 179, .14); font: 700 14px/1.2 var(--f-ui, system-ui); color: var(--accent-ink, #2a1f5c); cursor: pointer; text-align: left; }
 .hp .hp-nav button:hover { filter: brightness(.99); color: var(--accent, #6c4fe0); }
-.hp .hp-nav button:active { transform: translateY(2px); box-shadow: var(--p-white, none); }
+.hp .hp-nav button:active { transform: translateY(1px); box-shadow: inset 0 0 0 1px rgba(91, 47, 179, .12), inset 0 2px 4px rgba(52, 19, 122, .14); }
 .hp .hp-nav button.on { background: var(--m-violet, var(--accent, #6c4fe0)); box-shadow: var(--e-violet, none); color: #fff; text-shadow: var(--ts-violet, none); }
 .hp .hp-nav button svg { flex: none; opacity: .9; }
 .hp .hp-topic { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 24px 20px; background: var(--card-bg, var(--card, #fff)); border-radius: 20px; box-shadow: var(--inner-hi, none), 0 0 0 1px rgba(52, 19, 122, .07), 0 8px 20px -12px rgba(52, 19, 122, .35); }
