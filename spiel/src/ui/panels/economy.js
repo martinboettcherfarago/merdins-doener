@@ -719,6 +719,6 @@ TRAY_ITEMS.push({
   item(g) {
     const S = g.ext && g.ext.industry;
     const t = S ? S.tot : {};
-    return { kind: 'panel', panel: 'economy', name: 'Wirtschaft & Handel', cost: `Fracht ${P(t.freightUse || 0)}`, desc: 'Warenströme, Exportpreise, Lagerhallen, Dienstbudgets und Steuern.', color: '#10a9a3' };
+    return { kind: 'panel', panel: 'economy', name: 'Wirtschaft & Handel', cost: `Fracht ${P(t.freightUse || 0)}`, desc: 'Warenströme, Exportpreise, Lagerhallen, Dienstbudgets und Steuern.', color: '#10a9a3', locked: g.sandbox || g.milestone >= 2 ? null : 'Ab „Kleinstadt" (500 Einwohner)', unlockName: 'Kleinstadt' };
   },
 });

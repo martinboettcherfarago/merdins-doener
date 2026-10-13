@@ -93,9 +93,9 @@ ${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort
 <div class="sec" data-tour="confirmplace"><h3>Bauen bestätigen</h3>${seg('confirmPlace', s.confirmPlace, CONFIRM_PLACE.map((x) => [x[0], x[1]]))}<p class="hint">${esc(cp[2])}</p></div>
 <div class="sec"><h3>Hilfen</h3>
   ${sw('minimap', s.minimapOpen, 'Minikarte', 'Übersichtskarte unten links (Taste K).')}
-  ${sw('advisor', s.advisor, 'Ratgeber-Hinweise', 'Die Stadtplanerin meldet sich, wenn etwas fehlt.')}
+  ${sw('advisor', s.advisor, 'Begleiter (Nächstes Ziel)', 'Zeigt immer das eine nächste Ziel – mit Knopf zum passenden Werkzeug.')}
   ${sw('tooltips', s.tooltips, 'Tooltips', 'Erklärungen beim Überfahren von Knöpfen.')}
-  ${sw('tutorial', !s.tutorialDone, 'Erste Schritte', 'Die Checkliste für den Einstieg anzeigen.')}
+  ${sw('tutorial', !s.tutorialDone, 'Einführung', 'Die geführte Einführung für neue Städte.')}
 </div>`;
   } else if (tab === 'spiel') {
     const slots = [1, 2, 3].map((k) => {
@@ -141,7 +141,7 @@ export function settingsClick(ctx, act, el) {
     case 'minimap': s.minimapOpen = !s.minimapOpen; save(); if (ctx.ui && ctx.ui.toggleMinimap) ctx.ui.toggleMinimap(s.minimapOpen, true); return true;
     case 'advisor': s.advisor = !s.advisor; save(); return true;
     case 'tooltips': s.tooltips = !s.tooltips; save(); ctx.onTips && ctx.onTips(s.tooltips); return true;
-    case 'tutorial': s.tutorialDone = !s.tutorialDone; save(); if (ctx.ui) { ctx.ui.tutorialHidden = s.tutorialDone; ctx.ui.refreshTutorial(); } return true;
+    case 'tutorial': s.tutorialDone = !s.tutorialDone; save(); if (ctx.ui) { ctx.ui.tutorialHidden = s.tutorialDone; if (!s.tutorialDone && ctx.ui.onboarding && typeof ctx.ui.onboarding.start === 'function') { try { ctx.ui.onboarding.start(); } catch (e) { console.warn('Einführung', e); } } ctx.ui.refreshTutorial(); } return true;
     default: return false;
   }
 }

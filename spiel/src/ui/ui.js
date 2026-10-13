@@ -53,6 +53,8 @@ function wxKind(w) {
 }
 const itemKey = (it) => `${it.kind}:${it.key || it.type || it.zone || it.panel || ''}`;
 const SEASON = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' };
+const ZONE_ICON = { 1: 'house', 2: 'shop', 3: 'industry', 4: 'office' };
+const ZONE_PL = { 1: 'Wohnzonen', 2: 'Gewerbezonen', 3: 'Industriezonen', 4: 'Bürozonen' };
 const DAY_NAMES = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 // Themen der Hilfe zu Kategorien und Begriffen (die Hilfe gehört EINSTIEG – hier nur die Zuordnung, erste Übereinstimmung gewinnt)
 const HELP_HINTS = {
@@ -174,7 +176,7 @@ export class UI {
     </button>
     <button class="hchip demand" id="u-demand" data-tour="demand" data-tip="Nachfrage" data-tip-desc="Was die Stadt gerade braucht: Wohnen, Gewerbe, Industrie, Büro. Hoher Balken – mehr davon ausweisen. Klick: Zonen." data-tip-pos="bottom">
       <span class="k">Nachfrage</span>
-      <span class="bars">${[1, 2, 3, 4].map((z) => `<span class="col" id="u-demc${z}"><span class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></span><span class="lbl">${ZONE_INFO[z].short}</span></span>`).join('')}</span>
+      <span class="bars">${[1, 2, 3, 4].map((z) => `<span class="col" id="u-demc${z}" style="--zc:${zoneCol(z)}" data-tip="${esc(ZONE_INFO[z].name)}" data-tip-pos="bottom" data-tip-fast="1"><span class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></span><span class="zi" aria-hidden="true">${icon(ZONE_ICON[z], 14, 2.5)}</span><span class="lbl">${ZONE_INFO[z].short}</span></span>`).join('')}</span>
     </button>
   </div>
   <div class="spacer"></div>
@@ -461,7 +463,11 @@ export class UI {
       el.style.height = hgt + '%';
       el.style.bottom = v >= 0 ? '50%' : `${50 - hgt}%`;
       el.style.opacity = v >= 0 ? 1 : 0.45;
-      el.parentElement.parentElement.classList.toggle('top', z === best && v > 8);
+      const col = el.parentElement.parentElement;
+      col.classList.toggle('top', z === best && v > 8);
+      // Klartext je Zone (Symbol + Tooltip statt nur „W G I B")
+      const zd = `${v > 40 ? 'Stark gefragt' : v > 8 ? 'Gefragt' : v < -8 ? 'Zu viel davon' : 'Ausgeglichen'} – ${v > 8 ? `mehr ${ZONE_PL[z]} ausweisen` : v < -8 ? 'erst einmal keine neuen Zonen' : 'passt gerade'}. Klick: Zonen.`;
+      if (col.dataset.tipDesc !== zd) col.dataset.tipDesc = zd;
     }
     const dd = `Was die Stadt gerade braucht – hoher Balken: mehr davon ausweisen. ${[1, 2, 3, 4].map((z) => { const v = g.demand[z]; return `${ZONE_INFO[z].name} ${v > 40 ? 'stark gefragt' : v > 8 ? 'gefragt' : v < -8 ? 'zu viel' : 'ausgeglichen'}`; }).join(' · ')}. Klick: Zonen.`;
     if (this.el.demand.dataset.tipDesc !== dd) this.el.demand.dataset.tipDesc = dd;

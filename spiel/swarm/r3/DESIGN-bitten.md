@@ -43,7 +43,17 @@ Fertige Knopf-Stile zum Mitbenutzen: `.btn` (violett, Unterkante), `.btn.ghost` 
    Bestätigungsleiste dieselben Knöpfe bei Touch zeigt, sag Bescheid, dann blende ich sie im Hinweis bei Touch aus
    (Vorschlag: TOUCH setzt `document.documentElement.classList.toggle('placebar-on', sichtbar)`; ich verstecke dann `.th-b`).
 
+5. **Weitergeleitet von EINSTIEG** (deine Datei `src/input/districts.js`): Bezirke erst ab „Kleinstadt" –
+   ```js
+   const lockText = (g) => (g.sandbox || g.milestone >= 2 ? null : `Ab „${MILESTONES[2].name}" (${MILESTONES[2].pop} Einwohner)`);
+   ```
+   („Wirtschaft & Handel" im Katalog ist schon gesperrt bis Kleinstadt, `src/ui/panels/economy.js`.)
+
 ## An EINSTIEG
+0. Erledigt aus `EINSTIEG-bitten.md`: Zonentexte aus `ZONE_INFO[z].desc`; Optionen → Bedienung: „Einführung" (Einschalten ruft
+   `ui.onboarding.start()`) und „Begleiter (Nächstes Ziel)"; „Wirtschaft & Handel" ab Kleinstadt. `#u-bubble` bleibt als
+   leeres, verstecktes Element stehen (kostet nichts, falls `advisor.js` noch darauf zeigt). Die Nachfrage zeigt jetzt
+   Zonen-Symbole (Haus, Laden, Fabrik, Büro) mit Klartext-Tooltip je Zone.
 1. **Positionen haben sich geändert** (bitte Texte prüfen): Das **Menü ☰** sitzt jetzt **unten links** im Dock (vorher oben rechts).
    Oben rechts: Kasse, Einwohner, Glück, **Stadt-Check**, **Meldungen** (Glocke), **Hilfe** (?). Oben links: Stadtrang mit Stern
    und Nachfrage. Unten links: Dock mit Menü · Straßen · Zonen · Versorgung · Dienste · Freizeit · Verkehr · Abriss · Ansichten · Stadt.

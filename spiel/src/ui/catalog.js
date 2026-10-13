@@ -91,7 +91,7 @@ export function catalogItems(ui, cat) {
     for (const z of [1, 2, 3, 4]) {
       const locked = z === 4 && !g.isUnlocked('zone4') ? g.lockReason('zone4') : null;
       const dem = Math.round(g.demand[z] || 0);
-      items.push({ cat, kind: 'zone', zone: z, name: ZONE_INFO[z].name, cost: `${fmtMoney(2 * g.costMul)} / Feld`, desc: ZONE_DESC[z], color: hex(ZONE_INFO[z].color), locked,
+      items.push({ cat, kind: 'zone', zone: z, name: ZONE_INFO[z].name, cost: `${fmtMoney(2 * g.costMul)} / Feld`, desc: ZONE_INFO[z].desc || ZONE_DESC[z], color: hex(ZONE_INFO[z].color), locked,
         facts: [['stats', `Nachfrage ${dem > 0 ? '+' : ''}${dem}`], ['grid', 'Fläche aufziehen']], demand: dem });
     }
     items.push({ cat, kind: 'dezone', name: 'Zonen entfernen', cost: 'kostenlos', desc: 'Entfernt Zonen von unbebauten Feldern.', color: '#9a9a9a', icon: 'dezone', facts: [['grid', 'Fläche aufziehen']] });
