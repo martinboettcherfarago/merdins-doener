@@ -411,7 +411,7 @@ export class VehicleView {
     let flags = 0, roll = r.roll || 0;
     const siren = r.siren !== undefined ? !!r.siren : r.lights !== false;
     if ((EMERGENCY[kind] || AMBERS[kind]) && siren) flags |= F.BEACON;
-    if (r.lights === true) flags |= F.LIGHTS;
+    if (r.lights === true && this.L > 0.05) flags |= F.LIGHTS; // Wunsch-Licht der Systeme nur nachts
     if (RAILK[kind]) flags |= F.RAIL | (lead ? F.LEAD : 0);
     if (r.brake) flags |= F.BRAKE;
     if (r.wreck) { _c.setHex(col).multiplyScalar(0.5); col = _c.getHex(); roll += 0.07; flags |= F.DARK; }

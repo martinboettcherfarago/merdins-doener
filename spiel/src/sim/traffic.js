@@ -179,7 +179,7 @@ export class Traffic {
     if (!def) return false; // Straße wurde abgerissen
     const cong = g.congestion[tile];
     const slow = (cong > 0.75 ? 1 / (1 + (cong - 0.75) * 3) : 1) / (1 + (g.tileDelay ? g.tileDelay[tile] : 0));
-    let v = 2.1 * def.speed * slow * slowGlobal * c.speedVar;
+    let v = 1.7 * def.speed * slow * slowGlobal * c.speedVar; // etwas gemächlicher (Spielerwunsch); vorher 2,1
     if (c.type === VT.FIRE) v *= 1.35;
     if (c.type === VT.TRUCK || c.type === VT.GARBAGE) v *= 0.85;
     c.s += v * simSec;

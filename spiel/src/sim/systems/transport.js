@@ -1183,7 +1183,7 @@ function taxiStep(g, dt) {
     if (!def) { tx.path = null; tx.wait = 0.5; continue; }
     const cong = g.congestion[tile];
     const slow = cong > 0.75 ? 1 / (1 + (cong - 0.75) * 3) : 1;
-    const v = 2.1 * def.speed * slow * 1.05;
+    const v = 1.7 * def.speed * slow * 1.05; // wie der übrige Autoverkehr (etwas gemächlicher)
     tx.vs = v;
     tx.s += v * dt;
     let len = pieceLen(tx.path, tx.piece);
@@ -1258,7 +1258,7 @@ function taxiPose(g, tx, sExtra, out) {
 function vehSpeed(g, line, tile, vt) {
   const def = ROADS[g.road[tile]];
   if (!def) return 0.6;
-  let v = 2.1 * def.speed * vt.speed * (line.mode === 'tram' ? 1.0 : 0.86);
+  let v = 1.85 * def.speed * vt.speed * (line.mode === 'tram' ? 1.0 : 0.86); // etwas gemächlicher, passend zum Autoverkehr
   const c = g.congestion[tile];
   if (line.mode === 'tram') { if (c > 0.75) v /= 1 + (c - 0.75) * 0.8; }
   else if (!g.policies.has('tp_buslanes')) { if (c > 0.75) v /= 1 + (c - 0.75) * 3; }

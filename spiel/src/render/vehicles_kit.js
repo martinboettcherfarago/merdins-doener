@@ -413,7 +413,8 @@ export function insetPoly(pts, m) {
 let _mat = null;
 export function getVehicleMaterial() {
   if (_mat) return _mat;
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1 });
+  // Matte, ruhige Fahrzeuge: wenig Spiegelung, damit keine grellen Glanzpunkte (Bloom) über die Straßen huschen
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1, envMapIntensity: 0.55 });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = shared.uTime;
     sh.uniforms.uNight = shared.uNight;
@@ -463,9 +464,9 @@ float vhash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32
 int part = int(vPart + 0.5);
 int flags = int(vInst.y + 0.5);
 float vseed = vInst.x;
-if (part == 0 || part == 13 || part == 19) { roughnessFactor = 0.3; metalnessFactor = mix(0.04, 0.4, uEnv); }
-else if (part == 2 || part == 3) { roughnessFactor = 0.06; metalnessFactor = mix(0.1, 0.7, uEnv); }
-else if (part == 9) { roughnessFactor = 0.25; metalnessFactor = mix(0.12, 0.95, uEnv); }
+if (part == 0 || part == 13 || part == 19) { roughnessFactor = 0.46; metalnessFactor = mix(0.04, 0.22, uEnv); }
+else if (part == 2 || part == 3) { roughnessFactor = 0.28; metalnessFactor = mix(0.1, 0.32, uEnv); }
+else if (part == 9) { roughnessFactor = 0.42; metalnessFactor = mix(0.12, 0.55, uEnv); }
 else if (part == 10) { roughnessFactor = 0.92; metalnessFactor = 0.0; }
 else if (part == 1 || part == 20 || part == 17 || part == 18) { roughnessFactor = 0.75; metalnessFactor = 0.02; }
 else { roughnessFactor = 0.35; metalnessFactor = 0.0; }`)
