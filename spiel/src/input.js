@@ -267,7 +267,7 @@ export class Input {
       const sub = `${plan.build.length} ${plan.build.length === 1 ? 'Feld' : 'Felder'}${bridges ? ` (davon ${bridges} Brücke)` : ''}`;
       const txt = plan.invalid.length ? 'Hindernis im Weg' : `${ROADS[this.tool.type].name}: ${sub} · ${fmtMoney(plan.cost)}`;
       const reason = plan.invalid.length ? 'Hindernis im Weg' : !plan.build.length ? 'Hier liegt schon diese Straße' : !afford ? 'Nicht genug Geld' : '';
-      return { tip: txt, tipOk: !plan.invalid.length && afford, title: ROADS[this.tool.type].name, sub, ok: !reason, reason, okLabel: 'Bauen', price: fmtMoney(plan.cost) };
+      return { tip: txt, tipOk: !plan.invalid.length && afford, title: ROADS[this.tool.type].name, sub, ok: !reason, reason, okLabel: 'Bauen', price: plan.cost > 0 ? fmtMoney(plan.cost) : '' };
     } else if (k === 'zone' || k === 'dezone') {
       const tiles = this.rectTiles(d);
       const z = k === 'zone' ? this.tool.zone : 0;
@@ -366,7 +366,7 @@ export class Input {
     const reason = err || (!afford ? 'Nicht genug Geld' : '');
     return {
       tip: err ? err : `${def.name} · ${fmtMoney(cost)}${w !== h ? ' · [R] drehen' : ''}${warn ? ' · ' + warn : ''}`, tipOk: !err && afford && !warn,
-      title: def.name, sub: warn || `${w}×${h} ${w * h === 1 ? 'Feld' : 'Felder'}`, warn: !!warn, ok: !reason, reason, okLabel: 'Bauen', price: fmtMoney(cost),
+      title: def.name, sub: warn || `${w}×${h} ${w * h === 1 ? 'Feld' : 'Felder'}`, warn: !!warn, ok: !reason, reason, okLabel: 'Bauen', price: cost > 0 ? fmtMoney(cost) : '',
       rotate: true, x, y, w, h,
     };
   }
@@ -554,11 +554,9 @@ export class Input {
       if (this.tool.kind !== 'road') pts.push(tile(p.sx, p.ey), tile(p.ex, p.sy));
       return { box: boxOf(pts), handles: hs, finger, dragging };
     }
-    // Linienentwurf: an der letzten Station
-    const d = this.draftInfo();
-    if (!d || d.at == null) return { box: { x0: rc.left + rc.width / 2, y0: rc.top + rc.height - 120, x1: rc.left + rc.width / 2, y1: rc.top + rc.height - 120 }, handles: [], finger };
-    const q = tile(d.at % g.W, (d.at / g.W) | 0, 0);
-    return { box: { x0: q.x, y0: q.y, x1: q.x, y1: q.y }, handles: [], finger };
+    // Linienentwurf: Leiste unten mittig – nicht über der Karte, auf der die nächsten Stationen angetippt werden
+    const mid = rc.left + rc.width / 2, bot = rc.top + rc.height;
+    return { box: { x0: mid, y0: bot, x1: mid, y1: bot }, handles: [], finger, dock: true };
   }
 
   // Jedes Bild, solange die Leiste steht: Rand-Bildlauf beim Ziehen eines Griffs, Gültigkeit gelegentlich auffrischen
@@ -590,7 +588,7 @@ export class Input {
       const cost = n >= 2 ? g.linePlanCost(this.lineStops, false) : 0;
       return {
         title: 'U-Bahn-Linie', sub: `${n} ${n === 1 ? 'Station' : 'Stationen'} · ${n < 2 ? 'nächste Station antippen' : 'weitere antippen oder Fertig'}`,
-        ok: n >= 2, reason: n < 2 ? 'Mindestens zwei Stationen antippen' : '', okLabel: 'Fertig', price: n >= 2 ? '≈ ' + fmtMoney(cost) : '', undo: n >= 1, at: atTile,
+        ok: n >= 2, reason: n < 2 ? 'Mindestens zwei Stationen antippen' : '', okLabel: 'Fertig', price: n >= 2 && cost > 0 ? '≈ ' + fmtMoney(cost) : '', undo: n >= 1, at: atTile,
       };
     }
     const reg = TOOLS[k];

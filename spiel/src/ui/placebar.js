@@ -204,12 +204,14 @@ export class PlaceBar {
     const f = s.finger;
     const obst = [];
     if (f) obst.push({ left: f.x - 24, right: f.x + 24, top: f.y - 24, bottom: f.y + 24 });
-    for (const oc of document.querySelectorAll('#ob-layer .ob-card')) {
+    for (const oc of document.querySelectorAll('#ob-layer .ob-card, #ob-guide')) {
+      if (oc.hidden) continue;
       const r = oc.getBoundingClientRect();
       if (r.width > 0 && r.height > 0 && getComputedStyle(oc).visibility !== 'hidden') obst.push({ left: r.left - 8, right: r.right + 8, top: r.top - 8, bottom: r.bottom + 8 });
     }
     const free = (y) => !obst.some((r) => x < r.right && x + bw > r.left && y < r.bottom && y + bh > r.top);
-    const cand = [[cl(side < 0 ? above : below), side], [cl(side < 0 ? below : above), -side]];
+    // Angedockt (Linienentwurf): unten mittig, sonst über bzw. unter den Hindernissen
+    const cand = s.dock ? [[bottom0 - bh, 1]] : [[cl(side < 0 ? above : below), side], [cl(side < 0 ? below : above), -side]];
     for (const r of obst) { cand.push([cl(r.top - bh), side]); cand.push([cl(r.bottom), side]); }
     cand.push([top0, side], [bottom0 - bh, side]);
     const pick = cand.find(([y]) => free(y)) || cand[0];

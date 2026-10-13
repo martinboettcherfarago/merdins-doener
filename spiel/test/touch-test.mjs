@@ -97,7 +97,7 @@ async function startGame(ctxOpts, settings = {}) {
     rig.flight = null;
     rig.focus(bx + 5 - W / 2, by + 6 - H / 2, 30);
     rig.goal.pitch = 1.05; rig.goal.yaw = 0;
-    rig.cur = { ...rig.cur, ...rig.goal };
+    rig.cur = { ...rig.cur, ...rig.goal }; rig.update(0); app.engine.camera.updateMatrixWorld(true);
     // Prüfstand: weniger Bildpunkte rendern (Software-WebGL), Simulation anhalten – die Eingabe bleibt unverändert
     app.engine.quality = { ...app.engine.quality, pr: 0.5 }; app.engine.resize();
     g.speed = 0;
@@ -129,6 +129,8 @@ const st = (page) => page.evaluate(() => window.__T.st());
 const scr = (page, x, y) => page.evaluate(([x, y]) => window.__T.scr(x, y), [x, y]);
 const setTool = (page, tool) => page.evaluate((t) => window.__stadtpuls.input.setTool(t), tool);
 const pause = (page, ms = 250) => page.waitForTimeout(ms);
+// Kamera fest auf Feld (x, y) richten – sofort, ohne Gleiten, Matrizen gleich aktuell
+const resetCam = async (page, x, y) => { await page.evaluate(([x, y]) => { const a = window.__stadtpuls, rig = a.engine.rig; rig.flight = null; rig.focus(x - a.game.W / 2, y - a.game.H / 2, 30); rig.goal.pitch = 1.05; rig.goal.yaw = 0; rig.cur = { ...rig.cur, ...rig.goal }; rig.update(0); a.engine.camera.updateMatrixWorld(true); }, [x, y]); await pause(page, 400); };
 
 // Touch über CDP: Ziehen mit einem Finger, Zwei-Finger-Geste
 async function touchDrag(page, cdp, a, b, steps = 8, holdMs = 0) {
@@ -228,7 +230,8 @@ try {
   check('✕ bricht ab: nichts gebaut, Vorschau weg', !s.pend && !s.bar && !s.ghost && s.blds === nA);
 
   // 3) Kamera bewegen und zoomen, während die Vorschau steht – danach bauen
-  console.log('-- Kamera bei stehender Vorschau');
+  console.log("-- Kamera bei stehender Vorschau");
+  await resetCam(page, bx + 5, ry + 1);
   await tapTile(page, bx + 6, ry - 1);
   const s1 = await st(page);
   p = await scr(page, bx + 3, ry + 3);
@@ -245,7 +248,7 @@ try {
   s2 = await st(page);
   check('nach Kamerabewegung: ✓ baut an der Vorschau', s2.blds === s1.blds + 1 && !!(await page.evaluate(([x, y]) => window.__T.bld(x, y), [bx + 6, ry - 1])));
   // Kamera zurück
-  await page.evaluate(([x, y]) => { const a = window.__stadtpuls, rig = a.engine.rig; rig.focus(x - a.game.W / 2, y - a.game.H / 2, 30); rig.goal.pitch = 1.05; rig.goal.yaw = 0; rig.cur = { ...rig.cur, ...rig.goal }; }, [bx + 5, ry + 1]);
+  await resetCam(page, bx + 5, ry + 1);
   await pause(page, 600);
 
   // 4) Straße mit Griffen
@@ -295,6 +298,17 @@ try {
   const zs = await page.evaluate(([x0, y0]) => { let n = 0; for (let y = y0; y <= y0 + 1; y++) for (let x = x0; x <= x0 + 3; x++) if (window.__T.zone(x, y) === 1) n++; return n; }, [bx + 1, ry - 3]);
   check('✓ weist die Fläche aus (8 Felder)', zs === 8, String(zs));
 
+  // 5b) Bezirk malen: Rechteck mit Griffen, erst ✓ malt
+  console.log('-- Bezirk');
+  const dmap = (x, y) => page.evaluate(([x, y]) => { const D = window.__stadtpuls.game.ext.districts; return D && D.map ? D.map[y * window.__stadtpuls.game.W + x] || 0 : 0; }, [x, y]);
+  await setTool(page, { kind: 'district', type: 'paint' });
+  await tapTile(page, bx + 6, ry - 4);
+  await touchDrag(page, cdp, await scr(page, bx + 6, ry - 4), await scr(page, bx + 8, ry - 3), 8);
+  s = await st(page);
+  check('Bezirk: Fläche per Griff, noch nicht gemalt', s.pend && s.pend.ex === bx + 8 && s.label === 'Malen' && !(await dmap(bx + 7, ry - 4)), JSON.stringify(s.pend));
+  await tapBar(page, 'ok');
+  check('Bezirk: ✓ malt die Fläche', !!(await dmap(bx + 7, ry - 4)) && !!(await dmap(bx + 8, ry - 3)) && !(await st(page)).pend);
+
   // 6) Abriss mit Griffen
   console.log('-- Abriss');
   await setTool(page, { kind: 'bulldoze' });
@@ -319,7 +333,7 @@ try {
   await touchDrag(page, cdp, p, { x: p.x - 70, y: p.y + 60 }, 8);
   s = await st(page);
   check('echtes Ziehen verschiebt nur die Kamera', s.stops === 2 && s.stations === l0.stations + 2);
-  await page.evaluate(([x, y]) => { const a = window.__stadtpuls, rig = a.engine.rig; rig.focus(x - a.game.W / 2, y - a.game.H / 2, 30); rig.goal.pitch = 1.05; rig.goal.yaw = 0; rig.cur = { ...rig.cur, ...rig.goal }; }, [bx + 5, ry - 2]);
+  await resetCam(page, bx + 5, ry - 2);
   await pause(page, 500);
   await tapTile(page, bx + 8, ry - 5);
   await tapTile(page, bx + 8, ry - 5);
