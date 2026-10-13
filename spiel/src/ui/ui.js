@@ -978,7 +978,8 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
     const q = (sel) => this.root.querySelector(sel);
     const sel = (t) => `[data-tour="${CSS.escape(t)}"]`;
     try {
-      if ((id === 'views' || id === 'city') && this.mobile()) return vis(this.el.menubtn);
+      // Handy: Ansichten, Stadt und Hilfe stecken im Menü ☰ (links im Dock)
+      if ((id === 'views' || id === 'city' || id === 'help') && this.mobile()) return vis(this.el.menubtn);
       if (id === 'group-roads' || id === 'group-zones' || id.startsWith('group-')) {
         const b = q(`.toolbar [data-group="${CSS.escape(id.slice(6))}"]`);
         return vis(b);
