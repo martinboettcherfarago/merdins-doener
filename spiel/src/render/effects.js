@@ -634,8 +634,8 @@ void main() {
         const rate = (b.zone ? 1.1 * (0.3 + b.occ / Math.max(1, b.cap)) : 2.2) * simDt * qd;
         for (const em of list) if (Math.random() < rate * em.amount) this.emitSmoke(em.x, em.y, em.z, em.type);
       }
-      // Baustaub
-      if (e.buildings.constructing) {
+      // Baustaub (nur falls der Gebäude-Renderer ihn nicht selbst über emitDust erzeugt – sonst doppelt)
+      if (e.buildings.constructing && typeof e.buildings._emitDust !== 'function') {
         for (const id of e.buildings.constructing) {
           const b = g.buildings.get(id);
           if (!b) continue;
