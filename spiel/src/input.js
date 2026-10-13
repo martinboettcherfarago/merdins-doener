@@ -520,7 +520,8 @@ export class Input {
     const t = this.e.pickTile(cx, cy);
     const fp = this.pendFoot;
     const inside = t && fp && t.x >= fp.x && t.y >= fp.y && t.x < fp.x + fp.w && t.y < fp.y + fp.h;
-    if (inside || Math.hypot(c.x - cx, c.y - cy) < GHOST_R) return { mode: 'ghost', x: c.x, y: c.y };
+    const mh = s.handles[0];
+    if (inside || Math.hypot(c.x - cx, c.y - cy) < GHOST_R || (mh && Math.hypot(mh.x - cx, mh.y - cy) < HANDLE_R)) return { mode: 'ghost', x: c.x, y: c.y };
     return null;
   }
 
@@ -544,7 +545,10 @@ export class Input {
       const x0 = f.x - g.W / 2, z0 = f.y - g.H / 2, x1 = x0 + f.w, z1 = z0 + f.h;
       const pts = [proj(x0, 0, z0), proj(x1, 0, z0), proj(x0, 0, z1), proj(x1, 0, z1), proj(x0, f.hgt, z0), proj(x1, f.hgt, z1), proj(x1, f.hgt, z0), proj(x0, f.hgt, z1)];
       const center = proj((x0 + x1) / 2, 0, (z0 + z1) / 2);
-      return { box: boxOf(pts), center, handles: [{ x: center.x, y: center.y, kind: 'm', on: dragging }], finger, dragging };
+      // Verschiebe-Griff unter der Vorschau (verdeckt sie nicht; beim Ziehen bleibt die Vorschau über dem Finger)
+      const box = boxOf(pts);
+      const mh = { x: center.x, y: box.y1 + 24, kind: 'm', on: dragging };
+      return { box: { ...box, y1: mh.y + 18 }, center, handles: [mh], finger, dragging };
     }
     if (p.kind === 'rect') {
       const a = tile(p.sx, p.sy), b = tile(p.ex, p.ey);

@@ -200,11 +200,11 @@ export class PlaceBar {
     if (first || !side || (side < 0 && !fitsAbove && fitsBelow) || (side > 0 && !fitsBelow && fitsAbove)) side = fitsAbove || !fitsBelow ? -1 : 1;
     const x = Math.max(8, Math.min(W - bw - 8, cx - bw / 2));
     const cl = (y) => Math.max(top0, Math.min(bottom0 - bh, y));
-    // Hindernisse: Finger (großzügig) und die Karte der Einführung (#ob-layer .ob-card) – die Leiste weicht beiden aus
+    // Hindernisse: Finger (großzügig), Einführungskarte, Begleiter und Legende der Ansicht – die Leiste weicht ihnen aus
     const f = s.finger;
     const obst = [];
     if (f) obst.push({ left: f.x - 24, right: f.x + 24, top: f.y - 24, bottom: f.y + 24 });
-    for (const oc of document.querySelectorAll('#ob-layer .ob-card, #ob-guide')) {
+    for (const oc of document.querySelectorAll('#ob-layer .ob-card, #ob-guide, #u-legend')) {
       if (oc.hidden) continue;
       const r = oc.getBoundingClientRect();
       if (r.width > 0 && r.height > 0 && getComputedStyle(oc).visibility !== 'hidden') obst.push({ left: r.left - 8, right: r.right + 8, top: r.top - 8, bottom: r.bottom + 8 });

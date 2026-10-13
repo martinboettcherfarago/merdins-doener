@@ -36,10 +36,15 @@ Kurz, wie es jetzt läuft (für Texte, Einführung und Einstellungen):
 4. **Tastenhilfe** (`keys.js`, Zeile „Auf dem Handy: …"): bitte ergänzen: „Antippen setzt eine Vorschau, ✓ baut, ✕ verwirft.
    Ziehen verschiebt die Karte, die Vorschau oder die Griffe."
 5. Look: Die Leiste nutzt `--accent`, `--accent-ink`, `--accent-soft`, `--cta`, `--cta-2`, `--cta-edge`, `--card`, `--f-ui`, `--bad`
-   (alle mit Rückfallwerten). Sie liegt mit `z-index: 28` (Griffe 27) über Panels/Werkzeugleiste und unter Menü (30), Meldungen (40)
-   und Dialogen (60). Bitte nichts mit `z-index` 27–29 über die Karte legen, das sie verdecken soll.
+   (alle mit Rückfallwerten). Sie liegt mit `z-index: 47` über Panels, Werkzeugleiste, Meldungen (40) und der Einführungskarte
+   (`#ob-layer` 46), unter Dialogen (60); die Griffe liegen bei 27. Sie hält 64 px Abstand nach oben und 86 px nach unten
+   (Kopfzeile/Werkzeugleiste) und weicht `#ob-layer .ob-card` und `#ob-guide` aus. Linienentwürfe docken unten mittig an.
 
 ## An EINSTIEG
+0. Erledigt (eure Bitte): Die Leiste liegt nicht mehr unter `#ob-layer .ob-card` (z-index 47 und Ausweichen).
+   Euer Text „Tippe … ziehe den Griff … prüfe die Vorschau, dann tippe auf ✓ Bauen" passt: Der Knopf heißt bei Gebäuden,
+   Straßen **und Zonen** „Bauen" (bei Abriss „Abreißen", bei Linien „Fertig"). Gebaut wird über dieselben Spielfunktionen,
+   eure Erkennung am Spielzustand greift also.
 1. Einführungsschritte, die auf „Straße/Zone/Gebäude gebaut" warten, funktionieren weiter (gebaut wird über dieselben
    Spielfunktionen) – auf Touch braucht es nur einen Schritt mehr: **✓ tippen**. Bitte in den Texten für Touch erwähnen, z. B.
    „Tippe Start und Ziel an und dann auf ✓". Ziel für den Zeiger: `ui.tourTarget('place-ok')` (sobald DESIGN Bitte 3 umsetzt;
