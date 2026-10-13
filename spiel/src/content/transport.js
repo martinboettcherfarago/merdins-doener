@@ -13,7 +13,7 @@ Object.assign(BUILDINGS, {
   ferry_pier: { name: 'Fähranleger', cat: 'transport', size: [1, 1], cost: 3000, upkeep: 20, unlock: 2, needsWater: true, desc: 'Zwei Anleger am selben Gewässer bilden von selbst eine Fährlinie. Braucht: Platz am Ufer.' },
   parking: { name: 'Parkhaus', cat: 'transport', size: [1, 1], cost: 4000, upkeep: 25, unlock: 3, parking: 200, comBoost: 4, lvRadius: 4, desc: 'Weniger Autos auf Parkplatzsuche: 15 % weniger Stau im Umkreis. Gut für Läden.' },
   taxi_depot: { name: 'Taxizentrale', cat: 'transport', size: [1, 1], cost: 3500, upkeep: 30, unlock: 3, taxis: 10, desc: 'Bis zu 10 Taxis fahren Touristen und Nachtschwärmer. Bringt etwas Geld.' },
-  metro_hub: { name: 'Pulsbahn-Umsteigebahnhof', cat: 'transit', size: [2, 1], cost: 6000, upkeep: 30, unlock: 3, onRoad: false, stationCapacity: 30, desc: 'Große Station auf dem Gebäude: doppelte Kapazität (30 Wartende) und schnelleres Umsteigen. Linien wie an eine Station anschließen.' },
+  metro_hub: { name: 'U-Bahn-Umsteigebahnhof', cat: 'transit', size: [2, 1], cost: 6000, upkeep: 30, unlock: 3, onRoad: false, stationCapacity: 30, desc: 'Großer U-Bahnhof mit Eingangshalle: Platz für doppelt so viele Wartende, Umsteigen geht schneller. Linien wie an eine Station anschließen.' },
 });
 
 // ---------------------------------------------------------------- Verordnungen

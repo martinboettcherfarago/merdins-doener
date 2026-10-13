@@ -801,7 +801,7 @@ function ensureHub(g, b) {
   const T = TS(g);
   const sid = T.hubs.get(b.id);
   if (sid && g.transit.stations.has(sid)) return;
-  // Station auf dem Gebäude anlegen (Hochbahnsteig auf dem Umsteigebahnhof)
+  // Station am Gebäude anlegen (unterirdischer Bahnsteig unter dem Umsteigebahnhof)
   for (let yy = b.y; yy < b.y + b.h; yy++) for (let xx = b.x; xx < b.x + b.w; xx++) {
     const i = yy * g.W + xx;
     if (g.stationAt[i]) { T.hubs.set(b.id, g.stationAt[i]); return; }

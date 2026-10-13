@@ -100,7 +100,7 @@ const STEPS = [
     id: 'road', title: 'Straße bauen', build: (c) => c.tool.kind === 'road',
     done: (c) => c.n.roads >= 4,
     hint: (c) => {
-      if (c.tool.kind === 'road') return { target: [], map: c.n.roads ? null : 'highway', text: c.touch ? `${c.n.roads ? 'Gut! Bau die Straße noch ein Stück weiter ins Land.' : 'Tippe ans Ende der Autobahn (Kreis) und dann ein Stück weiter ins Land.'} ${CONFIRM} Mit einem Finger verschiebst du die Karte.` : c.n.roads ? 'Gut! Zieh die Straße noch ein Stück weiter ins Land.' : 'Halte die linke Maustaste gedrückt und ziehe vom Ende der Autobahn (roter Kreis) eine Straße ins Land.' };
+      if (c.tool.kind === 'road') return { target: [], map: c.n.roads ? null : 'highway', text: c.touch ? `${c.n.roads ? 'Gut! Bau die Straße noch ein Stück weiter ins Land.' : 'Tippe ans Ende der Autobahn (Kreis) und ziehe den Griff ein Stück ins Land.'} ${CONFIRM} Mit einem Finger verschiebst du die Karte.` : c.n.roads ? 'Gut! Zieh die Straße noch ein Stück weiter ins Land.' : 'Halte die linke Maustaste gedrückt und ziehe vom Ende der Autobahn (roter Kreis) eine Straße ins Land.' };
       return menuHint(c, { cat: 'roads', catName: 'Straßen', items: ['street'], itemText: 'Wähle „Straße".', why: 'Alles in der Stadt braucht eine Straße.' });
     },
   },
@@ -108,7 +108,7 @@ const STEPS = [
     id: 'res', title: 'Wohngebiet ausweisen', build: (c) => c.tool.kind === 'zone' && c.tool.zone === Z.RES,
     done: (c) => c.n.zone[Z.RES] >= 6,
     hint: (c) => {
-      if (c.tool.kind === 'zone' && c.tool.zone === Z.RES) return { target: [], text: c.touch ? `Wähle direkt neben der Straße eine Fläche: Tippe auf die Karte. ${CONFIRM} Häuser entstehen nur an Straßen.` : 'Ziehe direkt neben der Straße eine Fläche auf. Dort bauen Familien ihre Häuser – Häuser entstehen nur an Straßen.' };
+      if (c.tool.kind === 'zone' && c.tool.zone === Z.RES) return { target: [], text: c.touch ? `Tippe direkt neben die Straße und ziehe den Griff, bis die Fläche passt. ${CONFIRM} Häuser entstehen nur an Straßen.` : 'Ziehe direkt neben der Straße eine Fläche auf. Dort bauen Familien ihre Häuser – Häuser entstehen nur an Straßen.' };
       return menuHint(c, { cat: 'zones', catName: 'Zonen', items: ['res'], itemText: 'Wähle „Wohnen" (grün).', why: 'Jetzt brauchst du Platz für Häuser.' });
     },
   },
@@ -145,7 +145,7 @@ const STEPS = [
     hint: (c) => {
       const needCom = c.n.zone[Z.COM] < 4, z = needCom ? Z.COM : Z.IND;
       const name = needCom ? 'Gewerbe' : 'Industrie', key = needCom ? 'com' : 'ind';
-      if (c.tool.kind === 'zone' && c.tool.zone === z) return { target: ['demand'], text: (needCom ? `${c.touch ? 'Wähle an einer Straße eine Fläche für Gewerbe.' : 'Ziehe Gewerbe an eine Straße.'} Die Balken oben zeigen, was gefragt ist: W Wohnen, G Gewerbe, I Industrie.` : `${c.touch ? 'Wähle an einer Straße eine Fläche für Industrie' : 'Ziehe Industrie an eine Straße'} – mit etwas Abstand zu den Häusern, denn Fabriken machen Abgase.`) + (c.touch ? ' ' + CONFIRM : '') };
+      if (c.tool.kind === 'zone' && c.tool.zone === z) return { target: ['demand'], text: (needCom ? `${c.touch ? 'Tippe an eine Straße und ziehe den Griff für eine Gewerbefläche.' : 'Ziehe Gewerbe an eine Straße.'} Die Balken oben zeigen, was gefragt ist: W Wohnen, G Gewerbe, I Industrie.` : `${c.touch ? 'Tippe an eine Straße und ziehe den Griff für eine Industriefläche' : 'Ziehe Industrie an eine Straße'} – mit etwas Abstand zu den Häusern, denn Fabriken machen Abgase.`) + (c.touch ? ' ' + CONFIRM : '') };
       return menuHint(c, { cat: 'zones', catName: 'Zonen', items: [key], itemText: `Wähle „${name}" (${needCom ? 'blau' : 'gelb'}).`, why: 'Deine Bürger brauchen Arbeit und Läden.' });
     },
   },

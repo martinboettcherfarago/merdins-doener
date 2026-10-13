@@ -110,6 +110,8 @@ const TOPICS = [
     'Zeichne eine Linie: Klicke oder tippe nacheinander die Orte der Bahnhöfe an. Enter, Rechtsklick oder „Fertig" beendet die Linie.',
     'Setze Bahnhöfe nah an Wohnviertel und Arbeitsplätze. Jeder Bahnhof sammelt Fahrgäste im Umkreis.',
     'Weniger Autos heißt weniger Stau und weniger Lärm.',
+    'Die Strecken liegen im Tunnel – darüber darfst du so hoch bauen, wie du willst. Oben siehst du nur die Eingänge mit dem blauen „U" und eine feine Linie am Boden.',
+    'Beim Linien-Werkzeug schaltet sich die Untergrund-Ansicht ein: Dann siehst du Tunnel, Bahnsteige und Züge. Im Menü „Ansichten" kannst du sie auch selbst einschalten.',
     'Ist ein Bahnhof überfüllt, setze mehr Züge oder Wagen ein.',
     'Jede Ankunft spielt einen Ton – deine Stadt macht Musik.',
   ], act: { cat: 'transit' }, actLabel: 'U-Bahn öffnen', lock: (g) => (g.isUnlocked('transit') ? null : `Noch gesperrt: ab ${ms(2)}.`) },
@@ -128,7 +130,7 @@ const TOPICS = [
   { id: 'controls', title: 'Bedienung', icon: 'keyboard', lead: 'Kamera und Werkzeuge.', points: [
     'Linke Maustaste: bauen, ziehen, auswählen. Klick auf ein Gebäude zeigt seine Infos.',
     'Rechte Maustaste: Karte verschieben. Mausrad: zoomen. Mittlere Maustaste: drehen.',
-    'Auf Handy und Tablet: Ein Finger verschiebt die Karte, zwei Finger drehen und zoomen. Zum Bauen tippst du auf die Karte, prüfst die Vorschau und bestätigst mit ✓ Bauen.',
+    'Auf Handy und Tablet: Ein Finger verschiebt die Karte, zwei Finger drehen und zoomen. Zum Bauen tippst du auf die Karte (bei Straßen und Zonen ziehst du dann den Griff), prüfst die Vorschau und bestätigst mit ✓ Bauen.',
     'Esc bricht ein Werkzeug ab. Leertaste pausiert. 1, 2, 3 ändern das Tempo.',
   ], keys: true },
 ];
