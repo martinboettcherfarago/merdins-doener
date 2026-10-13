@@ -72,7 +72,7 @@ ${caps.postfx || caps.ao || caps.bloom ? `<div class="sec"><h3>Effekte</h3>
 </div>` : ''}
 <div class="sec"><h3>Darstellung</h3>
   ${sw('alwaysDay', s.alwaysDay, 'Immer Tag', 'Schaltet den Tag-Nacht-Wechsel ab.')}
-  ${ctx.inGame ? sw('icons', ctx.app.engine && ctx.app.engine.effects ? ctx.app.engine.effects.showIcons : true, 'Problem-Symbole', 'Blitz, Tropfen, Müll und Co. über Gebäuden (Taste I).') : ''}
+  ${ctx.inGame ? sw('icons', ctx.app.engine && ctx.app.engine.effects ? ctx.app.engine.effects.showIcons : true, 'Problem-Symbole', 'Blitz, Tropfen, Müll und Co. über Gebäuden (Taste I). Eine gestapelte Nadel bündelt mehrere Probleme in der Nähe – näher heranzoomen.') : ''}
 </div>
 ${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort.</span></div>` : `<div class="apply${pending ? ' pending' : ''}">${pending ? `${icon('info', 16)}<span>Geänderte Grafikwerte gelten nach einem Neustart der Ansicht.</span>` : `${icon('check', 16)}<span>Die Ansicht entspricht diesen Einstellungen.</span>`}<button class="btn small" data-act="applygfx" ${pending ? '' : 'disabled'}>${ctx.inGame ? 'Ansicht neu starten' : 'Übernehmen'}</button></div>`}`;
   } else if (tab === 'klang') {
@@ -103,6 +103,7 @@ ${ctx.extraPanels && ctx.extraPanels.length ? `<div class="sec"><h3>Weitere Eins
   <li>Gebäude steigen auf, wenn Bodenwert, Bildung und Glück stimmen. Höhere Stufen werden mit Meilensteinen frei.</li>
   <li>Die Nachfrage-Balken (W G I B) zeigen, was die Stadt gerade braucht.</li>
   <li>Jeden Montag wählst du eine von drei Wochenkarten. Gelegentlich musst du über Ereignisse entscheiden.</li>
+  <li>Symbole über Gebäuden zeigen Probleme (fehlender Strom, Wasser, Müll …). Eine gestapelte Nadel heißt: mehrere Probleme in diesem Viertel – näher heranzoomen.</li>
   <li>Die Ratgeberin (oben rechts) sagt dir, wo es gerade hakt.</li></ul></div>
 <div class="sec"><button class="btn ghost" data-act="keys">${icon('keyboard', 16)} Alle Tastenkürzel</button></div>`;
   }

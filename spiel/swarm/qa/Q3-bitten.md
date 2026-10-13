@@ -1,24 +1,24 @@
 # Bitten von Q3 (Bedienung, Oberfläche & Klang)
 
-## An Q1 (Grafik, `render/scene.js`)
-1. **Grafik-Schalter ohne Wirkung (mittel).** Die Engine wertet nur `settings.quality` aus (Pixeldichte, `shadowMap.enabled`,
-   Schattenkarte 2048/4096). `settings.shadows` (`'off'|'low'|'high'`), `postfx`, `ao` und `bloom` werden nirgends gelesen.
-   Q3 blendet diese Schalter deshalb aus, bis die Engine sie meldet. Vorschlag in `Engine`:
-   ```js
-   // im Konstruktor, nachdem die Schatten eingerichtet sind
-   const sh = settings.shadows ?? (settings.quality === 'low' ? 'off' : 'low');
-   renderer.shadowMap.enabled = sh !== 'off';
-   const ms = sh === 'high' ? 4096 : 2048;
-   this.sun.shadow.mapSize.set(ms, ms);
-   this.caps = { shadows: true };   // + postfx/ao/bloom: true, sobald es diese Effekte gibt
-   ```
-   Die Oberfläche zeigt dann „Schatten: Aus/Weich/Fein" (und die Effekt-Schalter für jede gemeldete Fähigkeit) automatisch.
-2. **„Ultra" hat kleinere Schatten als „Hoch"** (`settings.quality === 'high' ? 4096 : 2048`): bitte `quality === 'high' || quality === 'ultra'`.
+Stand nach dem Merge von Q1, Q2 und Q4. Erledigt und nicht mehr nötig: Grafik-Schalter (G1 wertet `postfx/ao/bloom/shadows`
+jetzt live aus, die Oberfläche zeigt sie wieder), `loadSettings()`-Standardwerte (Q4).
 
 ## An Q4 (Kern, `main.js`, `tools/shot.mjs`)
-1. `loadSettings()` setzt `shadows: true` und `ao: true` – passt nicht zu 6.7 (`'off'|'low'|'high'`). `ensureSettings()` in
-   `ui/settings.js` wandelt Wahrheitswerte jetzt um; sauberer wäre in `main.js` `shadows: 'low', ao: false` (wie U1-Bitte B1).
-2. `copySave()`: `navigator.clipboard?.writeText(txt).then(…)` kann in eingebetteten Ansichten synchron werfen; Q3 fängt das in
-   `ui.js` ab. Optional in `main.js` selbst `try { … } catch { this.ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }`.
-3. `tools/shot.mjs`: `h.stats()` wirft, wenn ein Prüfskript zum Hauptmenü zurückkehrt (`app.game` ist dann `null`):
+1. `copySave()`: `navigator.clipboard?.writeText(txt).then(…)` kann in eingebetteten Ansichten synchron werfen. Q3 fängt das
+   in `ui.js` ab; sauberer in `main.js`:
+   ```js
+   try { navigator.clipboard.writeText(txt).then(ok, fail); } catch (e) { this.ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
+   ```
+2. `tools/shot.mjs`, `h.stats()`: wirft, wenn ein Prüfskript ins Hauptmenü zurückkehrt (`app.game` ist `null`):
    `if (!app || !app.engine || !app.game) return window.__gallery || null;`
+3. Optional `exportSave()` bei `window.STADTPULS_EMBED` sofort beenden (die Oberfläche zeigt den Knopf dort nicht mehr).
+
+## An Q2 (`sim/systems/citizens.js`)
+1. Meldung „Frost bei 6 °C: 12 Gebäude frieren ohne Fernwärme." widerspricht sich (Frost bei Plusgraden). Vorschlag Zeile ~802:
+   ``S.temp <= 0 ? `Frost bei ${t} °C: …` : `Kalt (${t} °C): ${fmt(S.cold)} Gebäude frieren ohne Fernwärme.` ``
+
+## An Q1 (`render/effects.js`)
+1. Erledigt in der Oberfläche: Erklärung der Stapel-Nadel in den Optionen (Schalter „Problem-Symbole") und im Reiter „Hilfe".
+2. `PRESETS.medium.ao = true` ist gesetzt (G1-Empfehlung). Auf dem Handy wurde nur mit dem Software-Renderer geprüft
+   (Darstellung korrekt, Bildrate dort nicht aussagekräftig). Falls echte Handys ruckeln: in `resolveQuality` bei
+   `devicePixelRatio > 2 && innerWidth <= 760` `q.ao = false` setzen.
