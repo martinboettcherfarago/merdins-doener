@@ -114,6 +114,7 @@ const STEPS = [
     hint: (c) => {
       const s = c.g.stats;
       if (s.unpowered > 0 && c.g.countBuilt('power') > 0) return { target: ['speed'], text: 'Einige Häuser haben keinen Strom. Das Kraftwerk muss über Straßen mit ihnen verbunden sein.' };
+      if (s.unwatered > 0) return { target: ['speed'], text: 'Einige Häuser haben kein Wasser. Der Wasserturm muss an derselben Straße stehen und braucht Strom.' };
       if (c.g.speed === 0) return { target: ['speed'], text: `Das Spiel ist pausiert. ${verb(c)} auf ▶, damit die Zeit weiterläuft.` };
       return { target: ['speed'], text: `Die ersten Familien ziehen ein! Mit diesen Knöpfen läuft die Zeit schneller. (${fmt(s.pop)} von 20 Einwohnern)` };
     },
