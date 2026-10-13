@@ -94,7 +94,11 @@ function clickDraw(input, t) {
   const st = TPS.stopAtTile(g, i);
   const ch = chain();
   if (st || (ch.length && i === ch[ch.length - 1])) {
-    if (S.tiles.length && i === S.tiles[S.tiles.length - 1]) { finish(input); return; }
+    if (S.tiles.length && i === S.tiles[S.tiles.length - 1]) {
+      // Per Touch kein Abschluss durch versehentliches Doppeltippen – dafür gibt es „Fertig" in der Leiste
+      if (input.pend) { input.ui.toast('Zum Abschließen auf „Fertig" tippen.', 'info'); return; }
+      finish(input); return;
+    }
     if (input.tool.type !== 'extend' && S.tiles.length >= 3 && i === S.tiles[0]) {
       // Ring schließen
       const back = TPS.routeTiles(g, S.tiles[S.tiles.length - 1], i, m);
@@ -169,6 +173,37 @@ function hoverStop(input, t) {
   if (!err) input.e.overlay.showRadius(t.x + 0.5 - g.W / 2, t.y + 0.5 - g.H / 2, TPS.TP.stopRadius, 0x9cf0b0);
 }
 
+function stopClick(input, t) {
+  const g = input.g;
+  const st = TPS.stopAtTile(g, t.i);
+  if (st) {
+    const r = TPS.removeStop(g, st.id);
+    if (r.ok) { input.audio.play('demolish'); input.ui.toast(`Haltestelle ${st.name} entfernt.${r.removedLines.length ? ` ${r.removedLines.map(TPS.lineLabel).join(', ')} eingestellt.` : ''}`, r.removedLines.length ? 'bad' : ''); }
+    return !!r.ok;
+  }
+  const r = TPS.insertStop(g, t.i);
+  if (r.ok) { input.audio.play('place'); input.ui.floatMoney(-r.cost, input.mouse); input.ui.toast(`Haltestelle ${r.stop.name} eingefügt.`, 'good'); }
+  else { input.audio.play('error'); input.ui.toast(r.msg, 'bad'); }
+  return !!r.ok;
+}
+
+// Bestätigungsmodus (Touch): Haltestelle einfügen/entfernen erst mit ✓
+function stopInfo(input, p) {
+  const g = input.g, i = p.y * g.W + p.x;
+  const st = TPS.stopAtTile(g, i);
+  if (st) {
+    const lines = st.lines.map((id) => TPS.lineById(g, id)).filter(Boolean).map(TPS.lineLabel).join(', ');
+    sendPreview(input, i, null, true);
+    return { title: `Haltestelle ${st.name}`, sub: lines ? `an ${lines}` : 'an keiner Linie', ok: true, okLabel: 'Entfernen', price: '' };
+  }
+  const onLine = TPS.TS(g).lines.filter((l) => l.path && l.path.includes(i));
+  const err = !onLine.length ? 'Auf einen Linienweg tippen' : TPS.canStop(g, i, onLine.some((l) => l.mode === 'bus') ? 'bus' : 'tram');
+  sendPreview(input, i, null, !err);
+  if (!err) input.e.overlay.showRadius(p.x + 0.5 - g.W / 2, p.y + 0.5 - g.H / 2, TPS.TP.stopRadius, 0x9cf0b0);
+  else input.e.overlay.hideRadius();
+  return { title: 'Haltestelle einfügen', sub: onLine.map(TPS.lineLabel).join(', '), ok: !err, reason: err || '', okLabel: 'Einfügen', price: fmtMoney(TPS.TP.stopCost * g.costMul) };
+}
+
 function hoverSignal(input, t) {
   const g = input.g;
   const s = TPS.signalState(g, t.i);
@@ -202,15 +237,7 @@ registerTool('buslines', {
       return;
     }
     if (type === 'stop') {
-      const st = TPS.stopAtTile(g, t.i);
-      if (st) {
-        const r = TPS.removeStop(g, st.id);
-        if (r.ok) { input.audio.play('demolish'); input.ui.toast(`Haltestelle ${st.name} entfernt.${r.removedLines.length ? ` ${r.removedLines.map(TPS.lineLabel).join(', ')} eingestellt.` : ''}`, r.removedLines.length ? 'bad' : ''); }
-      } else {
-        const r = TPS.insertStop(g, t.i);
-        if (r.ok) { input.audio.play('place'); input.ui.floatMoney(-r.cost, input.mouse); input.ui.toast(`Haltestelle ${r.stop.name} eingefügt.`, 'good'); }
-        else { input.audio.play('error'); input.ui.toast(r.msg, 'bad'); }
-      }
+      stopClick(input, t);
       this.hover(input, t);
       return;
     }
@@ -221,6 +248,30 @@ registerTool('buslines', {
       this.hover(input, t);
     }
   },
+  // Sicheres Bauen per Touch (input.js): Linien per Antippen + „Fertig", Haltestellen einfügen/entfernen mit ✓
+  pendKind(input) { return (input.tool.type || 'bus') === 'stop' ? 'point' : 'tap'; },
+  pendPreview(input, p) { ensure(input); return stopInfo(input, p); },
+  pendApply(input, p) { ensure(input); return stopClick(input, { x: p.x, y: p.y, i: p.y * input.g.W + p.x }); },
+  draft(input) {
+    if (!drawing(input)) return null;
+    ensure(input);
+    const ext = input.tool.type === 'extend';
+    const n = S.tiles.length;
+    if (!n && !ext) return null;
+    const ok = n >= (ext ? 1 : 2);
+    const cost = n ? estimate(input, S.tiles) : 0;
+    const ch = chain();
+    const word = n === 1 ? 'Haltestelle' : 'Haltestellen';
+    return {
+      title: ext ? 'Linie verlängern' : mode(input) === 'tram' ? 'Straßenbahnlinie' : 'Buslinie',
+      sub: `${n} ${word} · ${ok ? 'weitere antippen oder Fertig' : 'nächste Haltestelle antippen'}`,
+      ok, reason: ok ? '' : ext ? 'Mindestens eine Haltestelle antippen' : 'Mindestens zwei Haltestellen antippen',
+      okLabel: 'Fertig', price: ok && cost ? '≈ ' + fmtMoney(cost) : '', undo: n >= 1, at: ch.length ? ch[ch.length - 1] : null,
+    };
+  },
+  draftFinish(input) { finish(input); },
+  draftUndo(input) { if (S.tiles.length) { S.tiles.pop(); S.segs.pop(); } sendPreview(input, -1, null, true); },
+  draftClear(input) { S.tiles = []; S.segs = []; sendPreview(input, -1, null, true); input.e.overlay.hideRadius(); },
   key(input, e) {
     ensure(input);
     if (!drawing(input)) return false;
