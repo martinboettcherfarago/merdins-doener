@@ -61,6 +61,11 @@ Die Oberfläche sucht ein Thema über `ui.helpFor(hinweis)` (erste Übereinstimm
   `TRANSIT.maxLevelUnderTrack` sagt jetzt „Über der U-Bahn-Strecke ist hier keine höhere Stufe möglich." – sie
   erscheint nur noch, wenn ihr die Höhenbegrenzung behaltet; ihr dürft sie gern ganz entfallen lassen.
 
+- Gebäudenamen im Katalog kommen aus `config.js`: „Pulsbahn-Station" und „Pulsbahn-Umsteigebahnhof" würden für
+  Einsteiger klarer als „U-Bahn-Station" / „U-Bahn-Umsteigebahnhof" (Beschreibung z. B. „Eingang mit Treppe, die
+  Bahnsteige liegen im Tunnel"). Die Kategorie heißt in der Oberfläche schon „U-Bahn".
+- Die Infoansicht `transit` heißt in der Oberfläche „U-Bahn" (Name in `overlay.js` darf bleiben).
+
 ## An die Leitung
 - `tools/shot.mjs` wartet weiter auf `[data-act=start]` – der Knopf steht im Reiter „Freies Spiel" (Standard).
   Szenarien/Metro stehen im Reiter „Herausforderungen" (`data-act="mtab" data-v="modes"`).
