@@ -68,10 +68,10 @@ let restore = null;
 
 // System-Panels (über Kopfzeile und Menü erreichbar, nicht im Stadt-Menü)
 const SYS_PANELS = [
-  { id: 'advisor', title: 'Ratgeberin', icon: 'advisor', hidden: true, color: '#e8543f', render: (ui) => ui.advisor.html(), click: (ui, act, el) => ui.advisor.click(act, el) },
-  { id: 'notes', title: 'Meldungen', icon: 'bell', hidden: true, color: '#1d2330', render: (ui) => ui.notes.html(), click: (ui, act, el) => ui.notes.click(act, el), opened: (ui) => ui.notes.markRead() },
+  { id: 'advisor', title: 'Ratgeberin', desc: 'Lagebericht und Tipps für die nächsten Schritte', icon: 'advisor', hidden: true, color: '#e8543f', render: (ui) => ui.advisor.html(), click: (ui, act, el) => ui.advisor.click(act, el) },
+  { id: 'notes', title: 'Meldungen', desc: 'Wichtiges der letzten Tage mit Ort und Zeit', icon: 'bell', hidden: true, color: '#1d2330', render: (ui) => ui.notes.html(), click: (ui, act, el) => ui.notes.click(act, el), opened: (ui) => ui.notes.markRead() },
   {
-    id: 'settings', title: 'Optionen', icon: 'settings', hidden: true, color: '#5d6470',
+    id: 'settings', title: 'Optionen', desc: 'Grafik, Klang, Bedienung und Spielstände', icon: 'settings', hidden: true, color: '#5d6470',
     render: (ui) => settingsHTML(ui.setCtx()),
     click: (ui, act, el) => {
       const ctx = ui.setCtx();
@@ -1143,7 +1143,7 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
     const scroll = fresh ? 0 : old ? old.scrollTop : 0;
     const meta = dockPanels(CORE_PANELS).find((x) => x.p.id === def.id);
     const m = def.color || (meta ? meta.m.color : '') || '#1d2330';
-    const desc = meta ? meta.m.desc : '';
+    const desc = meta ? meta.m.desc : def.desc || '';
     const title = def.id === 'transit' ? 'U-Bahn' : def.title;
     const help = this.helpFor(def.id === 'transit' ? 'transit' : def.id === 'budget' ? 'money' : def.id);
     const headHtml = `<header style="--pc:${m}"><span class="ph-badge">${iconAny(def.icon, 'layers', 16, 2.2)}</span><div class="ph-t"><h2>${esc(title)}</h2>${desc ? `<small>${esc(desc)}</small>` : ''}</div>${help ? `<button class="close" data-act="panelhelp" data-v="${esc(help)}" data-tip="Was ist das?" data-tip-desc="Kurz erklärt in der Hilfe." data-tip-fast="1" aria-label="Hilfe">${icon('help', 17)}</button>` : ''}<button class="close" data-act="close" data-tip="Schließen" data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 18)}</button></header>`;
@@ -1266,7 +1266,7 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
     else if (e.key === '?') { e.preventDefault(); this.showKeys(); }
     else if (k === 'm') { this.app.settings.muted = !this.app.settings.muted; this.app.audio.applyVolumes(); this.app.saveSettings(); this.toast(this.app.settings.muted ? 'Ton aus' : 'Ton an'); }
     else if (k === 'i') { this.app.engine.effects.showIcons = !this.app.engine.effects.showIcons; this.toast(this.app.engine.effects.showIcons ? 'Problem-Symbole an' : 'Problem-Symbole aus'); }
-    else if (k === 'p') this.photo.enter();
+    else if (k === 'p') { this.closePop(); this.photo.enter(); }
     else if (k === 'u') this.toggleHud();
     else if (k === 'n') this.togglePanel('notes');
     else if (k === 'h') this.togglePop('check', this.el.check);

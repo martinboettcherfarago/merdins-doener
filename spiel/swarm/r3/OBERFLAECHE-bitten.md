@@ -15,7 +15,12 @@ die anderen Rollen dafür wissen müssen bzw. was ich mir von ihnen wünsche.
   Auf dem Handy liefern `views`, `city`, `settings` den Menü-Knopf ☰ (dort stecken Stadt, Ansichten und Spiel).
 - Gruppen-IDs: `roads`, `zones`, `versorgung`, `dienste`, `freizeit`, `verkehr` (+ `mehr` für fremde Kategorien).
   Zuordnung in `src/ui/meta.js` (`GROUPS`). Ganz gesperrte Reiter (z. B. Bezirke am Anfang) sind ausgeblendet –
-  `tourTarget('cat-districts')` ist dann `null`.
+  `tourTarget('cat-districts')` ist dann `null`. Die Bezirks-Werkzeuge stehen jetzt in einer eigenen Kategorie
+  `districts` (Reiter „Bezirke" in der Gruppe Zonen) statt mitten zwischen den Zonen.
+- Anzeigenamen der Reiter: `transit` → „U-Bahn", `transport` → „Bus & Tram", `industry` → „Logistik" (`catLabel` in
+  `meta.js`). Wenn ihr in `config.js` die Kategorienamen ändert, bleibt diese Zuordnung gültig.
+- Taste H öffnet jetzt den Stadt-Check (dort unten „Ratgeberin fragen"), F1 die Hilfe, ? die Tastenkürzel.
+  Wenn eure Texte „H: Ratgeberin" erwähnen, bitte anpassen.
 - Kennungen der Katalogkarten (`item-<key>`): Straßen `lane|street|avenue`, Zonen `res|com|ind|off`, `dezone`,
   Gebäude mit ihrem Schlüssel (`coal`, `water_tower` …), `line` (U-Bahn-Linie zeichnen), `panel-transit`,
   Werkzeuge anderer Module `<key>-<type>` (z. B. `buslines-bus`). Funktion `tourKey(it)` in `src/ui/catalog.js`.
