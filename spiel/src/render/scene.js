@@ -428,6 +428,7 @@ export class Engine {
       p.shadowTint.setRGB(0.02, 0.05, 0.12).multiplyScalar(1 - night * 0.5);
     }
     this.roads.setNight(night);
+    if (this.overlay && this.overlay.setNight) this.overlay.setNight(night);
   }
 
   // Schatten eng an den sichtbaren Bereich koppeln; Mittelpunkt auf Texel einrasten (kein Flimmern beim Schwenken).

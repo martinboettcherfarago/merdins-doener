@@ -1856,6 +1856,33 @@ export class BuildingView {
     }
   }
 
+  // ------------------------------------------------------------------ Vorbauen im Leerlauf
+  // Teure Modelle (Wahrzeichen, Verkehrsbauten; Bauzeit 40–200 ms) in Detailstufe 1 und 2 vorab bauen, wenn der
+  // Browser Leerlauf hat – sonst ruckelt es genau beim Heranzoomen. Eines pro Leerlauf, die fertigen bleiben erhalten.
+  _prebuild(dt) {
+    this.preT = (this.preT ?? 4) - dt;
+    if (this.preT > 0 || this._preBusy || this.queue.size || this.lodPos < this.lodList.length) return;
+    this.preT = 0.4;
+    const mgr = this.protoMgr;
+    const run = () => {
+      this._preBusy = false;
+      if (this.queue.size) return;
+      let built = false;
+      for (const rec of this.recs.values()) {
+        if (rec.dead || rec.dyingT >= 0 || !rec.finished || !rec.p0 || !heavyKey(rec)) continue;
+        for (const d of [1, 2]) {
+          let p = mgr.peek(rec.key, rec.level, rec.variant, rec.fw, rec.fd, d);
+          if (!p && !built) { p = mgr.get(rec.key, rec.level, rec.variant, rec.fw, rec.fd, rec.extra, d); built = true; }
+          if (p) p.keepUntil = mgr.time + 30;
+        }
+      }
+      if (!built) this.preT = 6; // alles vorhanden – seltener prüfen
+    };
+    this._preBusy = true;
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 2000 });
+    else setTimeout(run, 30);
+  }
+
   // ------------------------------------------------------------------ Abriss, Staub
   _dyingFrame(dt) {
     for (const rec of this.dying) {
@@ -1921,12 +1948,16 @@ export class BuildingView {
     const pts = this.lightBuf.points;
     this.lightMat.uniforms.uNight.value = night;
     this.lightMat.uniforms.uScale.value = (this.e.renderer.domElement.clientHeight || 720) * 0.9;
-    pts.visible = night > 0.04 && this.lightBuf.n > 0;
+    pts.visible = !this._fxLights && night > 0.04 && this.lightBuf.n > 0;
     this.lightT -= dt;
     if (!this.lightsDirty || this.lightT > 0) return;
     this.lightT = 0.5;
     this.lightsDirty = false;
     const buf = this.lightBuf;
+    // Bevorzugt über die gemeinsamen Nachtlichter von effects.js (HDR → Bloom, Lichtfleck am Boden, kein eigener Draw Call)
+    const fx = this.e.effects;
+    const shared = fx && typeof fx.addStaticLights === 'function';
+    const list = [];
     buf.begin();
     const col = new THREE.Color();
     for (const rec of this.recs.values()) {
@@ -1935,12 +1966,16 @@ export class BuildingView {
       if (!proto || !proto.lights.length) continue;
       const c = COS[rec.k], s = SIN[rec.k];
       for (const l of proto.lights) {
+        const x = rec.ox + l.x * c + l.z * s, z = rec.oz - l.x * s + l.z * c, size = (l.size ?? 0.4) * 0.9;
+        if (shared) { list.push({ x, y: l.y, z, color: l.color ?? 0xffd79a, size: size * 0.8, pool: l.y < 1.2 && size >= 0.15 ? Math.min(0.45, size * 1.1) : 0 }); continue; }
         col.setHex(l.color ?? 0xffd79a);
-        buf.add(rec.ox + l.x * c + l.z * s, l.y, rec.oz - l.x * s + l.z * c, (l.size ?? 0.4) * 0.9, col.r, col.g, col.b, 0.9);
+        buf.add(x, l.y, z, size, col.r, col.g, col.b, 0.9);
       }
     }
     buf.end();
-    pts.visible = night > 0.04 && buf.n > 0;
+    if (shared) fx.addStaticLights('g9-gebaeude', list);
+    this._fxLights = shared;
+    pts.visible = !shared && night > 0.04 && buf.n > 0;
   }
 
   // ------------------------------------------------------------------ Bild
@@ -1955,6 +1990,7 @@ export class BuildingView {
     this.lodT -= dt;
     if (this.lodT <= 0 || this._lastCam.distanceToSquared(cam) > 9) { this.lodT = LOD_TICK; this._lastCam.copy(cam); this._lodTick(); }
     this._work(budget);
+    this._prebuild(dt);
     this._sitesFrame(dt, time);
     this._dyingFrame(dt);
     this._animate(dt, night);
@@ -2038,3 +2074,11 @@ export function previewModel(key, level = 1, variant = 0, fw, fd, extra = {}, de
 
 export function stationHeight() { return TRANSIT.trackHeight; }
 void Z;
+
+// Teure Modelle: Wahrzeichen und große Verkehrsbauten (Bauzeit in Detailstufe 2 oft 40–200 ms)
+const HEAVY_CATS = new Set(['landmarks', 'transport']);
+function heavyKey(rec) {
+  const def = BUILDINGS[rec.b && rec.b.key];
+  if (def && HEAVY_CATS.has(def.cat)) return true;
+  return !!(rec.p0 && rec.p0.ms > 12);
+}

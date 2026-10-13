@@ -478,7 +478,7 @@ function wohnGeschaeft(ctx, g, P, o = {}) {
   } else {
     flatRoof(g, m, st.top, { mat: chance(rng, 0.4) ? 'green_roof' : 'roof_flat_gravel', wall: wallM, parapet: 0.6 * M, coping: 'metal_light' });
     rooftop(g, 0, st.top, cz, w, d, { n: 3 });
-    if (g.detail >= 1) { const fB = mframe(0, cz, w, d, 'back'); for (let f = 1; f < n; f++) for (const u of bays(w, Math.max(1, Math.round(w / 6 * 0.1 / M)), 1.5 * M)) balcony(g, fB, u, st.y[f], 2.4 * M, 1.3 * M, { type: 'panel', rail: 'metal_light' }); }
+    if (g.detail >= 1) { const fB = mframe(0, cz, w, d, 'back'); for (let f = 1; f < n; f++) for (const u of bays(w, Math.max(1, Math.round(w / 6 * 0.1 / M)), 1.5 * M)) balcony(g, fB, u, st.y[f], 2.4 * M, 1.3 * M, { type: 'panel', rail: 'glass_railing' }); }
   }
   comGround(g, PW, PD, front + 0.2 * M);
   if (g.detail >= 1) {
@@ -797,7 +797,7 @@ function einkaufszentrum(ctx, g, P) {
     // Galerien innen
     if (g.detail >= 1) {
       const fI = mframe(m.cx, cz, ww, d, sg > 0 ? 'left' : 'right');
-      for (let f = 1; f < n; f++) { g.wbox('concrete', fI, 0, st.y[f] - 0.25 * M, 0.9 * M, d - 1 * M, 0.25 * M, 1.8 * M); railing(g, fI, 0, st.y[f], 1.75 * M, d - 1 * M, 1.0 * M, 'metal_light', 'panel'); }
+      for (let f = 1; f < n; f++) { g.wbox('concrete', fI, 0, st.y[f] - 0.25 * M, 0.9 * M, d - 1 * M, 0.25 * M, 1.8 * M); railing(g, fI, 0, st.y[f], 1.75 * M, d - 1 * M, 1.0 * M, 'glass_railing', 'panel'); }
     }
   }
   // Glastonnendach über der Passage

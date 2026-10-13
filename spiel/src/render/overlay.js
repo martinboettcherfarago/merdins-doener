@@ -133,6 +133,13 @@ export class OverlayView {
     if (this.zones.instanceColor) this.zones.instanceColor.needsUpdate = true;
   }
 
+  // Zonenflächen sind unbeleuchtet – nachts abdunkeln, sonst leuchten sie wie Neon
+  setNight(n) {
+    const k = 1 - 0.88 * Math.min(1, Math.max(0, n));
+    if (this.zoneMat.color.r !== k) this.zoneMat.color.setScalar(k);
+    if (this.prevMat) this.prevMat.color.setScalar(Math.max(k, 0.6));
+  }
+
   setZoneStrong(on) {
     this.zoneStrong = on;
     this.zoneMat.opacity = on ? 0.55 : 0.3;

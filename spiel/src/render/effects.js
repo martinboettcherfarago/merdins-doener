@@ -8,6 +8,7 @@
 //   removeStaticLights(id)
 //   emitSmoke(x, y, z, 'smoke'|'steam'|'fire'|'dust'|'spark')  einzelnes Partikel
 //   burst(x, y, z, 'dust'|'smoke'|'spark', anzahl, radius)       Wolke auf einmal (Abriss, Explosion …)
+//   emitDust(x, y, z, größe, deckkraft)                          Baustaub (von buildings.js genutzt)
 //   showIcons (bool)
 import * as THREE from 'three';
 import { makeGlowTexture, makePointsMaterial, PointBuffer, atmo, ATMO_FOG_GLSL } from './materials.js';
@@ -204,12 +205,15 @@ void main() {
   }
 }
 
-// Symbol-Atlas 8×4 (128 px je Zelle): Strom, Wasser, Müll, Feuer, Keine Straße, Unglücklich, Verlassen, Überfüllt,
-// danach registrierte Symbole. Gestaltung: Stecknadel mit Schatten, farbigem Grund, weißem Rand und Spitze.
+// Symbol-Atlas 8×8 (128 px je Zelle): Zeilen 0–3 Einzelsymbole (Strom, Wasser, Müll, Feuer, Keine Straße, Unglücklich,
+// Verlassen, Überfüllt, danach registrierte Symbole), Zeilen 4–7 dieselben Symbole als Stapel (gebündelte Probleme).
+// Gestaltung: Stecknadel mit Schatten, farbigem Grund, weißem Rand und Spitze.
+const BASE_COLORS = ['#e8a812', '#2f8fd8', '#9a7444', '#e8501e', '#d8402f', '#d8402f', '#7d8288', '#d8569a'];
+export const ICON_STACK = 32; // Versatz der Stapel-Variante im Atlas
 function makeIconAtlas() {
   const S = 128;
   const c = document.createElement('canvas');
-  c.width = S * 8; c.height = S * 4;
+  c.width = S * 8; c.height = S * 8;
   const ctx = c.getContext('2d');
   const R = 40;
   const shade = (hex, f) => {
@@ -242,61 +246,90 @@ function makeIconAtlas() {
     ctx.beginPath(); ctx.ellipse(cx, top - R * 0.45, R * 0.7, R * 0.38, 0, 0, Math.PI * 2); ctx.fill();
     return [cx, top];
   };
-  const cell = (i) => [(i % 8) * S + S / 2, Math.floor(i / 8) * S + S / 2];
+  // Hintere Scheibe eines Stapels (nur Rand + Grund, etwas dunkler)
+  const ghost = (cx, cy, col) => {
+    const top = cy - 12;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.filter = 'blur(3px)';
+    ctx.beginPath(); ctx.arc(cx + 2, top + 4, R + 3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#f2f2f2';
+    ctx.beginPath(); ctx.arc(cx, top, R + 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = shade(col, 0.72);
+    ctx.beginPath(); ctx.arc(cx, top, R, 0, Math.PI * 2); ctx.fill();
+  };
   const W = '#ffffff';
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  // 0 Strom
-  let [x, y] = pin(...cell(0), '#e8a812');
-  ctx.fillStyle = W;
-  ctx.beginPath(); ctx.moveTo(x + 6, y - 27); ctx.lineTo(x - 14, y + 4); ctx.lineTo(x - 1, y + 4); ctx.lineTo(x - 6, y + 27); ctx.lineTo(x + 14, y - 5); ctx.lineTo(x + 1, y - 5); ctx.closePath(); ctx.fill();
-  // 1 Wasser
-  [x, y] = pin(...cell(1), '#2f8fd8');
-  ctx.fillStyle = W;
-  ctx.beginPath(); ctx.moveTo(x, y - 26); ctx.bezierCurveTo(x + 22, y - 2, x + 18, y + 22, x, y + 22); ctx.bezierCurveTo(x - 18, y + 22, x - 22, y - 2, x, y - 26); ctx.fill();
-  // 2 Müll
-  [x, y] = pin(...cell(2), '#9a7444');
-  ctx.fillStyle = W;
-  ctx.fillRect(x - 15, y - 9, 30, 32); ctx.fillRect(x - 20, y - 17, 40, 6); ctx.fillRect(x - 6, y - 23, 12, 6);
-  ctx.fillStyle = '#9a7444'; ctx.fillRect(x - 7, y - 4, 3, 22); ctx.fillRect(x + 4, y - 4, 3, 22);
-  // 3 Feuer
-  [x, y] = pin(...cell(3), '#e8501e');
-  ctx.fillStyle = W;
-  ctx.beginPath(); ctx.moveTo(x, y - 28); ctx.bezierCurveTo(x + 24, y - 4, x + 20, y + 24, x, y + 24); ctx.bezierCurveTo(x - 20, y + 24, x - 22, y + 2, x - 7, y - 9); ctx.bezierCurveTo(x - 5, y, x + 3, y - 11, x, y - 28); ctx.fill();
-  ctx.fillStyle = '#ffc93a';
-  ctx.beginPath(); ctx.arc(x, y + 11, 9, 0, Math.PI * 2); ctx.fill();
-  // 4 Keine Straße
-  [x, y] = pin(...cell(4), '#d8402f');
-  ctx.strokeStyle = W; ctx.lineWidth = 6;
-  ctx.beginPath(); ctx.moveTo(x - 11, y - 24); ctx.lineTo(x - 16, y + 24); ctx.moveTo(x + 11, y - 24); ctx.lineTo(x + 16, y + 24); ctx.stroke();
-  ctx.setLineDash([6, 7]); ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x, y + 24); ctx.stroke(); ctx.setLineDash([]);
-  ctx.strokeStyle = '#ffd8d2'; ctx.lineWidth = 7;
-  ctx.beginPath(); ctx.moveTo(x - 24, y - 22); ctx.lineTo(x + 24, y + 22); ctx.stroke();
-  // 5 Unglücklich
-  [x, y] = pin(...cell(5), '#d8402f');
-  ctx.strokeStyle = W; ctx.lineWidth = 6;
-  ctx.beginPath(); ctx.arc(x, y + 22, 15, Math.PI * 1.18, Math.PI * 1.82); ctx.stroke();
-  ctx.fillStyle = W;
-  ctx.beginPath(); ctx.arc(x - 11, y - 8, 5.5, 0, Math.PI * 2); ctx.arc(x + 11, y - 8, 5.5, 0, Math.PI * 2); ctx.fill();
-  // 6 Verlassen
-  [x, y] = pin(...cell(6), '#7d8288');
-  ctx.fillStyle = W;
-  ctx.beginPath(); ctx.moveTo(x - 22, y - 1); ctx.lineTo(x, y - 22); ctx.lineTo(x + 22, y - 1); ctx.closePath(); ctx.fill();
-  ctx.fillRect(x - 15, y - 1, 30, 22);
-  ctx.strokeStyle = '#7d8288'; ctx.lineWidth = 4.5;
-  ctx.beginPath(); ctx.moveTo(x - 8, y + 3); ctx.lineTo(x + 8, y + 17); ctx.moveTo(x + 8, y + 3); ctx.lineTo(x - 8, y + 17); ctx.stroke();
-  // 7 Personen / überfüllt
-  [x, y] = pin(...cell(7), '#d8569a');
-  ctx.fillStyle = W;
-  for (const dx of [-14, 0, 14]) { ctx.beginPath(); ctx.arc(x + dx, y - 9, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x + dx - 6, y, 12, 18, 4) : ctx.rect(x + dx - 6, y, 12, 18); ctx.fill(); }
+  const glyphs = [
+    (x, y) => { // 0 Strom
+      ctx.fillStyle = W;
+      ctx.beginPath(); ctx.moveTo(x + 6, y - 27); ctx.lineTo(x - 14, y + 4); ctx.lineTo(x - 1, y + 4); ctx.lineTo(x - 6, y + 27); ctx.lineTo(x + 14, y - 5); ctx.lineTo(x + 1, y - 5); ctx.closePath(); ctx.fill();
+    },
+    (x, y) => { // 1 Wasser
+      ctx.fillStyle = W;
+      ctx.beginPath(); ctx.moveTo(x, y - 26); ctx.bezierCurveTo(x + 22, y - 2, x + 18, y + 22, x, y + 22); ctx.bezierCurveTo(x - 18, y + 22, x - 22, y - 2, x, y - 26); ctx.fill();
+    },
+    (x, y) => { // 2 Müll
+      ctx.fillStyle = W;
+      ctx.fillRect(x - 15, y - 9, 30, 32); ctx.fillRect(x - 20, y - 17, 40, 6); ctx.fillRect(x - 6, y - 23, 12, 6);
+      ctx.fillStyle = '#9a7444'; ctx.fillRect(x - 7, y - 4, 3, 22); ctx.fillRect(x + 4, y - 4, 3, 22);
+    },
+    (x, y) => { // 3 Feuer
+      ctx.fillStyle = W;
+      ctx.beginPath(); ctx.moveTo(x, y - 28); ctx.bezierCurveTo(x + 24, y - 4, x + 20, y + 24, x, y + 24); ctx.bezierCurveTo(x - 20, y + 24, x - 22, y + 2, x - 7, y - 9); ctx.bezierCurveTo(x - 5, y, x + 3, y - 11, x, y - 28); ctx.fill();
+      ctx.fillStyle = '#ffc93a';
+      ctx.beginPath(); ctx.arc(x, y + 11, 9, 0, Math.PI * 2); ctx.fill();
+    },
+    (x, y) => { // 4 Keine Straße
+      ctx.strokeStyle = W; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.moveTo(x - 11, y - 24); ctx.lineTo(x - 16, y + 24); ctx.moveTo(x + 11, y - 24); ctx.lineTo(x + 16, y + 24); ctx.stroke();
+      ctx.setLineDash([6, 7]); ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x, y + 24); ctx.stroke(); ctx.setLineDash([]);
+      ctx.strokeStyle = '#ffd8d2'; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(x - 24, y - 22); ctx.lineTo(x + 24, y + 22); ctx.stroke();
+    },
+    (x, y) => { // 5 Unglücklich
+      ctx.strokeStyle = W; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.arc(x, y + 22, 15, Math.PI * 1.18, Math.PI * 1.82); ctx.stroke();
+      ctx.fillStyle = W;
+      ctx.beginPath(); ctx.arc(x - 11, y - 8, 5.5, 0, Math.PI * 2); ctx.arc(x + 11, y - 8, 5.5, 0, Math.PI * 2); ctx.fill();
+    },
+    (x, y) => { // 6 Verlassen
+      ctx.fillStyle = W;
+      ctx.beginPath(); ctx.moveTo(x - 22, y - 1); ctx.lineTo(x, y - 22); ctx.lineTo(x + 22, y - 1); ctx.closePath(); ctx.fill();
+      ctx.fillRect(x - 15, y - 1, 30, 22);
+      ctx.strokeStyle = '#7d8288'; ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.moveTo(x - 8, y + 3); ctx.lineTo(x + 8, y + 17); ctx.moveTo(x + 8, y + 3); ctx.lineTo(x - 8, y + 17); ctx.stroke();
+    },
+    (x, y) => { // 7 Personen / überfüllt
+      ctx.fillStyle = W;
+      for (const dx of [-14, 0, 14]) { ctx.beginPath(); ctx.arc(x + dx, y - 9, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x + dx - 6, y, 12, 18, 4) : ctx.rect(x + dx - 6, y, 12, 18); ctx.fill(); }
+    },
+  ];
+  const colors = BASE_COLORS.slice();
   // Registrierte Symbole (bis zu 24 weitere)
   ICONS.slice(0, 24).forEach((icon, k) => {
-    const idx = 8 + k;
-    ICON_INDEX[icon.id] = idx;
-    const [px, py] = pin(...cell(idx), icon.color || '#5a6470');
+    ICON_INDEX[icon.id] = 8 + k;
+    colors.push(icon.color || '#5a6470');
+    glyphs.push((px, py) => {
+      ctx.save();
+      ctx.beginPath(); ctx.arc(px, py, R - 1, 0, Math.PI * 2); ctx.clip();
+      try { icon.draw(ctx, px, py, 30); } catch (e) { console.error('Symbol', icon.id, e); }
+      ctx.restore();
+    });
+  });
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  glyphs.forEach((draw, i) => {
+    const cx = (i % 8) * S + S / 2, cy = Math.floor(i / 8) * S + S / 2;
+    draw(...pin(cx, cy, colors[i]));
+    // Stapel: zwei Scheiben dahinter, vorderes Symbol etwas kleiner
+    const sy = cy + 4 * S;
     ctx.save();
-    ctx.beginPath(); ctx.arc(px, py, R - 1, 0, Math.PI * 2); ctx.clip();
-    try { icon.draw(ctx, px, py, 30); } catch (e) { console.error('Symbol', icon.id, e); }
+    ctx.beginPath(); ctx.rect(cx - S / 2, sy - S / 2, S, S); ctx.clip();
+    ctx.translate(cx, sy); ctx.scale(0.84, 0.84); ctx.translate(-cx, -sy);
+    ghost(cx + 22, sy - 16, colors[i]);
+    ghost(cx + 11, sy - 8, colors[i]);
+    draw(...pin(cx - 4, sy + 4, colors[i]));
     ctx.restore();
   });
   const t = new THREE.CanvasTexture(c);
@@ -352,7 +385,7 @@ export class EffectsView {
     geo.setAttribute('aBorn', new THREE.BufferAttribute(this.iconBorn, 1).setUsage(THREE.DynamicDrawUsage));
     this.iconGeo = geo;
     this.iconMat = new THREE.ShaderMaterial({
-      uniforms: { uTex: { value: makeIconAtlas() }, uTime: { value: 0 }, uSize: { value: 34 }, uPR: { value: 1 } },
+      uniforms: { uTex: { value: makeIconAtlas() }, uTime: { value: 0 }, uSize: { value: 27 }, uPR: { value: 1 } },
       vertexShader: `
 attribute float aIcon;
 attribute float aBorn;
@@ -367,8 +400,9 @@ void main() {
   float d = max(1.0, -mv.z);
   float t = clamp((uTime - aBorn) / 0.35, 0.0, 1.0);
   float pop = 1.0 + 2.70158 * pow(t - 1.0, 3.0) + 1.70158 * pow(t - 1.0, 2.0);
-  float pulse = abs(aIcon - 3.0) < 0.5 ? 1.0 + 0.08 * sin(uTime * 9.0) : 1.0;
-  float px = clamp(uSize * 26.0 / d, 18.0, uSize) * uPR * pop * pulse;
+  float pulse = abs(mod(aIcon, 32.0) - 3.0) < 0.5 ? 1.0 + 0.08 * sin(uTime * 9.0) : 1.0;
+  float stack = aIcon > 31.5 ? 1.14 : 1.0;
+  float px = clamp(uSize * 20.0 / d, 17.0, uSize) * uPR * pop * pulse * stack;
   vA = smoothstep(2.5, 5.0, d) * clamp(t * 3.0, 0.0, 1.0);
   gl_PointSize = px;
   gl_Position = projectionMatrix * mv;
@@ -379,8 +413,8 @@ varying float vIcon;
 varying float vA;
 void main() {
   float col = mod(vIcon, 8.0);
-  float row = floor(vIcon / 8.0);
-  vec2 uv = (vec2(col, row) + gl_PointCoord) / vec2(8.0, 4.0);
+  float row = floor(vIcon / 8.0 + 0.01);
+  vec2 uv = (vec2(col, row) + gl_PointCoord) / 8.0;
   vec4 t = texture2D(uTex, uv);
   if (t.a * vA < 0.02) discard;
   gl_FragColor = vec4(t.rgb, t.a * vA);
@@ -435,6 +469,18 @@ void main() {
     });
   }
 
+  // Baustaub/Abrissstaub (Schnittstelle für buildings.js): Größe und Deckkraft wie dort gewünscht
+  emitDust(x, y, z, size = 0.3, alpha = 0.5) {
+    const n = this.particles.length;
+    this.emitSmoke(x, y, z, 'dust');
+    if (this.particles.length === n) return;
+    const p = this.particles[n];
+    const k = size / 0.4;
+    p.s0 *= k; p.s1 *= k;
+    p.a = Math.min(0.5, 0.18 + alpha * 0.3);
+    p.vx += (Math.random() - 0.5) * 0.16; p.vz += (Math.random() - 0.5) * 0.16;
+  }
+
   burst(x, y, z, type, count, radius = 0.5) {
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * radius;
@@ -469,6 +515,14 @@ void main() {
     return (b.zone ? [0, 0.7, 1.1, 1.5, 2.5, 4.8][b.level] : 1.2) + 0.6;
   }
 
+  // Bündelstufe der Symbole aus dem Kameraabstand: Zellgröße 2^stufe Felder (nah 1, Stadt 8, Übersicht 16)
+  iconLevel() {
+    const dist = this.e.rig && this.e.rig.cur ? this.e.rig.cur.dist : 30;
+    return Math.max(0, Math.min(5, Math.round(Math.log2(Math.max(1, dist * 0.22)))));
+  }
+
+  // Problemsymbole: Kandidaten nach Schwere sammeln, dann pro Zelle (Weltraster, abhängig vom Zoom) nur das
+  // wichtigste zeigen. Mehrere Probleme in einer Zelle → Stapel-Symbol. Fern entfallen leichte Probleme.
   updateIcons(time) {
     const g = this.g;
     let n = 0;
@@ -485,39 +539,62 @@ void main() {
       this.iconBorn[n] = born;
       n++;
     };
-    const putB = (b, icon) => put(b.id, b.x + b.w / 2 - g.W / 2, this.iconHeight(b), b.y + b.h / 2 - g.H / 2, icon);
+    this.iconLevelNow = this.iconLevel();
+    const cam = this.e.camera.position;
+    const cells = new Map();
+    const cand = (key, x, h, z, icon) => {
+      const pr = iconPrio(icon);
+      // Bündelstufe nach dem Abstand des Symbols zur Kamera (fern = größere Zellen, leichte Probleme entfallen)
+      const d = Math.hypot(x - cam.x, h - cam.y, z - cam.z);
+      const level = Math.max(0, Math.min(5, Math.round(Math.log2(Math.max(1, d * 0.22)))));
+      if (pr < (level >= 4 ? 30 : level >= 3 ? 18 : 0)) return;
+      const cellSize = 1 << level;
+      const ck = level * 1e8 + Math.floor((x + g.W / 2) / cellSize) * 4096 + Math.floor((z + g.H / 2) / cellSize);
+      const c = cells.get(ck);
+      if (!c) { cells.set(ck, { key, x, h, z, icon, pr, n: 1 }); return; }
+      c.n++;
+      if (pr > c.pr || (pr === c.pr && h > c.h)) { c.key = key; c.x = x; c.h = h; c.z = z; c.icon = icon; c.pr = pr; }
+    };
+    const putB = (b, icon) => cand(b.id, b.x + b.w / 2 - g.W / 2, this.iconHeight(b), b.y + b.h / 2 - g.H / 2, icon);
+    const extraIcon = (b) => {
+      for (const fn of BUILDING_PROBLEMS) {
+        const id = fn(g, b);
+        if (id && ICON_INDEX[id] !== undefined) return ICON_INDEX[id];
+      }
+      return -1;
+    };
+    const extra = (b) => { const i = extraIcon(b); if (i >= 0) putB(b, i); };
     if (this.showIcons) {
       for (const b of g.buildings.values()) {
-        if (b.construct < 1) continue;
+        if (b.construct < 1) {
+          if (g.isRepairing && g.isRepairing(b) && ICON_INDEX.repair !== undefined) putB(b, ICON_INDEX.repair);
+          continue;
+        }
         if (b.burning) { putB(b, ICON.FIRE); continue; }
         if (b.abandoned) { putB(b, ICON.ABANDONED); continue; }
         if (!b.zone) {
           if (b.key !== 'park' && b.comp >= 0 && !b.powered && BUILDINGS_NEED_POWER(b)) putB(b, ICON.POWER);
-          else {
-            for (const fn of BUILDING_PROBLEMS) {
-              const id = fn(g, b);
-              if (id && ICON_INDEX[id] !== undefined) { putB(b, ICON_INDEX[id]); break; }
-            }
-          }
+          else extra(b);
           continue;
         }
         if (!b.connected) putB(b, ICON.ROAD);
         else if (!b.powered && b.noPower > 0) putB(b, ICON.POWER);
         else if (!b.watered && b.noWater > 0) putB(b, ICON.WATER);
-        else if (b.problemGarbage) putB(b, ICON.GARBAGE);
-        else if (b.happy < 25) putB(b, ICON.SAD);
         else {
-          for (const fn of BUILDING_PROBLEMS) {
-            const id = fn(g, b);
-            if (id && ICON_INDEX[id] !== undefined) { putB(b, ICON_INDEX[id]); break; }
-          }
+          // schwerstes Problem des Gebäudes (Müll/Unglück oder registrierte wie Hochwasser, Krankheit, Stau)
+          let best = b.problemGarbage ? ICON.GARBAGE : b.happy < 25 ? ICON.SAD : -1;
+          const id = extraIcon(b);
+          if (id >= 0 && (best < 0 || iconPrio(id) > iconPrio(best))) best = id;
+          if (best >= 0) putB(b, best);
         }
       }
       for (const st of g.transit.stations.values()) {
-        if (st.waiting.length > 14) put('st' + st.x + ',' + st.y, st.x + 0.5 - g.W / 2, 4.6, st.y + 0.5 - g.H / 2, ICON.CROWD);
+        if (st.waiting.length > 14) cand('st' + st.x + ',' + st.y, st.x + 0.5 - g.W / 2, 4.6, st.y + 0.5 - g.H / 2, ICON.CROWD);
       }
+      for (const c of cells.values()) put(c.key, c.x, c.h, c.z, c.icon + (c.n > 1 ? ICON_STACK : 0));
     }
     for (const k of state.keys()) if (!seen.has(k)) state.delete(k);
+    this.iconCount = n;
     this.iconGeo.setDrawRange(0, n);
     for (const name of ['position', 'aIcon', 'aBorn']) this.iconGeo.attributes[name].needsUpdate = true;
   }
@@ -541,7 +618,7 @@ void main() {
     const g = this.g, e = this.e;
     this.iconMat.uniforms.uTime.value = time;
     this.iconTimer -= dt;
-    if (this.iconTimer <= 0) { this.iconTimer = 0.5; this.updateIcons(time); }
+    if (this.iconTimer <= 0 || this.iconLevel() !== this.iconLevelNow) { this.iconTimer = 0.5; this.updateIcons(time); }
     this.updateLighting();
     const wx = e.wx || { wind: 0.3, windDir: 0.6 };
     const wsp = 0.08 + wx.wind * 0.55;
@@ -557,8 +634,8 @@ void main() {
         const rate = (b.zone ? 1.1 * (0.3 + b.occ / Math.max(1, b.cap)) : 2.2) * simDt * qd;
         for (const em of list) if (Math.random() < rate * em.amount) this.emitSmoke(em.x, em.y, em.z, em.type);
       }
-      // Baustaub
-      if (e.buildings.constructing) {
+      // Baustaub (nur falls der Gebäude-Renderer ihn nicht selbst über emitDust erzeugt – sonst doppelt)
+      if (e.buildings.constructing && typeof e.buildings._emitDust !== 'function') {
         for (const id of e.buildings.constructing) {
           const b = g.buildings.get(id);
           if (!b) continue;
@@ -659,8 +736,8 @@ void main() {
     const a = Math.min(1, (night - 0.15) * 1.5);
     for (let i = 0; i < lampPositions.length; i += 3) {
       const x = lampPositions[i], y = lampPositions[i + 1], z = lampPositions[i + 2];
-      this.lights.add(x, y, z, 0.15, 2.0, 1.45, 0.8, a * 0.75);
-      this.pools.add(x, 0.03, z, 0.55, 1.0, 0.68, 0.36, a * 0.38);
+      // Lichtfleck und Kegel zeichnet die Straßenansicht selbst (streetprops 'pool'/'cone') – hier nur der Leuchtpunkt
+      this.lights.add(x, y, z, 0.12, 2.0, 1.45, 0.8, a * 0.7);
     }
   }
   addFireLights() {
@@ -674,6 +751,16 @@ void main() {
       this.pools.add(x, 0.03, z, 1.4 + Math.max(b.w, b.h) * 0.6, 1.0, 0.45, 0.12, 0.9 * fl);
     }
   }
+}
+
+// Schwere der Probleme (höher = wichtiger); unbekannte registrierte Symbole liegen in der Mitte
+const PRIO_BASE = [70, 65, 32, 100, 80, 15, 45, 40];
+const PRIO_REG = { flooded: 90, cz_dead: 60, cz_sick: 55, cz_cold: 50, cz_sewage: 38, tp_jam: 26, tp_depot: 22, eco_short: 24, eco_unsold: 20, repair: 12 };
+let prioCache = null;
+function iconPrio(icon) {
+  if (icon < 8) return PRIO_BASE[icon];
+  if (!prioCache) { prioCache = {}; for (const [id, i] of Object.entries(ICON_INDEX)) prioCache[i] = PRIO_REG[id] ?? 30; }
+  return prioCache[icon] ?? 30;
 }
 
 function BUILDINGS_NEED_POWER(b) {

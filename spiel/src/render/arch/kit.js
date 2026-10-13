@@ -29,6 +29,21 @@ function ensureLit(geo, value) {
   geo.setAttribute('aLit', new THREE.BufferAttribute(a, 1));
 }
 
+// Zwischenspeicher für Grundformen (Quader, Zylinder, Kegel, Kugeln, Prismen) mit gleichen Maßen: spart die
+// Erzeugung und das Entindizieren bei jedem Aufruf. Die gespeicherte Geometrie wird nie verändert – kit.add kopiert sie.
+const PRIM = new Map();
+function prim(key, make) {
+  let g = PRIM.get(key);
+  if (!g) {
+    g = make();
+    if (g.index) g = g.toNonIndexed();
+    if (PRIM.size > 6000) PRIM.clear();
+    PRIM.set(key, g);
+  }
+  return g;
+}
+const qk = (v) => Math.round(v * 1e5);
+
 // Detailstufen: 2 = volles Modell, 1 = mittlere Entfernung (keine Kleinteile), 0 = Fernansicht
 // (Fenster nur als Muster-Flächen mit Material 'lod_windows', keine Sprossen, Balkone, Dachaufbauten).
 export class Kit {
@@ -65,33 +80,35 @@ export class Kit {
 
   // --- Grundformen (y0 = Unterkante)
   box(mat, x, y0, z, sx, sy, sz, o = {}) {
-    const geo = new THREE.BoxGeometry(sx, sy, sz);
-    geo.translate(0, sy / 2, 0);
+    const geo = prim(`b${qk(sx)},${qk(sy)},${qk(sz)}`, () => new THREE.BoxGeometry(sx, sy, sz).translate(0, sy / 2, 0));
     return this.add(mat, geo, { ...o, x, y: y0, z });
   }
   cyl(mat, x, y0, z, r, h, o = {}) {
-    const geo = new THREE.CylinderGeometry(o.rTop ?? r, r, h, o.seg || 14, 1, !!o.open);
-    geo.translate(0, h / 2, 0);
+    const rt = o.rTop ?? r, seg = o.seg || 14, open = !!o.open;
+    const geo = prim(`c${qk(rt)},${qk(r)},${qk(h)},${seg},${open}`, () => new THREE.CylinderGeometry(rt, r, h, seg, 1, open).translate(0, h / 2, 0));
     return this.add(mat, geo, { ...o, x, y: y0, z });
   }
   cone(mat, x, y0, z, r, h, o = {}) {
-    const geo = new THREE.ConeGeometry(r, h, o.seg || 12);
-    geo.translate(0, h / 2, 0);
+    const seg = o.seg || 12;
+    const geo = prim(`k${qk(r)},${qk(h)},${seg}`, () => new THREE.ConeGeometry(r, h, seg).translate(0, h / 2, 0));
     return this.add(mat, geo, { ...o, x, y: y0, z });
   }
   sphere(mat, x, y, z, r, o = {}) {
-    const geo = new THREE.SphereGeometry(r, o.seg || 14, Math.max(6, (o.seg || 14) >> 1));
+    const seg = o.seg || 14;
+    const geo = prim(`s${qk(r)},${seg}`, () => new THREE.SphereGeometry(r, seg, Math.max(6, seg >> 1)));
     return this.add(mat, geo, { ...o, x, y, z });
   }
   dome(mat, x, y0, z, r, o = {}) {
-    const geo = new THREE.SphereGeometry(r, o.seg || 18, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const seg = o.seg || 18;
+    const geo = prim(`d${qk(r)},${seg}`, () => new THREE.SphereGeometry(r, seg, 8, 0, Math.PI * 2, 0, Math.PI / 2));
     return this.add(mat, geo, { ...o, x, y: y0, z, sy: o.sy ?? 1 });
   }
   // Beliebiges Prisma aus einem 2D-Profil (in x/y), extrudiert entlang z mit Länge len
   prism(mat, profile, len, o = {}) {
-    const shape = new THREE.Shape(profile.map(([a, b]) => new THREE.Vector2(a, b)));
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: len, bevelEnabled: false });
-    geo.translate(0, 0, -len / 2);
+    const geo = prim('p' + qk(len) + ':' + profile.map(([a, b]) => qk(a) + ',' + qk(b)).join(';'), () => {
+      const shape = new THREE.Shape(profile.map(([a, b]) => new THREE.Vector2(a, b)));
+      return new THREE.ExtrudeGeometry(shape, { depth: len, bevelEnabled: false }).translate(0, 0, -len / 2);
+    });
     return this.add(mat, geo, o);
   }
 
