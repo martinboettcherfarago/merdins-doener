@@ -11,7 +11,7 @@ const TIPS = [
   'Mit P öffnest du den Fotomodus: freie Kamera, Tageszeit, Filter.',
   'Die Nachfrage-Balken W G I B zeigen, was deine Stadt gerade braucht.',
   'Industrie mit etwas Abstand zum Wohnen – Abgase senken Glück und Bodenwert.',
-  'Die Pulsbahn spielt bei jeder Ankunft einen Ton. Mehrere Linien ergeben Musik.',
+  'Die U-Bahn spielt bei jeder Ankunft einen Ton. Mehrere Linien ergeben Musik.',
   'Mit F durchsuchst du den ganzen Baukatalog.',
   'Parks, Wasser und Dienste heben den Bodenwert – so wachsen höhere Gebäude.',
   'Die Minikarte unten links: klicken, um dorthin zu springen.',

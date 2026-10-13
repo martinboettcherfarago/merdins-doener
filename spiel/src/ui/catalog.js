@@ -6,7 +6,7 @@ import { fmtMoney, fmt } from '../util.js';
 import { TRAY_ITEMS } from '../registry.js';
 import { isBanned } from '../sim/systems/progression.js';
 import { icon, iconAny } from './icons.js';
-import { catMeta, lineById } from './meta.js';
+import { catMeta, catLabel, lineById } from './meta.js';
 import { getThumb, thumbId, hasArch, onThumb, thumbFailed } from './thumbs.js';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
@@ -175,7 +175,7 @@ export function searchCatalog(ui, q) {
   if (!n) return [];
   const words = n.split(/\s+/);
   return allCatalogItems(ui).map((it) => {
-    const hay = norm(`${it.name} ${catMeta(it.cat).name} ${it.desc || ''}`);
+    const hay = norm(`${it.name} ${catMeta(it.cat).name} ${catLabel(it.cat)} ${it.desc || ''}`);
     const nm = norm(it.name);
     if (!words.every((w) => hay.includes(w))) return null;
     return { it, score: (nm.startsWith(words[0]) ? 3 : nm.includes(words[0]) ? 2 : 1) - (it.locked ? 0.5 : 0) };
@@ -209,6 +209,17 @@ export function factsHTML(facts, max = 99) {
   return (facts || []).slice(0, max).map(([ic, txt]) => `<span class="fact">${icon(ic, 13, 2.2)}${esc(txt)}</span>`).join('');
 }
 
+// Kennung für Spotlight-Ziele der Einführung: data-tour="item-<kennung>", z. B. item-street, item-res, item-coal
+export function tourKey(it) {
+  if (!it) return '';
+  if (it.kind === 'road') return (ROADS[it.type] || {}).key || String(it.type);
+  if (it.kind === 'zone') return (ZONE_INFO[it.zone] || {}).key || String(it.zone);
+  if (it.kind === 'place') return it.key;
+  if (it.kind === 'panel') return 'panel-' + it.panel;
+  if (it.kind === 'tool') return it.type !== undefined && it.type !== '' ? `${it.key}-${it.type}` : String(it.key || 'tool');
+  return it.kind;
+}
+
 export function cardHTML(it, i, active, showCat = false) {
   const cls = ['item', 'card'];
   if (active) cls.push('on');
@@ -216,21 +227,22 @@ export function cardHTML(it, i, active, showCat = false) {
   if (it.built) cls.push('built');
   const cm = catMeta(it.cat);
   const lockTxt = it.built ? 'Gebaut' : it.locked ? 'Gesperrt' : '';
-  return `<button class="${cls.join(' ')}" data-i="${i}" data-kind="${it.kind}" data-type="${it.type || ''}" data-zone="${it.zone || ''}" data-key="${esc(it.key || '')}" data-panel="${esc(it.panel || '')}" ${it.locked ? 'data-locked="1"' : ''} style="--c:${it.color || cm.color}" aria-label="${esc(it.name)}">
+  return `<button class="${cls.join(' ')}" data-i="${i}" data-tour="item-${esc(tourKey(it))}" data-kind="${it.kind}" data-type="${it.type || ''}" data-zone="${it.zone || ''}" data-bkey="${esc(it.key || '')}" data-panel="${esc(it.panel || '')}" ${it.locked ? 'data-locked="1"' : ''} style="--c:${it.color || cm.color}" aria-label="${esc(it.name)}">
   <span class="pic">${pic(it)}${it.tag ? `<span class="tag">${esc(it.tag)}</span>` : it.fresh ? '<span class="tag new">Neu</span>' : ''}${lockTxt ? `<span class="lockbadge">${icon(it.built ? 'check' : 'lock', 12, 2.6)}${lockTxt}</span>` : ''}${it.count ? `<span class="cnt num" title="In der Stadt">${it.count}×</span>` : ''}${typeof it.demand === 'number' ? `<span class="dem"><i style="height:${Math.max(4, Math.min(100, Math.abs(it.demand)))}%;${it.demand < 0 ? 'opacity:.4' : ''}"></i></span>` : ''}</span>
-  <span class="meta">${showCat ? `<span class="ct" style="color:${cm.color}">${esc(cm.name)}</span>` : ''}<span class="n">${esc(it.name)}</span><span class="c">${esc(it.cost)}</span>${it.facts && it.facts.length ? `<span class="f">${factsHTML(it.facts, 1)}</span>` : ''}</span>
+  <span class="meta">${showCat ? `<span class="ct" style="color:${cm.color}">${esc(catLabel(it.cat))}</span>` : ''}<span class="n">${esc(it.name)}</span><span class="c">${esc(it.cost)}</span>${it.facts && it.facts.length ? `<span class="f">${factsHTML(it.facts, 1)}</span>` : ''}</span>
 </button>`;
 }
 
 export function detailHTML(it) {
   if (!it) return '<div class="empty">Fahre über einen Eintrag, um Details zu sehen.</div>';
   const cm = catMeta(it.cat);
-  return `<div class="dt-head"><span class="dt-line" style="background:${it.color || cm.color}"></span><span class="dt-cat">${esc(cm.name)}</span></div>
+  return `<div class="dt-head"><span class="dt-line" style="background:${it.color || cm.color}"></span><span class="dt-cat">${esc(catLabel(it.cat))}</span></div>
 <div class="dt-name">${esc(it.name)}</div>
 <div class="dt-cost num">${esc(it.cost)}</div>
 <p class="dt-desc">${esc(it.desc || '')}</p>
 <div class="dt-facts">${factsHTML(it.facts)}</div>
-${it.locked ? `<div class="dt-lock">${icon(it.built ? 'check' : 'lock', 14, 2.4)}<span>${esc(it.locked)}</span></div>` : it.unique ? `<div class="dt-note">${icon('star', 14, 2.2)}<span>Einmalig in der Stadt${it.tag ? ' · Gutschein: halber Preis' : ''}</span></div>` : ''}`;
+${it.locked ? `<div class="dt-lock">${icon(it.built ? 'check' : 'lock', 14, 2.4)}<span>${esc(it.locked)}</span></div>` : it.unique ? `<div class="dt-note">${icon('star', 14, 2.2)}<span>Einmalig in der Stadt${it.tag ? ' · Gutschein: halber Preis' : ''}</span></div>` : ''}
+<button class="dt-help" data-act="trayhelp" data-tip="Was ist das?" data-tip-desc="Erklärt in einfachen Sätzen, wozu das gut ist." data-tip-fast="1">${icon('help', 14, 2.2)}<span>Was ist das?</span></button>`;
 }
 
 // Bilder nachträglich einsetzen, sobald sie fertig sind
