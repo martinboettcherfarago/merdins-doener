@@ -93,6 +93,7 @@ H.place('watertower', 8, hy + 3);
 const T = () => g.ext.transport;
 ok(!!T() && Array.isArray(T().stops) && Array.isArray(T().lines), 'Zustand g.ext.transport mit stops/lines vorhanden');
 
+let tramDep = null, tramDay = 0, tramDone = false;
 let busBuilt = false, tramBuilt = false, servicesBuilt = false, transitBuilt = false, stationBuilt = false, more = false;
 const log = [];
 const tryLine = (mode, pts, loop = false) => {
@@ -139,12 +140,17 @@ for (let d = 1; d <= days; d++) {
     H.place('coal', 40, hy + 17);
     H.place('watertower', 47, hy + 9); H.place('watertower', 47, hy + 11);
   }
+  // Straßenbahn: erst das Depot, dann die Linie, sobald das Geld für ihre echten Kosten reicht (nicht feste Schwelle)
   if (!tramBuilt && stationBuilt && g.isUnlocked('tram_depot') && g.money > 22000) {
     tramBuilt = true;
     console.log(`  Tag ${d}: Straßenbahn`);
-    const dep = H.place('tram_depot', 3, hy - 4);
-    H.run(1);
-    if (dep.ok) {
+    tramDep = H.place('tram_depot', 3, hy - 4);
+    tramDay = d;
+  } else if (tramDep && tramDep.ok && !tramDone) {
+    const tiles = [[7, hy], [17, hy], [31, hy], [43, hy]].map(([x, y]) => H.stopTile(x, y, 'tram')).filter((t) => t >= 0);
+    const plan = TPS.planLine(g, 'tram', tiles, false);
+    if ((plan.ok && g.money >= plan.cost) || d - tramDay >= 12) {
+      tramDone = true;
       const r = tryLine('tram', [[7, hy], [17, hy], [31, hy], [43, hy]]);
       ok(r.ok, 'Straßenbahnlinie auf der Hauptachse eröffnet');
       if (r.ok) TPS.setVehicles(g, r.line.id, 2);
@@ -335,7 +341,8 @@ HB.run(14, () => {
   let inter = -1;
   for (let i = 0; i < s.N && inter < 0; i++) if (TPS.isIntersection(s, i) && !T2.signalSet.has(i)) inter = i;
   const before = T2.totals.accidents;
-  for (let k = 0; k < 400 && T2.totals.accidents === before; k++) { s.trafficLoad[inter] = 900; TPS.debugAccidents(s, 12); }
+  // je Versuch nur ≈ 0,2 % Unfallwahrscheinlichkeit – mit 400 Versuchen scheiterte jeder zweite Lauf
+  for (let k = 0; k < 5000 && T2.totals.accidents === before; k++) { s.trafficLoad[inter] = 900; TPS.debugAccidents(s, 12); }
   ok(T2.totals.accidents > before, 'Unfall an einer stark belasteten Kreuzung ohne Ampel');
   const a = T2.accidents[T2.accidents.length - 1];
   const sys = s.system('transport');

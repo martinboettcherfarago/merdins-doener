@@ -827,8 +827,12 @@ registerSystem({
   hourly(g, h) {
     const C = state(g);
     const F = collectFacilities(g);
-    sewageHourly(g, C);
-    heatHourly(g, C);
+    // Abwasser und Wärme ändern sich langsam: alle zwei Stunden, sofort nach Bau/Abriss oder Netzänderung (Q4-Messung)
+    if (h % 2 === 0 || C._net !== g.netVersion || C._nb !== g.buildings.size) {
+      sewageHourly(g, C);
+      heatHourly(g, C);
+      C._net = g.netVersion; C._nb = g.buildings.size;
+    }
     prisonHourly(g, C, F);
     if (C.polDirty && h % 2 === 1) waterPollution(g, C);
     let ob = 0;
@@ -988,10 +992,8 @@ registerSystem({
         for (let j = 0; j < LEN; j++) cz.a[j] = vals[o + j] / 10;
         cz.sick = vals[o + LEN] / 1000; cz.dead = vals[o + LEN + 1]; cz.deadDays = vals[o + LEN + 2]; cz.noSew = vals[o + LEN + 3];
         cz.dAcc = (vals[o + LEN + 4] || 0) / 1000; cz.bAcc = (vals[o + LEN + 5] || 0) / 1000;
-        // Rundungsfehler: Kohorten an die Belegung angleichen
-        let tot = 0; for (let j = 0; j < BINS; j++) tot += cz.a[j];
-        const target = b.occ - cz.dAcc + cz.bAcc;
-        if (tot > 0 && target > 0) { const f = target / tot; for (let j = 0; j < LEN; j++) cz.a[j] *= f; }
+        // Kein Angleichen an die Belegung: die Rundung (≤ 1 Person je Haus) gleicht stepPeople am nächsten Tag aus,
+        // und Speichern → Laden → Speichern bleibt bitgenau (Q4 save-test)
       }
     } catch (e) { /* alter oder beschädigter Spielstand – Kohorten werden neu aufgebaut */ }
     for (const [id, used, ring, extra, crem] of d.fac || []) {

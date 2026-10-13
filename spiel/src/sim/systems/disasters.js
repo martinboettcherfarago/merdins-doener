@@ -1174,7 +1174,8 @@ function renderables(g) {
 function serialize(g) {
   const st = g.ext.disasters, I = I_(g);
   const dmg = [];
-  for (let i = 0; i < g.N; i++) if (I.damage[i] > 0.02) dmg.push(i, +I.damage[i].toFixed(2));
+  // erst runden, dann filtern – sonst fällt ein Wert von genau 0,02 beim nächsten Speichern heraus
+  for (let i = 0; i < g.N; i++) { const v = +I.damage[i].toFixed(2); if (v > 0.02) dmg.push(i, v); }
   const strip = (a) => ({ ...a });
   return { ...st, planned: st.planned.map(strip), active: st.active.map(strip), dmg };
 }
@@ -1188,7 +1189,7 @@ function load(g, d) {
   // Reparaturen gegen den geladenen Bauzustand abgleichen
   for (const id of Object.keys(st.repairs)) { const b = g.buildings.get(+id); if (!b || b.construct >= 1) delete st.repairs[id]; }
   updateFields(g);
-  hourlyShelter(g);
+  // displaced/sheltered stehen im Spielstand; hourlyShelter rechnet sie zur nächsten Stunde ohnehin neu
 }
 
 registerSystem({

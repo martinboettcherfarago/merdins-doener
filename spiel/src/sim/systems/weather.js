@@ -755,7 +755,8 @@ registerSystem({
     if (!I.plans.size) I.lastGen = Math.floor(g.time / DAY) - 2;
     recomputeFarms(g);
     rebuildPoolField(g);
-    applyEffects(g);
+    // Die Wettereffekte liegen schon gespeichert in g.effects; applyEffects hier würde die gleitende Stimmung
+    // einen Schritt weiterrechnen und die Strombilanz ohne Heizanteil neu setzen (Q4 save-test). Nächste Stunde rechnet neu.
     exportForecast(g);
   },
   renderables(g) { return plowRenderables(g); },

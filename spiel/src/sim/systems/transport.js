@@ -2023,7 +2023,11 @@ registerSystem({
     T.marks = d.marks || 0;
     changed(T);
     scanFacilities(g);
+    // Fahrzeuge werden neu eingesetzt: Nummern ab 1 vergeben, der gespeicherte Zähler bleibt (stabile IDs beim Laden)
+    const savedVeh = T.nextVeh;
+    T.nextVeh = 1;
     rebuildAll(g);
+    T.nextVeh = Math.max(savedVeh || 1, T.nextVeh);
     updateSignals(g);
     rebuildFerries(g);
     stopTakts(g);
