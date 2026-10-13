@@ -9,15 +9,15 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 
 export const PRESETS = {
   low: { postfx: false, ao: false, bloom: false, shadows: 'off' },
-  medium: { postfx: true, ao: false, bloom: true, shadows: 'low' },
+  medium: { postfx: true, ao: true, bloom: true, shadows: 'low' },
   high: { postfx: true, ao: true, bloom: true, shadows: 'high' },
   ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' },
 };
 export const QUALITY = [
-  ['low', 'Niedrig', 'Ohne Schatten, einfache Auflösung – für ältere Geräte und lange Akkulaufzeit.'],
-  ['medium', 'Mittel', 'Weiche Schatten, scharfe Darstellung. Gut für die meisten Geräte.'],
-  ['high', 'Hoch', 'Feine, hoch aufgelöste Schatten – für starke Grafikkarten.'],
-  ['ultra', 'Ultra', 'Alles auf Maximum – für sehr starke Grafikkarten.'],
+  ['low', 'Niedrig', 'Ohne Schatten und Nachbearbeitung – für ältere Geräte und lange Akkulaufzeit.'],
+  ['medium', 'Mittel', 'Weiche Schatten, Umgebungsverdeckung und Leuchten bei Nacht. Gut für die meisten Geräte.'],
+  ['high', 'Hoch', 'Feine Schatten und volle Auflösung – für starke Grafikkarten.'],
+  ['ultra', 'Ultra', 'Alles auf Maximum, stärkste Kantenglättung – für sehr starke Grafikkarten.'],
 ];
 export const GFX_KEYS = ['quality', 'postfx', 'ao', 'bloom', 'shadows'];
 const UI_SCALES = [[0.9, '90 %'], [1, '100 %'], [1.1, '110 %'], [1.25, '125 %']];
@@ -57,21 +57,24 @@ export function settingsHTML(ctx) {
   if (tab === 'grafik') {
     const q = QUALITY.find((x) => x[0] === s.quality) || QUALITY[1];
     const pending = gfxChanged(s, ctx.snap);
-    // Nur Schalter zeigen, die die Grafik wirklich auswertet (engine.caps, z. B. { shadows: true, bloom: true })
-    const caps = (ctx.app.engine && ctx.app.engine.caps) || {};
+    // Die Engine übernimmt Grafikwerte sofort (G1, prüft alle 0,5 s); ältere Engines brauchen einen Neustart der Ansicht
+    const eng = ctx.app.engine;
+    const live = !!(eng && typeof eng.applyQuality === 'function');
+    const caps = eng && eng.caps ? eng.caps : { shadows: true, postfx: true, ao: true, bloom: true };
+    const noPost = eng && eng.canPost === false;
     body = `
 <div class="sec"><h3>Qualitätsstufe</h3>${seg('quality', s.quality, QUALITY.map((x) => [x[0], x[1]]))}<p class="hint">${esc(q[2])}</p></div>
 ${caps.shadows ? `<div class="sec"><h3>Schatten</h3>${seg('shadows', s.shadows, [['off', 'Aus'], ['low', 'Weich'], ['high', 'Fein']])}</div>` : ''}
 ${caps.postfx || caps.ao || caps.bloom ? `<div class="sec"><h3>Effekte</h3>
-  ${caps.postfx ? sw('postfx', s.postfx, 'Nachbearbeitung', 'Farbkorrektur, Kantenglättung und Licht-Effekte.') : ''}
-  ${caps.ao ? sw('ao', s.ao && s.postfx, 'Umgebungsverdeckung', 'Weiche Schatten in Ecken und Fugen – kostet Leistung.', !s.postfx) : ''}
-  ${caps.bloom ? sw('bloom', s.bloom && s.postfx, 'Leuchten (Bloom)', 'Fenster, Laternen und Neon strahlen bei Nacht.', !s.postfx) : ''}
+  ${caps.postfx ? sw('postfx', s.postfx && !noPost, 'Nachbearbeitung', noPost ? 'Dieser Browser unterstützt keine Nachbearbeitung (WebGL 2 fehlt).' : 'Farbkorrektur, Kantenglättung und Licht-Effekte.', noPost) : ''}
+  ${caps.ao ? sw('ao', s.ao && s.postfx && !noPost, 'Umgebungsverdeckung', 'Weiche Schatten in Ecken und Fugen – kostet Leistung.', !s.postfx || noPost) : ''}
+  ${caps.bloom ? sw('bloom', s.bloom && s.postfx && !noPost, 'Leuchten (Bloom)', 'Fenster, Laternen und Neon strahlen bei Nacht.', !s.postfx || noPost) : ''}
 </div>` : ''}
 <div class="sec"><h3>Darstellung</h3>
   ${sw('alwaysDay', s.alwaysDay, 'Immer Tag', 'Schaltet den Tag-Nacht-Wechsel ab.')}
   ${ctx.inGame ? sw('icons', ctx.app.engine && ctx.app.engine.effects ? ctx.app.engine.effects.showIcons : true, 'Problem-Symbole', 'Blitz, Tropfen, Müll und Co. über Gebäuden (Taste I).') : ''}
 </div>
-<div class="apply${pending ? ' pending' : ''}">${pending ? `${icon('info', 16)}<span>Geänderte Grafikwerte gelten nach einem Neustart der Ansicht.</span>` : `${icon('check', 16)}<span>Die Ansicht entspricht diesen Einstellungen.</span>`}<button class="btn small" data-act="applygfx" ${pending ? '' : 'disabled'}>${ctx.inGame ? 'Ansicht neu starten' : 'Übernehmen'}</button></div>`;
+${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort.</span></div>` : `<div class="apply${pending ? ' pending' : ''}">${pending ? `${icon('info', 16)}<span>Geänderte Grafikwerte gelten nach einem Neustart der Ansicht.</span>` : `${icon('check', 16)}<span>Die Ansicht entspricht diesen Einstellungen.</span>`}<button class="btn small" data-act="applygfx" ${pending ? '' : 'disabled'}>${ctx.inGame ? 'Ansicht neu starten' : 'Übernehmen'}</button></div>`}`;
   } else if (tab === 'klang') {
     body = `<div class="sec"><h3>Lautstärke</h3>${slider('volume', 'Gesamt', s.volume)}${slider('music', 'Musik', s.music)}${slider('sfx', 'Effekte', s.sfx)}${slider('ambience', 'Umgebung', s.ambience ?? 1)}</div>
 <div class="sec">${sw('mute', !s.muted, 'Ton an', 'Taste M schaltet stumm.')}</div>`;

@@ -4,6 +4,7 @@
 import { BUILDINGS, CATEGORIES, ZONE_INFO, ROADS, R, TRANSIT, MILESTONES, ROAD_GEOM } from '../config.js';
 import { fmtMoney, fmt } from '../util.js';
 import { TRAY_ITEMS } from '../registry.js';
+import { isBanned } from '../sim/systems/progression.js';
 import { icon, iconAny } from './icons.js';
 import { catMeta, lineById } from './meta.js';
 import { getThumb, thumbId, hasArch, onThumb, thumbFailed } from './thumbs.js';
@@ -121,7 +122,7 @@ function placeItem(g, cat, key, meta, counts) {
   const d = BUILDINGS[key];
   const n = key === 'station' ? g.transit.stations.size : counts ? counts.get(key) || 0 : 0;
   const built = d.unique && (n > 0 || g.hasBuilt(key));
-  const locked = g.isUnlocked(key) ? (built ? 'Schon gebaut' : null) : g.lockReason(key);
+  const locked = isBanned(g, key) ? 'In diesem Szenario verboten' : g.isUnlocked(key) ? (built ? 'Schon gebaut' : null) : g.lockReason(key);
   const facts = [];
   if (d.power) facts.push(['power', `${fmt(d.power)} MW`]);
   if (d.water) facts.push(['water', `${fmt(d.water)} m³`]);

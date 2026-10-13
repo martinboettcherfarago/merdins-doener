@@ -188,6 +188,6 @@ export class Menu {
     });
     wrap.addEventListener('input', (e) => settingsInput(ctx, e.target));
     wrap.addEventListener('change', (e) => settingsChange(ctx, e.target));
-    const finish = () => { if (gfxChanged(app.settings, ctx.snap)) app.menuPreview(this.previewing ? { ...this.opts } : null); };
+    const finish = () => { if (gfxChanged(app.settings, ctx.snap) && !(app.engine && typeof app.engine.applyQuality === 'function')) app.menuPreview(this.previewing ? { ...this.opts } : null); };
   }
 }

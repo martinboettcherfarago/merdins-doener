@@ -93,6 +93,21 @@ export class Audio {
     onBus('plane', (ev) => this.play('plane', ev || {}));
     onBus('achievement', () => this.play('achievement'));
     onBus('season', (s) => this.play('season', { season: typeof s === 'string' ? s : s && s.season }));
+    // Sichtbarer Blitz (render/views/weatherfx.js: { x, z, strength } in Weltkoordinaten) → Donner mit Laufzeit
+    onBus('lightning', (ev) => { try { this.onLightning(ev || {}); } catch (e) { /* Klang darf das Spiel nie anhalten */ } });
+  }
+
+  onLightning(ev) {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state !== 'running' || !this.amb || !this.audible('amb')) return;
+    const now = ctx.currentTime;
+    const e = this.engine;
+    let d = 30;
+    if (e && e.rig && ev.x != null && ev.z != null) d = Math.hypot(ev.x - e.rig.cur.x, ev.z - e.rig.cur.z) + e.rig.cur.dist * 0.4;
+    const close = clamp(1 - d / 70) * clamp(0.55 + 0.45 * (ev.strength == null ? 1 : ev.strength));
+    this.amb.busLightning = now;
+    // Schall braucht etwa eine Sekunde für 34 Felder (stilisiert), nahe Einschläge krachen fast sofort
+    this.amb.thunder(now + clamp(d / 34, 0.05, 5), close);
   }
 
   start() {

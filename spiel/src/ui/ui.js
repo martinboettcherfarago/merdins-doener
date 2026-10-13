@@ -64,7 +64,7 @@ const SYS_PANELS = [
       switch (act) {
         case 'applygfx': ui.restartView(); return false;
         case 'keys': ui.showKeys(); return false;
-        case 'save': app.save(+el.dataset.k); ui.toast(`Gespeichert in Platz ${el.dataset.k}.`, 'good'); return true;
+        case 'save': if (app.save(+el.dataset.k) !== false) ui.toast(`Gespeichert in Platz ${el.dataset.k}.`, 'good'); return true;
         case 'load': ui.withLoader('Spielstand wird geladen', () => app.loadSlot(+el.dataset.k)); return false;
         case 'export': if (!window.STADTPULS_EMBED) app.exportSave(); return true;
         case 'copy': try { app.copySave(); } catch (e) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); } return true;
@@ -114,7 +114,10 @@ export class UI {
     bindTips();
     setTipsEnabled(app.settings.tooltips !== false);
     this.refreshBadges();
-    this.unbus = [onBus('ui:rebuild', () => this.rebuild())];
+    this.unbus = [
+      onBus('ui:rebuild', () => this.rebuild()),
+      onBus('simError', (e) => { try { this.notes.push({ title: 'Technischer Hinweis', text: `Ein Spielsystem${e && e.where ? ` (${e.where})` : ''} ist gestolpert und wurde übersprungen. Das Spiel läuft weiter.`, mood: 'info', icon: 'info', key: 'simError', silent: true }); } catch (err) { /* egal */ } }),
+    ];
     // Für Prüfskripte (tools/shot.mjs --eval): Register erreichbar machen
     window.__stadtpulsReg = { PANELS, TOOLS, TRAY_ITEMS, OVERLAYS_EXTRA, INSPECTORS, MENU_SECTIONS, BUDGET_LINES, CATEGORIES, emit };
     if (restore) this.applyRestore();
@@ -949,7 +952,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     else if (e.code === 'Digit1' || e.code === 'Numpad1') this.setSpeed(1);
     else if (e.code === 'Digit2' || e.code === 'Numpad2') this.setSpeed(2);
     else if (e.code === 'Digit3' || e.code === 'Numpad3') this.setSpeed(3);
-    else if (ctrl && e.code === 'KeyS') { e.preventDefault(); this.app.save(1); this.toast('Gespeichert in Platz 1.', 'good'); }
+    else if (ctrl && e.code === 'KeyS') { e.preventDefault(); if (this.app.save(1) !== false) this.toast('Gespeichert in Platz 1.', 'good'); }
     else if (ctrl) return;
     else if (e.key === '?' || e.code === 'F1') { e.preventDefault(); this.showKeys(); }
     else if (k === 'm') { this.app.settings.muted = !this.app.settings.muted; this.app.audio.applyVolumes(); this.app.saveSettings(); this.toast(this.app.settings.muted ? 'Ton aus' : 'Ton an'); }
