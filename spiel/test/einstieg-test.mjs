@@ -57,7 +57,7 @@ for (const r of ADVISOR_RULES) { let a = null; try { a = r.when(g, cityCounts(g)
 ok(!ruleBad.length, `Ratgeber-Texte ohne Fachwörter (${ruleTexts} aktiv)${ruleBad.length ? ': ' + ruleBad.join(', ') : ''}`);
 
 console.log('== Texte');
-const UBAHN_OWNED = new Set(['station', 'metro_hub']);
+const UBAHN_OWNED = new Set(['station']);
 const noDesc = [], longDesc = [], elev = [], ufer = [];
 for (const [k, d] of Object.entries(BUILDINGS)) {
   if (UBAHN_OWNED.has(k)) continue;

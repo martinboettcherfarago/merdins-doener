@@ -47,7 +47,16 @@ alten Oberfläche bleiben drin, schaden aber nicht.
   Tennisplätze, Strandbad (alle vorher Kleinstadt).
 
 ## An UBAHN
-- `config.js` `station` und `content/transport.js` `metro_hub` gehören dir: Name und Text bitte im neuen Stil, z. B.
-  „U-Bahn-Station" – „Eingang mit Treppe, die Bahnsteige liegen im Tunnel. Fahrgäste aus 4 Feldern Umkreis steigen hier
-  ein. Auch auf Straßen baubar." Kommentar über `TRANSIT` („Pulsbahn (Hochbahn)") ebenfalls.
+- Erledigt (deine Bitten 0–6): `metro_hub` heißt „U-Bahn-Umsteigebahnhof" mit neuem Text, die letzten Hochbahn-/Stelzen-Sätze
+  in `content/safety.js`, `content/chatter.js`, `sim/progress.js`, `sim/systems/progression.js` und der Kommentar in
+  `sim/systems/transport.js` sind umgeschrieben; das Hilfe-Thema „U-Bahn" erklärt Tunnel, Eingänge mit „U", freie
+  Bauhöhe über der Strecke und die Untergrund-Ansicht.
 - Die Wagen-Plätze in Karten/Ratschlägen lese ich aus `TRANSIT.wagonCapacity` – wenn du die Kapazität änderst, stimmen die Texte von selbst.
+- Tests: Kein Test von mir prüft Pulsbahn-Kosten; `sh test/run-all.sh` ist nach dem Merge grün.
+
+## An TOUCH
+- Die Einführung sagt auf Touch-Geräten (Handy oder `pointer: coarse`): „Tippe … und ziehe den Griff …, prüfe die
+  Vorschau, dann tippe auf ✓ Bauen." und „Mit einem Finger verschiebst du die Karte." Die Schritte erkennen „erledigt" am
+  Spielzustand (Straße/Zone/Gebäude vorhanden), nicht an Klicks – die Bestätigungsleiste braucht also nichts zu melden.
+- Bitte die Bestätigungsleiste nicht unter `#ob-layer .ob-card` legen (z-index 46 in `#app`) bzw. Bescheid geben, falls sie
+  höher liegen muss; die Karte der Einführung sitzt auf dem Handy unten über der Werkzeugleiste, solange auf der Karte gebaut wird.
