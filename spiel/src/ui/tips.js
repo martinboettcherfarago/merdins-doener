@@ -1,6 +1,9 @@
 // Schöne Tooltips für Bedienelemente: <button data-tip="Titel" data-tip-desc="Text" data-key="P" data-tip-pos="left">
 // Ein gemeinsamer Tooltip, verzögert eingeblendet, an den Bildschirmrand angepasst. Bei Berührung nicht aktiv.
 let el = null, timer = 0, cur = null, enabled = true;
+// Gnadenfrist: Wer gerade einen Tooltip gesehen hat, bekommt den nächsten sofort (Werkzeugleiste „lesen“)
+let lastHide = 0;
+const GRACE_MS = 600;
 
 function ensure() {
   if (el) return el;
@@ -38,6 +41,7 @@ function show(target) {
 
 export function hideTip() {
   clearTimeout(timer);
+  if (el && !el.hidden) lastHide = performance.now();
   cur = null;
   if (el) { el.hidden = true; el.className = ''; }
 }
@@ -55,7 +59,7 @@ export function bindTips() {
     hideTip();
     if (!t) return;
     cur = t;
-    timer = setTimeout(() => { if (cur === t && document.body.contains(t)) show(t); }, t.dataset.tipFast ? 120 : 420);
+    timer = setTimeout(() => { if (cur === t && document.body.contains(t)) show(t); }, t.dataset.tipFast ? 120 : performance.now() - lastHide < GRACE_MS ? 0 : 420);
   });
   document.addEventListener('pointerdown', hideTip, true);
   document.addEventListener('wheel', hideTip, { passive: true, capture: true });

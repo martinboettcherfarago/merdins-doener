@@ -360,11 +360,11 @@ export function happinessFactors(g, b, out, ctx) {
     h += f('Arbeitskräfte', -(1 - c.jobFill) * 9);
   }
   if (b.zone === Z.COM) h += f('Kundschaft', clamp(c.comDem * 0.06, -6, 4) + Math.min(6, cov.comBoost[i] * 0.5));
-  h += f('Pulsbahn', cov.transit[i] * 5);
+  h += f('U-Bahn in der Nähe', cov.transit[i] * 5);
   if (g.transitPenalty && g.transitPenalty[i] > 0) h += f('Überfüllte Station', -10);
   h += f('Wahrzeichen', Math.min(14, cov.happyBonus[i]));
   if (c.bikes) h += f('Fahrradstadt', 3);
-  if (c.freetransit) h += f('Kostenlose Pulsbahn', 3);
+  if (c.freetransit) h += f('Kostenlose U-Bahn', 3);
   if (c.ev) h += f('Ereignisse', c.ev);
   if (b.burning) h += f('Feuer!', -30);
   if (b.problemGarbage) h += f('Müllberge', -4);

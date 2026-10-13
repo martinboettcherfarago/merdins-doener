@@ -440,7 +440,7 @@ function applyEffects(g) {
   setEffect(g, 'tourismAdd', beach, `Badewetter: +${Math.round(beach)} Badegäste`);
   // --- Pulsbahn: bei Schmuddelwetter steigen mehr Leute um
   const rid = clamp(I.precipAvg * 0.35 + w.snowCover * 0.12 + (I.tempAvg < 0 ? 0.04 : 0) - (I.tempAvg > 18 && I.precipAvg < 0.05 ? 0.03 : 0), -0.05, 0.25);
-  setEffect(g, 'ridership', rid, rid >= 0 ? `Wetter: Pulsbahn-Fahrgäste ${pct(rid)}` : `Schönes Wetter: mehr Rad und Fuß (${pct(rid)} Fahrgäste)`);
+  setEffect(g, 'ridership', rid, rid >= 0 ? `Wetter: U-Bahn-Fahrgäste ${pct(rid)}` : `Schönes Wetter: mehr Rad und Fuß (${pct(rid)} Fahrgäste)`);
   // --- Stimmung (geglättet), daraus der Glücksfaktor „Wetter"
   let mood = 0;
   const T0 = w.temp;
