@@ -76,6 +76,8 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 #stage { position: absolute; inset: 0; }
 #stage canvas { width: 100%; height: 100%; display: block; touch-action: none; transition: filter 0.35s ease; }
 #hud { position: absolute; inset: 0; pointer-events: none; zoom: var(--ui); transition: opacity 0.3s ease; }
+/* Große Bildschirme: Bedienung etwas größer, damit sie nicht verloren wirkt */
+@media (min-width: 1800px) and (min-height: 950px) { #hud { zoom: calc(var(--ui) * 1.1); } }
 #hud > * { pointer-events: auto; }
 #hud.mm-off { --mm: 0px; }
 /* Drücken fühlt sich an wie Drücken */

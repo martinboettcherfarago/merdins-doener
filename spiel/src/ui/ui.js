@@ -316,7 +316,7 @@ export class UI {
     const v = Math.round(tb.getBoundingClientRect().bottom / z + 10) + 'px';
     if (de.getPropertyValue('--top') !== v) de.setProperty('--top', v);
   }
-  uiZoom() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || 1; }
+  uiZoom() { return parseFloat(getComputedStyle(this.root).zoom) || parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || 1; }
 
   dispose() {
     window.removeEventListener('keydown', this.onKey);
