@@ -543,7 +543,7 @@ uniform float uNight;
 uniform float uSig;
 ${opts.sig ? 'varying vec4 vSig;' : ''}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-roughnessFactor = mix(roughnessFactor, 0.18, uWet * ${opts.paint ? '0.8' : '0.5'});`)
+roughnessFactor = mix(roughnessFactor, 0.5, uWet * ${opts.paint ? '0.6' : '0.4'});`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 ${opts.paint ? 'diffuseColor.a *= 1.0 - 0.85 * uSnow;' : ''}
 ${opts.sig ? `
@@ -704,7 +704,7 @@ if (g8cat == 8.0) {
 diffuseColor.rgb *= 1.0 - 0.32 * uWet;
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.9, 0.92, 0.95), uSnow * g8up * (g8cat == 1.0 ? 0.3 : 0.92));`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-roughnessFactor = mix(g8a.a, 0.16, uWet * g8up);`)
+roughnessFactor = mix(g8a.a, 0.5, uWet * g8up * 0.6);`)
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
 metalnessFactor = g8b.g;`);
   };
@@ -748,12 +748,12 @@ if (position.y > 0.5) {
   vec3 nV = normalize(normalMatrix * (mat3(instanceMatrix) * nL));
   float fr = abs(dot(nV, normalize(-mv.xyz)));
   vec3 vd = normalize(cameraPosition - (modelMatrix * lp).xyz);
-  vI = aI * fr * fr * 1.6 * (1.0 - smoothstep(0.38, 0.7, vd.y));
-} else vI = aI * 0.72;
+  vI = aI * fr * fr * 0.8 * (1.0 - smoothstep(0.38, 0.7, vd.y));
+} else vI = aI * 0.3;
 #endif
 }`,
     fragmentShader: `uniform float uNight; uniform float uWet; uniform float fogNear; uniform float fogFar; varying float vI; varying float vD;
-void main(){ float f = 1.0 - smoothstep(fogNear, fogFar, vD); float k = vI * smoothstep(0.05, 0.6, uNight) * f * (1.0 + uWet * 0.7);
+void main(){ float f = 1.0 - smoothstep(fogNear, fogFar, vD); float k = vI * smoothstep(0.05, 0.6, uNight) * f * (1.0 + uWet * 0.15);
 gl_FragColor = vec4(vec3(1.0, 0.74, 0.42) * k, 1.0); }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   });

@@ -737,7 +737,7 @@ void main() {
     for (let i = 0; i < lampPositions.length; i += 3) {
       const x = lampPositions[i], y = lampPositions[i + 1], z = lampPositions[i + 2];
       // Lichtfleck und Kegel zeichnet die Straßenansicht selbst (streetprops 'pool'/'cone') – hier nur der Leuchtpunkt
-      this.lights.add(x, y, z, 0.12, 2.0, 1.45, 0.8, a * 0.7);
+      this.lights.add(x, y, z, 0.09, 1.3, 0.95, 0.55, a * 0.5);
     }
   }
   addFireLights() {

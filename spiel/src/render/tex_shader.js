@@ -139,10 +139,10 @@ const FRAG_SURF = `
   if (uWet > 0.001) {
     float wet = uWet * mix(0.55, 1.0, smoothstep(0.2, 0.9, up)) * (1.0 - snowK);
     alb *= 1.0 - wet * p3.z * 0.42;
-    sRough = mix(sRough, max(0.07, sRough * 0.32), wet);
+    sRough = mix(sRough, max(0.45, sRough * 0.65), wet); // nass, aber nicht spiegelglatt (keine grellen Reflexe)
     if ((flags & 4) != 0 && up > 0.97) {
       float pd = smoothstep(0.6, 0.72, mc.a + (1.0 - sAO) * 0.25 + (uWet - 1.0) * 0.35) * uWet;
-      sRough = mix(sRough, 0.025, pd);
+      sRough = mix(sRough, 0.3, pd * 0.7);
       nW = normalize(mix(nW, N, pd));
       alb *= 1.0 - 0.3 * pd;
       sMetal = mix(sMetal, 0.0, pd);
@@ -240,7 +240,7 @@ vec4 gDA; vec4 gDS; vec3 gDT; vec3 gDB; vec3 gDN;`)
 }`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = clamp(roughnessFactor * mix(1.0, gDS.b / 0.8, uDStr.z), 0.03, 1.0);
-${o.wet === false ? '' : 'roughnessFactor = mix(roughnessFactor, max(0.07, roughnessFactor * 0.35), uWet);'}`)
+${o.wet === false ? '' : 'roughnessFactor = mix(roughnessFactor, max(0.45, roughnessFactor * 0.65), uWet);'}`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 {
   vec2 nt = (gDS.rg * 2.0 - 1.0) * uDStr.y;
