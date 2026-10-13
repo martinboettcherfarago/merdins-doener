@@ -4,7 +4,7 @@
 import { Game } from '../src/sim/game.js';
 import { SCENARIOS, scenarioOptions, scenarioStatus } from '../src/sim/systems/progression.js';
 import { happinessFactors } from '../src/sim/services.js';
-import { Bot, runDay } from './bot.mjs';
+import { Bot, runDay, seedMathRandom } from './bot.mjs';
 
 function factors(g) {
   const agg = {}; let n = 0;
@@ -28,12 +28,15 @@ const ok = (c, msg) => { if (report) return; if (!c) { fails++; console.log('  F
 const goalLine = (st) => st.goals.map((x) => `${x.goal.label}: ${x.text}${x.done ? ' ✓' : ''}`).join(' | ');
 const results = [];
 // Strategie-Hinweise wie aus dem Briefing des Szenarios (was ein Mensch daraus ableiten würde)
-const BOT_OPTS = {};
+const BOT_OPTS = {
+  idylle: { transit: false, buses: false }, // „Klein, fein und glücklich" – ein Dorf braucht keine Hochbahn
+};
 
 for (const id of ids) {
   const sc = SCENARIOS.find((s) => s.id === id);
   if (!sc) { console.log('Unbekanntes Szenario', id); fails++; continue; }
   const t0 = Date.now();
+  seedMathRandom(4711);
   const g = new Game(scenarioOptions(id));
   const bot = new Bot(g, { status: scenarioStatus, banned: sc.banned, ...(BOT_OPTS[id] || {}) });
   g.speed = 1; // Briefing gelesen, Spiel läuft

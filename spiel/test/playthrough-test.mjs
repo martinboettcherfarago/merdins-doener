@@ -3,7 +3,7 @@
 import { Game } from '../src/sim/game.js';
 import { happinessFactors } from '../src/sim/services.js';
 import { Z, MILESTONES } from '../src/config.js';
-import { Bot, runDay } from './bot.mjs';
+import { Bot, runDay, seedMathRandom } from './bot.mjs';
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const quiet = process.argv.includes('--quiet');
@@ -28,6 +28,7 @@ const fstr = (arr, k = 6) => arr.filter(([, v]) => Math.abs(v) >= 0.5).slice(0, 
 
 const summary = [];
 for (const map of maps) for (const seed of seeds) {
+  seedMathRandom(seed * 97 + 1);
   const g = new Game({ size: 96, seed, mapType: map, difficulty: 'normal', name: 'Botstadt' });
   const bot = new Bot(g, { naive: process.argv.includes('--naive') });
   let bankrupt = false;

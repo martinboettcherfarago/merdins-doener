@@ -395,7 +395,9 @@ function deathcareDaily(g, C, F, res, rnd) {
   });
   const waiting = res.filter((b) => b.cz.dead >= 1).sort((x, y) => y.cz.deadDays - x.cz.deadDays);
   const unlocked = g.isUnlocked('cemetery');
-  let umlandCap = unlocked ? UMLAND_PER_DAY + g.eff('umland') : 1e9;
+  // Übergang (Q2): Solange es noch keinen Friedhof gibt, nimmt das Umland deutlich mehr ab (gegen Gebühr) –
+  // sonst stapeln sich die Verstorbenen schlagartig, sobald „Kleinstadt" erreicht ist.
+  let umlandCap = unlocked ? UMLAND_PER_DAY + (fac.length ? 0 : Math.floor(g.stats.pop / 250)) + g.eff('umland') : 1e9;
   const umlandFree = g.eff('umland') > 0;
   let umland = 0, umlandPaid = 0, collected = 0;
   const trips = [];
@@ -790,7 +792,7 @@ function newsDaily(g, C, rnd) {
   if (S.graveFill > 0.9) say(g, C, 'dc2', 6, `Die Friedhöfe sind zu ${Math.round(S.graveFill * 100)} % belegt. Ein Krematorium braucht keine Gräber.`, 'bad');
   if (S.sewageRequired && S.unsewered > Math.max(3, g.stats.countByZone.reduce((a, b) => a + b, 0) * 0.05)) say(g, C, 'sw1', 4, `Das Kanalnetz ist überlastet – ${fmt(S.unsewered)} Gebäude ohne Abwasserentsorgung.`);
   if (S.sewBlocked >= 3) say(g, C, 'sw3', 10, `${fmt(S.sewBlocked)} Häuser könnten zu Stufe ${SEWAGE_LEVEL} wachsen – es fehlt nur der Kanalanschluss.`, 'info');
-  if (S.contam > 0.12) say(g, C, 'sw2', 5, 'Ein Pumpwerk fördert verschmutztes Wasser! Abwasser flussabwärts einleiten oder eine Kläranlage bauen.');
+  if (S.contam > 0.12) say(g, C, 'sw2', 5, 'Ein Pumpwerk fördert verschmutztes Wasser! Den Abwasserauslass weit weg vom Pumpwerk setzen (gut 20 Felder Wasserweg) oder eine Kläranlage bauen.');
   if (S.schoolFill > 1.15 && S.stage.school) say(g, C, 'ed1', 7, `Die Schulen sind überfüllt: ${fmt(S.stage.school.pupils)} Kinder, ${fmt(S.stage.school.seats)} Plätze.`, 'bad');
   if (S.kitaFill > 1.3 && S.stage.kita && S.stage.kita.pupils > 40) say(g, C, 'ed2', 8, `Kita-Plätze fehlen: ${fmt(S.stage.kita.pupils)} Kleinkinder, ${fmt(S.stage.kita.seats)} Plätze.`, 'info');
   if (S.sickShare > 0.1 && S.pop > 300) say(g, C, 'hl1', 5, `${Math.round(S.sickShare * 100)} % der Menschen sind krank. Mehr Arztpraxen und Krankenhäuser helfen.`);

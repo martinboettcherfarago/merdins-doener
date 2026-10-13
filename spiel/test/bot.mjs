@@ -38,7 +38,7 @@ export class Bot {
     let res = (this.o.reserve ?? 1200) + g.stats.pop * 0.4;
     // Geldziel im Szenario: ab dem ersten Drittel wird gespart (Ausbau läuft nur noch aus dem Überschuss)
     const mg = this.goal('money');
-    if (mg && !mg.done && kind === 'svc' && this.o.status(g).elapsed > (this.o.status(g).sc.days || 60) * 0.35) res = Math.max(res, mg.goal.target * 0.9);
+    if (mg && !mg.done && kind !== 'core' && this.o.status(g).elapsed > (this.o.status(g).sc.days || 60) * 0.35) res = Math.max(res, mg.goal.target * 0.9);
     if (this.goal('loans') && g.loans.length) res = Math.max(res, 3000);
     // Fahrgastziel: Geld für Züge und Waggons zurückhalten
     const rg = this.goal('riders');
@@ -108,7 +108,7 @@ export class Bot {
     for (const i of this.perim(k, m)) if (!g.road[i]) c += g.roadTileCost(i, R.STREET);
     return c + 16 * 2 * g.costMul;
   }
-  buildBlock(k, m, z) {
+  buildBlock(k, m, z, maxTiles = 16) {
     const g = this.g;
     const tiles = this.perim(k, m).filter((i) => !g.road[i]);
     if (tiles.length && !g.buildRoad(tiles, R.STREET).ok) return false;
@@ -121,7 +121,7 @@ export class Bot {
       const x = i % this.W, y = (i / this.W) | 0;
       return !(x >= cx && x <= cx + 1 && y >= cy && y <= cy + 1);
     });
-    g.zoneTiles(zt, z);
+    g.zoneTiles(zt.slice(0, maxTiles), z);
     this.blocks.set(k + ',' + m, { k, m, zone: z, day: g.day() });
     this.tally('block' + z);
     return true;
@@ -139,8 +139,11 @@ export class Bot {
     if (g.isUnlocked('zone4')) zones.push(Z.OFF);
     if (this.noExpand()) return 0;
     const pmax = this.goal('popmax'), ind = this.goal('jobs3');
-    if (pmax && g.stats.pop > pmax.goal.target * 0.8) zones = zones.filter((z) => z !== Z.RES);
-    if (ind && ind.goal.cmp === '<=') zones = zones.filter((z) => z !== Z.IND);
+    if (pmax && g.stats.pop > pmax.goal.target * 0.45) zones = zones.filter((z) => z !== Z.RES);
+    // Einwohnerziel klar übertroffen, aber Glück/Bildung/Pendelzeit fehlen noch: nicht weiter wachsen, sondern verbessern
+    const st = this.o.status && this.o.status(g), pg = this.goal('pop');
+    if (st && pg && pg.done && g.stats.pop > pg.goal.target * 1.3 && st.goals.some((x) => !x.done && ['happy', 'edu', 'commute', 'water', 'pollution'].includes(x.goal.id))) zones = zones.filter((z) => z !== Z.RES);
+    if (ind && ind.goal.cmp === '<=' && (g.stats.plannedByZone[Z.IND] || 0) > ind.goal.target * 0.4) zones = zones.filter((z) => z !== Z.IND);
     const want = zones.map((z) => [z, g.demand[z], this.freeZoneTiles(z)])
       .filter(([z, d, f]) => d > 12 && f < (z === Z.RES ? 14 : 8))
       .sort((a, b) => b[1] - a[1]);
@@ -178,7 +181,7 @@ export class Bot {
     const g = this.g, W = this.W;
     if (!g.isUnlocked(key) || this.banned(key)) return null;
     const cost = g.buildingCost(key);
-    const core = ['coal', 'gas', 'wind', 'watertower', 'pump', 'landfill', 'incinerator', 'station', 'bus_depot'].includes(key);
+    const core = ['coal', 'gas', 'wind', 'solar', 'watertower', 'pump', 'landfill', 'incinerator', 'station', 'bus_depot', 'cemetery', 'clinic', 'fire'].includes(key);
     if (this.free(core ? 'core' : 'svc') < cost) return null;
     const cands = [];
     for (let y = Math.max(1, ty - maxR); y <= Math.min(this.H - 2, ty + maxR); y++) {
@@ -452,7 +455,7 @@ export class Bot {
     const rg = this.goal('riders');
     const maxLines = rg ? T.linesMax : Math.min(T.linesMax, g.stats.pop > 4000 ? 3 : 2);
     const needPop = T.lines.length === 0 ? 900 : 1800 * T.lines.length;
-    if (T.lines.length < maxLines && (g.stats.pop > needPop || rg) && this.free() > (T.lines.length ? 9000 : 12000)) {
+    if (T.lines.length < maxLines && (g.stats.pop > needPop || rg) && this.free('transit') > (T.lines.length ? 9000 : 12000)) {
       const sites = this.stationSites();
       const taken = [...T.stations.values()];
       const far = (t, list, d) => list.every((s) => Math.hypot(s.x - t.x, s.y - t.y) >= d);
@@ -480,7 +483,7 @@ export class Bot {
     for (const l of T.lines) {
       const sts = l.stops.map((id) => T.stations.get(id)).filter(Boolean);
       const crowded = sts.some((s) => s.waiting.length > 10 || s.penaltyUntil > g.time) || (rg && !rg.done);
-      if (!crowded || this.free() < 4000) continue;
+      if (!crowded || this.free('transit') < 4000) continue;
       const r = g.addWagon(l.id);
       if (r.ok) { this.tally('wagon'); continue; }
       const r2 = g.addTrain(l.id);
@@ -540,7 +543,12 @@ export class Bot {
 
   // ------------------------------------------------------------ Geld
   // Szenario-Ziele lesen (was ein Mensch in der Zieltafel sieht)
-  goal(id) { const st = this.o.status && this.o.status(this.g); return st ? st.goals.find((x) => x.goal.id === id) || null : null; }
+  goal(id) {
+    const st = this.o.status && this.o.status(this.g);
+    if (!st) return null;
+    if (id === 'riders') return st.goals.find((x) => x.goal.id === 'riders' || x.goal.id === 'oepnv') || null;
+    return st.goals.find((x) => x.goal.id === id) || null;
+  }
   finances() {
     const g = this.g;
     // Szenario „Schulden": Kredite so früh wie möglich tilgen
@@ -576,7 +584,8 @@ export class Bot {
     this.buildBlock(0, -1, Z.RES);
     this.buildBlock(0, 0, Z.COM);
     if (this.blockOk(1, -1)) this.buildBlock(1, -1, Z.RES);
-    if (this.blockOk(0, 1)) this.buildBlock(0, 1, Z.IND); else if (this.blockOk(1, 1)) this.buildBlock(1, 1, Z.IND);
+    const indCap = this.goal('jobs3')?.goal.cmp === '<=' ? 6 : 16; // Industrie-Obergrenze: nur ein paar Felder
+    if (this.blockOk(0, 1)) this.buildBlock(0, 1, Z.IND, indCap); else if (this.blockOk(1, 1)) this.buildBlock(1, 1, Z.IND, indCap);
     this.power(); this.water();
   }
   // Alle Ziele außer Geld erfüllt → nicht mehr ausbauen, nur noch sparen (wie ein Mensch kurz vor dem Ziel)
@@ -601,6 +610,21 @@ export class Bot {
     if ((G('loans') || G('money')) && !this.policiesDone) {
       for (const id of [...g.policies]) if (id !== 'tenants' && id !== 'lowrise') g.togglePolicy(id);
       this.policiesDone = true; this.say('schafft teure Verordnungen ab');
+    }
+    // Höchstzahl an Einwohnern: freie Wohnfelder entzonen und Hochhausverbot (wie ein Mensch, der bremst)
+    const pm = G('popmax');
+    if (pm && g.stats.pop > pm.goal.target * 0.65) {
+      const free = [...g.zoneFree[Z.RES]].filter((i) => !g.bld[i]);
+      if (free.length) { g.zoneTiles(free, 0); this.say(`entzont ${free.length} Wohnfelder`); }
+    }
+    if (pm && !g.policies.has('lowrise') && g.milestone >= 2) { g.togglePolicy('lowrise'); this.say('beschließt das Hochhausverbot'); }
+    // Geld- oder Schuldenziel: Steuern maßvoll anheben, solange die Stimmung trägt und genug Einwohner bleiben
+    if ((G('loans') || G('money')) && !G('happy') && g.day() % 2 === 0) {
+      const pg = G('pop'), roomy = !pg || g.stats.pop > pg.goal.target * 1.2;
+      for (const z of [1, 2, 3, 4]) {
+        if (g.stats.happiness > 57 && roomy && g.taxes[z] < 13) g.setTax(z, g.taxes[z] + 1);
+        else if ((g.stats.happiness < 50 || !roomy) && g.taxes[z] > 10) g.setTax(z, g.taxes[z] - 1);
+      }
     }
     // Steuern: zu hoch für das Glücksziel?
     const hp = G('happy');
@@ -687,11 +711,23 @@ export class Bot {
     this.garbage();
     this.expand();
     this.services();
-    this.transit();
     this.buses();
+    this.transit();
     this.upgradeRoads();
   }
 }
 
 // Spielt einen Tag in kleinen Schritten (wie bei 1×: 30 s = 1 Tag).
 export function runDay(g) { for (let s = 0; s < 300; s++) g.update(0.1); }
+
+// Der Kernverkehr nutzt noch Math.random – für reproduzierbare Prüfstände durch einen festen Zufall ersetzen.
+export function seedMathRandom(seed = 1) {
+  let a = seed >>> 0;
+  Math.random = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
