@@ -954,6 +954,13 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
   .demand { display: none; }
   .clock .wx .wt small { display: none; }
 }
+/* Schmale Fenster (Tablet hochkant): Wetter nur als Symbol, Kopfzeile darf umbrechen (--top folgt in ui.fitTop) */
+@media (max-width: 960px) {
+  .clock .wx .wt { display: none; }
+  .topbar { flex-wrap: wrap; row-gap: 6px; }
+  .sysbtns { margin-left: auto; }
+  #hud:has(.panel:not([hidden])) .leftstack, #hud:has(.inspector:not([hidden])) .leftstack { display: none; }
+}
 @media (max-width: 1020px) {
   :root { --mm: 140px; }
   .cat { width: 52px; }

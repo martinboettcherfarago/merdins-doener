@@ -275,7 +275,7 @@ export class UI {
   fitTop() {
     const de = document.documentElement.style;
     const tb = this.root.querySelector('.topbar');
-    if (!tb || !this.mobile() || this.root.hidden) { if (de.getPropertyValue('--top')) de.removeProperty('--top'); return; }
+    if (!tb || this.root.hidden || (!this.mobile() && tb.offsetHeight <= 84)) { if (de.getPropertyValue('--top')) de.removeProperty('--top'); return; }
     const v = Math.round(tb.getBoundingClientRect().bottom + 8) + 'px';
     if (de.getPropertyValue('--top') !== v) de.setProperty('--top', v);
   }
@@ -1108,7 +1108,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = 0.25;
-      if (!this.hudHidden && !this.photo.active) { this.refreshHUD(); if (this.mobile()) this.fitTop(); }
+      if (!this.hudHidden && !this.photo.active) { this.refreshHUD(); if (window.innerWidth <= 960) this.fitTop(); }
       if (this.sel && !this.el.insp.hidden) this.renderInspector();
       if (this.app.input && this.app.input.tool.kind === 'line') this.renderToolHint();
     }
