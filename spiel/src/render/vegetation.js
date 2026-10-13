@@ -915,7 +915,10 @@ export class Vegetation {
     u.uWindDir.value.set(Math.cos(dir), Math.sin(dir));
     // Jahreszeit: Laub, Blüte, Frühlingsgrün
     const t = s.t;
-    const leaf = t < 0.45 ? smoothstep(0.0, 0.09, t) : 1 - smoothstep(0.79, 0.87, t);
+    // Austrieb schon in den letzten Wintertagen (t 0,95 → 0,03), damit die Bäume zum Spielbeginn im Frühling belaubt sind;
+    // Laubfall im Herbst (t 0,79 → 0,87). Über den Jahreswechsel stetig.
+    const tt = (t + 0.05) % 1;
+    const leaf = tt < 0.5 ? smoothstep(0.0, 0.08, tt) : 1 - smoothstep(0.84, 0.92, tt);
     u.uLeaf.value = leaf;
     this.setBare(leaf < 0.985);
     u.uAutumnK.value = s.autumn;
