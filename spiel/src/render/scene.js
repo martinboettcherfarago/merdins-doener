@@ -550,6 +550,8 @@ export class Engine {
     this.effects.endLights();
     this.transit.frame(this.time, night);
     this.underground.frame(dt, this.time, night);
+    // Problem-Symbole treten in der Untergrund-Ansicht zurück
+    if (this.effects.icons) this.effects.icons.visible = !(this.underground.kv > 0.5);
     this.effects.frame(dt, simDt, this.time, night);
     // Eine fehlerhafte Ansicht darf das Bild nicht verhindern (Fehler je Ansicht nur einmal melden)
     for (const v of this.views) {

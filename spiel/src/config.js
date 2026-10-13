@@ -95,7 +95,7 @@ export const BUILDINGS = {
   // --- Verwaltung
   townhall: { name: 'Rathaus', cat: 'services', size: [2, 2], cost: 9000, upkeep: 60, unlock: 2, unique: true, lv: 10, lvRadius: 8, happy: 3, taxBonus: 0.08, power_use: 8, water_use: 4, desc: 'Einmalig. +8 % Steuereinnahmen, etwas mehr Glück.' },
   // --- ÖPNV
-  station: { name: 'U-Bahnhof', cat: 'transit', size: [1, 1], cost: 1600, upkeep: 12, unlock: 2, onRoad: true, desc: 'Pulsbahn-Station unter der Erde: oben nur ein Eingang mit blauem „U“, darunter der Bahnsteig. Auch an Straßen baubar (Eingang auf dem Gehweg). Sammelt Fahrgäste im Umkreis von 4,5 Feldern.' },
+  station: { name: 'U-Bahn-Station', cat: 'transit', size: [1, 1], cost: 1600, upkeep: 12, unlock: 2, onRoad: true, desc: 'Pulsbahn-Station unter der Erde: oben nur ein Eingang mit blauem „U“, darunter der Bahnsteig. Auch an Straßen baubar (Eingang auf dem Gehweg). Sammelt Fahrgäste im Umkreis von 4,5 Feldern.' },
   // --- Wahrzeichen (einmalig, meist über Wochenkarten)
   ferris: { name: 'Riesenrad', cat: 'landmarks', size: [2, 2], cost: 18000, upkeep: 60, unlock: 3, unique: true, landmark: true, lv: 25, lvRadius: 12, happy: 5, tourism: 140, desc: 'Dreht sich – und mit ihm die Besucherzahlen.' },
   tvtower: { name: 'Fernsehturm', cat: 'landmarks', size: [1, 1], cost: 22000, upkeep: 70, unlock: 4, unique: true, landmark: true, lv: 20, lvRadius: 16, happy: 4, tourism: 170, desc: 'Weithin sichtbar.' },

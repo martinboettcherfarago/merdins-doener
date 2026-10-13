@@ -23,6 +23,7 @@ const TILES = [0xe9e2cf, 0xd3e6db, 0xf0dcac, 0xdbe2ec, 0xead6cf, 0xe4e4dc];
 const FADE = 3.2;              // Überblendung ≈ 0,3 s
 
 const _c = new THREE.Color();
+const _w = new THREE.Color(0xffffff);
 const smooth = (x) => x * x * (3 - 2 * x);
 
 // Material für alles unter der Erde: Fahrzeug-Shader, aber Fenster und Lampen immer an, ohne Nebel, ausblendbar
@@ -54,6 +55,42 @@ class Glass {
     g.computeBoundingSphere();
     return g;
   }
+}
+
+// Bodenspur: Mittellinie + Seitenvektor je Ecke; die Breite wächst im Shader mit dem Kameraabstand (bleibt lesbar)
+class Trace {
+  constructor() { this.p = []; this.s = []; this.c = []; }
+  dash(a, b, nx, nz, col) {
+    const v = [[a, -1], [b, -1], [b, 1], [a, -1], [b, 1], [a, 1]];
+    for (const [q, sd] of v) { this.p.push(q[0], q[1], q[2]); this.s.push(nx * sd, nz * sd); this.c.push(col.r, col.g, col.b); }
+  }
+  build() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
+    g.setAttribute('aSide', new THREE.Float32BufferAttribute(this.s, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    g.computeBoundingSphere();
+    return g;
+  }
+}
+
+function traceMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uW: { value: 0.05 }, uOpacity: { value: 0.5 } },
+    vertexShader: `attribute vec2 aSide; uniform float uW; varying vec3 vCol;
+void main() {
+  vCol = color;
+  vec3 p = position + vec3(aSide.x, 0.0, aSide.y) * uW;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+}`,
+    fragmentShader: `uniform float uOpacity; varying vec3 vCol;
+void main() {
+  gl_FragColor = vec4(vCol, uOpacity);
+  #include <colorspace_fragment>
+}`,
+    vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+  });
 }
 
 export class UndergroundView {
@@ -96,7 +133,7 @@ void main() {
     this.veilScene.add(quad);
     // Normale Ansicht: Spur am Boden und wandernder Puls
     this.trace = null;
-    this.traceMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    this.traceMat = traceMaterial();
     this.pulse = new GlowPoints(engine.scene, 400);
     this.tmpA = { x: 0, z: 0, yaw: 0 }; this.tmpB = { x: 0, z: 0, yaw: 0 }; this.tmp = { x: 0, z: 0, yaw: 0 };
     this.lineY = new Map();
@@ -150,7 +187,7 @@ void main() {
     tr.lines.forEach((line, i) => this.lineY.set(line.id, -(TRANSIT.tunnelDepth + (i % 3) * LEVEL_STEP)));
     const k = new VKit(2);
     const gl = new Glass();
-    const tr2 = new Glass();
+    const tr2 = new Trace();
     const hallsAt = new Map(); // Station → tiefste Hallensohle
     for (const line of tr.lines) {
       if (!line.pts || line.pts.length < 2 || !(line.length > 0)) continue;
@@ -197,10 +234,11 @@ void main() {
           const closed = h.term && ((h.first && dir < 0) || (!h.first && dir > 0));
           this.hallEnd(k, p.x, p.z, p.yaw, Y, tile, closed, dir);
         }
+        // Schacht zum obersten Bahnsteig, quer zu dessen Linie versetzt
         const prev = hallsAt.get(h.sid);
         const pc = this.pose(line, h.d, this.tmp);
-        if (!prev || Y < prev.y) hallsAt.set(h.sid, { y: Y, yaw: pc.yaw, x: pc.x, z: pc.z, top: prev ? Math.max(prev.top, Y) : Y });
-        else prev.top = Math.max(prev.top, Y);
+        if (!prev) hallsAt.set(h.sid, { top: Y, yaw: pc.yaw });
+        else if (Y > prev.top) { prev.top = Y; prev.yaw = pc.yaw; }
       }
       // Spur am Boden (normale Ansicht): fein gestrichelt in Linienfarbe
       this.walk(line, 0, L, (A, B, l, yaw) => this.tracePiece(tr2, A, B, l, col));
@@ -238,12 +276,12 @@ void main() {
     const z0 = -hl - (joinA ? 0.11 : 0), z1 = hl + (joinB ? 0.11 : 0);
     const CON = 0x8f8b84, WALL = 0xb8b2a8, BED = 0x4a4642, RAIL = 0x9aa0a6;
     k.group({ x: cx, y: 0, z: cz, ry: yaw }, () => {
-      k.box(-0.225, Y - 0.1, z0, 0.225, Y - 0.06, z1, CON, P.PLASTIC, { front: false, back: false, bottom: { c: 0x3a3836 } });
+      k.box(-0.225, Y - 0.1, z0, 0.225, Y - 0.06, z1, CON, P.PLASTIC, { front: false, back: false, left: { c: 0x4a4744 }, right: { c: 0x4a4744 }, bottom: { c: 0x3a3836 } });
       k.box(-0.13, Y - 0.06, z0, 0.13, Y - 0.035, z1, BED, P.RUBBER, { front: false, back: false });
       for (const s of [1, -1]) k.box(s * 0.055 - 0.008, Y - 0.035, z0, s * 0.055 + 0.008, Y, z1, RAIL, P.CHROME, { front: false, back: false });
       for (const s of [1, -1]) {
         const xa = s > 0 ? 0.2 : -0.225, xb = s > 0 ? 0.225 : -0.2;
-        k.box(xa, Y - 0.1, z0, xb, Y + 0.22, z1, WALL, P.PLASTIC, { front: false, back: false, top: { c: col, p: P.STRIPE } });
+        k.box(xa, Y - 0.1, z0, xb, Y + 0.22, z1, WALL, P.PLASTIC, { front: false, back: false, top: { c: col, p: P.STRIPE }, [s > 0 ? 'left' : 'right']: { c: 0x55524d } });
         k.quad([s * 0.199, Y + 0.1, z0], [s * 0.199, Y + 0.1, z1], [s * 0.199, Y + 0.13, z1], [s * 0.199, Y + 0.13, z0], col, P.STRIPE, [-s, 0, 0]);
       }
       // Tunnelleuchten an den Wänden
@@ -383,7 +421,7 @@ void main() {
   }
 
   // Bodenspur: Striche in Linienfarbe knapp über Gelände/Straße
-  tracePiece(gl, A, B, l, col) {
+  tracePiece(tb, A, B, l, col) {
     const te = this.e.terrain;
     const wl = -0.05;
     const hAt = (x, z) => {
@@ -393,13 +431,11 @@ void main() {
     };
     const c = new THREE.Color(col);
     const dx = (B[0] - A[0]) / (l || 1), dz = (B[1] - A[1]) / (l || 1);
-    const nx = -dz * 0.045, nz = dx * 0.045;
     const dash = 0.3, gap = 0.16;
     for (let s = 0; s < l; s += dash + gap) {
       const e = Math.min(l, s + dash);
       const ax = A[0] + dx * s, az = A[1] + dz * s, bx = A[0] + dx * e, bz = A[1] + dz * e;
-      const ya = hAt(ax, az), yb = hAt(bx, bz);
-      gl.quad([ax - nx, ya, az - nz], [bx - nx, yb, bz - nz], [bx + nx, yb, bz + nz], [ax + nx, ya, az + nz], c);
+      tb.dash([ax, hAt(ax, az), az], [bx, hAt(bx, bz), bz], -dz, dx, c);
     }
   }
 
@@ -414,7 +450,12 @@ void main() {
     this.mat.opacity = k;
     this.glassMat.opacity = k;
     this.veilMat.uniforms.uK.value = k;
-    this.traceMat.opacity = 0.46 * (1 - k) * (0.75 + 0.25 * (1 - (night || 0)));
+    const dist = this.e.rig && this.e.rig.cur ? this.e.rig.cur.dist : 30;
+    const far = this.far = Math.max(0, Math.min(1, (dist - 18) / 50));
+    this.traceMat.uniforms.uW.value = 0.04 + dist * 0.0026;
+    this.traceMat.uniforms.uOpacity.value = (0.42 + 0.2 * far) * (1 - k) * (0.8 + 0.2 * (1 - (night || 0)));
+    // Röhren in der Übersicht kräftiger (Netzplan), in der Nahsicht zart
+    this.glassMat.color.setScalar(1 + 2.4 * smooth(far));
     if (this.trace) this.trace.visible = k < 0.99;
     this.net.visible = k > 0.002;
     // Linienvorschau des Linien-Werkzeugs im Untergrund oben zeichnen
@@ -454,6 +495,8 @@ void main() {
         else if (kc === cars - 1) { model = 'metro_cab'; yy = yaw + Math.PI; }
         else model = 'metro_mid';
         const d2 = fl.add(model, x, Y, z, yy, 0, 0, col, hashf(t.id * 13 + kc), flags, 0);
+        // In der Übersicht leuchtet jeder Wagen in Linienfarbe (fahrende Züge bleiben erkennbar)
+        if (far > 0.05) { _c.setHex(col).lerp(_w, 0.35); this.glow.add(x, Y + 0.14, z, 0.55, _c.r, _c.g, _c.b, 0.55 * far * k); }
         if (d2 >= 0 && (kc === 0 || kc === cars - 1)) {
           const fx = Math.sin(yaw), fz = Math.cos(yaw);
           if (kc === 0) for (const s of [1, -1]) this.glow.add(x + fx * 0.252 + fz * s * 0.068, Y + 0.058, z + fz * 0.252 - fx * s * 0.068, 0.09, 1, 0.93, 0.78, 0.7 * k);
