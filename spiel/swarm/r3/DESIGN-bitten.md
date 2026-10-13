@@ -59,6 +59,8 @@ Fertige Knopf-Stile zum Mitbenutzen: `.btn` (violett, Unterkante), `.btn.ghost` 
    und Nachfrage. Unten links: Dock mit Menü · Straßen · Zonen · Versorgung · Dienste · Freizeit · Verkehr · Abriss · Ansichten · Stadt.
    Unten rechts: **Zeit-Karte** („Montag · Tag 37", Pause/Weiter, ×1, ×2, ×3). Der Baukatalog öffnet sich als Liste **über dem Dock links**
    (Reiter oben, Zeilen mit orangem Preis-Knopf, „Mehr Infos" klappt Details auf).
+1b. Begleiter auf dem Handy (`#ob-guide.free` über dem Dock): `style.css` blendet ihn aus, solange Katalog, Inspektor oder ein
+   Panel offen ist (er lag sonst über den Katalog-Zeilen). Wenn ihr das lieber selbst steuert, sagt Bescheid.
 2. Alle Spotlight-Ziele bleiben gleich (`toolbar`, `group-*`, `cat-*`, `tray`, `item-*`, `stat-*`, `demand`, `time`, `speed`, `views`,
    `city`, `check`, `notes`, `help`, `settings`, `menu`, `rank`, `underground`), neu: `confirmplace` (Optionen → Bedienung).
    Auf dem Handy liefern `views`/`city` weiter den Menü-Knopf ☰ (jetzt links im Dock).
