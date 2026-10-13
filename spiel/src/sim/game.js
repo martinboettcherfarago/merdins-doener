@@ -309,7 +309,7 @@ export class Game extends Emitter {
       if (ter === T.ROCK) return 'Nicht auf Fels';
       if (this.road[i]) return 'Straße im Weg';
       if (this.bld[i]) return 'Fläche ist bebaut';
-      if (this.stationAt[i]) return 'Station im Weg';
+      if (this.stationAt[i]) return 'U-Bahn-Station im Weg';
     }
     let roadOk = false, waterOk = false;
     for (let yy = y - 1; yy <= y + h; yy++) for (let xx = x - 1; xx <= x + w; xx++) {
@@ -322,7 +322,7 @@ export class Game extends Emitter {
       if (this.world.terrain[i] === T.WATER) waterOk = true;
     }
     if (d.needsWater && !waterOk) return 'Muss direkt am Wasser stehen';
-    if (!roadOk) return 'Braucht eine angrenzende Straße';
+    if (!roadOk) return 'Braucht eine Straße direkt daneben';
     return null;
   }
   placeCost(key, x, y, rot = 0) {
@@ -579,7 +579,7 @@ export class Game extends Emitter {
       cost = Math.round(TRANSIT.wagonCost * this.costMul);
       if (!this.canAfford(cost)) return { ok: false, msg: 'Nicht genug Geld.' };
     }
-    if (!this.transit.addWagonToLine(line)) return { ok: false, msg: 'Alle Züge haben schon 3 Waggons.' };
+    if (!this.transit.addWagonToLine(line)) return { ok: false, msg: 'Alle Züge haben schon 3 Wagen.' };
     if (free) this.transit.freeWagons--; else this.spend(cost);
     this.afterTransitChange();
     return { ok: true, cost };

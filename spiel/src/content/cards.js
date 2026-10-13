@@ -7,11 +7,11 @@
 //   happyRes     Glück + Wert nur in Wohngebäuden
 //   happyWork    Glück + Wert in Gewerbe, Industrie und Büro
 //   incomeAdd    € pro Tag als Sondereinnahme
-//   fareBonus    Anteil zusätzlicher Pulsbahn-Einnahmen (0,5 = +50 %)
+//   fareBonus    Anteil zusätzlicher U-Bahn-Einnahmen (0,5 = +50 %)
 //   upkeepRebate Anteil des Dienste-Unterhalts, der erstattet wird
 import { CARDS } from '../sim/progress.js';
 import { LANDVALUE_TERMS, HAPPINESS_FACTORS, BUDGET_LINES } from '../registry.js';
-import { BUILDINGS, Z } from '../config.js';
+import { BUILDINGS, Z, TRANSIT } from '../config.js';
 import { fmtMoney } from '../util.js';
 
 const P = (g) => g.ext.progression || null;
@@ -38,7 +38,7 @@ HAPPINESS_FACTORS.push((g, b) => {
   return null;
 });
 BUDGET_LINES.push({ id: 'cardIncome', label: 'Sondereinnahmen', kind: 'income', amount: (g) => effCached(g, 'incomeAdd') });
-BUDGET_LINES.push({ id: 'fareBonus', label: 'Tarifbonus Pulsbahn', kind: 'income', amount: (g) => { const f = effCached(g, 'fareBonus'); return f ? (g.transit.faresToday || 0) * f : 0; } });
+BUDGET_LINES.push({ id: 'fareBonus', label: 'Tarifbonus U-Bahn', kind: 'income', amount: (g) => { const f = effCached(g, 'fareBonus'); return f ? (g.transit.faresToday || 0) * f : 0; } });
 BUDGET_LINES.push({ id: 'upkeepRebate', label: 'Verwaltungsrabatt', kind: 'income', amount: (g) => { const f = effCached(g, 'upkeepRebate'); return f ? (g.lastBudget?.exp?.services || 0) * f : 0; } });
 
 const NEW_CARDS = [
@@ -68,13 +68,13 @@ const NEW_CARDS = [
   { id: 'tenantsday', name: 'Tag der Nachbarn', tag: 'Glück', color: '#63c27a', w: 0.8, text: () => 'Wohnglück +4 für 10 Tage.', apply: (g) => g.addEffect('happyRes', 4, 10, 'Tag der Nachbarn') },
   { id: 'workparty', name: 'Betriebsfeiern', tag: 'Glück', color: '#4c9be8', w: 0.7, cond: (g) => g.stats.jobs > 200, text: () => 'Glück +6 in allen Betrieben für 7 Tage.', apply: (g) => g.addEffect('happyWork', 6, 7, 'Betriebsfeiern') },
   // --- Pulsbahn
-  { id: 'twolines', name: 'Netzausbau', tag: 'Pulsbahn', color: '#e8543f', w: 0.6, cond: (g) => g.isUnlocked('transit') && g.milestone >= 3 && g.transit.linesMax <= 8, text: () => 'Zwei zusätzliche Linienplätze für die Pulsbahn.', apply: (g) => { g.transit.linesMax = Math.min(10, g.transit.linesMax + 2); } },
-  { id: 'fleet', name: 'Fuhrpark', tag: 'Pulsbahn', color: '#2f8fe0', w: 0.8, cond: (g) => g.isUnlocked('transit') && g.transit.lines.length >= 2, text: () => 'Drei Züge und zwei Waggons gratis ins Depot.', apply: (g) => { g.transit.freeTrains += 3; g.transit.freeWagons += 2; } },
-  { id: 'wagonpack', name: 'Waggon-Paket', tag: 'Pulsbahn', color: '#22a866', w: 0.8, cond: (g) => g.isUnlocked('transit') && g.transit.lines.length >= 1, text: () => 'Sechs Waggons gratis: +36 Plätze.', apply: (g) => { g.transit.freeWagons += 6; } },
-  { id: 'ticketsale', name: 'Ticket-Aktion', tag: 'Pulsbahn', color: '#10a9a3', w: 0.8, cond: (g) => g.transit.lines.length >= 1, text: () => 'Pulsbahn-Fahrgäste +40 % für 7 Tage.', apply: (g) => g.addEffect('ridership', 0.4, 7, 'Ticket-Aktion') },
-  { id: 'tariff', name: 'Tarifreform', tag: 'Pulsbahn', color: '#10a9a3', w: 0.7, cond: (g) => g.transit.lines.length >= 2, text: () => 'Pulsbahn-Einnahmen +60 % für 10 Tage.', apply: (g) => g.addEffect('fareBonus', 0.6, 10, 'Tarifreform') },
-  { id: 'hubvoucher', name: 'Umsteigebahnhof', tag: 'Pulsbahn', color: '#e8543f', w: 0.6, cond: (g) => lockedOk(g, 'metro_hub') && g.transit.lines.length >= 2, text: () => 'Gutschein: Der nächste Pulsbahn-Umsteigebahnhof ist gratis.', apply: (g) => voucher(g, 'transit') },
-  { id: 'signals', name: 'Neue Stellwerke', tag: 'Dauerhaft', color: '#10a9a3', w: 0.6, cond: (g) => g.isUnlocked('transit') && count(g, 'signals') < 3, text: () => 'Pulsbahn-Züge dauerhaft 10 % schneller.', apply: (g) => { g.mods.trainSpeed *= 1.1; } },
+  { id: 'twolines', name: 'Netzausbau', tag: 'U-Bahn', color: '#e8543f', w: 0.6, cond: (g) => g.isUnlocked('transit') && g.milestone >= 3 && g.transit.linesMax <= 8, text: () => 'Zwei zusätzliche Linienplätze für die U-Bahn.', apply: (g) => { g.transit.linesMax = Math.min(10, g.transit.linesMax + 2); } },
+  { id: 'fleet', name: 'Fuhrpark', tag: 'U-Bahn', color: '#2f8fe0', w: 0.8, cond: (g) => g.isUnlocked('transit') && g.transit.lines.length >= 2, text: () => 'Drei Züge und zwei Wagen gratis ins Depot.', apply: (g) => { g.transit.freeTrains += 3; g.transit.freeWagons += 2; } },
+  { id: 'wagonpack', name: 'Wagen-Paket', tag: 'U-Bahn', color: '#22a866', w: 0.8, cond: (g) => g.isUnlocked('transit') && g.transit.lines.length >= 1, text: () => `Sechs Wagen gratis: +${6 * TRANSIT.wagonCapacity} Plätze.`, apply: (g) => { g.transit.freeWagons += 6; } },
+  { id: 'ticketsale', name: 'Ticket-Aktion', tag: 'U-Bahn', color: '#10a9a3', w: 0.8, cond: (g) => g.transit.lines.length >= 1, text: () => 'U-Bahn-Fahrgäste +40 % für 7 Tage.', apply: (g) => g.addEffect('ridership', 0.4, 7, 'Ticket-Aktion') },
+  { id: 'tariff', name: 'Tarifreform', tag: 'U-Bahn', color: '#10a9a3', w: 0.7, cond: (g) => g.transit.lines.length >= 2, text: () => 'U-Bahn-Einnahmen +60 % für 10 Tage.', apply: (g) => g.addEffect('fareBonus', 0.6, 10, 'Tarifreform') },
+  { id: 'hubvoucher', name: 'Umsteigebahnhof', tag: 'U-Bahn', color: '#e8543f', w: 0.6, cond: (g) => lockedOk(g, 'metro_hub') && g.transit.lines.length >= 2, text: () => 'Gutschein: Der nächste U-Bahn-Umsteigebahnhof ist gratis.', apply: (g) => voucher(g, 'transit') },
+  { id: 'signals', name: 'Neue Stellwerke', tag: 'Dauerhaft', color: '#10a9a3', w: 0.6, cond: (g) => g.isUnlocked('transit') && count(g, 'signals') < 3, text: () => 'U-Bahn-Züge dauerhaft 10 % schneller.', apply: (g) => { g.mods.trainSpeed *= 1.1; } },
   // --- Bauen & Gutscheine
   { id: 'asphalt', name: 'Asphaltmischwerk', tag: 'Bauen', color: '#5f6b78', w: 0.9, text: () => 'Straßen kosten 5 Tage lang 70 % weniger.', apply: (g) => g.addEffect('roadCost', -0.7, 5, 'Asphaltmischwerk') },
   { id: 'eduvoucher', name: 'Bildungsgutschein', tag: 'Gutschein', color: '#8f5ad8', w: 0.8, cond: (g) => g.milestone >= 1, text: () => 'Die nächste Bildungseinrichtung (Kita, Schule, Bibliothek …) ist gratis.', apply: (g) => voucher(g, 'education') },
@@ -114,12 +114,12 @@ const NEW_CARDS = [
   // --- Metro-Modus (werden nur dort angeboten)
   { id: 'm_line', metro: true, name: 'Neue Linie', tag: 'Metro', color: '#e8543f', w: 2.2, cond: (g) => g.transit.linesMax < 10, text: () => 'Ein zusätzlicher Linienplatz.', apply: (g) => { g.transit.linesMax++; } },
   { id: 'm_train', metro: true, name: 'Zwei Züge', tag: 'Metro', color: '#2f8fe0', w: 2.4, text: () => 'Zwei neue Züge im Depot.', apply: (g) => { g.transit.freeTrains += 2; } },
-  { id: 'm_wagons', metro: true, name: 'Drei Waggons', tag: 'Metro', color: '#22a866', w: 2.2, text: () => 'Drei Waggons im Depot: +6 Plätze je Waggon.', apply: (g) => { g.transit.freeWagons += 3; } },
-  { id: 'm_mix', metro: true, name: 'Zug mit zwei Waggons', tag: 'Metro', color: '#10a9a3', w: 1.6, text: () => 'Ein Zug und zwei Waggons.', apply: (g) => { g.transit.freeTrains += 1; g.transit.freeWagons += 2; } },
+  { id: 'm_wagons', metro: true, name: 'Drei Wagen', tag: 'Metro', color: '#22a866', w: 2.2, text: () => `Drei Wagen im Depot: +${TRANSIT.wagonCapacity} Plätze je Wagen.`, apply: (g) => { g.transit.freeWagons += 3; } },
+  { id: 'm_mix', metro: true, name: 'Zug mit zwei Wagen', tag: 'Metro', color: '#10a9a3', w: 1.6, text: () => 'Ein Zug und zwei Wagen.', apply: (g) => { g.transit.freeTrains += 1; g.transit.freeWagons += 2; } },
   { id: 'm_cash', metro: true, name: 'Infrastrukturgeld', tag: 'Metro', color: '#e3a925', w: 1.4, text: (g) => `${fmtMoney(round(5000 + (g.transit.deliveredTotal || 0) * 0.8))} für neue Gleise und Stationen.`, apply: (g) => money(g, round(5000 + (g.transit.deliveredTotal || 0) * 0.8)) },
   { id: 'm_speed', metro: true, name: 'Expressgleise', tag: 'Metro', color: '#10a9a3', w: 1.0, cond: (g) => count(g, 'm_speed') < 3, text: () => 'Alle Züge dauerhaft 15 % schneller.', apply: (g) => { g.mods.trainSpeed *= 1.15; } },
   { id: 'm_calm', metro: true, name: 'Ruhige Woche', tag: 'Metro', color: '#7d8a99', w: 1.0, text: () => 'Das nächste Viertel öffnet drei Tage später.', apply: (g) => { const st = P(g); if (st && st.metro) st.metro.next += 3; } },
-  { id: 'm_tariff', metro: true, name: 'Doppelter Fahrpreis', tag: 'Metro', color: '#c98a0c', w: 1.0, text: () => 'Pulsbahn-Einnahmen +100 % für 7 Tage.', apply: (g) => g.addEffect('fareBonus', 1, 7, 'Doppelter Fahrpreis') },
+  { id: 'm_tariff', metro: true, name: 'Doppelter Fahrpreis', tag: 'Metro', color: '#c98a0c', w: 1.0, text: () => 'U-Bahn-Einnahmen +100 % für 7 Tage.', apply: (g) => g.addEffect('fareBonus', 1, 7, 'Doppelter Fahrpreis') },
 ];
 
 for (const c of NEW_CARDS) {

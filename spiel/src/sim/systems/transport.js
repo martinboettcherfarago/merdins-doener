@@ -810,7 +810,7 @@ function ensureHub(g, b) {
   st.hub = true;
   T.hubs.set(b.id, st.id);
   g.afterTransitChange();
-  news(g, 'hub' + b.id, `Der Umsteigebahnhof ${st.name} ist fertig: doppelte Kapazität und schnellere Umstiege. Jetzt Pulsbahn-Linien anschließen.`, 'good', b, 0);
+  news(g, 'hub' + b.id, `Der Umsteigebahnhof ${st.name} ist fertig: doppelte Kapazität und schnellere Umstiege. Jetzt U-Bahn-Linien anschließen.`, 'good', b, 0);
 }
 
 function hubStep(g, minutes) {
