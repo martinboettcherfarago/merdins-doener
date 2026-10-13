@@ -343,8 +343,11 @@ export class Transit {
     const shopF = 0.22 + gauss(h, 13, 3) * 0.5;
     const ridership = (g.policies.has('freetransit') ? 1.4 : 1) * (1 + g.eff('ridership'));
     const k = (minutes / 60) * night * ridership * 0.55;
+    // Außerhalb des Metro-Modus nehmen Leute an einer übervollen Station lieber das Auto: Überfüllung bleibt spürbar, wächst aber nicht endlos
+    const capWait = g.opts && g.opts.scenario === 'metro' ? Infinity : Math.ceil(TRANSIT.stationCapacity * 1.5);
     for (const st of this.stations.values()) {
       if (!st.active) continue;
+      if (st.waiting.length >= capWait) { st.acc = 0; continue; }
       const w = st.w;
       const rWork = w[1] * 0.01 * workF * k;
       const rShop = w[1] * 0.005 * shopF * k;

@@ -61,7 +61,7 @@ place('watertower', 8, hy - 3);
 place('watertower', 8, hy + 3);
 console.log('Start-Infrastruktur. Geld:', Math.round(g.money));
 
-let builtServices = false, builtTransit = false, built2 = false, builtCem = false;
+let builtServices = false, builtTransit = false, built2 = false, builtCem = false, plantOk = false;
 const t0 = Date.now();
 for (let d = 1; d <= days; d++) {
   for (let s = 0; s < 30 * 10; s++) g.update(0.1); // 30 Sekunden = 1 Tag
@@ -74,11 +74,14 @@ for (let d = 1; d <= days; d++) {
     console.log('  Abwasserauslass:', placeAtShore(g, 'sewage_outlet', 27, hy) || placeAtShore(g, 'sewage_outlet', 27, hy, 80));
     place('kindergarten', 18, hy - 3);
   }
+  if (!plantOk && g.milestone >= 2 && g.money > 16000 && d % 3 === 0) {
+    plantOk = placeAtShore(g, 'sewage_plant', 27, hy, 80);
+    if (plantOk) console.log('  Kläranlage gebaut an Tag', d);
+  }
   if (!builtCem && g.milestone >= 2) {
     builtCem = true;
     // Zweite Deponie im Norden: Die erste (Süden, Radius 15) erreicht die Wohnblöcke nördlich der Hauptstraße nicht
     place('cemetery', 36, hy - 9); place('landfill', 26, hy - 14);
-    console.log('  Kläranlage:', placeAtShore(g, 'sewage_plant', 27, hy, 80));
   }
   if (!builtTransit && g.isUnlocked('transit') && g.money > 9000) {
     // Erst bauen, wenn genug Geld da ist (Stationen + Linie)

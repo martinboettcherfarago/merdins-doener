@@ -851,7 +851,8 @@ export class Vegetation {
     const rig = this.e.rig;
     const sp = this.sp.gras;
     const dist = rig.cur.dist;
-    const on = dist < 26;
+    const low = this.e.quality && this.e.quality.name === 'low';
+    const on = !low && dist < 26;
     const tx = rig.target.x, tz = rig.target.z;
     const key = on ? `${Math.round(tx / 3)}:${Math.round(tz / 3)}` : 'aus';
     if (!force && key === this.nearKey) return;
@@ -904,10 +905,14 @@ export class Vegetation {
 
   frame(dt, time, night, s) {
     const u = this.uniforms;
-    // Wind
-    const wind = clamp(s.wind * (s.storm ? 1.6 : 1), 0, 1.5);
-    u.uWind.value += (wind - u.uWind.value) * Math.min(1, dt * 0.8);
-    u.uWindDir.value.set(Math.cos(s.windDir), Math.sin(s.windDir));
+    // Wind: geglättetes Wetter der Engine (shared.uWind/uWindDir, G1), sonst eigener Zustand; nie NaN
+    const fin = (v, d) => (Number.isFinite(v) ? v : d);
+    const w0 = fin(shared.uWind.value, fin(s.wind, 0.25));
+    const dir = fin(shared.uWindDir.value, fin(s.windDir, 0.7));
+    const wind = clamp(w0 * (s.storm ? 1.6 : 1), 0, 1.5);
+    if (!Number.isFinite(u.uWind.value)) u.uWind.value = wind;
+    u.uWind.value += (wind - u.uWind.value) * Math.min(1, fin(dt, 0) * 0.8);
+    u.uWindDir.value.set(Math.cos(dir), Math.sin(dir));
     // Jahreszeit: Laub, Blüte, Frühlingsgrün
     const t = s.t;
     const leaf = t < 0.45 ? smoothstep(0.0, 0.09, t) : 1 - smoothstep(0.79, 0.87, t);

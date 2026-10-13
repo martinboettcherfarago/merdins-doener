@@ -738,7 +738,20 @@ void main(){ vI = aI; vec4 lp = vec4(position, 1.0);
 #ifdef USE_INSTANCING
 lp = instanceMatrix * lp;
 #endif
-vec4 mv = modelViewMatrix * lp; vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
+vec4 mv = modelViewMatrix * lp; vD = -mv.z; gl_Position = projectionMatrix * mv;
+#ifdef USE_INSTANCING
+// Lichtkegel (Einheitskegel, Spitze bei y = 1): Kanten weich ausblenden, damit keine harten „Zacken" entstehen;
+// von oben gesehen (Stadtansicht) verschwinden die Kegel ganz – sie wirken nur in Straßennähe als Lichtschein.
+if (position.y > 0.5) {
+  vec3 sc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+  vec3 nL = vec3(position.x / 0.06, 0.94, position.z / 0.06) / max(sc * sc, vec3(1e-6));
+  vec3 nV = normalize(normalMatrix * (mat3(instanceMatrix) * nL));
+  float fr = abs(dot(nV, normalize(-mv.xyz)));
+  vec3 vd = normalize(cameraPosition - (modelMatrix * lp).xyz);
+  vI = aI * fr * fr * 1.6 * (1.0 - smoothstep(0.38, 0.7, vd.y));
+} else vI = aI * 0.72;
+#endif
+}`,
     fragmentShader: `uniform float uNight; uniform float uWet; uniform float fogNear; uniform float fogFar; varying float vI; varying float vD;
 void main(){ float f = 1.0 - smoothstep(fogNear, fogFar, vD); float k = vI * smoothstep(0.05, 0.6, uNight) * f * (1.0 + uWet * 0.7);
 gl_FragColor = vec4(vec3(1.0, 0.74, 0.42) * k, 1.0); }`,
@@ -1222,10 +1235,10 @@ export const PROTOS = {
   lanternB: { build: (c) => lantern(c, 0, 0, 0, { h: 0.3 }), shadow: true },
   signal: { build: (c) => trafficLight(c, 0, 0, 0, 0, 0, 0, { ped: true }), shadow: true, sig: true },
   signalArm: { build: (c) => trafficLight(c, 0, 0, 0, 0, 0, 0, { ped: true, armLen: 0.37 }), shadow: true, sig: true },
-  signYield: { build: (c) => signPost(c, 0, 0, 0, 0, 'yield', { h: 0.24, size: 0.065 }), shadow: true },
-  signPrio: { build: (c) => signPost(c, 0, 0, 0, 0, 'prio', { h: 0.24, size: 0.065 }), shadow: true },
-  signBus: { build: (c) => signPost(c, 0, 0, 0, 0, 'busH', { h: 0.28, size: 0.06 }), shadow: true },
-  signZone: { build: (c) => signPost(c, 0, 0, 0, 0, 'zone30', { h: 0.26, size: 0.07 }), shadow: true },
+  signYield: { build: (c) => signPost(c, 0, 0, 0, 0, 'yield', { h: 0.24, size: 0.065 }), shadow: false },
+  signPrio: { build: (c) => signPost(c, 0, 0, 0, 0, 'prio', { h: 0.24, size: 0.065 }), shadow: false },
+  signBus: { build: (c) => signPost(c, 0, 0, 0, 0, 'busH', { h: 0.28, size: 0.06 }), shadow: false },
+  signZone: { build: (c) => signPost(c, 0, 0, 0, 0, 'zone30', { h: 0.26, size: 0.07 }), shadow: false },
   shrub0: { build: (c) => shrub(c, 0, 0, 0, 0.035, 0.3) },
   shrub1: { build: (c) => shrub(c, 0, 0, 0, 0.035, 0.8) },
   bench: { build: (c) => bench(c, 0, 0, 0, 0), detail: true, shadow: true },

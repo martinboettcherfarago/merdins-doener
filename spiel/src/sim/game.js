@@ -508,6 +508,7 @@ export class Game extends Emitter {
   createLine(stops, loop) {
     if (!this.isUnlocked('transit')) return { ok: false, msg: this.lockReason('station') };
     if (stops.length < 2) return { ok: false, msg: 'Eine Linie braucht mindestens zwei Stationen.' };
+    if (new Set(stops).size !== stops.length) return { ok: false, msg: 'Jede Station darf nur einmal auf einer Linie liegen.' };
     if (loop && stops.length < 3) loop = false;
     if (this.transit.lines.length >= this.transit.linesMax) return { ok: false, msg: 'Keine freie Linie. Neue Linien gibt es über Meilensteine und Wochenkarten.' };
     const cost = this.linePlanCost(stops, loop);

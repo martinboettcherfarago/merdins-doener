@@ -150,7 +150,9 @@ export class RoadView {
     sigTime.value = g.time / GAME_MIN_PER_SEC;
     const fog = this.e.scene.fog;
     if (fog) { this.mats.fog.fogNear.value = fog.near; this.mats.fog.fogFar.value = fog.far; }
-    const dist = this.e.rig.cur.dist;
+    // Qualitätsstufe: „Niedrig" zeigt Kleinteile und Detailbäume nur in größerer Nähe
+    const qf = ({ low: 0.6, high: 1.15, ultra: 1.3 })[this.e.quality && this.e.quality.name] ?? 1;
+    const dist = this.e.rig.cur.dist / qf;
     const det = dist < DETAIL_DIST;
     if (det !== this.detailOn) {
       this.detailOn = det;
@@ -1436,10 +1438,17 @@ export class RoadView {
       const S = ctx.L.solid, mC = MI('concrete');
       const c = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]].map(([u, v]) => [D.cx + u, -0.11, D.cz + v]);
       S.tri(mC, ...c[0], ...c[1], ...c[2]); S.tri(mC, ...c[0], ...c[2], ...c[3]);
-      if (k % 2 === 0) {
-        const b = ctx.solid;
-        for (const q of [-0.24, 0.24]) b.at(D.cx, -16, D.cz + q, 0).m('concrete').cyl(0, 0, 0, 0.09, 0.06, 15.84, 10, 0);
-        b.at(D.cx, -0.17, D.cz, 0).m('concrete').box(0, 0, 0, 0.1, 0.06, 0.78);
+      // Hohlkastenträger unter der Platte (Talbrücke): schräge Stege, Boden; Stirnfläche am fernen Ende
+      const b = ctx.solid.at(D.cx, 0, D.cz, 0).m('concrete');
+      const zt = 0.36, zb = 0.25, yt = -0.11, yb = -0.44;
+      quad3(b, [0.5, yt, zt], [-0.5, yt, zt], [-0.5, yb, zb], [0.5, yb, zb]);
+      quad3(b, [-0.5, yt, -zt], [0.5, yt, -zt], [0.5, yb, -zb], [-0.5, yb, -zb]);
+      quad3(b, [0.5, yb, zb], [-0.5, yb, zb], [-0.5, yb, -zb], [0.5, yb, -zb]);
+      if (k === len) quad3(b, [-0.5, yt, zt], [-0.5, yt, -zt], [-0.5, yb, -zb], [-0.5, yb, zb]);
+      // Wenige kräftige, nach unten breiter werdende Pfeiler mit Pfeilerkopf (statt vieler dünner Stützen)
+      if (k % 5 === 4) {
+        b.box(0, -0.56, 0, 0.36, 0.12, 0.62);
+        frustum(b, -0.56, 0.26, 0.44, -16.6, 0.66, 1.05);
       }
     }
     // Schilderbrücke (stadteinwärts = Fahrt nach +x, Schilder blicken nach −x)
@@ -1451,6 +1460,15 @@ export class RoadView {
     this.props.setChunk('viaduct', ctx.inst);
     this.props.flush();
   }
+}
+
+// Viereck aus vier lokalen Punkten (Pinsel), Normale aus der Fläche
+function quad3(b, p0, p1, p2, p3) { b.tri3(p0, p1, p2); b.tri3(p0, p2, p3); }
+// Pfeilerschaft als Pyramidenstumpf: oben (yTop, sx0 × sz0), unten (yBot, sx1 × sz1), Mitte im lokalen Ursprung
+function frustum(b, yTop, sx0, sz0, yBot, sx1, sz1) {
+  const T = [[-sx0 / 2, yTop, -sz0 / 2], [sx0 / 2, yTop, -sz0 / 2], [sx0 / 2, yTop, sz0 / 2], [-sx0 / 2, yTop, sz0 / 2]];
+  const B = [[-sx1 / 2, yBot, -sz1 / 2], [sx1 / 2, yBot, -sz1 / 2], [sx1 / 2, yBot, sz1 / 2], [-sx1 / 2, yBot, sz1 / 2]];
+  for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; quad3(b, T[i], T[j], B[j], B[i]); }
 }
 
 // Farben parkender Autos (linear, als Instanzfarbe auf weißem Lack)

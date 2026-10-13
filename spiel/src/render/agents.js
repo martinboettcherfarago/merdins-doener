@@ -40,7 +40,8 @@ export class Fleet {
       if (!src) return null;
       const geo = src.clone();
       geo.userData.triangles = src.userData.triangles;
-      b = new Batch(this.parent, geo, this.mat, { shadow: lod >= 1 && !id.startsWith('far_'), cap: 16 });
+      // Schatten nur in Nahsicht – in mittlerer Entfernung sind sie wenige Pixel groß, kosten aber je Modell einen Draw Call
+      b = new Batch(this.parent, geo, this.mat, { shadow: lod >= 2 && !id.startsWith('far_'), cap: 16 });
       this.batches.set(key, b);
       this.list.push(b);
     }
@@ -283,6 +284,9 @@ export class VehicleView {
         toWorld(v, b[0], b[1], b[2] * sz, x, y, z, cy, sy, cp, sp);
         if (amber) G.add(v[0], v[1], v[2], 0.16, 1.0, 0.55, 0.08, f * (0.35 + this.night * 0.6));
         else G.add(v[0], v[1], v[2], 0.2, 0.2, 0.42, 1.0, f * (0.45 + this.night * 0.7));
+        // nachts färbt das Blaulicht die Straße (Lichtfleck von effects.js, G1)
+        const P = this.night > 0.2 && d2 < this.fleet.mid2 && this.e.effects && this.e.effects.pools;
+        if (P) P.add(v[0], 0.02, v[2], amber ? 0.3 : 0.38, amber ? 1.0 : 0.22, amber ? 0.55 : 0.4, amber ? 0.1 : 1.0, f * 0.45 * this.night);
       }
     }
   }

@@ -67,6 +67,8 @@ export const MATERIAL_DEFS = {
   // Wünsche G5/G6: schwarzer und petrolfarbener Lack, Klärbecken-Wasser, Milchglas (nachts beleuchtet wie Fenster)
   paint_black: [0x26272a, 0.55, 0], paint_teal: [0x2f7f80, 0.6, 0],
   water_sewage: [0x5f6a3e, 0.2, 0.1, { water: true }], glass_frosted: [0xb7c6cc, 0.45, 0.05, { glass: true }],
+  // Wünsche G3 (Q1): Glasbrüstung (mattes, bläuliches Glas ohne Nachtlicht, undurchsichtig im Atlas), Efeu für Brandwände
+  glass_railing: [0xb9cdd6, 0.2, 0.3], ivy: [0x3d6b3a, 0.95, 0],
 };
 
 const cache = new Map();
@@ -209,7 +211,9 @@ function specialMaterial(name) {
   const def = MATERIAL_DEFS[name];
   const [color, roughness, metalness, opts = {}] = def;
   const m = new THREE.MeshStandardMaterial({ color, roughness, metalness });
-  if (opts.glass) patchGlass(m, opts);
+  // Glas spiegelt den Himmel (scene.environment, G1) etwas kräftiger; Fassadenglas am stärksten
+  if (opts.glass) { patchGlass(m, opts); m.envMapIntensity = opts.curtain ? 1.4 : opts.shop ? 1.0 : 1.2; }
+  if (opts.water) m.envMapIntensity = 1.1;
   if (opts.emissive) { m.emissive = new THREE.Color(opts.emissive); m.emissiveIntensity = 1; patchEmissive(m, opts.emissiveDay ?? 0.35); }
   if (opts.water) { m.transparent = true; m.opacity = 0.85; }
   if (opts.lodWindows) patchLodWindows(m);
