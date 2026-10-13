@@ -159,6 +159,7 @@ attribute vec4 aAnimA;
 flat varying vec4 vG9T;
 flat varying vec4 vG9S;
 flat varying vec3 vG9X;
+flat varying float vG9V;
 varying vec3 vG9P;
 vec4 g9Fetch(int k) { int t = int(aG9id + 0.5) * ${TPS} + k; return texelFetch(uG9State, ivec2(t % ${TEXW}, t / ${TEXW}), 0); }
 #ifdef G9_ANIM
@@ -190,6 +191,7 @@ float g9vis = g9s2.z;
 float g9vis = g9s2.x;
 #endif
 vG9T = vec4(0.0);
+vG9V = fract(sin(aG9id * 12.9898 + 4.13) * 43758.5453);
 vG9S = vec4(1.0, 0.0, 0.0, 0.0);
 vG9X = vec3(0.0);
 if (g9vis > 0.5) {
@@ -213,6 +215,7 @@ uniform float uG9Time;
 flat varying vec4 vG9T;
 flat varying vec4 vG9S;
 flat varying vec3 vG9X;
+flat varying float vG9V;
 varying vec3 vG9P;
 float g9Hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }`;
 const FRAG_CLIP = /* glsl */`
@@ -221,6 +224,21 @@ if (vG9X.z > 0.0 && vG9P.y < vG9X.z) discard;
 if (vG9X.y > 0.0005 && vG9P.y < -0.01) discard;`;
 // Nach den Farb-/Atlas-Berechnungen (vor der Rauheit): verwittert, verkohlt, Einfärbung
 const FRAG_COLOR = /* glsl */`
+#ifndef G9_GLASS
+{
+  // Spielart pro Gebäude (Zufall aus der Zustandszeile): helle, wenig gesättigte Flächen (Putz, Beton) bekommen
+  // einen leichten Pastellton, alles andere eine kleine Helligkeitsschwankung – gleiche Modelle wirken nicht geklont.
+  vec3 g9d = diffuseColor.rgb;
+  float g9l0 = dot(g9d, vec3(0.299, 0.587, 0.114));
+  float g9sat = max(g9d.r, max(g9d.g, g9d.b)) - min(g9d.r, min(g9d.g, g9d.b));
+  float g9w = smoothstep(0.2, 0.45, g9l0) * (1.0 - smoothstep(0.1, 0.3, g9sat / max(g9l0, 0.05)));
+  int g9i = int(vG9V * 7.0);
+  vec3 g9p = g9i == 0 ? vec3(1.05, 0.99, 0.88) : g9i == 1 ? vec3(1.06, 0.93, 0.86) : g9i == 2 ? vec3(0.94, 1.02, 0.95)
+    : g9i == 3 ? vec3(0.92, 0.98, 1.06) : g9i == 4 ? vec3(1.04, 0.94, 0.96) : g9i == 5 ? vec3(1.03, 1.02, 0.9) : vec3(1.0);
+  float g9br = 0.94 + 0.1 * fract(vG9V * 7.31);
+  diffuseColor.rgb *= mix(vec3(0.96 + 0.08 * fract(vG9V * 3.17)), g9p * g9br, g9w);
+}
+#endif
 {
   float g9l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
   float g9st = g9Hash(floor(vG9P.xz * 26.0));
@@ -679,7 +697,8 @@ export class ProtoManager {
       proto.triangles += parts.reduce((sum, p) => sum + p.src.count / 3, 0);
     }
     this.protos.set(id, proto);
-    this.buildMs += performance.now() - t0;
+    proto.ms = performance.now() - t0;
+    this.buildMs += proto.ms;
     return proto;
   }
 
@@ -700,10 +719,13 @@ export class ProtoManager {
   // Unbenutzte Prototypen freigeben (Speicher sparen). dt in Sekunden.
   gc(dt, maxIdle = 20) {
     let n = 0;
+    this.time += dt;
     const many = this.protos.size > 450;
     for (const [id, p] of this.protos) {
       const used = p.set.count > 0 || p.batchRefs > 0 || p.anims.some((a) => a.set.count > 0);
       if (used) { p.idle = 0; continue; }
+      // vorab gebaute teure Modelle (Wahrzeichen nah/mittel) bleiben erhalten, solange buildings.js sie anfordert
+      if (p.keepUntil && p.keepUntil > this.time) { p.idle = 0; continue; }
       p.idle += dt;
       if (p.idle > (many ? maxIdle * 0.25 : maxIdle)) {
         p.set.dispose();

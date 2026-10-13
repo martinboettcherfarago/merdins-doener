@@ -8,6 +8,7 @@
 //   removeStaticLights(id)
 //   emitSmoke(x, y, z, 'smoke'|'steam'|'fire'|'dust'|'spark')  einzelnes Partikel
 //   burst(x, y, z, 'dust'|'smoke'|'spark', anzahl, radius)       Wolke auf einmal (Abriss, Explosion …)
+//   emitDust(x, y, z, größe, deckkraft)                          Baustaub (von buildings.js genutzt)
 //   showIcons (bool)
 import * as THREE from 'three';
 import { makeGlowTexture, makePointsMaterial, PointBuffer, atmo, ATMO_FOG_GLSL } from './materials.js';
@@ -468,6 +469,18 @@ void main() {
     });
   }
 
+  // Baustaub/Abrissstaub (Schnittstelle für buildings.js): Größe und Deckkraft wie dort gewünscht
+  emitDust(x, y, z, size = 0.3, alpha = 0.5) {
+    const n = this.particles.length;
+    this.emitSmoke(x, y, z, 'dust');
+    if (this.particles.length === n) return;
+    const p = this.particles[n];
+    const k = size / 0.4;
+    p.s0 *= k; p.s1 *= k;
+    p.a = Math.min(0.5, 0.18 + alpha * 0.3);
+    p.vx += (Math.random() - 0.5) * 0.16; p.vz += (Math.random() - 0.5) * 0.16;
+  }
+
   burst(x, y, z, type, count, radius = 0.5) {
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * radius;
@@ -526,15 +539,17 @@ void main() {
       this.iconBorn[n] = born;
       n++;
     };
-    const level = this.iconLevel();
-    this.iconLevelNow = level;
-    const cellSize = 1 << level;
-    const minPrio = level >= 4 ? 30 : level >= 3 ? 18 : 0;
+    this.iconLevelNow = this.iconLevel();
+    const cam = this.e.camera.position;
     const cells = new Map();
     const cand = (key, x, h, z, icon) => {
       const pr = iconPrio(icon);
-      if (pr < minPrio) return;
-      const ck = Math.floor((x + g.W / 2) / cellSize) * 4096 + Math.floor((z + g.H / 2) / cellSize);
+      // Bündelstufe nach dem Abstand des Symbols zur Kamera (fern = größere Zellen, leichte Probleme entfallen)
+      const d = Math.hypot(x - cam.x, h - cam.y, z - cam.z);
+      const level = Math.max(0, Math.min(5, Math.round(Math.log2(Math.max(1, d * 0.22)))));
+      if (pr < (level >= 4 ? 30 : level >= 3 ? 18 : 0)) return;
+      const cellSize = 1 << level;
+      const ck = level * 1e8 + Math.floor((x + g.W / 2) / cellSize) * 4096 + Math.floor((z + g.H / 2) / cellSize);
       const c = cells.get(ck);
       if (!c) { cells.set(ck, { key, x, h, z, icon, pr, n: 1 }); return; }
       c.n++;

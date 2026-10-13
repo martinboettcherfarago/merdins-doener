@@ -79,7 +79,7 @@ export function firewallDecor(g, f, y0, y1, rng, kind) {
         const r = rr(rng, 0.75, 1.0);
         pts.push([cu + Math.cos(a) * w / 2 * r, y0 + h / 2 + Math.sin(a) * h / 2 * r]);
       }
-      const mat = k % 2 ? 'leaves_dark' : 'hedge';
+      const mat = k % 2 ? 'leaves_dark' : 'ivy';
       g.shape2(mat, pts.map(([u, y]) => [u, Math.max(y0, y)]), [], (u, y) => [f.ox + f.c * u + f.s * (0.03 + k * 0.01) * M, y, f.oz - f.s * u + f.c * (0.03 + k * 0.01) * M], [f.s, 0, f.c]);
     }
     return;
@@ -346,7 +346,7 @@ function modernMfh(ctx, g, P, o = {}) {
       if (b === entrBay) return { ...entranceOp({ canopy: null, depth: 1.2 * M, w: 1.8 * M, h: 2.7 * M, frame: fr }), y: 0.0 };
       return winT({ w: 1.6 * M, h: 1.6 * M, y: 0.9 * M, frame: fr, panes: { cols: 2, ft: 0.06 * M }, sill: 'metal_light' });
     }
-    if (loggiaBays.has(b)) return { kind: 'loggia', w: 2.5 * M, h: st.fh - 0.25 * M, y: 0.05 * M, depth: 1.5 * M, frame: fr, backWall: accent, reveal: accent, parapet: o.glassRail ? 'metal_light' : wall, rail: chance(rng, 0.5) ? 'bars' : null, plants: chance(rng, 0.4) ? 'leaves_green' : null };
+    if (loggiaBays.has(b)) return { kind: 'loggia', w: 2.5 * M, h: st.fh - 0.25 * M, y: 0.05 * M, depth: 1.5 * M, frame: fr, backWall: accent, reveal: accent, parapet: o.glassRail ? 'glass_railing' : wall, rail: chance(rng, 0.5) ? 'bars' : null, plants: chance(rng, 0.4) ? 'leaves_green' : null };
     return winT({ w: 1.3 * M, h: 2.3 * M, y: 0.05 * M, frame: fr, panes: { cols: 2, ft: 0.06 * M }, sill: null, french: 'metal_dark' });
   });
   const backOps = rows(st, us, (f, b) => {
@@ -728,7 +728,7 @@ function wohnturm(ctx, g, P) {
     if (g.detail >= 1) {
       for (const s of ['front', 'back']) {
         const f = mframe(m.cx, m.cz, m.sx, m.sz, s);
-        for (let fl = 0; fl < k; fl++) for (const sg of [-1, 1]) balcony(g, f, sg * (m.sx / 2 - 1.3 * M), st.y[fl] + 0.02 * M, 2.4 * M, 1.4 * M, { slab: 'concrete', rail: 'metal_light', type: 'panel' });
+        for (let fl = 0; fl < k; fl++) for (const sg of [-1, 1]) balcony(g, f, sg * (m.sx / 2 - 1.3 * M), st.y[fl] + 0.02 * M, 2.4 * M, 1.4 * M, { slab: 'concrete', rail: 'glass_railing', type: 'panel' });
       }
     }
     band(g, 'concrete', m, st.top - 0.25 * M, 0.25 * M, 0.08 * M);
@@ -986,7 +986,7 @@ function zwillinge(ctx, g, P) {
     towerFloors(g, m, st, { bay: 2.4 * M, win: (fl, b, nb) => winT({ w: b === nb - 1 ? 2.2 * M : 1.5 * M, h: b === nb - 1 ? 2.5 * M : 1.6 * M, y: b === nb - 1 ? 0.05 * M : 0.75 * M, frame: 'window_frame_dark', panes: { cols: 2 }, sill: 'metal_light' }) });
     if (g.detail >= 1) {
       const f = mframe(tx, tz, m.sx, m.sz, 'front');
-      for (let fl = 0; fl < n; fl++) balcony(g, f, (fl % 2 ? 1 : -1) * m.sx * 0.2, st.y[fl] + 0.02 * M, 3.0 * M, 1.5 * M, { slab: 'concrete', rail: 'metal_light', type: 'panel' });
+      for (let fl = 0; fl < n; fl++) balcony(g, f, (fl % 2 ? 1 : -1) * m.sx * 0.2, st.y[fl] + 0.02 * M, 3.0 * M, 1.5 * M, { slab: 'concrete', rail: 'glass_railing', type: 'panel' });
     }
     flatRoof(g, m, st.top, { mat: 'roof_flat_gravel', wall, parapet: 1.0 * M });
     rooftop(g, tx, st.top, tz, m.sx, m.sz, { stair: true, n: 2 });

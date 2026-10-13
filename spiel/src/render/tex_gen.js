@@ -1096,4 +1096,6 @@ export const SURFACE = {
   meadow: P('grass', { second: 0xc9b86a, scale: 0.7, flags: F_GROUND, grime: 0, porous: 0.5 }), forest_floor: P('dirt', { second: 0x4a3a24, flags: F_GROUND, grime: 0 }),
   metal_grating: P('chain', { second: 'base', scale: 2, flags: F_CUTOUT, grime: 0 }), wood_deck: P('wood', { second: 0x2a1f16, scale: 1.2, flags: F_PUDDLE, grime: 0 }),
   paint_black: P('paint', { second: 0x6a6a6a }), paint_teal: P('paint', { second: 0x8a8580 }),
+  glass_railing: P('paint', { second: 0x8fa4ae, rough: 0.5, normal: 0.2, grime: 0, porous: 0 }),
+  ivy: P('leaves', { second: 0x1c321b, scale: 1.4, flags: F_LEAVES, grime: 0, porous: 0.3 }),
 };

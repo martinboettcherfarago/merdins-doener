@@ -72,11 +72,22 @@ export function tube(kit, mat, pts, r, o = {}) {
 
 // Ebene Fläche aus einem 2D-Umriss (mit Löchern), extrudiert entlang z (Tiefe depth, mittig),
 // dann wie kit.add platziert: o = {x, y, z, rx, ry, rz, lit}
+// Gleiche Umrisse (Fenster, Bögen, Giebel) wiederholen sich oft – die Extrusion (Triangulierung) wird
+// zwischengespeichert; kit.add kopiert die Geometrie ohnehin, bevor es sie verschiebt.
+const SLAB_CACHE = new Map();
 export function slab(kit, mat, outline, depth, o = {}, holes = []) {
-  const shape = new THREE.Shape(outline.map(([a, b]) => new THREE.Vector2(a, b)));
-  for (const h of holes) shape.holes.push(new THREE.Path(h.map(([a, b]) => new THREE.Vector2(a, b))));
-  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 6 });
-  geo.translate(0, 0, -depth / 2);
+  const q = (v) => Math.round(v * 1e5);
+  let key = q(depth) + ':' + outline.map(([a, b]) => q(a) + ',' + q(b)).join(';');
+  for (const h of holes) key += '|' + h.map(([a, b]) => q(a) + ',' + q(b)).join(';');
+  let geo = SLAB_CACHE.get(key);
+  if (!geo) {
+    const shape = new THREE.Shape(outline.map(([a, b]) => new THREE.Vector2(a, b)));
+    for (const h of holes) shape.holes.push(new THREE.Path(h.map(([a, b]) => new THREE.Vector2(a, b))));
+    geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: 6 });
+    geo.translate(0, 0, -depth / 2);
+    if (SLAB_CACHE.size > 4000) SLAB_CACHE.clear();
+    SLAB_CACHE.set(key, geo);
+  }
   return kit.add(mat, geo, o);
 }
 

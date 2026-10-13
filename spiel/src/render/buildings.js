@@ -1856,6 +1856,33 @@ export class BuildingView {
     }
   }
 
+  // ------------------------------------------------------------------ Vorbauen im Leerlauf
+  // Teure Modelle (Wahrzeichen, Verkehrsbauten; Bauzeit 40–200 ms) in Detailstufe 1 und 2 vorab bauen, wenn der
+  // Browser Leerlauf hat – sonst ruckelt es genau beim Heranzoomen. Eines pro Leerlauf, die fertigen bleiben erhalten.
+  _prebuild(dt) {
+    this.preT = (this.preT ?? 4) - dt;
+    if (this.preT > 0 || this._preBusy || this.queue.size || this.lodPos < this.lodList.length) return;
+    this.preT = 0.4;
+    const mgr = this.protoMgr;
+    const run = () => {
+      this._preBusy = false;
+      if (this.queue.size) return;
+      let built = false;
+      for (const rec of this.recs.values()) {
+        if (rec.dead || rec.dyingT >= 0 || !rec.finished || !rec.p0 || !heavyKey(rec)) continue;
+        for (const d of [1, 2]) {
+          let p = mgr.peek(rec.key, rec.level, rec.variant, rec.fw, rec.fd, d);
+          if (!p && !built) { p = mgr.get(rec.key, rec.level, rec.variant, rec.fw, rec.fd, rec.extra, d); built = true; }
+          if (p) p.keepUntil = mgr.time + 30;
+        }
+      }
+      if (!built) this.preT = 6; // alles vorhanden – seltener prüfen
+    };
+    this._preBusy = true;
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 2000 });
+    else setTimeout(run, 30);
+  }
+
   // ------------------------------------------------------------------ Abriss, Staub
   _dyingFrame(dt) {
     for (const rec of this.dying) {
@@ -1963,6 +1990,7 @@ export class BuildingView {
     this.lodT -= dt;
     if (this.lodT <= 0 || this._lastCam.distanceToSquared(cam) > 9) { this.lodT = LOD_TICK; this._lastCam.copy(cam); this._lodTick(); }
     this._work(budget);
+    this._prebuild(dt);
     this._sitesFrame(dt, time);
     this._dyingFrame(dt);
     this._animate(dt, night);
@@ -2046,3 +2074,11 @@ export function previewModel(key, level = 1, variant = 0, fw, fd, extra = {}, de
 
 export function stationHeight() { return TRANSIT.trackHeight; }
 void Z;
+
+// Teure Modelle: Wahrzeichen und große Verkehrsbauten (Bauzeit in Detailstufe 2 oft 40–200 ms)
+const HEAVY_CATS = new Set(['landmarks', 'transport']);
+function heavyKey(rec) {
+  const def = BUILDINGS[rec.b && rec.b.key];
+  if (def && HEAVY_CATS.has(def.cat)) return true;
+  return !!(rec.p0 && rec.p0.ms > 12);
+}
