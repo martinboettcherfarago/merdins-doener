@@ -23,10 +23,12 @@ export class Bot {
     this.rng = 12345;
     this.lastMs = g.milestone;
     this.loanTaken = 0;
+    for (const b of g.buildings.values()) if (!b.zone) this.tally(b.key);
     g.on('cards', (ids) => g.chooseCard(this.pickCard(ids)));
     g.on('event', () => g.resolveEvent(this.pickEvent()));
   }
 
+  banned(key) { return !!(this.o.banned && this.o.banned.includes(key)); }
   say(t) { this.log.push(`T${this.g.day()} ${t}`); }
   tally(k) { this.count[k] = (this.count[k] || 0) + 1; }
   rand() { this.rng = (this.rng * 1103515245 + 12345) & 0x7fffffff; return this.rng / 0x7fffffff; }
@@ -34,6 +36,13 @@ export class Bot {
   free(kind = 'core') {
     const g = this.g;
     let res = (this.o.reserve ?? 1200) + g.stats.pop * 0.4;
+    // Geldziel im Szenario: ab dem ersten Drittel wird gespart (Ausbau läuft nur noch aus dem Überschuss)
+    const mg = this.goal('money');
+    if (mg && !mg.done && kind === 'svc' && this.o.status(g).elapsed > (this.o.status(g).sc.days || 60) * 0.35) res = Math.max(res, mg.goal.target * 0.9);
+    if (this.goal('loans') && g.loans.length) res = Math.max(res, 3000);
+    // Fahrgastziel: Geld für Züge und Waggons zurückhalten
+    const rg = this.goal('riders');
+    if (rg && !rg.done && kind === 'svc') res += 8000;
     if (kind === 'svc' && this.savingForTransit()) res += 12000;
     return g.money - res;
   }
@@ -82,17 +91,15 @@ export class Bot {
     if (s === 'main') return [Z.COM, Z.OFF];
     return [Z.IND];
   }
+  // Mögliche neue Blöcke: frei, bebaubar und am Straßennetz (auch an einer vorhandenen Startstadt)
   frontier() {
-    const out = [];
-    const seen = new Set();
-    const add = (k, m) => {
-      const key = k + ',' + m;
-      if (seen.has(key) || this.blocks.has(key) || k < 0) return;
-      seen.add(key);
-      if (this.blockOk(k, m)) out.push([k, m]);
-    };
-    if (!this.blocks.size) { add(0, -1); add(0, 0); }
-    for (const b of this.blocks.values()) { add(b.k + 1, b.m); add(b.k - 1, b.m); add(b.k, b.m + 1); add(b.k, b.m - 1); }
+    const g = this.g, out = [];
+    const endT = g.world.highwayEnd;
+    for (let m = -9; m <= 9; m++) for (let k = 0; k <= 17; k++) {
+      if (this.blocks.has(k + ',' + m) || !this.blockOk(k, m)) continue;
+      const touch = this.perim(k, m).some((i) => (g.road[i] && g.road[i] !== R.HIGHWAY && g.roadComp[i] === g.outsideComp) || i === endT + 1);
+      if (touch) out.push([k, m]);
+    }
     return out;
   }
   blockCost(k, m) {
@@ -128,8 +135,12 @@ export class Bot {
   expand() {
     const g = this.g;
     let built = 0;
-    const zones = [Z.RES, Z.COM, Z.IND];
+    let zones = [Z.RES, Z.COM, Z.IND];
     if (g.isUnlocked('zone4')) zones.push(Z.OFF);
+    if (this.noExpand()) return 0;
+    const pmax = this.goal('popmax'), ind = this.goal('jobs3');
+    if (pmax && g.stats.pop > pmax.goal.target * 0.8) zones = zones.filter((z) => z !== Z.RES);
+    if (ind && ind.goal.cmp === '<=') zones = zones.filter((z) => z !== Z.IND);
     const want = zones.map((z) => [z, g.demand[z], this.freeZoneTiles(z)])
       .filter(([z, d, f]) => d > 12 && f < (z === Z.RES ? 14 : 8))
       .sort((a, b) => b[1] - a[1]);
@@ -165,7 +176,7 @@ export class Bot {
   // Sucht in wachsendem Abstand um (tx, ty) einen gültigen Bauplatz. avoid: Abstand zu Wohnzonen halten.
   placeNear(key, tx, ty, maxR = 10, { avoid = 0, preferFree = true } = {}) {
     const g = this.g, W = this.W;
-    if (!g.isUnlocked(key)) return null;
+    if (!g.isUnlocked(key) || this.banned(key)) return null;
     const cost = g.buildingCost(key);
     const core = ['coal', 'gas', 'wind', 'watertower', 'pump', 'landfill', 'incinerator', 'station', 'bus_depot'].includes(key);
     if (this.free(core ? 'core' : 'svc') < cost) return null;
@@ -215,7 +226,9 @@ export class Bot {
     const g = this.g;
     computeUtilities(g);
     const oc = g.outsideComp;
-    const ps = g.util.pSup?.[oc] || 0, pd = g.util.pDem?.[oc] || 0;
+    let ps = g.util.pSup?.[oc] || 0;
+    const pd = g.util.pDem?.[oc] || 0;
+    for (const b of g.buildings.values()) if (!b.zone && b.construct < 1 && b.comp === oc) ps += BUILDINGS[b.key].power || 0;
     const need = pd * 1.2 + 40;
     if (ps >= need) return false;
     const deficit = need - ps;
@@ -223,6 +236,9 @@ export class Bot {
     // Große Lücke und genug Geld: Kohlekraftwerk weit weg im Süden, sonst Windräder
     if (deficit > 160 && this.free() > g.buildingCost('coal') + 1500) {
       if (this.placeNear('coal', cx + 4, this.southEdge() + 3, 14, { avoid: 5 })) return true;
+    }
+    if (this.banned('coal') && g.isUnlocked('solar') && deficit > 200 && this.free() > g.buildingCost('solar') + 1500) {
+      if (this.placeNear('solar', cx, this.southEdge() + 3, 14)) return true;
     }
     if (g.milestone >= 3 && deficit > 300 && this.free() > g.buildingCost('gas') + 3000) {
       if (this.placeNear('gas', cx, this.southEdge() + 3, 14, { avoid: 4 })) return true;
@@ -233,7 +249,9 @@ export class Bot {
     const g = this.g;
     computeUtilities(g);
     const oc = g.outsideComp;
-    const ws = g.util.wSup?.[oc] || 0, wd = g.util.wDem?.[oc] || 0;
+    let ws = g.util.wSup?.[oc] || 0;
+    const wd = g.util.wDem?.[oc] || 0;
+    for (const b of g.buildings.values()) if (!b.zone && b.construct < 1 && b.comp === oc) ws += BUILDINGS[b.key].water || 0;
     if (ws >= wd * 1.2 + 30) return false;
     const [cx, cy] = this.center();
     // Pumpwerk am Ufer, wenn es nah genug ist (weit weg vom Abwasserauslass), sonst Wassertürme
@@ -248,7 +266,7 @@ export class Bot {
   // awayFrom: Abstand zu diesen Gebäuden (Pumpwerk ↔ Auslass), wie es ein umsichtiger Mensch macht.
   shorePlace(key, cx, cy, { maxDist = 30, awayFrom = [], sep = 22 } = {}) {
     const g = this.g, W = this.W, H = this.H, ter = g.world.terrain;
-    if (!g.isUnlocked(key) || this.free(key === 'pump' ? 'core' : 'svc') < g.buildingCost(key) + 400) return false;
+    if (!g.isUnlocked(key) || this.banned(key) || this.free(key === 'pump' ? 'core' : 'svc') < g.buildingCost(key) + 400) return false;
     const avoid = this.o.naive ? [] : [...g.buildings.values()].filter((b) => awayFrom.includes(b.key));
     const [w0, h0] = BUILDINGS[key].size;
     const dry = (i) => ter[i] !== T.WATER && ter[i] !== T.ROCK && !g.bld[i] && !g.stationAt[i];
@@ -406,6 +424,21 @@ export class Bot {
     }
     return null;
   }
+  // Straßenfelder, auf denen eine Station stehen kann, mit Einwohnern und Arbeitsplätzen im Einzugsbereich
+  stationSites() {
+    const g = this.g, W = this.W, out = [];
+    const blds = [...g.buildings.values()].filter((b) => b.zone && !b.abandoned && b.occ > 0);
+    for (let i = 0; i < g.N; i += 1) {
+      if (!g.road[i] || g.road[i] === R.HIGHWAY) continue;
+      const x = i % W, y = (i / W) | 0;
+      if ((x + y) % 2) continue;
+      if (g.checkPlace('station', x, y)) continue;
+      let res = 0, jobs = 0;
+      for (const b of blds) { if (Math.abs(b.x - x) > 4 || Math.abs(b.y - y) > 4 || Math.hypot(b.x - x, b.y - y) > 4.5) continue; if (b.zone === Z.RES) res += b.occ; else jobs += b.occ; }
+      if (res + jobs > 0) out.push({ x, y, res, jobs });
+    }
+    return out;
+  }
   transit() {
     const g = this.g;
     if (!this.o.transit || !g.isUnlocked('transit')) return false;
@@ -415,31 +448,38 @@ export class Bot {
       this.saveStart ??= g.day();
       if (g.day() - this.saveStart > 8) { this.saveFrom = g.day() + 8; this.saveStart = null; }
     }
-    // Erste Linie: Wohngebiet (Norden) – Hauptstraße – Arbeit (Süden), dazu Ost-West entlang der Hauptstraße
-    if (!T.lines.length && g.stats.pop > 900 && this.free() > 12000) {
-      let kmax = 0;
-      for (const b of this.blocks.values()) kmax = Math.max(kmax, b.k);
-      const xs = [1, Math.max(2, Math.round(kmax / 2)), Math.max(3, kmax)].map((k) => this.x0 + B * k + 3);
-      const st = [];
-      for (const x of xs) { const s = this.stationOn(x, this.hy); if (s) st.push(s); }
-      if (st.length >= 2) {
-        const r = g.createLine(st.map((s) => s.id), false);
-        if (r.ok) { this.tally('line'); this.say(`Pulsbahn-Linie 1 (${st.length} Stationen)`); }
+    // Linien wie ein Mensch: vom dichtesten Wohngebiet über die Mitte zum größten Arbeitsplatzgebiet
+    const rg = this.goal('riders');
+    const maxLines = rg ? T.linesMax : Math.min(T.linesMax, g.stats.pop > 4000 ? 3 : 2);
+    const needPop = T.lines.length === 0 ? 900 : 1800 * T.lines.length;
+    if (T.lines.length < maxLines && (g.stats.pop > needPop || rg) && this.free() > (T.lines.length ? 9000 : 12000)) {
+      const sites = this.stationSites();
+      const taken = [...T.stations.values()];
+      const far = (t, list, d) => list.every((s) => Math.hypot(s.x - t.x, s.y - t.y) >= d);
+      const A = sites.filter((t) => far(t, taken, 7)).sort((a, b) => b.res - a.res)[0];
+      const C = A && sites.filter((t) => far(t, taken, 7) && Math.hypot(t.x - A.x, t.y - A.y) >= 9).sort((a, b) => b.jobs - a.jobs)[0];
+      if (A && C && A.res > 60 && C.jobs > 60) {
+        const mx = (A.x + C.x) / 2, my = (A.y + C.y) / 2;
+        // Umsteigen an einer vorhandenen Station, sonst eine neue in der Mitte
+        let mid = taken.length ? taken.sort((p, q) => Math.hypot(p.x - mx, p.y - my) - Math.hypot(q.x - mx, q.y - my))[0] : null;
+        if (mid && Math.hypot(mid.x - mx, mid.y - my) > Math.hypot(A.x - C.x, A.y - C.y) * 0.45) mid = null;
+        const st = [];
+        const put = (t) => { const r = g.placeBuilding('station', t.x, t.y); return r.ok ? r.station : null; };
+        const a = put(A);
+        if (!mid) { const M = sites.filter((t) => far(t, [A, C], 5)).sort((p, q) => Math.hypot(p.x - mx, p.y - my) - Math.hypot(q.x - mx, q.y - my))[0]; mid = M ? put(M) : null; }
+        const c = put(C);
+        for (const x of [a, mid, c]) if (x && !st.includes(x)) st.push(x);
+        if (st.length >= 2) {
+          const r = g.createLine(st.map((x) => x.id), false);
+          if (r.ok) { this.tally('line'); this.say(`Pulsbahn-Linie ${T.lines.length} (${st.length} Stationen)`); }
+        }
       }
-      return true;
-    }
-    if (T.lines.length === 1 && T.linesMax > 1 && g.stats.pop > 1800 && this.free() > 9000) {
-      const xm = this.x0 + B * 2 + 3;
-      const b = [...T.stations.values()].sort((p, q) => Math.abs(p.x - xm) - Math.abs(q.x - xm))[0];
-      const a = this.stationOn(b.x, this.hy - 2 * B), c = this.stationOn(b.x, this.hy + 2 * B);
-      const ids = [...new Set([a, b, c].filter(Boolean).map((s) => s.id))];
-      if (ids.length >= 2) { const r = g.createLine(ids, false); if (r.ok) { this.tally('line'); this.say('Pulsbahn-Linie 2 (Nord–Süd)'); } }
       return true;
     }
     // Überfüllte Stationen: Waggons, dann Züge
     for (const l of T.lines) {
       const sts = l.stops.map((id) => T.stations.get(id)).filter(Boolean);
-      const crowded = sts.some((s) => s.waiting.length > 10 || s.penaltyUntil > g.time);
+      const crowded = sts.some((s) => s.waiting.length > 10 || s.penaltyUntil > g.time) || (rg && !rg.done);
       if (!crowded || this.free() < 4000) continue;
       const r = g.addWagon(l.id);
       if (r.ok) { this.tally('wagon'); continue; }
@@ -452,34 +492,64 @@ export class Bot {
     const g = this.g;
     if (!this.o.buses || !g.isUnlocked('bus_depot') || !g.ext.transport) return false;
     const TS = g.ext.transport;
-    if (g.stats.pop < 1400) return false;
+    const cm = this.goal('commute');
+    if (g.stats.pop < (cm ? 300 : 1400)) return false;
     if (!this.count.bus_depot) {
-      if (this.free() < 14000) return false;
-      const [cx] = this.center();
-      return !!this.placeNear('bus_depot', cx, this.hy + 3, 12, { avoid: 1 });
+      if (this.free() < 9000) return false;
+      const [cx, cy] = this.center();
+      return !!this.placeNear('bus_depot', cx, cy + 4, 12, { avoid: 1 });
     }
-    if (TS.lines.length >= 2 || this.free() < 6000) return false;
-    // Buslinie quer durch die Wohnblöcke, dann zur Arbeit
-    const row = TS.lines.length === 0 ? this.hy - B : this.hy - 2 * B;
-    const pts = [];
-    let kmax = 0;
-    for (const b of this.blocks.values()) kmax = Math.max(kmax, b.k);
-    for (let k = 0; k <= kmax; k += 2) {
-      const x = this.x0 + B * k + 3;
-      const t = row * this.W + x;
-      if (!TPS.canStop(g, t, 'bus')) pts.push(t);
+    // Volle Linien verdichten (mehr Busse), dann neue Linien
+    for (const l of TS.lines) if (l.load > 0.75 && l.nveh < 6 && this.free() > 3000) TPS.setVehicles(g, l.id, l.nveh + 1);
+    const maxL = cm ? 5 : g.stats.pop > 5000 ? 3 : 2;
+    if (TS.lines.length >= maxL || this.free() < 5000 || g.day() % 2) return false;
+    // Haltestellen wie ein Mensch: durch das dichteste Wohngebiet ohne Bus zu den meisten Arbeitsplätzen
+    const W = this.W, cov = TS.covField;
+    const blds = [...g.buildings.values()].filter((b) => b.zone && !b.abandoned && b.occ > 0);
+    const cands = [];
+    for (let i = 0; i < g.N; i += 1) {
+      if (!g.road[i] || g.road[i] === R.HIGHWAY || TPS.canStop(g, i, 'bus')) continue;
+      const x = i % W, y = (i / W) | 0;
+      let res = 0, jobs = 0;
+      for (const b of blds) { if (Math.abs(b.x - x) > 3 || Math.abs(b.y - y) > 3) continue; if (b.zone === Z.RES) res += b.occ; else jobs += b.occ; }
+      const served = cov ? cov[i] : 0;
+      cands.push({ i, x, y, res: res * (1 - 0.8 * served), jobs });
     }
-    const yS = this.hy + B + 3, xS = this.x0 + B * Math.max(1, Math.round(kmax / 2));
-    if (!TPS.canStop(g, yS * this.W + xS, 'bus')) pts.push(yS * this.W + xS);
-    if (pts.length < 3) return false;
-    const r = TPS.createLine(g, 'bus', pts.slice(0, 8), false);
-    if (r.ok) { this.tally('busline'); this.say(`Buslinie ${TS.lines.length} (${Math.min(8, pts.length)} Halte)`); }
+    const pick = (key, n, list) => {
+      const out = [];
+      for (const c of [...cands].sort((a, b) => b[key] - a[key])) {
+        if (out.length >= n) break;
+        if (c[key] <= 20) break;
+        if ([...out, ...list].some((o) => Math.hypot(o.x - c.x, o.y - c.y) < 5)) continue;
+        out.push(c);
+      }
+      return out;
+    };
+    const rs = pick('res', 3, []), js = pick('jobs', 2, rs);
+    if (rs.length < 2 || !js.length) return false;
+    // Reihenfolge: nächster Nachbar ab der Wohnhaltestelle, die am weitesten von der Arbeit liegt
+    const all = [...rs, ...js];
+    const jc = js[0];
+    all.sort((a, b) => Math.hypot(b.x - jc.x, b.y - jc.y) - Math.hypot(a.x - jc.x, a.y - jc.y));
+    const seq = [all.shift()];
+    while (all.length) { const l = seq[seq.length - 1]; all.sort((a, b) => Math.hypot(a.x - l.x, a.y - l.y) - Math.hypot(b.x - l.x, b.y - l.y)); seq.push(all.shift()); }
+    const r = TPS.createLine(g, 'bus', seq.map((c) => c.i), false);
+    if (r.ok) { this.tally('busline'); TPS.setVehicles(g, r.line.id, 2); this.say(`Buslinie ${TS.lines.length} (${seq.length} Halte)`); }
     return r.ok;
   }
 
   // ------------------------------------------------------------ Geld
+  // Szenario-Ziele lesen (was ein Mensch in der Zieltafel sieht)
+  goal(id) { const st = this.o.status && this.o.status(this.g); return st ? st.goals.find((x) => x.goal.id === id) || null : null; }
   finances() {
     const g = this.g;
+    // Szenario „Schulden": Kredite so früh wie möglich tilgen
+    if (this.goal('loans') && g.loans.length) {
+      const rests = g.loans.map((l) => (l.amount / l.weeks) * l.weeksLeft);
+      const k = rests.indexOf(Math.min(...rests));
+      if (g.money > rests[k] + 3000) { g.repayLoan(k); this.say('tilgt einen Kredit vorzeitig'); }
+      return;
+    }
     // Kredit, wenn die Kasse leer ist und die Bilanz nicht trägt (wie ein Mensch es täte)
     if (g.money < 1500 && (g.lastBudget?.net || 0) < 300 && g.isUnlocked('loans') && !g.loans.length && this.loanTaken < 2) {
       g.takeLoan(0); this.loanTaken++; this.say('nimmt einen Kredit auf');
@@ -509,9 +579,103 @@ export class Bot {
     if (this.blockOk(0, 1)) this.buildBlock(0, 1, Z.IND); else if (this.blockOk(1, 1)) this.buildBlock(1, 1, Z.IND);
     this.power(); this.water();
   }
+  // Alle Ziele außer Geld erfüllt → nicht mehr ausbauen, nur noch sparen (wie ein Mensch kurz vor dem Ziel)
+  noExpand() {
+    const st = this.o.status && this.o.status(this.g);
+    if (!st) return false;
+    const mg = st.goals.find((x) => x.goal.id === 'money');
+    if (mg && !mg.done && st.goals.every((x) => x === mg || x.done)) return true;
+    const cm = st.goals.find((x) => x.goal.id === 'commute');
+    const pg = st.goals.find((x) => x.goal.id === 'pop');
+    if (cm && pg && this.g.stats.pop > pg.goal.target * 1.1) return true;
+    return false;
+  }
+  // Was ein Mensch aus der Zieltafel eines Szenarios ableitet
+  scenarioGoals() {
+    const g = this.g;
+    const st = this.o.status && this.o.status(g);
+    if (!st || st.st.status !== 'running') return;
+    const G = (id) => st.goals.find((x) => x.goal.id === id);
+    const [cx, cy] = this.center();
+    // Teure Verordnungen abschaffen, wenn gespart werden muss
+    if ((G('loans') || G('money')) && !this.policiesDone) {
+      for (const id of [...g.policies]) if (id !== 'tenants' && id !== 'lowrise') g.togglePolicy(id);
+      this.policiesDone = true; this.say('schafft teure Verordnungen ab');
+    }
+    // Steuern: zu hoch für das Glücksziel?
+    const hp = G('happy');
+    if (hp && !hp.done && (g.lastBudget?.net || 0) > 600 && g.day() % 3 === 0) {
+      for (const z of [1, 2, 3, 4]) if (g.taxes[z] > 8) g.setTax(z, g.taxes[z] - 1);
+    }
+    // Gebäude, die das Szenario verlangt, und Gutscheine für Wahrzeichen
+    for (const x of st.goals) if (x.goal.id.startsWith('built_') && !x.done) {
+      const key = x.goal.id.slice(6);
+      if (BUILDINGS[key]?.needsWater) this.shorePlace(key, cx, cy, { maxDist: 30 }); else this.placeNear(key, cx, cy + 2, 12);
+    }
+    for (const key of [...g.landmarkVouchers]) {
+      if (BUILDINGS[key]?.needsWater) this.shorePlace(key, cx, cy, { maxDist: 30 }); else this.placeNear(key, cx, cy + 2, 12);
+    }
+    // Tourismus und Wahrzeichen: jedes freigeschaltete Wahrzeichen, Strandbäder, Hauptbahnhof
+    const tg = G('tourism'), lg = G('landmarks');
+    if ((tg && !tg.done) || (lg && !lg.done)) {
+      const lms = Object.keys(BUILDINGS).filter((k) => BUILDINGS[k].landmark && g.isUnlocked(k) && !g.hasBuilt(k)).sort((a, b) => BUILDINGS[b].tourism / BUILDINGS[b].cost - BUILDINGS[a].tourism / BUILDINGS[a].cost);
+      for (const key of lms.slice(0, 1)) {
+        if (BUILDINGS[key].needsWater) this.shorePlace(key, cx, cy, { maxDist: 30 }); else this.placeNear(key, cx, cy + 2, 14);
+      }
+      if (tg && (this.count.beach || 0) < 4) this.shorePlace('beach', cx, cy, { maxDist: 30 });
+      if (tg && g.isUnlocked('train_station') && !this.count.train_station) this.placeNear('train_station', cx, cy + 4, 14);
+      if (tg && g.isUnlocked('taxi_depot') && !this.count.taxi_depot) this.placeNear('taxi_depot', cx, cy + 2, 10);
+    }
+    // Parks zählen
+    const pk = G('parks');
+    if (pk && !pk.done) {
+      const key = g.isUnlocked('allotment') && this.free('svc') > 4000 ? 'allotment' : 'park';
+      this.placeNear(key, cx + ((g.day() * 7) % 11) - 5, cy + ((g.day() * 5) % 9) - 4, 10);
+    }
+    // Bildung: Universität, Gymnasium, Bibliotheken, Bildungsoffensive
+    const ed = G('edu');
+    if (ed && !ed.done) {
+      if (g.isUnlocked('university') && (this.count.university || 0) < 1 + Math.floor(g.stats.pop / 9000)) this.placeNear('university', cx, cy, 14);
+      if (g.isUnlocked('highschool') && (this.count.highschool || 0) < 1 + Math.floor(g.stats.pop / 4000)) this.placeNear('highschool', cx, cy, 12);
+      if (g.isUnlocked('library') && (this.count.library || 0) < g.stats.pop / 1200) this.gap('edu', 'library', 0.7, { zones: [Z.RES], r: 6 });
+      if (g.isUnlocked('policies') && !g.policies.has('education') && g.milestone >= 3) g.togglePolicy('education');
+    }
+    // Pendelzeit: Lücken im Straßenraster schließen (mehr Wege zur Arbeit), Gassen ausbauen
+    const cm = G('commute');
+    if (cm && !cm.done && this.free() > 3000 && !this.gapsDone) { this.connectGaps(); this.gapsDone = true; }
+    if (cm && !cm.done && this.free() > 3000) {
+      const lanes = [];
+      for (let i = 0; i < g.N && lanes.length < 60; i++) if (g.road[i] === R.LANE) lanes.push(i);
+      if (lanes.length) { const r = g.buildRoad(lanes, g.isUnlocked('avenue') ? R.AVENUE : R.STREET); if (r.ok) this.say(`baut ${lanes.length} Gassenfelder aus`); }
+    }
+  }
+  // Waagrechte und senkrechte Lücken (bis 12 Felder) zwischen Straßenenden schließen, wenn das Land frei ist
+  connectGaps() {
+    const g = this.g, W = this.W, H = this.H;
+    let n = 0;
+    const free = (i) => !g.road[i] && !g.bld[i] && !g.stationAt[i] && g.world.terrain[i] !== T.WATER && g.world.terrain[i] !== T.ROCK;
+    for (const horiz of [true, false]) {
+      for (let a = 1; a < (horiz ? H : W) - 1; a++) {
+        let last = -1;
+        for (let b = 1; b < (horiz ? W : H) - 1; b++) {
+          const i = horiz ? a * W + b : b * W + a;
+          if (!g.road[i] || g.road[i] === R.HIGHWAY) continue;
+          if (last >= 0 && b - last > 1 && b - last <= 12) {
+            const tiles = [];
+            for (let c = last + 1; c < b; c++) tiles.push(horiz ? a * W + c : c * W + a);
+            if (tiles.every(free) && this.free() > tiles.length * 50 + 2000) { if (g.buildRoad(tiles, R.STREET).ok) n += tiles.length; }
+          }
+          last = b;
+        }
+      }
+    }
+    if (n) this.say(`schließt Lücken im Straßennetz (${n} Felder)`);
+    return n;
+  }
   daily() {
     const g = this.g;
     if (g.gameOver) return;
+    this.scenarioGoals();
     if (g.milestone !== this.lastMs) {
       for (let m = this.lastMs + 1; m <= g.milestone; m++) this.unlockDay[MILESTONES[m].name] = g.day();
       this.lastMs = g.milestone;

@@ -201,9 +201,11 @@ check(g.stats.pop > 1500, `Stadt wächst (${g.stats.pop} Einwohner)`);
   const w = g.ext.weather || (g.ext.weather = {});
   const keep = w.season;
   const farmOut = () => { let s = 0; for (const b of g.buildings.values()) if (b.spec === 'farm') s += S.rec.get(b.id)?.out || 0; return s; };
-  w.season = 'summer'; for (let s = 0; s < 13; s++) g.update(0.1);
+  // Jahreszeit direkt setzen und nur die Produktion rechnen (g.update ließe das Wettersystem die Jahreszeit zurücksetzen)
+  const IND = g.system('industry');
+  w.season = 'summer'; IND.hourly(g, 5);
   const summer = farmOut();
-  w.season = 'winter'; for (let s = 0; s < 13; s++) g.update(0.1);
+  w.season = 'winter'; IND.hourly(g, 5);
   const winter = farmOut();
   w.season = keep;
   check(winter < summer * 0.6 && winter > 0, `Bauernhöfe ernten im Winter weniger (${Math.round(summer)} → ${Math.round(winter)} t/Tag)`);

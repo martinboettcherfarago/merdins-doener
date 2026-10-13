@@ -35,13 +35,16 @@ for (const map of maps) for (const seed of seeds) {
   bot.start();
   console.log(`\n=== ${map} (Saat ${seed}), ${days} Tage, Start ${fmt(g.money)} € ===`);
   const rec = [];
-  let maxPop = 0, minMoney = g.money, negDays = 0, maxNeg = 0, spiral = [], lowHappy = 0, maxLow = 0;
+  let penSum = 0, maxPop = 0, minMoney = g.money, negDays = 0, maxNeg = 0, spiral = [], lowHappy = 0, maxLow = 0;
   const t0 = Date.now();
   const snap = {};
   for (let d = 1; d <= days; d++) {
     runDay(g);
     bot.daily();
     const s = g.stats, C = g.ext.citizens?.stats || {};
+    let pen = 0, nres = 0;
+    for (const b of g.buildings.values()) if (b.zone === Z.RES && !b.abandoned) { nres++; if (g.transitPenalty[b.y * g.W + b.x] > 0) pen++; }
+    penSum += nres ? pen / nres : 0;
     const r = { d, pop: s.pop, money: g.money, net: g.lastBudget.net, happy: s.happiness, ab: s.abandoned, ms: g.milestone, riders: s.ridersToday, bus: g.ext.transport?.day?.riders || 0, out: C.moveOut || 0, unemp: s.unemployment, flow: s.trafficFlow };
     rec.push(r);
     maxPop = Math.max(maxPop, s.pop);
@@ -63,11 +66,15 @@ for (const map of maps) for (const seed of seeds) {
   for (const [d, t] of Object.entries(snap)) console.log(`Glücksfaktoren Wohnen Tag ${d}: ${t}`);
   console.log('Gewerbe:', fstr(factorAvg(g, Z.COM), 5), '| Industrie:', fstr(factorAvg(g, Z.IND), 5));
   const B = g.lastBudget;
+  const S0 = {};
   const top = (o) => Object.entries(o).filter(([, v]) => Math.abs(v) >= 1).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 8).map(([k, v]) => `${k} ${fmt(v)}`).join(', ');
+  const DH = g.ext.disasters?.history || [];
+  console.log('Katastrophen:', DH.map((h) => `${h.type} T${h.day} (zerstört ${h.destroyed || 0}, beschädigt ${h.damaged || 0}${h.warned ? ', gewarnt' : ''})`).join('; ') || 'keine');
+  S0.disasters = DH.length; S0.firstDisaster = DH.length ? DH[0].day : null;
   console.log('Einnahmen:', top(B.inc));
   console.log('Ausgaben:', top(B.exp));
   if (!quiet) console.log('Bot-Protokoll (letzte):', bot.log.slice(-8).join(' | '));
-  const S = { map, seed, d15: at(15)?.pop, d30: at(30)?.pop, d60: at(60)?.pop, end: last.pop, money: last.money, minMoney, happy: last.happy, ab: last.ab, ms: last.ms, riders: last.riders, spiral: spiral.length, maxNeg, maxLow, bankrupt };
+  const S = { map, seed, d15: at(15)?.pop, d30: at(30)?.pop, d60: at(60)?.pop, end: last.pop, money: last.money, minMoney, happy: last.happy, ab: last.ab, ms: last.ms, riders: last.riders, pen: penSum / rec.length, ...S0, spiral: spiral.length, maxNeg, maxLow, bankrupt };
   summary.push(S);
   // Erwartungen an ein gewinnbares, faires Spiel
   ok(!bankrupt && !g.gameOver, `${map}: kein Bankrott`);
@@ -81,6 +88,6 @@ for (const map of maps) for (const seed of seeds) {
   ok(last.ab <= Math.max(6, g.buildings.size * 0.03), `${map}: wenige verlassene Gebäude (${last.ab})`);
 }
 console.log('\nZusammenfassung:');
-for (const s of summary) console.log(`  ${s.map}/${s.seed}: Einw T15 ${fmt(s.d15 || 0)} · T30 ${fmt(s.d30 || 0)} · T60 ${fmt(s.d60 || 0)} · Ende ${fmt(s.end)} | Geld Ende ${fmt(s.money)} (min ${fmt(s.minMoney)}) | Glück ${s.happy.toFixed(0)} | verl ${s.ab} | MS ${s.ms} | Puls/Tag ${s.riders} | Spirale ${s.spiral} | Minus-Tage ${s.maxNeg}`);
+for (const s of summary) console.log(`  ${s.map}/${s.seed}: Einw T15 ${fmt(s.d15 || 0)} · T30 ${fmt(s.d30 || 0)} · T60 ${fmt(s.d60 || 0)} · Ende ${fmt(s.end)} | Geld Ende ${fmt(s.money)} (min ${fmt(s.minMoney)}) | Glück ${s.happy.toFixed(0)} | verl ${s.ab} | MS ${s.ms} | Puls/Tag ${s.riders} (überfüllt Ø ${(s.pen * 100).toFixed(0)} % der Wohnhäuser) | Katastr. ${s.disasters} (erste T${s.firstDisaster ?? '–'}) | Spirale ${s.spiral} | Minus-Tage ${s.maxNeg}`);
 console.log(fails ? `\n${fails} Prüfung(en) fehlgeschlagen` : '\nAlle Prüfungen bestanden');
 process.exit(fails ? 1 : 0);

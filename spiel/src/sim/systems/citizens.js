@@ -966,7 +966,7 @@ registerSystem({
     }
     return {
       v: 1, n: LEN2, ids: typedToB64(Int32Array.from(ids)), vals: typedToB64(Uint16Array.from(vals)), fac,
-      hist: C.hist.slice(-120), flags: C.flags, sewReq: C.sewReq,
+      hist: C.hist.slice(-120), flags: C.flags, sewReq: C.sewReq, umlandCost: Math.round(C.umlandCost || 0),
     };
   },
   load(g, d) {
@@ -999,6 +999,7 @@ registerSystem({
     C.hist = d.hist || [];
     C.flags = d.flags || {};
     C.sewReq = !!d.sewReq;
+    C.umlandCost = d.umlandCost || 0; // sonst fehlt „Bestattung im Umland" bis zum nächsten Tag im Haushalt
     C.polDirty = true;
   },
 });

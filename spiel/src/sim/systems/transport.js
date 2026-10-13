@@ -1710,13 +1710,17 @@ function commuteEffect(g) {
   const T = TS(g);
   if (!T.covField || !T.taktField) return;
   const strike = g.eff('busStrike') > 0;
-  if (strike) return;
+  const pcov = g.cov.transit, pen = g.transitPenalty;
   for (const b of g.buildings.values()) {
     if (b.zone !== Z.RES || b.abandoned || !b.occ) continue;
     const i = b.y * g.W + b.x;
-    const c = T.covField[i];
+    let c = strike ? 0 : T.covField[i];
+    let tc = 6 + Math.min(30, T.taktField[i]) / 2 + 10; // Fußweg + halbe Wartezeit + Fahrt
+    // Pulsbahn (Q2): fährt kreuzungsfrei über dem Stau – wer an einer Station wohnt, pendelt kürzer.
+    // Überfüllte Stationen (Strafe aktiv) helfen nicht.
+    const p = pcov ? pcov[i] : 0;
+    if (p > 0.05 && !(pen && pen[i])) { tc = Math.min(strike ? Infinity : tc, 19); c = Math.max(c, p * 0.8); }
     if (c < 0.05) continue;
-    const tc = 6 + Math.min(30, T.taktField[i]) / 2 + 10; // Fußweg + halbe Wartezeit + Fahrt
     if (tc < b.commute) b.commute -= (b.commute - tc) * c * 0.12;
   }
 }
