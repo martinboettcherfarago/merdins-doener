@@ -212,7 +212,7 @@ export class UI {
 <div class="sign panel" id="u-panel" hidden></div>
 <div class="sign inspector" id="u-insp" hidden></div>
 <div class="pop-scrim" id="u-scrim" hidden></div>
-<div class="sign pop" id="u-popover" role="menu" hidden></div>
+<div class="sign pop" id="u-popover" role="dialog" aria-label="Menü" hidden></div>
 `;
     const $ = (id) => document.getElementById(id);
     this.el = {};
@@ -765,7 +765,7 @@ export class UI {
     const def = this.view !== 'none' ? viewList().find((o) => o.id === this.view) : null;
     const ug = this.undergroundOn();
     this.el.viewsbtn.classList.toggle('on', !!def || ug);
-    const lbl = def ? def.name : ug ? 'Untergrund' : 'Ansichten';
+    const lbl = def ? (def.name.length <= 10 ? def.name : 'Ansichten') : ug ? 'Untergrund' : 'Ansichten';
     if (this.el.viewlbl.textContent !== lbl) this.el.viewlbl.textContent = lbl;
   }
 
