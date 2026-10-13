@@ -2072,6 +2072,7 @@ export function previewModel(key, level = 1, variant = 0, fw, fd, extra = {}, de
   return group;
 }
 
+// Bezugshöhe am U-Bahn-Eingang (die Pulsbahn fährt im Tunnel)
 export function stationHeight() { return TRANSIT.trackHeight; }
 void Z;
 

@@ -6,14 +6,14 @@ import { CARDS, EVENTS, CHATTER } from '../sim/progress.js';
 import { fmtMoney } from '../util.js';
 
 Object.assign(BUILDINGS, {
-  bus_depot: { name: 'Busdepot', cat: 'transport', size: [2, 2], cost: 6000, upkeep: 50, unlock: 1, buses: 8, power_use: 6, noise: 0.6, desc: 'Heimat von 8 Bussen. Danach unter Verkehr → „Buslinie zeichnen" Haltestellen an der Straße anklicken.' },
-  tram_depot: { name: 'Straßenbahndepot', cat: 'transport', size: [3, 2], cost: 14000, upkeep: 90, unlock: 3, trams: 6, power_use: 20, desc: 'Heimat von 6 Straßenbahnen. Gleise liegen auf Straßen und Alleen, viel Platz pro Zug.' },
-  train_station: { name: 'Hauptbahnhof', cat: 'transport', size: [4, 2], cost: 30000, upkeep: 160, unlock: 3, tourism: 120, intercity: 1, power_use: 20, noise: 1.1, lv: 8, lvRadius: 8, desc: 'Fernzüge bringen Pendler, Touristen und Geschäftsreisende. Belebt Gewerbe und Büros, bringt Bahnhofsgebühren.' },
-  airport: { name: 'Flughafen', cat: 'transport', size: [6, 4], cost: 90000, upkeep: 420, unlock: 5, tourism: 420, offBoost: 20, power_use: 60, water_use: 20, noise: 2.5, lv: -18, lvRadius: 10, desc: 'Das Tor zur Welt: Linienflüge, viele Touristen, mehr Büronachfrage und Landegebühren. Sehr laut.' },
-  ferry_pier: { name: 'Fähranleger', cat: 'transport', size: [1, 1], cost: 3000, upkeep: 20, unlock: 2, needsWater: true, desc: 'Zwei Anleger am selben Gewässer verbinden sich von selbst zu einer Fährlinie. Fahrgäste und Ausflügler.' },
-  parking: { name: 'Parkhaus', cat: 'transport', size: [1, 1], cost: 4000, upkeep: 25, unlock: 2, parking: 200, comBoost: 4, lvRadius: 4, desc: 'Weniger Parksuchverkehr im Umkreis (−15 % Stau), Geschäfte sind zufriedener.' },
-  taxi_depot: { name: 'Taxizentrale', cat: 'transport', size: [1, 1], cost: 3500, upkeep: 30, unlock: 2, taxis: 10, desc: 'Bis zu 10 Taxis fahren Touristen und Spätheimkehrer. +4 % Tourismus, kleine Einnahmen.' },
-  metro_hub: { name: 'Pulsbahn-Umsteigebahnhof', cat: 'transit', size: [2, 1], cost: 6000, upkeep: 30, unlock: 3, onRoad: false, stationCapacity: 30, desc: 'Große Station auf dem Gebäude: doppelte Kapazität (30 Wartende) und schnelleres Umsteigen. Linien wie an eine Station anschließen.' },
+  bus_depot: { name: 'Busdepot', cat: 'transport', size: [2, 2], cost: 6000, upkeep: 50, unlock: 2, buses: 8, power_use: 6, noise: 0.6, desc: 'Heimat von 8 Bussen. Danach unter „Verkehr" eine Buslinie zeichnen: Haltestellen an Straßen anklicken. Braucht: Strom.' },
+  tram_depot: { name: 'Straßenbahndepot', cat: 'transport', size: [3, 2], cost: 14000, upkeep: 90, unlock: 3, trams: 6, power_use: 20, desc: 'Heimat von 6 Straßenbahnen. Ihre Gleise liegen auf Straßen und Alleen. Braucht: Strom.' },
+  train_station: { name: 'Hauptbahnhof', cat: 'transport', size: [4, 2], cost: 30000, upkeep: 160, unlock: 3, tourism: 120, intercity: 1, power_use: 20, noise: 1.1, lv: 8, lvRadius: 8, desc: 'Fernzüge bringen Pendler, Touristen und Geschäftsleute. Gut für Läden und Büros. Braucht: Strom.' },
+  airport: { name: 'Flughafen', cat: 'transport', size: [6, 4], cost: 90000, upkeep: 420, unlock: 5, tourism: 420, offBoost: 20, power_use: 60, water_use: 20, noise: 2.5, lv: -18, lvRadius: 10, desc: 'Das Tor zur Welt: viele Touristen, mehr Büros und Einnahmen. Sehr laut. Braucht: Strom und Wasser.' },
+  ferry_pier: { name: 'Fähranleger', cat: 'transport', size: [1, 1], cost: 3000, upkeep: 20, unlock: 2, needsWater: true, desc: 'Zwei Anleger am selben Gewässer bilden von selbst eine Fährlinie. Braucht: Platz am Ufer.' },
+  parking: { name: 'Parkhaus', cat: 'transport', size: [1, 1], cost: 4000, upkeep: 25, unlock: 3, parking: 200, comBoost: 4, lvRadius: 4, desc: 'Weniger Autos auf Parkplatzsuche: 15 % weniger Stau im Umkreis. Gut für Läden.' },
+  taxi_depot: { name: 'Taxizentrale', cat: 'transport', size: [1, 1], cost: 3500, upkeep: 30, unlock: 3, taxis: 10, desc: 'Bis zu 10 Taxis fahren Touristen und Nachtschwärmer. Bringt etwas Geld.' },
+  metro_hub: { name: 'U-Bahn-Umsteigebahnhof', cat: 'transit', size: [2, 1], cost: 6000, upkeep: 30, unlock: 3, onRoad: false, stationCapacity: 30, desc: 'Großer U-Bahnhof mit Eingangshalle: Platz für doppelt so viele Wartende, Umsteigen geht schneller. Linien wie an eine Station anschließen.' },
 });
 
 // ---------------------------------------------------------------- Verordnungen

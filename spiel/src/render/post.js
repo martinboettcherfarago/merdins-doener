@@ -341,7 +341,8 @@ export class PostFX {
     r.render(this.quad, this.camera);
   }
 
-  render(scene, camera) {
+  // extra(r): optionaler zweiter Durchgang in denselben Puffer (Untergrund-Ansicht der U-Bahn)
+  render(scene, camera, extra = null) {
     const r = this.r, p = this.params, c = this.cfg;
     if (!this.sceneRT) this.allocate();
     const proj = camera.projectionMatrix.elements;
@@ -349,6 +350,7 @@ export class PostFX {
     r.setRenderTarget(this.sceneRT);
     r.clear(true, true, true);
     r.render(scene, camera);
+    if (extra) extra(r);
 
     const autoClear = r.autoClear;
     r.autoClear = false;
