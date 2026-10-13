@@ -400,7 +400,7 @@ export class UI {
     const ms = MILESTONES[g.milestone], next = MILESTONES[g.milestone + 1];
     const rank = next ? `${ms.name} → ${next.name}` : ms.name;
     if (this.el.rank.textContent !== rank) this.el.rank.textContent = rank;
-    this.el.plate.dataset.tipDesc = next ? `${ms.name}. Ab ${fmt(next.pop)} Einwohnern wird ${g.name} zur ${next.name} und schaltet Neues frei. Klick: Ziele und Meilensteine.` : `${ms.name} – der höchste Rang. Klick: Ziele und Meilensteine.`;
+    this.el.plate.dataset.tipDesc = next ? `Jetzt: ${ms.name}. Nächster Rang: ${next.name} ab ${fmt(next.pop)} Einwohnern – das schaltet Neues frei. Klick: Ziele und Meilensteine.` : `${ms.name} – der höchste Rang. Klick: Ziele und Meilensteine.`;
     this.el.rankbar.style.width = next ? `${clamp((s.pop - ms.pop) / (next.pop - ms.pop), 0, 1) * 100}%` : '100%';
     this.el.pop.textContent = fmt(s.pop);
     const hist = g.history;
