@@ -777,9 +777,9 @@ export class Game extends Emitter {
   static fromSave(raw) {
     let data = raw;
     if (typeof data === 'string') {
-      try { data = JSON.parse(data); } catch (e) { throw new SaveError('Die Datei ist kein gültiger Stadtpuls-Spielstand.'); }
+      try { data = JSON.parse(data); } catch (e) { throw new SaveError('Das ist kein gültiger Stadtpuls-Spielstand (beschädigt oder unvollständig).'); }
     }
-    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new SaveError('Die Datei ist kein gültiger Stadtpuls-Spielstand.');
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new SaveError('Das ist kein gültiger Stadtpuls-Spielstand (beschädigt oder unvollständig).');
     if (typeof data.road !== 'string' || typeof data.zone !== 'string' || !Array.isArray(data.buildings)) throw new SaveError('Der Spielstand ist unvollständig oder beschädigt.');
     const v = int(data.v, 1);
     const o = data.opts && typeof data.opts === 'object' && !Array.isArray(data.opts) ? data.opts : {};

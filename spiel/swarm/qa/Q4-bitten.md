@@ -17,7 +17,8 @@ Neu im Kern (alles rückwärtskompatibel, Doku in `src/registry.js` oben):
 | `SPEC_MAX_LEVEL` (config.js, 5) | Spezialindustrie wächst jetzt bis Stufe 5 (vorher fest 3) |
 | `g.errors`, `on('simError')` | abgefangene Fehler aus Systemen/Ereignissen `{ where, msg, day }`; das Spiel läuft weiter (einmalige `console.warn` je Stelle) |
 | `Game.fromSave(objekt \| text)` | prüft und bereinigt; unbrauchbar → `SaveError` mit deutscher Meldung; Hinweise in `g.loadNotes` |
-| `app.loadData(data, { quiet: true })` | lädt ohne Toast (U1-Bitte) |
+| `app.loadData(data, { quiet: true })` | lädt ohne Toast (U1-Bitte); gibt `true`/`false` zurück, ebenso `app.loadSlot(k)` und `app.save(k)` |
+| `LANDVALUE_FIELDS.push((g) => Float32Array(N) \| null)` | zusätzlicher Bodenwert als ganzes Feld, ein Aufruf pro Durchlauf (statt `LANDVALUE_TERMS` pro Feld). `LANDVALUE_TERMS` mit nur einem Parameter `(g) => …` wertet der Kern jetzt einmal pro Durchlauf aus |
 
 ## Q1 – Grafik (`render/effects.js`)
 
@@ -39,7 +40,10 @@ Rechenzeit ≈ 2,3–3,0 s CPU pro Spieltag, davon **≈ 42 % allein `industry.j
    8×8-Gitter einsortieren und nur Nachbarzellen prüfen. Zumindest `pts` als flaches `Float32Array` ohne Destrukturierung.
 2. `citizens.js` `hourly`: `collectFacilities`, `sewageHourly`, `heatHourly` laufen je einmal über alle Gebäude (≈ 20 ms/Stunde) – in einen
    Durchlauf zusammenlegen oder Abwasser/Wärme nur alle 2–3 Stunden bzw. bei `g.netVersion`-Änderung neu rechnen.
-3. Viele kleine Rückgabe-Arrays (`HAPPINESS_FACTORS` → `['…', wert]`, `pts.push([x, y, m])`) erzeugen Müll; der Garbage Collector
+3. `LANDVALUE_TERMS` mit `(g, i)` aus `citizens.js`, `districts.js`, `industry.js`, `transport.js` laufen pro Feld (4 × N Aufrufe alle
+   2 Spielstunden; `computeFields` ist im `progression-test` mit 11 % Eigenzeit die teuerste Kernfunktion). Wer ein ganzes Feld hat
+   (`T.lvField`, `C.lvWater`/`C.lvSew`), bitte auf `LANDVALUE_FIELDS.push((g) => T0(g)?.lvField || null)` umstellen.
+3b. Viele kleine Rückgabe-Arrays (`HAPPINESS_FACTORS` → `['…', wert]`, `pts.push([x, y, m])`) erzeugen Müll; der Garbage Collector
    braucht 9–15 % der Zeit.
 
 ### Reproduzierbarkeit
@@ -59,6 +63,16 @@ Rechenzeit ≈ 2,3–3,0 s CPU pro Spieltag, davon **≈ 42 % allein `industry.j
    Laden den Heizanteil (z. B. −10 % → +3 %) bis zur nächsten Stunde. Vorschlag: in `load` nur `exportForecast`, die Effekte liegen schon
    in `g.effects`; oder `applyEffects(g, { noSmooth: true })`.
 
+### Prüfstände (`test/**`)
+9b. `industry-test` „Bauernhöfe ernten im Winter weniger" (schon vor Q4 rot): Der Test setzt `g.ext.weather.season = 'winter'`, aber
+    `weather.js` schreibt `w.season` in jedem Schritt aus dem Kalender zurück. Besser: `g.time` auf einen Wintertag setzen
+    (Tag `28 · 3 − 3` = 81 ff.) oder `g.system('weather').force(…)`.
+9b2. `transport-test` „Straßenbahnlinie auf der Hauptachse eröffnet" ist **wackelig** (1 von 4 Läufen rot: „Nicht genug Geld."): Der Bot prüft
+    `g.money > 22000`, baut dann Depot und Linie nach einem weiteren Tag. Ursache des Zufalls ist `Math.random` in `industry.js` (Punkt 4);
+    zusätzlich die Schwelle an die echten Kosten (`planLine(...).cost` + Depot) koppeln.
+9c. `test/save-test.mjs` (neu, Q4) prüft Rundreisen, Version 1, beschädigte Daten, alle Karten, Reproduzierbarkeit; `STRICT=1` macht
+    die offenen Systemdaten-Abweichungen (Punkte 5–9) zu Fehlern.
+
 ### Kern-Schnittstellen jetzt nutzen (Übergangslösungen ablösen)
 10. S1: statt stündlich `g.traffic.lists.ind.total = 0` → `g.traffic.freightShare = 0` (einmal in `init`/`load` oder solange der Plan läuft).
 11. S3: Ampel-Wartezeit über `g.tileDelay` statt `g.congestion` anheben (dann bleibt die Auslastungs-Infoansicht ehrlich);
@@ -73,5 +87,8 @@ Rechenzeit ≈ 2,3–3,0 s CPU pro Spieltag, davon **≈ 42 % allein `industry.j
 
 15. `g.loadNotes` (Hinweise beim Laden, z. B. „7 beschädigte Gebäude wurden entfernt.") zeigt `main.js` bereits als Toast.
     Optional: `on('simError', ({ where }) => ui.toast('Ein Spielteil hatte einen Fehler und läuft eingeschränkt weiter.', 'bad'))`.
+16a. **Speichern meldet immer Erfolg**: `ui.js` Zeile ~67 und ~926 zeigen „Gespeichert in Platz …" unabhängig vom Ergebnis. `app.save(k)`
+    gibt jetzt `false` zurück, wenn der Browser-Speicher voll ist (große Karten > 1 MB pro Platz, Grenze ≈ 5 MB) – `main.js` zeigt dann
+    eine Warnung. Vorschlag: `if (app.save(k)) ui.toast('Gespeichert …', 'good');`
 16. Einstellungen: `loadSettings()` in `main.js` liefert jetzt die Werte laut 6.7 (`ao: false`, `shadows: 'low'`, `minimap`, `advisor`,
     `tooltips`, `ambience`); alte gespeicherte `shadows: true/false` werden zu `'low'`/`'off'`. `ensureSettings()` kann bleiben.
