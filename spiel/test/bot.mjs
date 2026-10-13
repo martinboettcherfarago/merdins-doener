@@ -403,6 +403,8 @@ export class Bot {
     if (pop > 1800 && g.isUnlocked('hospital') && !this.count.hospital && this.free() > 20000) { const [cx, cy] = this.center(); if (this.placeNear('hospital', cx, cy, 12)) n++; }
     if (pop > 2000 && g.isUnlocked('highschool') && !this.count.highschool && this.free() > 15000) { const [cx, cy] = this.center(); if (this.placeNear('highschool', cx, cy, 12)) n++; }
     if (pop > 1200 && g.isUnlocked('library') && (this.count.library || 0) < pop / 2500 && this.free() > 6000) { const [cx, cy] = this.center(); if (this.placeNear('library', cx, cy, 10)) n++; }
+    // Fernwärme, sobald Wohnungen frieren (Ratgeber: „Kalte Wohnung")
+    if (C && C.cold > 4 && g.isUnlocked('district_heating') && (this.count.district_heating || 0) < 1 + pop / 8000 && this.free('svc') > 16000) { const [cx] = this.center(); if (this.placeNear('district_heating', cx, this.southEdge() + 3, 14, { avoid: 3 })) n++; }
     if (pop > 2500 && g.isUnlocked('elderly_care') && (this.count.elderly_care || 0) < pop / 4000 && this.free() > 12000) { const [cx, cy] = this.center(); if (this.placeNear('elderly_care', cx, cy, 12)) n++; }
     // Parks: einer je ~350 Einwohner, im Wohngebiet
     if (pop > 150 && (this.count.park || 0) + (this.count.playground || 0) < pop / 350 && this.free() > 2500) {

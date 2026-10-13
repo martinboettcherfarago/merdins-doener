@@ -589,7 +589,7 @@ function heatHourly(g, C) {
   let coldN = 0;
   if (hd <= 0) {
     for (const b of g.buildings.values()) if (b.cz) { b.cz.heat = true; b.cz.cold = 0; }
-    C.heatSupply = 0; C.heatDemand = 0; C.coldBuildings = 0;
+    C.heatSupply = 0; C.heatDemand = 0; C.coldBuildings = 0; C.heatCover = 1;
     return;
   }
   const nc = g.compCount;
@@ -620,6 +620,8 @@ function heatHourly(g, C) {
     if (cz.cold && b.construct >= 1 && !b.abandoned) coldN++;
   }
   C.heatSupply = ts; C.heatDemand = td; C.coldBuildings = coldN;
+  // Für S4 (Strombedarf durch elektrisches Heizen): Anteil des Wärmebedarfs, den die Fernwärme deckt
+  C.heatCover = td > 0 ? clamp(ts / td, 0, 1) : 1;
 }
 
 // Gefängnis senkt die Kriminalität (nach der Glücksberechnung der Kernsimulation)

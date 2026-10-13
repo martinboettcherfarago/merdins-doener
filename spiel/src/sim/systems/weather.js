@@ -594,6 +594,8 @@ HAPPINESS_FACTORS.push((g, b, i) => {
 HAPPINESS_FACTORS.push((g, b) => {
   const I = INTERNAL.get(g), w = g.ext.weather;
   if (!I || !w || b.zone !== Z.RES || w.heatNeed < 0.45 || I.heatCover > 0.95) return null;
+  // Mit dem Bürgersystem (S2) gibt es dort je Gebäude „Kalte Wohnung" – nicht doppelt bestrafen (Q2)
+  if (g.ext.citizens && g.ext.citizens.stats) return null;
   const v = -(w.heatNeed - 0.35) * 5 * (1 - I.heatCover) * (b.powered ? 0.6 : 1.5);
   return v < -0.4 ? ['Kalte Wohnungen', v] : null;
 });

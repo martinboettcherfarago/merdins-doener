@@ -643,7 +643,7 @@ export const SCENARIOS = [
       { day: 10, who: 'umwelt', text: 'Industrie macht Abgase – halte sie fern von den Wohngebieten oder setz auf Büros.' },
       { day: 35, event: 'bees' },
     ],
-    goals: [G.pop(4500), G.pollution(4, 3), G.parks(12)],
+    goals: [G.pop(4000), G.pollution(4, 3), G.parks(12)],
     banned: ['coal', 'gas', 'incinerator', 'refinery', 'district_heating'],
     fails: ['bankrupt'],
     setup(g) { g.money = 52000; },
@@ -657,7 +657,7 @@ export const SCENARIOS = [
       { day: 12, who: 'geld', text: 'Jeder Euro zählt im Bergland. Prüfe den Haushalt, bevor du baust.' },
       { day: 30, event: 'plantclose' },
     ],
-    goals: [G.jobs(3, 500, 'in der Industrie'), G.money(50000), G.pop(1500)],
+    goals: [G.jobs(3, 500, 'in der Industrie'), G.money(60000), G.pop(1500)],
     fails: ['bankrupt'],
     setup(g) { g.money = 30000; g.addEffect('indDemand', 30, 10, 'Erzfund'); },
   },
@@ -712,7 +712,7 @@ export const SCENARIOS = [
       { day: 3, who: 'verkehr', text: 'Alleen haben die doppelte Kapazität und sind schneller. Die Gassen sind das Nadelöhr.' },
       { day: 12, event: 'bikelanes' },
     ],
-    goals: [G.commute(32, 3), G.oepnv(1200, 2), G.pop(3500, 3)],
+    goals: [G.commute(34, 3), G.oepnv(1200, 2), G.pop(3500, 3)],
     fails: ['bankrupt', 'unhappy'],
     setup(g) {
       g.milestone = 3;
