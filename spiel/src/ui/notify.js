@@ -65,7 +65,11 @@ export class Notifier {
     const name = DISASTER_NAMES[d.type] || d.name || 'Katastrophe';
     const where = d.x !== undefined ? { x: Math.round(d.x), y: Math.round(d.y) } : null;
     const it = this.push({ title: d.phase === 'warn' ? `Warnung: ${name}` : name, text: d.text || (d.phase === 'warn' ? `${name} angekündigt. Notunterkünfte und Rettungskräfte bereithalten.` : `${name} trifft die Stadt!`), mood: 'bad', icon: 'warn', where, kind: 'disaster', key: `dis:${d.type}:${d.phase}` });
-    if (d.phase === 'start' && this.ui.toast) this.ui.toast(`${name}!`, 'bad', { where, icon: 'warn' });
+    // Kurzmeldung nur, wenn das System nicht gerade selbst eine Warnung gezeigt hat (S4 meldet z. B. „Ein Meteorit rast …“);
+    // einzelne Blitzeinschläge landen nur in der Benachrichtigungszentrale
+    if (d.phase === 'start' && this.ui.toast && d.type !== 'lightning') {
+      setTimeout(() => { if (performance.now() - (this.ui._badToastAt || 0) > 1500) this.ui.toast(`${name}!`, 'bad', { where, icon: 'warn' }); }, 400);
+    }
     return it;
   }
 

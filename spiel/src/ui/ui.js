@@ -748,9 +748,16 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   toast(msg, type = '', opts = {}) {
     if (this._muteToast && / geladen\.$/.test(msg)) { this._muteToast = false; return; }
     // Dieselbe Meldung steht schon da: nur auffrischen statt stapeln
+    // Kurzform und ausführliche Meldung zum selben Ereignis („Tornado!" / „Tornado! Ein Wirbelsturm …") nur einmal zeigen
+    for (const t of [...this.toasts.children]) {
+      if (!t._msg || t._msg === msg || t.classList.contains('out')) continue;
+      if (t._msg.startsWith(msg)) return;
+      if (msg.startsWith(t._msg)) t.remove();
+    }
     for (const t of this.toasts.children) {
       if (t._msg === msg && !t.classList.contains('out')) { clearTimeout(t._t); t._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, opts.where ? 5200 : 3400); return; }
     }
+    if (type === 'bad') this._badToastAt = performance.now();
     const d = document.createElement('div');
     d._msg = msg;
     d.className = 'toast ' + type + (opts.where ? ' link' : '');
