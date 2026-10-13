@@ -79,7 +79,7 @@ const STEPS = [
     btn: 'Los geht\'s', alt: 'Ohne Einführung spielen',
   },
   {
-    id: 'road', title: 'Straße bauen',
+    id: 'road', title: 'Straße bauen', build: (c) => c.tool.kind === 'road',
     done: (c) => c.n.roads >= 4,
     hint: (c) => {
       if (c.tool.kind === 'road') return { target: [], map: c.n.roads ? null : 'highway', text: c.n.roads ? 'Gut! Zieh die Straße noch ein Stück weiter ins Land.' : `${c.touch ? 'Ziehe mit dem Finger' : 'Halte die linke Maustaste gedrückt und ziehe'} vom Ende der Autobahn (roter Kreis) eine Straße ins Land.` };
@@ -87,7 +87,7 @@ const STEPS = [
     },
   },
   {
-    id: 'res', title: 'Wohngebiet ausweisen',
+    id: 'res', title: 'Wohngebiet ausweisen', build: (c) => c.tool.kind === 'zone' && c.tool.zone === Z.RES,
     done: (c) => c.n.zone[Z.RES] >= 6,
     hint: (c) => {
       if (c.tool.kind === 'zone' && c.tool.zone === Z.RES) return { target: [], text: `Ziehe direkt neben der Straße eine Fläche auf. Dort bauen Familien ihre Häuser – Häuser entstehen nur an Straßen.` };
@@ -95,14 +95,14 @@ const STEPS = [
     },
   },
   {
-    id: 'power', title: 'Strom liefern',
+    id: 'power', title: 'Strom liefern', build: (c) => placing(c, 'power'),
     done: (c) => c.g.countBuilt('power') > 0,
     hint: (c) => pickHint(c, { cat: 'power', catName: 'Strom', items: ['coal', 'wind'], why: 'Ohne Strom zieht niemand ein.',
       itemText: 'Wähle das Kohlekraftwerk: günstig und stark. Windräder sind sauberer, liefern aber wenig.',
       placeText: 'Setze das Kraftwerk direkt an eine Straße. Der Strom fließt über die Straßen zu allen Häusern.' }),
   },
   {
-    id: 'water', title: 'Wasser liefern',
+    id: 'water', title: 'Wasser liefern', build: (c) => placing(c, 'water'),
     done: (c) => ['watertower', 'pump', 'waterworks'].some((k) => c.g.hasBuilt(k)),
     hint: (c) => pickHint(c, { cat: 'water', catName: 'Wasser', items: ['watertower'], why: 'Auch Wasser muss sein.',
       itemText: 'Wähle den Wasserturm. Er passt überall hin.',
@@ -119,7 +119,7 @@ const STEPS = [
     },
   },
   {
-    id: 'jobs', title: 'Arbeit schaffen',
+    id: 'jobs', title: 'Arbeit schaffen', build: (c) => c.tool.kind === 'zone' && (c.tool.zone === Z.COM || c.tool.zone === Z.IND),
     done: (c) => c.n.zone[Z.COM] >= 4 && c.n.zone[Z.IND] >= 4,
     hint: (c) => {
       const needCom = c.n.zone[Z.COM] < 4, z = needCom ? Z.COM : Z.IND;
@@ -129,7 +129,7 @@ const STEPS = [
     },
   },
   {
-    id: 'garbage', title: 'Müll abholen',
+    id: 'garbage', title: 'Müll abholen', build: (c) => placing(c, 'garbage'),
     done: (c) => c.g.countBuilt('garbage') > 0,
     hint: (c) => pickHint(c, { cat: 'garbage', catName: 'Müll', items: ['landfill'], why: 'Wo Menschen wohnen, fällt Müll an.',
       itemText: 'Wähle die Deponie. Ihre Müllwagen holen den Müll ab.',
@@ -392,7 +392,7 @@ export class Onboarding {
     if (st.id === 'road' && !this._focused && c.n.roads === 0) {
       this._focused = true;
       const he = this.g.world.highwayEnd, W = this.g.W;
-      try { this.ui.focusTile(he % W + 6, Math.floor(he / W), 30); } catch (e) { /* egal */ }
+      try { this.ui.focusTile(he % W + (this.ui.mobile() ? 3 : 6), Math.floor(he / W), 30); } catch (e) { /* egal */ }
     }
   }
 
@@ -433,14 +433,19 @@ export class Onboarding {
     let x, y, side = null;
     const st = STEPS[this.idx];
     if (st && st.id === 'welcome') { x = (vw - cw) / 2; y = Math.max(topY, (vh - ch) / 2 - 40); }
-    else if (tr) {
+    else if (mob) {
+      // Handy: Karte oben unter der Kopfzeile, außer das Ziel liegt selbst oben – dann darunter
+      // Ohne Ziel (Bauen auf der Karte): unten über der Werkzeugleiste
+      const tb = document.querySelector('#hud [data-tour=toolbar], #u-toolbar');
+      const tbTop = tb && visible(tb) ? tb.getBoundingClientRect().top : vh;
+      x = 10; y = !tr ? tbTop - ch - 10 : tr.top < topY + ch ? tr.bottom + 12 : topY;
+    } else if (tr) {
       const gap = 16;
       const fits = { top: tr.top - ch - gap > topY - 4, bottom: tr.bottom + ch + gap < vh - 8, right: tr.right + cw + gap < vw - 8, left: tr.left - cw - gap > 8 };
       side = tr.top > vh * 0.5 ? (fits.top ? 'top' : fits.left ? 'left' : 'right') : (fits.bottom ? 'bottom' : fits.left ? 'left' : 'right');
       if (side === 'top' || side === 'bottom') { x = tr.left + tr.width / 2 - cw / 2; y = side === 'top' ? tr.top - ch - gap : tr.bottom + gap; }
       else { y = tr.top + tr.height / 2 - ch / 2; x = side === 'left' ? tr.left - cw - gap : tr.right + gap; }
-    } else if (mob) { x = 10; y = topY; }
-    else { x = vw - cw - 16; y = topY + 46; }
+    } else { x = vw - cw - 16; y = topY + 46; }
     x = Math.max(8, Math.min(vw - cw - 8, x));
     y = Math.max(8, Math.min(vh - ch - 8, y));
     card.style.left = x / z + 'px';
@@ -514,7 +519,7 @@ export class Onboarding {
   }
   guideHidden() {
     const ui = this.ui, s = this.settings();
-    return (this.running && (STEPS[this.idx] || {}).id !== 'finish') || s.advisor === false || isMetro(this.g) || !!ui.cat || this.hiddenNow() || (ui.mobile() && ui.app.input && ui.app.input.tool && ui.app.input.tool.kind !== 'select');
+    return (this.running && (STEPS[this.idx] || {}).id !== 'finish') || s.advisor === false || isMetro(this.g) || !!ui.cat || this.hiddenNow();
   }
   renderGuide(force = false) {
     const el = this.guide;
@@ -526,9 +531,11 @@ export class Onboarding {
     const s = this.settings();
     const color = goal.prio >= 3 ? 'var(--bad, #d4433a)' : goal.prio >= 2 ? 'var(--warn, #c98a0c)' : 'var(--good, #23864b)';
     const head = goal.prio >= 3 ? 'Jetzt wichtig' : goal.id === 'milestone' ? 'Nächstes Ziel' : goal.prio >= 2 ? 'Nächstes Ziel' : 'Tipp';
-    const min = !!s.guideMin;
+    // Handy mit aktivem Werkzeug: nur eine Zeile, damit die Karte frei bleibt
+    const toolOn = this.ui.app.input && this.ui.app.input.tool && this.ui.app.input.tool.kind !== 'select';
+    const min = !!s.guideMin || (this.ui.mobile() && toolOn);
     const html = min
-      ? `<div class="gh"><span>${esc(head)}</span><span class="grow"></span><button data-g="min" aria-label="Aufklappen" title="Aufklappen">${ic('chevronU', 14, 2.4)}</button></div><div class="gt">${esc(goal.text)}</div>`
+      ? `<div class="gh"><span>${esc(head)}</span><span class="grow"></span>${!s.guideMin && goal.act ? `<button data-g="go" aria-label="${esc(goal.label || 'Zeigen')}" title="${esc(goal.label || 'Zeigen')}">${ic('arrowR', 14, 2.4)}</button>` : `<button data-g="min" aria-label="Aufklappen" title="Aufklappen">${ic('chevronU', 14, 2.4)}</button>`}</div><div class="gt">${esc(goal.text)}</div>`
       : `<div class="gh"><span>${ic(goal.prio >= 3 ? 'warn' : 'target', 13, 2.6)}</span><span>${esc(head)}</span><span class="grow"></span><button data-g="min" aria-label="Einklappen" title="Einklappen">${ic('chevronD', 14, 2.4)}</button></div>
 <div class="gt">${esc(goal.text)}</div>${goal.why ? `<div class="gw">${esc(goal.why)}</div>` : ''}
 <div class="ga">${goal.act ? `<button class="go" data-g="go">${esc(goal.label || 'Zeigen')} ${ic('arrowR', 14, 2.4)}</button>` : ''}${goal.help ? '<button class="lk" data-g="why">Warum?</button>' : ''}${goal.id !== 'milestone' ? '<button class="lk" data-g="later">Später</button>' : ''}</div>`;
@@ -557,6 +564,11 @@ export class Onboarding {
           this.flash = performance.now() + 900;
           this.flashUntil = this.flash;
           try { this.ui.app.audio.play('success'); } catch (e) { /* egal */ }
+        }
+        // Werkzeug für den Schritt gewählt: Katalog einmal zuklappen, damit die Karte frei ist
+        if (st && st.build && st.build(c) && this.ui.cat && this._trayClosed !== st.id + ':' + JSON.stringify(c.tool) && typeof this.ui.closeTray === 'function') {
+          this._trayClosed = st.id + ':' + JSON.stringify(c.tool);
+          try { this.ui.closeTray(); } catch (e) { /* egal */ }
         }
         if (this.flashUntil && performance.now() > this.flashUntil) { this.flashUntil = 0; this.next(); }
         else this.render();
