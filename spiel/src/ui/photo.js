@@ -247,13 +247,15 @@ ${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><inp
     let url = '';
     try { url = out.toDataURL('image/png'); } catch (err) { ui.toast('Foto konnte nicht erstellt werden.', 'bad'); return; }
     const name = `stadtpuls-${ui.g.name.replace(/[^a-z0-9äöüß-]+/gi, '_')}-tag${ui.g.day()}.png`;
-    ui.openModal(`<div class="modal photo-prev"><div class="eyebrow">Fotomodus</div><h2>Dein Foto von ${ui.g.name.replace(/[<>&"]/g, '')}</h2><img src="${url}" alt="Foto der Stadt"><div class="acts"><button class="btn ghost" data-act="copyimg">${icon('copy', 15)} Kopieren</button>${window.STADTPULS_EMBED ? '' : `<a class="btn ghost" download="${name}" href="${url}">${icon('download', 15)} Speichern</a>`}<button class="btn" data-act="ok">Weiter fotografieren</button></div><p class="hint">Tipp: Rechtsklick aufs Bild → „Bild speichern unter …" funktioniert immer.</p></div>`, (ev, close) => {
+    ui.openModal(`<div class="modal photo-prev"><div class="eyebrow">Fotomodus</div><h2>Dein Foto von ${ui.g.name.replace(/[<>&"]/g, '')}</h2><img src="${url}" alt="Foto der Stadt"><div class="acts"><button class="btn ghost" data-act="copyimg">${icon('copy', 15)} Kopieren</button>${window.STADTPULS_EMBED ? '' : `<a class="btn ghost" download="${name}" href="${url}">${icon('download', 15)} Speichern</a>`}<button class="btn" data-act="ok">Weiter fotografieren</button></div>${window.STADTPULS_EMBED ? '' : '<p class="hint">Tipp: Rechtsklick aufs Bild → „Bild speichern unter …“ geht auch.</p>'}</div>`, (ev, close) => {
       const b = ev.target.closest('[data-act]');
       if (!b) return;
       if (b.dataset.act === 'copyimg') {
-        out.toBlob((blob) => {
-          try { navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(() => ui.toast('Foto kopiert.', 'good'), () => ui.toast('Zwischenablage nicht verfügbar.', 'bad')); } catch (err2) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
-        });
+        try {
+          out.toBlob((blob) => {
+            try { navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(() => ui.toast('Foto kopiert.', 'good'), () => ui.toast('Zwischenablage nicht verfügbar.', 'bad')); } catch (err2) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
+          });
+        } catch (err3) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
         return;
       }
       if (b.dataset.act === 'ok') close();

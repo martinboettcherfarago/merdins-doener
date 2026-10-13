@@ -23,7 +23,7 @@
   --z-com: #3a8ad8;
   --z-ind: #dba22e;
   --z-off: #9466d2;
-  --good: #2b9a57;
+  --good: #23864b;
   --warn: #c98a0c;
   --bad: #d4433a;
   --shadow: 0 10px 30px rgba(18, 24, 38, 0.18), 0 2px 6px rgba(18, 24, 38, 0.12);
@@ -163,6 +163,7 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 .ticker .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); }
 .ticker .pip { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--l-blue); box-shadow: 0 0 0 3px rgba(47,143,224,0.15); }
 #hud.tool-on .ticker { display: none; }
+#hud:has(.panel:not([hidden])) .ticker { max-width: min(560px, calc(100% - 916px)); }
 
 /* Werkzeug-Hinweis */
 .toolhint {
@@ -192,6 +193,15 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 @keyframes chipIn { from { opacity: 0; transform: scale(0.8); } }
 #hud:has(.panel:not([hidden])) .probs-hud, #hud:has(.inspector:not([hidden])) .probs-hud { display: none; }
 #hud.tray-open .leftstack { display: none; }
+/* Rechte Spalte neben dem Panel-Dock: Zielanzeige (S5) und darunter die Lage-Chips – nichts verdeckt das Dock */
+@media (min-width: 761px) {
+  .rstack { position: absolute; top: var(--top); right: 66px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; z-index: 5; }
+  .rstack > * { pointer-events: auto; }
+  .rstack .probs-hud, .rstack .s5-hud { position: static; }
+  .rstack .probs-hud:empty, #u-objectives:empty { display: none; }
+  #hud:has(.s5-hud) .inspector { max-height: calc(100% - var(--top) - var(--tb-h) - 92px); }
+}
+@media (max-width: 760px) { .rstack, #u-objectives { display: contents; } }
 
 /* ---------- Docks: Infoansichten (links) und Panels (rechts) */
 .dock {
@@ -264,9 +274,9 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
 
 /* ---------- Baukatalog */
 .tray {
-  position: absolute; left: var(--left0); right: 12px; bottom: calc(12px + var(--tb-h) + 10px + var(--safe-b));
-  width: fit-content; max-width: calc(100% - var(--left0) - 12px); margin: 0 auto;
-  min-width: min(720px, calc(100% - var(--left0) - 12px));
+  position: absolute; left: var(--left0); right: 66px; bottom: calc(12px + var(--tb-h) + 10px + var(--safe-b));
+  width: fit-content; max-width: calc(100% - var(--left0) - 66px); margin: 0 auto;
+  min-width: min(720px, calc(100% - var(--left0) - 66px));
   padding: 0; overflow: hidden; display: flex; flex-direction: column;
 }
 .tray.enter { animation: trayIn 0.28s var(--ease-out); }
@@ -426,7 +436,7 @@ input[type=range] { width: 100%; accent-color: var(--ink); }
 .hero.pos .v { color: var(--good); }
 .hero.neg .v { color: var(--bad); }
 .hbars { display: flex; flex-direction: column; gap: 5px; }
-.hb { display: grid; grid-template-columns: 132px 1fr 64px; gap: 8px; align-items: center; font-size: 12.5px; }
+.hb { display: grid; grid-template-columns: 164px 1fr 64px; gap: 8px; align-items: center; font-size: 12.5px; }
 .hb .hl { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hb .ht { height: 8px; border-radius: 4px; background: var(--paper-3); overflow: hidden; }
 .hb .ht i { display: block; height: 100%; border-radius: 4px; transition: width 0.5s var(--ease); }
@@ -1020,7 +1030,8 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
   .pu-filters { grid-template-columns: repeat(6, 1fr); }
   .pf { font-size: 0; gap: 0; }
   .pf .sw { height: 24px; }
-  .hb { grid-template-columns: 108px 1fr 58px; }
+  .hb { grid-template-columns: 124px 1fr 58px; }
+  .hb .hl { white-space: normal; line-height: 1.15; }
   #toasts { top: calc(var(--top) + 38px); }
 }
 @media (max-width: 420px) {

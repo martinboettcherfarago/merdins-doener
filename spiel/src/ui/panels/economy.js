@@ -7,6 +7,7 @@ import { registerPanel, registerOverlay, registerIcon, INSPECTORS, BUILDING_PROB
 import { BUILDINGS, ZONE_INFO, MILESTONES } from '../../config.js';
 import { fmt, fmtMoney, clamp } from '../../util.js';
 import { drawLineChart } from '../charts.js';
+import { INSPECTOR_ACTIONS } from '../inspector.js';
 import { GOODS, GOOD_KEYS, RAW_KEYS, SPEC_PLURAL, SPEC_DATIVE, SPEC_HOWTO, ECON } from '../../content/industry.js';
 import {
   BUDGET_CATS, budgetOf, categoryUpkeep, setServiceBudget, setExportPrice, setBuyRaw, setAutoPrice, setWarehouseMode, cycleWarehouseGood,
@@ -630,29 +631,20 @@ BUILDING_PROBLEMS.push((g, b) => {
 });
 
 // ---------------------------------------------------------------- Inspektor
-function bindInspector(ui) {
-  if (ui.__ecoInsp) return;
-  ui.__ecoInsp = true;
-  ui.el.insp.addEventListener('pointerdown', (e) => {
-    const el = e.target.closest('[data-eco-insp]');
-    if (!el) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const g = ui.g, id = +el.dataset.id;
-    if (el.dataset.ecoInsp === 'mode') setWarehouseMode(g, id, el.dataset.m);
-    else if (el.dataset.ecoInsp === 'good') cycleWarehouseGood(g, id);
-    else if (el.dataset.ecoInsp === 'panel') { view.tab = el.dataset.tab || 'logistics'; ui.openPanel('economy'); return; }
-    ui.app.audio.play('click');
-    ui.renderInspector();
-  });
-}
+// Knöpfe im Inspektor über das Register der Oberfläche (data-act="eco-insp"); der Inspektor zeichnet danach neu
+INSPECTOR_ACTIONS['eco-insp'] = (ui, el) => {
+  const g = ui.g, id = +el.dataset.id;
+  if (el.dataset.ecoInsp === 'mode') setWarehouseMode(g, id, el.dataset.m);
+  else if (el.dataset.ecoInsp === 'good') cycleWarehouseGood(g, id);
+  else if (el.dataset.ecoInsp === 'panel') { view.tab = el.dataset.tab || 'logistics'; ui.openPanel('economy'); return; }
+  ui.app.audio.play('click');
+};
 INSPECTORS.push((ui, sel) => {
   if (!sel || sel.type !== 'building') return null;
   const g = ui.g, b = g.buildings.get(sel.id);
   if (!b) return null;
   const info = buildingEconomy(g, b);
   if (!info) return null;
-  bindInspector(ui);
   const S = g.ext.industry;
   const kv = (rows) => `<div class="kv">${rows.map(([k, v, cls]) => `<span>${k}</span><span class="v ${cls || ''}">${v}</span>`).join('')}</div>`;
   const box = (title, inner) => `<div class="eco-insp"><h3>${title}</h3>${inner}</div>`;
@@ -693,12 +685,12 @@ INSPECTORS.push((ui, sel) => {
       ['Personal', P(r.staff ?? 1)],
       ['Zugekauft', P(r.impShare || 0)],
       ['Ergebnis', `${money(r.profit || 0)}/Tag`, (r.profit || 0) < 0 ? 'neg' : 'pos'],
-    ]) + `<p>Rohstoffe kommen von ${esc(SPEC_DATIVE[d.process])} der Stadt${S.buyRaw ? ', fehlende werden am Weltmarkt zugekauft' : ''}.</p><div style="margin-top:6px"><button class="eco-mini" data-eco-insp="panel" data-tab="logistics" data-id="${b.id}">Im Wirtschaftsfenster ansehen</button></div>`);
+    ]) + `<p>Rohstoffe kommen von ${esc(SPEC_DATIVE[d.process])} der Stadt${S.buyRaw ? ', fehlende werden am Weltmarkt zugekauft' : ''}.</p><div style="margin-top:6px"><button class="eco-mini" data-act="eco-insp" data-eco-insp="panel" data-tab="logistics" data-id="${b.id}">Im Wirtschaftsfenster ansehen</button></div>`);
   }
   if (r.kind === 'wh') {
     const list = GOOD_KEYS.filter((k) => (r.stock[k] || 0) > 0.5).map((k) => [esc(GOODS[k].name), T(r.stock[k])]);
     return box(`Lager · ${fmt(r.used || 0)} / ${fmt(r.cap || 0)} t`, (list.length ? kv(list) : '<p style="margin:0">leer</p>') + `
-<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center"><span class="eco-seg">${Object.entries(WH_MODES).map(([m, n]) => `<button data-eco-insp="mode" data-id="${b.id}" data-m="${m}" class="${r.mode === m ? 'on' : ''}">${n}</button>`).join('')}</span><button class="eco-mini" data-eco-insp="good" data-id="${b.id}">${r.goodSel === 'auto' ? 'Alle Waren' : esc(GOODS[r.goodSel].name)} ▸</button></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center"><span class="eco-seg">${Object.entries(WH_MODES).map(([m, n]) => `<button data-act="eco-insp" data-eco-insp="mode" data-id="${b.id}" data-m="${m}" class="${r.mode === m ? 'on' : ''}">${n}</button>`).join('')}</span><button class="eco-mini" data-act="eco-insp" data-eco-insp="good" data-id="${b.id}">${r.goodSel === 'auto' ? 'Alle Waren' : esc(GOODS[r.goodSel].name)} ▸</button></div>
 <p>Eingang ${T(r.inT || 0)} · Ausgang ${T(r.outT || 0)} am Tag. Läden in der Nähe werden zuerst beliefert.</p>`);
   }
   if (r.kind === 'cargo') {

@@ -436,7 +436,8 @@ function renderHud(ui) {
       hudMini = !(hudMini ?? isNarrow());
       renderHud(ui);
     });
-    hud.appendChild(hudEl);
+    // Halter der Oberfläche (rechte Spalte neben dem Panel-Dock), sonst direkt in #hud
+    (document.getElementById('u-objectives') || hud).appendChild(hudEl);
     hudGame = g;
   }
   const insp = ui.el?.insp && !ui.el.insp.hidden;

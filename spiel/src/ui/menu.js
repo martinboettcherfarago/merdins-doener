@@ -84,7 +84,7 @@ export class Menu {
     <div class="menu-foot">
       <button class="btn ghost dark" data-act="settings">${icon('settings', 16)} Einstellungen</button>
       <button class="btn ghost dark" data-act="keys">${icon('keyboard', 16)} Tastenkürzel</button>
-      <label class="btn ghost dark file">${icon('download', 16)} Spielstand aus Datei<input type="file" id="m-file" accept=".json,application/json"></label>
+      ${window.STADTPULS_EMBED ? '' : `<label class="btn ghost dark file">${icon('download', 16)} Spielstand aus Datei<input type="file" id="m-file" accept=".json,application/json"></label>`}
     </div>
     <div class="foot">Rechte Maus verschiebt, Mausrad zoomt, Q/E dreht. Ein Spieltag dauert 30 Sekunden. · Das Konzept steht in <code>spiel/docs/</code>.</div>
   </div>
@@ -96,7 +96,8 @@ export class Menu {
     r.querySelector('#m-name').addEventListener('input', (e) => { this.opts.name = e.target.value; });
     r.querySelector('#m-size').addEventListener('change', (e) => { this.opts.size = +e.target.value; this.preview(); this.render(); });
     r.querySelector('#m-seed').addEventListener('change', (e) => { this.opts.seed = Math.max(0, Math.floor(+e.target.value || 0)); this.preview(); this.render(); });
-    r.querySelector('#m-file').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) { showLoader('Spielstand wird geladen'); painted().then(() => this.app.importFile(f)); setTimeout(() => { if (this.app.mode !== 'game') hideLoader(); }, 4000); } });
+    const mf = r.querySelector('#m-file');
+    if (mf) mf.addEventListener('change', (e) => { const f = e.target.files[0]; if (f) { showLoader('Spielstand wird geladen'); painted().then(() => this.app.importFile(f)); setTimeout(() => { if (this.app.mode !== 'game') hideLoader(); }, 4000); } });
   }
 
   click(e) {

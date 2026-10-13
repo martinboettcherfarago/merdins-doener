@@ -66,8 +66,8 @@ const SYS_PANELS = [
         case 'keys': ui.showKeys(); return false;
         case 'save': app.save(+el.dataset.k); ui.toast(`Gespeichert in Platz ${el.dataset.k}.`, 'good'); return true;
         case 'load': ui.withLoader('Spielstand wird geladen', () => app.loadSlot(+el.dataset.k)); return false;
-        case 'export': app.exportSave(); return true;
-        case 'copy': app.copySave(); return true;
+        case 'export': if (!window.STADTPULS_EMBED) app.exportSave(); return true;
+        case 'copy': try { app.copySave(); } catch (e) { ui.toast('Zwischenablage nicht verfügbar.', 'bad'); } return true;
         case 'tomenu': app.toMenu(); return false;
         case 'openpanel': ui.openPanel(el.dataset.v); return false;
       }
@@ -143,7 +143,7 @@ export class UI {
     <button class="stat opt opt-wide" data-stat="transit" data-tip="Pulsbahn" data-tip-desc="Fahrgäste heute und Verkehrsfluss"><span class="k">Pulsbahn</span><span class="v" id="u-riders"></span><span class="d" id="u-flow"></span></button>
   </div>
   <div class="sign demand">
-    ${[1, 2, 3, 4].map((z) => `<div class="col" id="u-demc${z}" data-tip="Nachfrage ${ZONE_INFO[z].name}" data-tip-pos="bottom"><div class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></div><div class="lbl" style="color:${zoneCol(z)}">${ZONE_INFO[z].short}</div></div>`).join('')}
+    ${[1, 2, 3, 4].map((z) => `<div class="col" id="u-demc${z}" data-tip="Nachfrage ${ZONE_INFO[z].name}" data-tip-pos="bottom"><div class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></div><div class="lbl" style="color:color-mix(in srgb, ${zoneCol(z)} 58%, #1d2330)">${ZONE_INFO[z].short}</div></div>`).join('')}
   </div>
   <div class="spacer"></div>
   <div class="sign clock">
@@ -167,7 +167,7 @@ export class UI {
 </div>
 <div class="ticker" id="u-ticker" hidden><span class="pip" id="u-tickpip"></span><span class="who" id="u-tickwho"></span><span class="txt" id="u-ticktxt"></span></div>
 <div class="toolhint" id="u-toolhint" hidden></div>
-<div class="probs-hud" id="u-probs"></div>
+<div class="rstack" id="u-rstack"><div id="u-objectives"></div><div class="probs-hud" id="u-probs"></div></div>
 <div class="sign dock views" id="u-views"></div>
 <div class="sign legend" id="u-legend" hidden></div>
 <div class="sign dock panels" id="u-dock"></div>
@@ -667,7 +667,8 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   // ---------- Erste Schritte
   refreshTutorial() {
     const g = this.g;
-    if (this.tutorialHidden || g.sandbox || this.cat || this.panel || this.photo.active || this.mobile()) { this.el.tutorial.hidden = true; return; }
+    // Im Metro-Modus baut sich die Stadt selbst – dort passt die Einstiegsliste nicht
+    if (this.tutorialHidden || g.sandbox || (g.opts && g.opts.scenario === 'metro') || this.cat || this.panel || this.photo.active || this.mobile()) { this.el.tutorial.hidden = true; return; }
     const steps = tutorialSteps(g, this);
     const firstOpen = steps.findIndex((s) => !s[0]);
     if (firstOpen < 0) { this.el.tutorial.hidden = true; return; }
@@ -731,15 +732,20 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
   }
   toast(msg, type = '', opts = {}) {
     if (this._muteToast && / geladen\.$/.test(msg)) { this._muteToast = false; return; }
+    // Dieselbe Meldung steht schon da: nur auffrischen statt stapeln
+    for (const t of this.toasts.children) {
+      if (t._msg === msg && !t.classList.contains('out')) { clearTimeout(t._t); t._t = setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, opts.where ? 5200 : 3400); return; }
+    }
     const d = document.createElement('div');
+    d._msg = msg;
     d.className = 'toast ' + type + (opts.where ? ' link' : '');
     const ic = opts.icon || (type === 'bad' ? 'warn' : type === 'good' ? 'check' : 'info');
     d.innerHTML = `<span class="ti">${icon(ic, 15, 2.4)}</span><span class="tt"></span>${opts.where ? `<span class="tg">${icon('pin', 14, 2.2)}</span>` : ''}`;
     d.querySelector('.tt').textContent = msg;
     if (opts.where) d.addEventListener('click', () => { this.focusTile(opts.where.x, opts.where.y, 20); d.remove(); });
     this.toasts.appendChild(d);
-    while (this.toasts.children.length > 4) this.toasts.firstChild.remove();
-    setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 400); }, opts.where ? 5200 : 3400);
+    while (this.toasts.children.length > 3) this.toasts.firstChild.remove();
+    d._t = setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 400); }, opts.where ? 5200 : 3400);
   }
   floatMoney(amount, mouse) {
     if (!mouse || !amount || this.g.sandbox) return;
