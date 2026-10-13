@@ -738,7 +738,18 @@ void main(){ vI = aI; vec4 lp = vec4(position, 1.0);
 #ifdef USE_INSTANCING
 lp = instanceMatrix * lp;
 #endif
-vec4 mv = modelViewMatrix * lp; vD = -mv.z; gl_Position = projectionMatrix * mv; }`,
+vec4 mv = modelViewMatrix * lp; vD = -mv.z; gl_Position = projectionMatrix * mv;
+#ifdef USE_INSTANCING
+// Lichtkegel (Einheitskegel, Spitze bei y = 1): Kanten weich ausblenden, damit keine harten „Zacken" entstehen
+if (position.y > 0.5) {
+  vec3 sc = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+  vec3 nL = vec3(position.x / 0.06, 0.94, position.z / 0.06) / max(sc * sc, vec3(1e-6));
+  vec3 nV = normalize(normalMatrix * (mat3(instanceMatrix) * nL));
+  float fr = abs(dot(nV, normalize(-mv.xyz)));
+  vI = aI * fr * fr * 1.6;
+}
+#endif
+}`,
     fragmentShader: `uniform float uNight; uniform float uWet; uniform float fogNear; uniform float fogFar; varying float vI; varying float vD;
 void main(){ float f = 1.0 - smoothstep(fogNear, fogFar, vD); float k = vI * smoothstep(0.05, 0.6, uNight) * f * (1.0 + uWet * 0.7);
 gl_FragColor = vec4(vec3(1.0, 0.74, 0.42) * k, 1.0); }`,

@@ -1921,12 +1921,16 @@ export class BuildingView {
     const pts = this.lightBuf.points;
     this.lightMat.uniforms.uNight.value = night;
     this.lightMat.uniforms.uScale.value = (this.e.renderer.domElement.clientHeight || 720) * 0.9;
-    pts.visible = night > 0.04 && this.lightBuf.n > 0;
+    pts.visible = !this._fxLights && night > 0.04 && this.lightBuf.n > 0;
     this.lightT -= dt;
     if (!this.lightsDirty || this.lightT > 0) return;
     this.lightT = 0.5;
     this.lightsDirty = false;
     const buf = this.lightBuf;
+    // Bevorzugt über die gemeinsamen Nachtlichter von effects.js (HDR → Bloom, Lichtfleck am Boden, kein eigener Draw Call)
+    const fx = this.e.effects;
+    const shared = fx && typeof fx.addStaticLights === 'function';
+    const list = [];
     buf.begin();
     const col = new THREE.Color();
     for (const rec of this.recs.values()) {
@@ -1935,12 +1939,16 @@ export class BuildingView {
       if (!proto || !proto.lights.length) continue;
       const c = COS[rec.k], s = SIN[rec.k];
       for (const l of proto.lights) {
+        const x = rec.ox + l.x * c + l.z * s, z = rec.oz - l.x * s + l.z * c, size = (l.size ?? 0.4) * 0.9;
+        if (shared) { list.push({ x, y: l.y, z, color: l.color ?? 0xffd79a, size: size * 0.8, pool: l.y < 1.2 && size >= 0.15 ? Math.min(0.45, size * 1.1) : 0 }); continue; }
         col.setHex(l.color ?? 0xffd79a);
-        buf.add(rec.ox + l.x * c + l.z * s, l.y, rec.oz - l.x * s + l.z * c, (l.size ?? 0.4) * 0.9, col.r, col.g, col.b, 0.9);
+        buf.add(x, l.y, z, size, col.r, col.g, col.b, 0.9);
       }
     }
     buf.end();
-    pts.visible = night > 0.04 && buf.n > 0;
+    if (shared) fx.addStaticLights('g9-gebaeude', list);
+    this._fxLights = shared;
+    pts.visible = !shared && night > 0.04 && buf.n > 0;
   }
 
   // ------------------------------------------------------------------ Bild
