@@ -260,12 +260,21 @@ export class UI {
     on(this.el.insp, 'animationend', () => this.el.insp.classList.remove('enter'));
     this.onKey = (e) => this.key(e);
     window.addEventListener('keydown', this.onKey);
-    this.onResize = () => { this.updateTrackNav(); if (this.minimap) this.minimap.resize(); };
+    this.onResize = () => { this.updateTrackNav(); this.fitTop(); if (this.minimap) this.minimap.resize(); };
     window.addEventListener('resize', this.onResize);
     this.refreshSpeed();
     this.refreshHUD();
     this.refreshTutorial();
-    requestAnimationFrame(() => this.updateTrackNav());
+    requestAnimationFrame(() => { this.updateTrackNav(); this.fitTop(); });
+  }
+
+  // Handy: Die Kopfzeile bricht auf zwei bis drei Zeilen um – Lage-Chips, Laufband und Meldungen beginnen darunter
+  fitTop() {
+    const de = document.documentElement.style;
+    const tb = this.root.querySelector('.topbar');
+    if (!tb || !this.mobile() || this.root.hidden) { if (de.getPropertyValue('--top')) de.removeProperty('--top'); return; }
+    const v = Math.round(tb.getBoundingClientRect().bottom + 8) + 'px';
+    if (de.getPropertyValue('--top') !== v) de.setProperty('--top', v);
   }
 
   dispose() {
@@ -283,6 +292,7 @@ export class UI {
     this.root.innerHTML = '';
     this.root.hidden = true;
     this.root.className = '';
+    document.documentElement.style.removeProperty('--top');
     this.modalRoot.innerHTML = '';
     this.tooltip(null);
   }
@@ -902,7 +912,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     const views = viewList();
     this.el.sheet.innerHTML = `<div class="sh-card"><div class="sh-grab"></div>
 <div class="sh-head"><b>Übersicht</b><button class="close" data-sh="close" aria-label="Schließen">${icon('close', 18)}</button></div>
-<h3>Fenster</h3><div class="sh-grid">${panels.map(({ p, m }) => `<button data-sh="panel" data-v="${p.id}" style="--pc:${m.color}" class="${this.panel === p.id ? 'on' : ''}">${iconAny(p.icon, 'layers', 22)}<span>${esc(p.title)}</span></button>`).join('')}
+<h3>Fenster</h3><div class="sh-grid">${panels.map(({ p, m }) => `<button data-sh="panel" data-v="${p.id}" style="--pc:${m.color}" class="${this.panel === p.id ? 'on' : ''}">${iconAny(p.icon, 'layers', 22)}<span>${esc(p.short || (p.title.length > 16 ? p.title.split(' & ')[0] : p.title))}</span></button>`).join('')}
 <button data-sh="photo">${icon('camera', 22)}<span>Fotomodus</span></button><button data-sh="keys">${icon('keyboard', 22)}<span>Tasten</span></button><button data-sh="mini">${icon('minimap', 22)}<span>Minikarte</span></button></div>
 <h3>Infoansichten</h3><div class="sh-grid views">${views.map((o) => `<button data-sh="view" data-v="${o.id}" class="${this.view === o.id ? 'on' : ''}">${iconAny(o.icon, 'layers', 20)}<span>${esc(o.id === 'none' ? 'Normal' : o.name)}</span></button>`).join('')}</div></div>`;
   }
@@ -1088,7 +1098,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     this.timer -= dt;
     if (this.timer <= 0) {
       this.timer = 0.25;
-      if (!this.hudHidden && !this.photo.active) this.refreshHUD();
+      if (!this.hudHidden && !this.photo.active) { this.refreshHUD(); if (this.mobile()) this.fitTop(); }
       if (this.sel && !this.el.insp.hidden) this.renderInspector();
       if (this.app.input && this.app.input.tool.kind === 'line') this.renderToolHint();
     }

@@ -14,10 +14,10 @@ export const PRESETS = {
   ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' },
 };
 export const QUALITY = [
-  ['low', 'Niedrig', 'Ohne Schatten und Nachbearbeitung – für ältere Geräte und lange Akkulaufzeit.'],
-  ['medium', 'Mittel', 'Weiche Schatten und Leuchten bei Nacht. Gut für die meisten Geräte.'],
-  ['high', 'Hoch', 'Feine Schatten, Umgebungsverdeckung, volle Auflösung.'],
-  ['ultra', 'Ultra', 'Alles auf Maximum – für starke Grafikkarten.'],
+  ['low', 'Niedrig', 'Ohne Schatten, einfache Auflösung – für ältere Geräte und lange Akkulaufzeit.'],
+  ['medium', 'Mittel', 'Weiche Schatten, scharfe Darstellung. Gut für die meisten Geräte.'],
+  ['high', 'Hoch', 'Feine, hoch aufgelöste Schatten – für starke Grafikkarten.'],
+  ['ultra', 'Ultra', 'Alles auf Maximum – für sehr starke Grafikkarten.'],
 ];
 export const GFX_KEYS = ['quality', 'postfx', 'ao', 'bloom', 'shadows'];
 const UI_SCALES = [[0.9, '90 %'], [1, '100 %'], [1.1, '110 %'], [1.25, '125 %']];
@@ -27,6 +27,8 @@ export function ensureSettings(s) {
   if (!PRESETS[s.quality]) s.quality = 'medium';
   const p = PRESETS[s.quality];
   for (const k of ['postfx', 'ao', 'bloom', 'shadows']) if (s[k] === undefined) s[k] = p[k];
+  // ältere Standardwerte (main.js) speichern Schatten als true/false
+  if (typeof s.shadows === 'boolean') s.shadows = s.shadows ? p.shadows : 'off';
   if (s.uiScale === undefined) s.uiScale = 1;
   if (s.ambience === undefined) s.ambience = 1;
   if (s.minimap === undefined) s.minimap = true;
@@ -55,14 +57,16 @@ export function settingsHTML(ctx) {
   if (tab === 'grafik') {
     const q = QUALITY.find((x) => x[0] === s.quality) || QUALITY[1];
     const pending = gfxChanged(s, ctx.snap);
+    // Nur Schalter zeigen, die die Grafik wirklich auswertet (engine.caps, z. B. { shadows: true, bloom: true })
+    const caps = (ctx.app.engine && ctx.app.engine.caps) || {};
     body = `
 <div class="sec"><h3>Qualitätsstufe</h3>${seg('quality', s.quality, QUALITY.map((x) => [x[0], x[1]]))}<p class="hint">${esc(q[2])}</p></div>
-<div class="sec"><h3>Schatten</h3>${seg('shadows', s.shadows, [['off', 'Aus'], ['low', 'Weich'], ['high', 'Fein']])}</div>
-<div class="sec"><h3>Effekte</h3>
-  ${sw('postfx', s.postfx, 'Nachbearbeitung', 'Farbkorrektur, Kantenglättung und Licht-Effekte.')}
-  ${sw('ao', s.ao && s.postfx, 'Umgebungsverdeckung', 'Weiche Schatten in Ecken und Fugen – kostet Leistung.', !s.postfx)}
-  ${sw('bloom', s.bloom && s.postfx, 'Leuchten (Bloom)', 'Fenster, Laternen und Neon strahlen bei Nacht.', !s.postfx)}
-</div>
+${caps.shadows ? `<div class="sec"><h3>Schatten</h3>${seg('shadows', s.shadows, [['off', 'Aus'], ['low', 'Weich'], ['high', 'Fein']])}</div>` : ''}
+${caps.postfx || caps.ao || caps.bloom ? `<div class="sec"><h3>Effekte</h3>
+  ${caps.postfx ? sw('postfx', s.postfx, 'Nachbearbeitung', 'Farbkorrektur, Kantenglättung und Licht-Effekte.') : ''}
+  ${caps.ao ? sw('ao', s.ao && s.postfx, 'Umgebungsverdeckung', 'Weiche Schatten in Ecken und Fugen – kostet Leistung.', !s.postfx) : ''}
+  ${caps.bloom ? sw('bloom', s.bloom && s.postfx, 'Leuchten (Bloom)', 'Fenster, Laternen und Neon strahlen bei Nacht.', !s.postfx) : ''}
+</div>` : ''}
 <div class="sec"><h3>Darstellung</h3>
   ${sw('alwaysDay', s.alwaysDay, 'Immer Tag', 'Schaltet den Tag-Nacht-Wechsel ab.')}
   ${ctx.inGame ? sw('icons', ctx.app.engine && ctx.app.engine.effects ? ctx.app.engine.effects.showIcons : true, 'Problem-Symbole', 'Blitz, Tropfen, Müll und Co. über Gebäuden (Taste I).') : ''}
@@ -82,7 +86,7 @@ export function settingsHTML(ctx) {
   } else if (tab === 'spiel') {
     const slots = [1, 2, 3].map((k) => {
       const meta = ctx.app.slotMeta(k);
-      return `<div class="slot"><div class="grow"><div class="t">Platz ${k}${meta ? ': ' + esc(meta.name) : ''}</div><div class="s">${meta ? `${fmt(meta.pop)} Einwohner · ${new Date(meta.savedAt).toLocaleString('de-DE')}` : 'leer'}</div></div><button class="btn small" data-act="save" data-k="${k}">Speichern</button>${meta ? `<button class="btn small ghost" data-act="load" data-k="${k}">Laden</button>` : ''}</div>`;
+      return `<div class="slot"><div class="grow"><div class="t">Platz ${k}${meta ? ': ' + esc(meta.name) : ''}</div><div class="s">${meta ? `${fmt(meta.pop)} Einwohner · ${new Date(meta.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : 'leer'}</div></div><button class="btn small" data-act="save" data-k="${k}">Speichern</button>${meta ? `<button class="btn small ghost" data-act="load" data-k="${k}">Laden</button>` : ''}</div>`;
     }).join('');
     body = `<div class="sec"><h3>Spielstände</h3>${slots}
   <div class="acts">${window.STADTPULS_EMBED ? '' : '<button class="btn small ghost" data-act="export">Als Datei exportieren</button>'}<button class="btn small ghost" data-act="copy">In Zwischenablage</button></div>

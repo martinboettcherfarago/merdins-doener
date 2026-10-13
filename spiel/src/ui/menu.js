@@ -65,7 +65,7 @@ export class Menu {
   <div class="side">
     <div class="brand">${logo(64)}<div><h1>Stadtpuls</h1><div class="tag">Städtebau im Takt der Hochbahn</div></div></div>
     <p class="lede">Baue eine Stadt, die im Takt schlägt. Zonen, Strom und Wasser, Feuerwehr und Schulen – und eine Hochbahn über den Dächern, deren Züge bei jeder Ankunft einen Ton spielen.</p>
-    ${auto ? `<div class="card continue"><div class="cc-line"><i></i><i></i><i></i></div><div class="eyebrow">Weiterspielen</div><div class="cc-row"><div class="grow"><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE')}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}">Laden</button></div>`).join('')}</div>` : ''}</div>` : ''}
+    ${auto ? `<div class="card continue"><div class="cc-line"><i></i><i></i><i></i></div><div class="eyebrow">Weiterspielen</div><div class="cc-row"><div class="grow"><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}">Laden</button></div>`).join('')}</div>` : ''}</div>` : ''}
     <div class="card newcity${this.formOpen ? '' : ' closed'}">
       <button class="nc-head" data-act="toggleform" aria-expanded="${this.formOpen}"><h3>Neue Stadt gründen</h3>${auto ? `<span class="nc-chev">${icon(this.formOpen ? 'chevronU' : 'chevronD', 18, 2.4)}</span>` : ''}</button>
       ${this.formOpen ? '' : `<p class="nc-sub">Eigene Landschaft, Größe und Schwierigkeit wählen.</p>`}
@@ -138,12 +138,13 @@ export class Menu {
     if (app.mode !== 'game') { app.mode = prev === 'loading' ? 'menu' : prev; hideLoader(); }
   }
   prelaunch(e) {
-    const b = e.target.closest('[data-act=start], [data-act=continue], [data-act=slot]');
+    const b = e.target.closest('[data-act=start], [data-act=continue], [data-act=slot], [data-act=s5-start], [data-act=s5-daily], [data-act=s5-metro]');
     if (!b || e.button > 0) return;
     const app = this.app;
     this._preMode = app.mode;
     app.mode = 'loading';  // Menü-Stadt anhalten, damit das nächste Bild sofort kommt
-    showLoader(b.dataset.act === 'start' ? `${(this.opts.name || '').trim() || 'Neustadt'} wird gegründet` : 'Spielstand wird geladen', 'Einen Moment …');
+    const act = b.dataset.act;
+    showLoader(act === 'start' ? `${(this.opts.name || '').trim() || 'Neustadt'} wird gegründet` : act === 's5-start' ? 'Szenario wird vorbereitet' : act.startsWith('s5-') ? 'Metro-Modus' : 'Spielstand wird geladen', 'Einen Moment …');
     loaderEl().classList.add('pre'); // Klick muss den Knopf noch erreichen
     clearTimeout(this._preT);
     this._preT = setTimeout(() => { if (this._preMode !== null && app.mode === 'loading') { app.mode = this._preMode; this._preMode = null; hideLoader(true); } }, 1500);
