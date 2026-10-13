@@ -377,7 +377,8 @@ function dailyPlanning(g, day) {
   const st = g.ext.disasters;
   const mul = enabled(g);
   if (!mul || g.sandboxNoEvents) return;
-  if (day < 30 || g.stats.pop < 800 || day < st.cooldown) return;
+  // Schonfrist (Q2): die ersten ~20 Spielminuten bei 1× und kleine Städte bleiben verschont
+  if (day < 40 || g.stats.pop < 1000 || day < st.cooldown) return;
   if (st.planned.some((p) => !p.aftershock) || st.active.some((a) => a.type !== 'wildfire' || a.data.burning?.length > 0)) return;
   const popScale = g.stats.pop < 1000 ? 0.6 : g.stats.pop < 3000 ? 0.85 : 1;
   if (rnd(st) > (mul / 16) * popScale) return;
@@ -386,7 +387,9 @@ function dailyPlanning(g, day) {
   // 2–4 Tage voraus, tagsüber
   const lead = (2 + Math.floor(rnd(st) * 3)) * DAY;
   const at = (Math.floor(g.time / DAY) * DAY) + lead + (8 + rnd(st) * 10) * 60;
-  planDisaster(g, type, { at });
+  // Die erste Katastrophe eines Spiels fällt glimpflicher aus – man lernt Warnung und Vorbereitung kennen
+  const first = !st.history.length && !st.planned.length;
+  planDisaster(g, type, first ? { at, intensity: 0.35 + rnd(st) * 0.3 } : { at });
 }
 
 // ---------- Warnung und Vorbereitung
@@ -1052,7 +1055,8 @@ function hourlyShelter(g) {
   let rep = 0;
   for (const id of Object.keys(st.repairs)) {
     const b = g.buildings.get(+id);
-    if (b && b.zone === Z.RES) rep += b.occ;
+    // Leicht beschädigte Häuser bleiben bewohnbar: nur ein Teil der Bewohner muss ausweichen
+    if (b && b.zone === Z.RES) rep += b.occ * clamp((st.repairs[id].sev || 0.5) * 1.4, 0.2, 1);
   }
   st.displaced = Math.round(st.homeless + rep);
   st.sheltered = Math.min(st.displaced, st.shelterCap);
@@ -1082,7 +1086,8 @@ HAPPINESS_FACTORS.push((g, b) => {
   if (!st || b.zone !== Z.RES) return null;
   const un = st.displaced - st.sheltered;
   if (un < 10) return null;
-  return ['Obdachlose nach Katastrophe', -Math.min(6, un / 40)];
+  // Gemessen am Anteil der Bevölkerung (früher: −6 schon ab 240 Betroffenen, auch in Großstädten)
+  return ['Obdachlose nach Katastrophe', -Math.min(6, (un / Math.max(400, g.stats.pop)) * 30)];
 });
 HAPPINESS_FACTORS.push((g, b) => {
   const I = INTERNAL.get(g);
@@ -1169,7 +1174,8 @@ function renderables(g) {
 function serialize(g) {
   const st = g.ext.disasters, I = I_(g);
   const dmg = [];
-  for (let i = 0; i < g.N; i++) if (I.damage[i] > 0.02) dmg.push(i, +I.damage[i].toFixed(2));
+  // erst runden, dann filtern – sonst fällt ein Wert von genau 0,02 beim nächsten Speichern heraus
+  for (let i = 0; i < g.N; i++) { const v = +I.damage[i].toFixed(2); if (v > 0.02) dmg.push(i, v); }
   const strip = (a) => ({ ...a });
   return { ...st, planned: st.planned.map(strip), active: st.active.map(strip), dmg };
 }
@@ -1183,7 +1189,7 @@ function load(g, d) {
   // Reparaturen gegen den geladenen Bauzustand abgleichen
   for (const id of Object.keys(st.repairs)) { const b = g.buildings.get(+id); if (!b || b.construct >= 1) delete st.repairs[id]; }
   updateFields(g);
-  hourlyShelter(g);
+  // displaced/sheltered stehen im Spielstand; hourlyShelter rechnet sie zur nächsten Stunde ohnehin neu
 }
 
 registerSystem({

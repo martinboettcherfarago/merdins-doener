@@ -10,7 +10,7 @@
 //   stormI (Gewitterstärke 0..1), wet (Bodennässe 0..1), dry (Trockenheit 0..1), heatNeed / coolNeed (0..1),
 //   sun (Solarertrag 0..1,25), forecast ([{ day, kind, tMin, tMax, precip, wind, storm }] für die nächsten Tage).
 // Ein Spieljahr hat 4 × 28 Tage (eine Jahreszeit = 4 Wochen). Spielbeginn im frühen Frühling.
-import { registerSystem, HAPPINESS_FACTORS, DEMAND_MODIFIERS, CAPACITY_MODIFIERS, BUDGET_LINES, emit } from '../../registry.js';
+import { registerSystem, HAPPINESS_FACTORS, DEMAND_MODIFIERS, CAPACITY_MODIFIERS, BUDGET_LINES, POWER_MODIFIERS, emit } from '../../registry.js';
 import { BUILDINGS, DAY, Z, T } from '../../config.js';
 import { clamp } from '../../util.js';
 import { capacityOf } from '../city.js';
@@ -396,6 +396,8 @@ function applyEffects(g) {
   const fw = I.windAvg > 0.9 ? 0.25 : clamp(0.62 + 1.4 * I.windAvg, 0.35, 1.45);
   const fh = clamp(0.75 + 0.9 * I.precip7 - 0.25 * w.dry, 0.6, 1.25);
   const supply = S > 0 ? (S - Ss - Sw - Sh + Ss * fs + Sw * fw + Sh * fh) / S : 1;
+  // Kern-Schnittstellen (Q4): Solar/Wind/Wasserkraft je Kraftwerk über POWER_MODIFIERS, Heizen/Kühlen als Mehrverbrauch
+  I.pf = { solar: fs, wind: fw, hydro: fh };
   // Heizen mit Strom, wenn keine Fernwärme reicht (S2 kann g.ext.citizens.heatCover liefern)
   const heatDemand = g.stats.pop * w.heatNeed;
   let cover = heatDemand > 0 ? clamp(heat / heatDemand, 0, 1) : 1;
@@ -403,14 +405,16 @@ function applyEffects(g) {
   I.heatCover = cover;
   const heatElec = w.heatNeed * 0.16 * (1 - cover);
   const cool = w.coolNeed * 0.1;
-  const m = supply / (1 + heatElec + cool);
+  const use = heatElec + cool;
+  const m = supply / (1 + use); // nur noch für die Anzeige „Strombilanz" im Wetter-Panel
   const parts = [];
   if (Ss > 0) parts.push(`Solar ${Math.round(fs * 100)} %`);
   if (Sw > 0) parts.push(`Wind ${Math.round(fw * 100)} %`);
   if (Sh > 0) parts.push(`Wasserkraft ${Math.round(fh * 100)} %`);
   if (heatElec > 0.01) parts.push(`Heizen ${pct(heatElec)}`);
   if (cool > 0.01) parts.push(`Klimaanlagen ${pct(cool)}`);
-  setEffect(g, 'powerMul', m - 1, `Wetter: Strombilanz ${pct(m - 1)}${parts.length ? ' (' + parts.join(', ') + ')' : ''}`);
+  setEffect(g, 'powerMul', 0, '');
+  setEffect(g, 'powerUse', use, `Wetter: Strombedarf ${pct(use)}${parts.length ? ' (' + parts.join(', ') + ')' : ''}`);
   // --- Wasser
   const rainy = I.precipAvg > 0.12 ? 1 : 0;
   const water = clamp((I.tempAvg - 15) * 0.011, -0.07, 0.24) + w.dry * 0.1 - rainy * 0.05 + (I.tempAvg < -7 ? 0.06 : 0);
@@ -574,6 +578,13 @@ function exportForecast(g) {
 }
 export function dayPlan(g, d) { return plan(g, d); }
 
+// ---------- Kraftwerksleistung nach Wetter (Sonne, Wind, Regen)
+POWER_MODIFIERS.push((g, b, p) => {
+  const I = INTERNAL.get(g);
+  const f = I && I.pf ? I.pf[b.key] : undefined;
+  return f === undefined ? p : p * f;
+});
+
 // ---------- Glücksfaktoren
 HAPPINESS_FACTORS.push((g, b) => {
   const I = INTERNAL.get(g);
@@ -594,6 +605,8 @@ HAPPINESS_FACTORS.push((g, b, i) => {
 HAPPINESS_FACTORS.push((g, b) => {
   const I = INTERNAL.get(g), w = g.ext.weather;
   if (!I || !w || b.zone !== Z.RES || w.heatNeed < 0.45 || I.heatCover > 0.95) return null;
+  // Mit dem Bürgersystem (S2) gibt es dort je Gebäude „Kalte Wohnung" – nicht doppelt bestrafen (Q2)
+  if (g.ext.citizens && g.ext.citizens.stats) return null;
   const v = -(w.heatNeed - 0.35) * 5 * (1 - I.heatCover) * (b.powered ? 0.6 : 1.5);
   return v < -0.4 ? ['Kalte Wohnungen', v] : null;
 });
@@ -753,7 +766,8 @@ registerSystem({
     if (!I.plans.size) I.lastGen = Math.floor(g.time / DAY) - 2;
     recomputeFarms(g);
     rebuildPoolField(g);
-    applyEffects(g);
+    // Die Wettereffekte liegen schon gespeichert in g.effects; applyEffects hier würde die gleitende Stimmung
+    // einen Schritt weiterrechnen und die Strombilanz ohne Heizanteil neu setzen (Q4 save-test). Nächste Stunde rechnet neu.
     exportForecast(g);
   },
   renderables(g) { return plowRenderables(g); },

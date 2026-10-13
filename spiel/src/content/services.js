@@ -16,7 +16,7 @@ Object.assign(BUILDINGS, {
   cemetery: { name: 'Friedhof', cat: 'services', size: [2, 2], cost: 4000, upkeep: 30, unlock: 2, service: { type: 'deathcare', radius: 14, capacity: 6000 }, graves: 2400, hearses: 5, lv: -4, lvRadius: 4, desc: 'Leichenwagen holen Verstorbene ab. 2.400 Gräber – nach 25 Jahren Ruhefrist werden sie wieder frei.' },
   crematorium: { name: 'Krematorium', cat: 'services', size: [1, 1], cost: 8000, upkeep: 70, unlock: 3, service: { type: 'deathcare', radius: 18, capacity: 12000 }, hearses: 12, needsPower: true, pollution: 0.4, power_use: 12, desc: 'Große Kapazität auf kleiner Fläche, braucht keine Gräber – aber Strom.' },
   sewage_plant: { name: 'Kläranlage', cat: 'water', size: [2, 2], cost: 9000, upkeep: 80, unlock: 2, sewage: 1800, needsPower: true, residual: 0.12, needsWater: true, power_use: 14, pollution: 0.6, lv: -10, lvRadius: 5, desc: 'Reinigt Abwasser fast vollständig. Das Kanalnetz liegt wie die Wasserleitungen unter den Straßen.' },
-  sewage_outlet: { name: 'Abwasserauslass', cat: 'water', size: [1, 1], cost: 1200, upkeep: 8, unlock: 0, sewage: 500, residual: 1, needsWater: true, waterPollution: 1, lv: -14, lvRadius: 6, desc: 'Billig – leitet Abwasser ungeklärt ins Gewässer. Pumpwerke flussabwärts fördern dann verschmutztes Wasser.' },
+  sewage_outlet: { name: 'Abwasserauslass', cat: 'water', size: [1, 1], cost: 1200, upkeep: 8, unlock: 0, sewage: 500, residual: 1, needsWater: true, waterPollution: 1, lv: -14, lvRadius: 6, desc: 'Billig – leitet Abwasser ungeklärt ins Gewässer. Pumpwerke in der Nähe (bis etwa 20 Felder Wasserweg) fördern dann verschmutztes Wasser.' },
   district_heating: { name: 'Heizkraftwerk', cat: 'power', size: [2, 2], cost: 15000, upkeep: 120, unlock: 2, heat: 2400, power: 300, pollution: 1.5, water_use: 16, desc: 'Fernwärme für kalte Winter, dazu etwas Strom. Ab Stufe 3 frieren Gebäude ohne Fernwärme und ihre Bewohner werden krank.' },
   prison: { name: 'Gefängnis', cat: 'services', size: [3, 2], cost: 20000, upkeep: 150, unlock: 4, crimeCity: 0.12, inmates: 600, lv: -12, lvRadius: 6, power_use: 16, water_use: 12, desc: 'Platz für 600 Häftlinge. Senkt die Kriminalität in der ganzen Stadt.' },
 });
@@ -91,3 +91,12 @@ const MY_CHATTER = [
   { when: (g) => g.ext.districts && g.ext.districts.list && g.ext.districts.list.length > 0, texts: ['Unser Bezirk hat jetzt einen eigenen Namen. Ich fühle mich gleich heimischer.', 'Bezirksversammlung heute Abend: Es geht um Tempo 30.'] },
 ];
 CHATTER.unshift(...MY_CHATTER);
+
+// ---------- Müllabfuhr-Abstimmung (Q2)
+// Die Abdeckung reicht vom Mittelpunkt der Anlage aus. Mit 15 Feldern blieben in einer ordentlich versorgten Stadt
+// (Deponien am Rand, wie man sie baut – sie stinken) ganze Wohnreihen ohne Müllabfuhr (Beispielstadt: 21 von 98 Häusern
+// trotz 2 Deponien mit 7–13 % Auslastung). Die Kapazität bleibt, damit wachsende Städte trotzdem mehr Anlagen brauchen.
+for (const [key, r] of [['landfill', 20], ['incinerator', 24], ['recycling', 22]]) {
+  const d = BUILDINGS[key];
+  if (d && d.service && d.service.radius < r) d.service.radius = r;
+}

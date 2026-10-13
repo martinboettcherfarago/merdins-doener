@@ -395,7 +395,10 @@ function deathcareDaily(g, C, F, res, rnd) {
   });
   const waiting = res.filter((b) => b.cz.dead >= 1).sort((x, y) => y.cz.deadDays - x.cz.deadDays);
   const unlocked = g.isUnlocked('cemetery');
-  let umlandCap = unlocked ? UMLAND_PER_DAY + g.eff('umland') : 1e9;
+  // Übergang (Q2): Solange es noch keinen Friedhof gibt, nimmt das Umland deutlich mehr ab (gegen Gebühr) –
+  // sonst stapeln sich die Verstorbenen schlagartig, sobald „Kleinstadt" erreicht ist.
+  // Bis 1.500 Einwohner; danach braucht die Stadt wirklich einen eigenen Friedhof.
+  let umlandCap = unlocked ? UMLAND_PER_DAY + (fac.length || g.stats.pop >= 1500 ? 0 : Math.floor(g.stats.pop / 250)) + g.eff('umland') : 1e9;
   const umlandFree = g.eff('umland') > 0;
   let umland = 0, umlandPaid = 0, collected = 0;
   const trips = [];
@@ -587,7 +590,7 @@ function heatHourly(g, C) {
   let coldN = 0;
   if (hd <= 0) {
     for (const b of g.buildings.values()) if (b.cz) { b.cz.heat = true; b.cz.cold = 0; }
-    C.heatSupply = 0; C.heatDemand = 0; C.coldBuildings = 0;
+    C.heatSupply = 0; C.heatDemand = 0; C.coldBuildings = 0; C.heatCover = 1;
     return;
   }
   const nc = g.compCount;
@@ -618,6 +621,8 @@ function heatHourly(g, C) {
     if (cz.cold && b.construct >= 1 && !b.abandoned) coldN++;
   }
   C.heatSupply = ts; C.heatDemand = td; C.coldBuildings = coldN;
+  // Für S4 (Strombedarf durch elektrisches Heizen): Anteil des Wärmebedarfs, den die Fernwärme deckt
+  C.heatCover = td > 0 ? clamp(ts / td, 0, 1) : 1;
 }
 
 // Gefängnis senkt die Kriminalität (nach der Glücksberechnung der Kernsimulation)
@@ -790,7 +795,7 @@ function newsDaily(g, C, rnd) {
   if (S.graveFill > 0.9) say(g, C, 'dc2', 6, `Die Friedhöfe sind zu ${Math.round(S.graveFill * 100)} % belegt. Ein Krematorium braucht keine Gräber.`, 'bad');
   if (S.sewageRequired && S.unsewered > Math.max(3, g.stats.countByZone.reduce((a, b) => a + b, 0) * 0.05)) say(g, C, 'sw1', 4, `Das Kanalnetz ist überlastet – ${fmt(S.unsewered)} Gebäude ohne Abwasserentsorgung.`);
   if (S.sewBlocked >= 3) say(g, C, 'sw3', 10, `${fmt(S.sewBlocked)} Häuser könnten zu Stufe ${SEWAGE_LEVEL} wachsen – es fehlt nur der Kanalanschluss.`, 'info');
-  if (S.contam > 0.12) say(g, C, 'sw2', 5, 'Ein Pumpwerk fördert verschmutztes Wasser! Abwasser flussabwärts einleiten oder eine Kläranlage bauen.');
+  if (S.contam > 0.12) say(g, C, 'sw2', 5, 'Ein Pumpwerk fördert verschmutztes Wasser! Den Abwasserauslass weit weg vom Pumpwerk setzen (gut 20 Felder Wasserweg) oder eine Kläranlage bauen.');
   if (S.schoolFill > 1.15 && S.stage.school) say(g, C, 'ed1', 7, `Die Schulen sind überfüllt: ${fmt(S.stage.school.pupils)} Kinder, ${fmt(S.stage.school.seats)} Plätze.`, 'bad');
   if (S.kitaFill > 1.3 && S.stage.kita && S.stage.kita.pupils > 40) say(g, C, 'ed2', 8, `Kita-Plätze fehlen: ${fmt(S.stage.kita.pupils)} Kleinkinder, ${fmt(S.stage.kita.seats)} Plätze.`, 'info');
   if (S.sickShare > 0.1 && S.pop > 300) say(g, C, 'hl1', 5, `${Math.round(S.sickShare * 100)} % der Menschen sind krank. Mehr Arztpraxen und Krankenhäuser helfen.`);
@@ -823,8 +828,12 @@ registerSystem({
   hourly(g, h) {
     const C = state(g);
     const F = collectFacilities(g);
-    sewageHourly(g, C);
-    heatHourly(g, C);
+    // Abwasser und Wärme ändern sich langsam: alle zwei Stunden, sofort nach Bau/Abriss oder Netzänderung (Q4-Messung)
+    if (h % 2 === 0 || C._net !== g.netVersion || C._nb !== g.buildings.size) {
+      sewageHourly(g, C);
+      heatHourly(g, C);
+      C._net = g.netVersion; C._nb = g.buildings.size;
+    }
     prisonHourly(g, C, F);
     if (C.polDirty && h % 2 === 1) waterPollution(g, C);
     let ob = 0;
@@ -966,7 +975,7 @@ registerSystem({
     }
     return {
       v: 1, n: LEN2, ids: typedToB64(Int32Array.from(ids)), vals: typedToB64(Uint16Array.from(vals)), fac,
-      hist: C.hist.slice(-120), flags: C.flags, sewReq: C.sewReq,
+      hist: C.hist.slice(-120), flags: C.flags, sewReq: C.sewReq, umlandCost: Math.round(C.umlandCost || 0),
     };
   },
   load(g, d) {
@@ -984,10 +993,8 @@ registerSystem({
         for (let j = 0; j < LEN; j++) cz.a[j] = vals[o + j] / 10;
         cz.sick = vals[o + LEN] / 1000; cz.dead = vals[o + LEN + 1]; cz.deadDays = vals[o + LEN + 2]; cz.noSew = vals[o + LEN + 3];
         cz.dAcc = (vals[o + LEN + 4] || 0) / 1000; cz.bAcc = (vals[o + LEN + 5] || 0) / 1000;
-        // Rundungsfehler: Kohorten an die Belegung angleichen
-        let tot = 0; for (let j = 0; j < BINS; j++) tot += cz.a[j];
-        const target = b.occ - cz.dAcc + cz.bAcc;
-        if (tot > 0 && target > 0) { const f = target / tot; for (let j = 0; j < LEN; j++) cz.a[j] *= f; }
+        // Kein Angleichen an die Belegung: die Rundung (≤ 1 Person je Haus) gleicht stepPeople am nächsten Tag aus,
+        // und Speichern → Laden → Speichern bleibt bitgenau (Q4 save-test)
       }
     } catch (e) { /* alter oder beschädigter Spielstand – Kohorten werden neu aufgebaut */ }
     for (const [id, used, ring, extra, crem] of d.fac || []) {
@@ -999,6 +1006,7 @@ registerSystem({
     C.hist = d.hist || [];
     C.flags = d.flags || {};
     C.sewReq = !!d.sewReq;
+    C.umlandCost = d.umlandCost || 0; // sonst fehlt „Bestattung im Umland" bis zum nächsten Tag im Haushalt
     C.polDirty = true;
   },
 });
