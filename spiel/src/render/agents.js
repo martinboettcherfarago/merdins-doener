@@ -40,7 +40,8 @@ export class Fleet {
       if (!src) return null;
       const geo = src.clone();
       geo.userData.triangles = src.userData.triangles;
-      b = new Batch(this.parent, geo, this.mat, { shadow: lod >= 1 && !id.startsWith('far_'), cap: 16 });
+      // Schatten nur in Nahsicht – in mittlerer Entfernung sind sie wenige Pixel groß, kosten aber je Modell einen Draw Call
+      b = new Batch(this.parent, geo, this.mat, { shadow: lod >= 2 && !id.startsWith('far_'), cap: 16 });
       this.batches.set(key, b);
       this.list.push(b);
     }

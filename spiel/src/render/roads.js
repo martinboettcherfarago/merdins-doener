@@ -150,7 +150,9 @@ export class RoadView {
     sigTime.value = g.time / GAME_MIN_PER_SEC;
     const fog = this.e.scene.fog;
     if (fog) { this.mats.fog.fogNear.value = fog.near; this.mats.fog.fogFar.value = fog.far; }
-    const dist = this.e.rig.cur.dist;
+    // Qualitätsstufe: „Niedrig" zeigt Kleinteile und Detailbäume nur in größerer Nähe
+    const qf = ({ low: 0.6, high: 1.15, ultra: 1.3 })[this.e.quality && this.e.quality.name] ?? 1;
+    const dist = this.e.rig.cur.dist / qf;
     const det = dist < DETAIL_DIST;
     if (det !== this.detailOn) {
       this.detailOn = det;

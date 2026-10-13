@@ -851,7 +851,8 @@ export class Vegetation {
     const rig = this.e.rig;
     const sp = this.sp.gras;
     const dist = rig.cur.dist;
-    const on = dist < 26;
+    const low = this.e.quality && this.e.quality.name === 'low';
+    const on = !low && dist < 26;
     const tx = rig.target.x, tz = rig.target.z;
     const key = on ? `${Math.round(tx / 3)}:${Math.round(tz / 3)}` : 'aus';
     if (!force && key === this.nearKey) return;
