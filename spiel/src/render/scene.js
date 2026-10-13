@@ -103,7 +103,9 @@ export class Engine {
       sunDir: new THREE.Vector3(0, 1, 0), moonDir: new THREE.Vector3(0, 1, 0), keyDir: new THREE.Vector3(0, 1, 0),
       sunElev: 0.5, sunColor: new THREE.Color(1, 1, 1), ambient: new THREE.Color(0.5, 0.6, 0.7), dayLight: 1, cloud: 0, overcast: 0, moonPhase: 0.5,
     };
+    this.atmo = atmo;
     this.wx = { ...DEFAULT_WX };
+    this.skyTop = new THREE.Color(0x3f7fd0); this.skyHor = new THREE.Color(0xbcd6ec); this.skyBot = new THREE.Color(0x9db3c4);
     this.flash = 0;
     this.cloudOff = new THREE.Vector2(Math.random() * 50, Math.random() * 50);
     this.shadowOff = new THREE.Vector2(Math.random() * 50, Math.random() * 50);
@@ -262,7 +264,11 @@ export class Engine {
     wx.temp += (num(src.temp, 20) - wx.temp) * k;
     for (const key of ['rain', 'snow', 'cloud', 'fog', 'wind']) wx[key] += (clamp01(num(src[key], DEFAULT_WX[key])) - wx[key]) * k;
     wx.snowCover += (clamp01(num(src.snowCover, 0)) - wx.snowCover) * (snap ? 1 : 1 - Math.exp(-dt * 0.3));
-    wx.storm += ((src.storm ? 1 : 0) - wx.storm) * k;
+    // Gewitterstimmung: Sturm-Flag, Gewitterstärke (S4: stormI) und aktive Tornados dunkeln Himmel und Licht ab
+    const dis = this.game.ext && this.game.ext.disasters;
+    const tornado = dis && Array.isArray(dis.active) && dis.active.some((a) => a.type === 'tornado') ? 1 : 0;
+    const stormT = Math.max(src.storm ? Math.max(0.6, num(src.stormI, 1)) : 0, clamp01((num(src.stormI, 0) - 0.1) / 0.6), tornado);
+    wx.storm += (stormT - wx.storm) * k;
     let da = num(src.windDir, 0.6) - wx.windDir;
     da = Math.atan2(Math.sin(da), Math.cos(da));
     wx.windDir += da * k;
@@ -352,6 +358,10 @@ export class Engine {
     const glow = night * Math.min(1, 0.25 + pop / 20000) * (0.6 + 0.4 * cloud);
     st.cityGlow.setRGB(0.09, 0.055, 0.035).multiplyScalar(glow);
     const pal = this.sky.computePalette(s, st.cloud, storm);
+    // Für andere Ansichten (Wasser, Umland): Himmelsfarben wie sie auf dem Bildschirm erscheinen (linear)
+    this.skyTop.copy(pal.zen).multiplyScalar(1 / exposure);
+    this.skyHor.copy(pal.hor).multiplyScalar(1 / exposure);
+    this.skyBot.copy(pal.below).multiplyScalar(1 / exposure);
     // Boden für die Umgebungskarte: Gras/Stadt, beleuchtet
     const groundLum = 0.05 + 0.25 * sunUp * sunAtt + 0.03 * night;
     st.ground.setRGB(0.32, 0.36, 0.26).multiplyScalar(groundLum / exposure);
@@ -530,7 +540,13 @@ export class Engine {
     this.effects.endLights();
     this.transit.frame(this.time, night);
     this.effects.frame(dt, simDt, this.time, night);
-    for (const v of this.views) if (v.frame) v.frame(dt, simDt, this.time, night);
+    // Eine fehlerhafte Ansicht darf das Bild nicht verhindern (Fehler je Ansicht nur einmal melden)
+    for (const v of this.views) {
+      if (!v.frame) continue;
+      try { v.frame(dt, simDt, this.time, night); } catch (e) {
+        if (!v.__g1err) { v.__g1err = true; console.error('Ansicht', v.constructor && v.constructor.name, e); }
+      }
+    }
 
     const r = this.renderer;
     if (this.post) this.post.render(this.scene, this.camera);

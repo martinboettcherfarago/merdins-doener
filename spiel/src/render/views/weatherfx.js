@@ -40,8 +40,9 @@ void main() {
   vInfo = aInfo;
   float dc = length(uCam - c);
   vA = smoothstep(r * 1.5, r * 4.0, dc);
-  // über dem Spielfeld ausblenden
-  vA *= smoothstep(uHalf + 2.0, uHalf + 14.0, max(abs(c.x), abs(c.z)));
+  // über dem Spielfeld ausblenden – und von oben betrachtet ebenfalls (das Umland bleibt frei sichtbar)
+  vA *= smoothstep(uHalf + 6.0, uHalf + 22.0, max(abs(c.x), abs(c.z)));
+  vA *= 1.0 - smoothstep(c.y + 2.0, c.y + 22.0, uCam.y);
   if (uAtmoFogA.w > 0.5) { vec3 rd; vA *= 1.0 - atmoFogFactor(c, uCam, uAtmoFogA, uAtmoFogC, rd) * 0.85; }
   gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
 }`;
@@ -315,11 +316,10 @@ registerView(class WeatherView {
       let x, z;
       for (let tries = 0; tries < 20; tries++) {
         x = (rnd() * 2 - 1) * span; z = (rnd() * 2 - 1) * span;
-        if (Math.max(Math.abs(x), Math.abs(z)) > half + 10) break;
+        if (Math.max(Math.abs(x), Math.abs(z)) > half + 22) break;
       }
-      const low = rnd() < 0.3;
-      const y = low ? -5 + rnd() * 5 : 14 + rnd() * 16;
-      const size = (low ? 5 : 6) + rnd() * 7;
+      const y = 20 + rnd() * 18;
+      const size = 6 + rnd() * 8;
       const order = k / nClouds;
       const n = 6 + Math.floor(rnd() * 6);
       for (let i = 0; i < n; i++) {
@@ -494,8 +494,10 @@ registerView(class WeatherView {
     const src = (e.game.ext && e.game.ext.weather) || {};
     const hasField = typeof src.lightning === 'number';
     let strikeNow = false;
+    // S4 zeichnet die Blitzkanäle selbst und liefert das Flackern in lightning (0..1, jedes Bild) –
+    // dann übernimmt G1 nur den Lichtblitz. Ohne Wetter-System blitzt es hier bei Sturm von selbst.
     if (hasField) {
-      if (src.lightning > 0.5 && t - this.lastLightning > 0.45) strikeNow = true;
+      this.flash = Math.max(this.flash, Math.min(1, src.lightning));
     } else if (wx.storm > 0.5) {
       this.nextAuto -= dt;
       if (this.nextAuto <= 0) { strikeNow = true; this.nextAuto = 3 + Math.random() * 9; }

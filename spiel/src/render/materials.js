@@ -118,9 +118,13 @@ vec3 atmoFogTint(vec3 rd, vec3 horizon, vec3 sunSide, vec4 fb) {
 }
 `;
 
+const SKIP = (() => { try { return new URLSearchParams(location.search).get('g1skip') || ''; } catch (e) { return ''; } })();
+
 function patchChunks() {
   const C = THREE.ShaderChunk;
   if (C.fog_fragment.includes('atmoFog')) return;
+  if (SKIP.includes('all')) return;
+  if (!SKIP.includes('fog')) {
   C.fog_pars_vertex = `#ifdef USE_FOG
 	varying float vFogDepth;
 	varying vec3 vFogWorld;
@@ -152,27 +156,30 @@ function patchChunks() {
 		float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );
 	#endif
 	vec3 fogTint = fogColor;
-	if ( uAtmoFogA.w > 0.5 ) {
+	if ( uAtmoFogA.w > 0.5 ${SKIP.includes('fvary') ? '&& false' : ''} ) {
 		vec3 atmoRd;
 		fogFactor = atmoFogFactor( vFogWorld, cameraPosition, uAtmoFogA, uAtmoFogC, atmoRd );
 		fogTint = atmoFogTint( atmoRd, fogColor, uAtmoFogSun, uAtmoFogB );
 	}
 	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, fogFactor );
 #endif`;
+  }
 
   // Wolkenschatten auf dem direkten Licht
+  if (!SKIP.includes('light')) {
   C.lights_pars_begin = C.lights_pars_begin + `
 uniform vec4 uAtmoCloud;
 uniform vec4 uAtmoCloudB;
 uniform vec3 uAtmoCloudDir;
-uniform sampler2D uAtmoCloudTex;
+${SKIP.includes('csamp') ? '' : 'uniform sampler2D uAtmoCloudTex;'}
 float atmoCloudShadow(vec3 viewPos) {
+  ${SKIP.includes('ctex') || SKIP.includes('csamp') ? 'return 1.0;' : ''}
   if (uAtmoCloud.w <= 0.001) return 1.0;
   vec3 wp = ${VIEW_TO_WORLD('viewPos')};
   vec3 L = uAtmoCloudDir;
   vec2 p = wp.xz + L.xz * ((uAtmoCloudB.z - wp.y) / max(L.y, 0.25));
   p = p * uAtmoCloud.z + uAtmoCloud.xy;
-  float n = texture2D(uAtmoCloudTex, p * 0.25).r;
+  float n = ${SKIP.includes('csamp') ? '0.5' : 'texture2D(uAtmoCloudTex, p * 0.25).r'};
   float edge = 1.0 - uAtmoCloudB.x;
   float c = smoothstep(edge - uAtmoCloudB.y, edge + uAtmoCloudB.y, n);
   return 1.0 - c * uAtmoCloud.w;
@@ -182,6 +189,7 @@ float atmoCloudShadow(vec3 viewPos) {
     'getDirectionalLightInfo( directionalLight, directLight );',
     'getDirectionalLightInfo( directionalLight, directLight );\n\t\tdirectLight.color *= atmoCloudShadow( geometryPosition );',
   );
+  }
 
   // Tonwertkurve „Neutral“ (Khronos PBR Neutral) als CustomToneMapping
   C.tonemapping_pars_fragment = C.tonemapping_pars_fragment.replace(
