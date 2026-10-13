@@ -1,4 +1,4 @@
-// Schienenfahrzeuge (Besitzer: G10): Pulsbahn-Hochbahnwagen, Straßenbahn, Lok, Reisezugwagen, Güterwagen.
+// Schienenfahrzeuge (Besitzer: G10): Pulsbahn-U-Bahn-Wagen, Straßenbahn, Lok, Reisezugwagen, Güterwagen.
 // Maßstab 1 = 10 m, Ursprung = Mitte auf Schienenoberkante, Front nach +z.
 // Standardlängen (wenn ein System `len` mitgibt, wird entlang z darauf skaliert):
 //   metro_* 0.5 · tram 2.4 · train_loco 1.9 · train_wagon 2.6 · cargo_* 1.8
@@ -7,7 +7,7 @@ import { P, VC as C } from './vehicles_kit.js';
 export const RAIL_MODELS = {};
 function def(id, o) { RAIL_MODELS[id] = { id, far: 'box', beam: false, head: [], tail: [], beacons: [], rail: true, ...o }; }
 
-// ---------------------------------------------------------------- Pulsbahn (Hochbahn)
+// ---------------------------------------------------------------- Pulsbahn (U-Bahn, fährt im Tunnel – underground.js)
 const MW = 0.13; // halbe Breite
 const MSEC = [[-MW, 0.03], [MW, 0.03], [MW, 0.19], [0.122, 0.222], [0.1, 0.24], [-0.1, 0.24], [-0.122, 0.222], [-MW, 0.19]];
 const MBODY = 0xf2f3f1;
