@@ -1,35 +1,60 @@
 // Baut automatisch eine kleine Beispielstadt (Hintergrund des Hauptmenüs, Tests).
-import { R, Z, T } from '../config.js';
+import { R, Z, T, BUILDINGS } from '../config.js';
 
-// Setzt ein Gebäude, das am Wasser stehen muss (Abwasserauslass, Kläranlage), möglichst nah an (cx, cy)
-// und führt eine Straße von dort zur Stadt. Gibt true zurück, wenn es geklappt hat.
+// Setzt ein Gebäude, das am Wasser stehen muss (Abwasserauslass, Kläranlage), möglichst nah an (cx, cy).
+// Prüft zuerst Grundstück samt Drehung und Wasserkante, sucht dann per Breitensuche den kürzesten Weg zum Straßennetz
+// und baut die Zufahrt erst, wenn alles passt. Gibt true zurück, wenn es geklappt hat.
 export function placeAtShore(g, key, cx, cy, maxDist = 40) {
   const W = g.W, H = g.H, ter = g.world.terrain;
+  const def = BUILDINGS[key];
+  if (!def) return false;
+  const [w0, h0] = def.size || [1, 1];
+  const dry = (i) => ter[i] !== T.WATER && ter[i] !== T.ROCK && !g.bld[i] && !g.stationAt[i];
   const cands = [];
-  for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
-    const i = y * W + x;
-    if (ter[i] === T.WATER || ter[i] === T.ROCK || g.road[i] || g.bld[i]) continue;
-    if (![i - 1, i + 1, i - W, i + W].some((j) => ter[j] === T.WATER)) continue;
+  for (let y = 2; y < H - 3; y++) for (let x = 2; x < W - 3; x++) {
     const d = Math.abs(x - cx) + Math.abs(y - cy);
-    if (d <= maxDist) cands.push([d, x, y]);
+    if (d > maxDist) continue;
+    for (const rot of w0 === h0 ? [0] : [0, 1]) {
+      const [w, h] = rot ? [h0, w0] : [w0, h0];
+      let ok = true, wet = false;
+      for (let yy = y; yy < y + h && ok; yy++) for (let xx = x; xx < x + w; xx++) { const i = yy * W + xx; if (!dry(i) || g.road[i]) { ok = false; break; } }
+      if (!ok) continue;
+      for (let yy = y - 1; yy <= y + h && !wet; yy++) for (let xx = x - 1; xx <= x + w; xx++) {
+        const corner = (xx === x - 1 || xx === x + w) && (yy === y - 1 || yy === y + h);
+        if (!corner && (xx < x || xx >= x + w || yy < y || yy >= y + h) && ter[yy * W + xx] === T.WATER) { wet = true; break; }
+      }
+      if (wet) cands.push([d + (g.zone[y * W + x] ? 3 : 0), x, y, rot, w, h]);
+    }
   }
   cands.sort((a, b) => a[0] - b[0]);
-  const dry = (x, y) => x >= 0 && y >= 0 && x < W && y < H && ter[y * W + x] !== T.WATER && ter[y * W + x] !== T.ROCK && !g.bld[y * W + x];
-  for (const [, bx, by] of cands.slice(0, 40)) {
-    // Zufahrt: ein trockenes Nachbarfeld des Bauplatzes, dann L-Weg zurück zur Stadt
-    for (const [nx, ny] of [[bx + 1, by], [bx - 1, by], [bx, by + 1], [bx, by - 1]]) {
-      if (!dry(nx, ny)) continue;
-      const path = [];
-      const sx = Math.sign(cx - nx), sy = Math.sign(cy - ny);
-      let x = nx, y = ny, ok = true;
-      path.push(y * W + x);
-      while (y !== cy) { y += sy; if (!dry(x, y) && !g.road[y * W + x]) { ok = false; break; } path.push(y * W + x); }
-      while (ok && x !== cx) { x += sx; if (!dry(x, y) && !g.road[y * W + x]) { ok = false; break; } path.push(y * W + x); }
-      if (!ok || path.includes(by * W + bx)) continue;
-      const fresh = path.filter((i) => !g.road[i]);
-      if (fresh.length && !g.buildRoad(fresh, R.STREET).ok) continue;
-      if (g.placeBuilding(key, bx, by).ok) return true;
+  for (const [, x, y, rot, w, h] of cands.slice(0, 60)) {
+    if (!g.checkPlace(key, x, y, rot)) { if (g.placeBuilding(key, x, y, rot).ok) return true; continue; }
+    // Kürzester Weg über trockenes, freies Land vom Grundstücksrand zum Straßennetz der Stadt
+    const prev = new Int32Array(g.N).fill(-2), q = [];
+    for (let yy = y - 1; yy <= y + h; yy++) for (let xx = x - 1; xx <= x + w; xx++) {
+      if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+      const corner = (xx === x - 1 || xx === x + w) && (yy === y - 1 || yy === y + h);
+      if (corner || (xx >= x && xx < x + w && yy >= y && yy < y + h)) continue;
+      const i = yy * W + xx;
+      if (dry(i) && !g.road[i]) { prev[i] = -1; q.push(i); }
     }
+    let hit = -1;
+    for (let qi = 0; qi < q.length && hit < 0 && qi < 4000; qi++) {
+      const i = q[qi], xx = i % W, yy = (i / W) | 0;
+      for (const j of [i - 1, i + 1, i - W, i + W]) {
+        const jx = j % W, jy = (j / W) | 0;
+        if (j < 0 || j >= g.N || Math.abs(jx - xx) + Math.abs(jy - yy) !== 1) continue;
+        if (jx >= x && jx < x + w && jy >= y && jy < y + h) continue;
+        if (g.road[j] && g.road[j] !== R.HIGHWAY && g.roadComp[j] === g.outsideComp) { hit = i; break; }
+        if (prev[j] !== -2 || !dry(j) || g.road[j]) continue;
+        prev[j] = i; q.push(j);
+      }
+    }
+    if (hit < 0) continue;
+    const path = [];
+    for (let i = hit; i >= 0; i = prev[i]) path.push(i);
+    if (path.length > 30 || !g.buildRoad(path, R.STREET).ok) continue;
+    if (g.placeBuilding(key, x, y, rot).ok) return true;
   }
   return false;
 }
@@ -64,6 +89,7 @@ export function buildDemoCity(g) {
   place('watertower', x0 + 2, hy + 2);
   place('landfill', x0 + 9, hy + 7);
   place('landfill', x0 + 29, hy + 7);
+  place('landfill', x0 + 29, hy - 13);
   zone(x0 + 4, hy - 10, x0 + 20, hy - 1, Z.RES);
   zone(x0 + 4, hy + 1, x0 + 14, hy + 10, Z.COM);
   zone(x0 + 16, hy + 1, x0 + len, hy + 10, Z.IND);
