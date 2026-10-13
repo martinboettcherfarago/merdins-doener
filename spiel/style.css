@@ -677,7 +677,10 @@ button.chip:hover { background: var(--paper-3); }
 @media (hover: hover) { .pop-foot:hover { background: var(--paper-3); } }
 .pop-foot > span { flex: 1; text-align: left; }
 .pop-foot .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--l-yellow); flex: none; }
-.pop-note { display: flex; gap: 8px; align-items: center; margin: 6px 8px 4px; font-size: 12px; color: var(--ink-3); line-height: 1.35; }
+.pop-note { display: flex; gap: 8px; align-items: center; margin: 6px 4px 4px 8px; font-size: 12px; color: var(--ink-3); line-height: 1.35; }
+.pop-note span { flex: 1; }
+.pop-more { flex: none; height: 26px; padding: 0 10px; border-radius: 8px; background: var(--paper-2); color: var(--ink-2); font-weight: 700; font-size: 12px; }
+.pop-more:hover { background: var(--paper-3); color: var(--ink); }
 .pop .allgood { margin: 0 0 4px; align-items: flex-start; }
 .pop .allgood > span { display: flex; flex-direction: column; }
 .pop .allgood small { font-weight: 500; font-size: 12px; margin-top: 1px; }

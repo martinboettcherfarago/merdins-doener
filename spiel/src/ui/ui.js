@@ -597,7 +597,7 @@ export class UI {
     if (gr && this.visCache) this.visCache.set(gr.id, vis);
     this.el.tray.style.setProperty('--lc', cm.color);
     const tabs = vis.length > 1 ? `<div class="tr-tabs" role="tablist">${vis.map((c) => { const m = catMeta(c); const lbl = catLabel(c); return `<button class="tr-tab${c === cat ? ' on' : ''}" role="tab" data-tab="${c}" data-tour="cat-${c}" style="--tc:${m.color}" data-tip="${esc(lbl)}" data-tip-desc="${esc(this.catDesc(c))}" data-tip-fast="1">${iconAny(m.icon, 'layers', 15, 2.2)}<span>${esc(lbl)}</span>${this._isNew && this._isNew(c) ? '<i class="nd"></i>' : ''}</button>`; }).join('')}</div>` : '';
-    this.el.tray.innerHTML = `<div class="tr-head"><span class="tr-badge" style="background:${cm.color}">${iconAny(cm.icon, 'layers', 15, 2.2)}</span><span class="tr-name">${esc(isSearch ? 'Suche' : vis.length > 1 ? cm.name : catLabel(cat))}</span>${tabs}<span class="grow"></span><span class="tr-count" id="u-traycount"></span>
+    this.el.tray.innerHTML = `<div class="tr-head"><span class="tr-badge" style="background:${cm.color}">${iconAny(cm.icon, 'layers', 15, 2.2)}</span><span class="tr-name">${esc(isSearch ? 'Suche' : vis.length > 1 ? cm.name : catLabel(cat))}</span>${tabs}<span class="grow"></span>
 <label class="tr-search" data-tip="Suchen" data-tip-desc="Alle Gebäude und Werkzeuge nach Namen durchsuchen." data-key="F" data-tip-fast="1">${icon('search', 15)}<input id="u-search" type="search" placeholder="Suchen …" value="${esc(this.search)}" autocomplete="off" spellcheck="false" aria-label="Gebäude suchen"></label>
 <button class="close" data-act="closetray" data-tip="Schließen" data-tip-desc="Baukatalog zuklappen." data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 16)}</button></div>
 <div class="tr-body"><div class="detail"></div><div class="strip" id="u-strip"></div></div>`;
@@ -771,7 +771,7 @@ export class UI {
 
   // ---------- Stadt-Panels (fortschreitend: nur, was schon relevant ist)
   panelDef(id) { return PANELS.find((p) => p.id === id) || CORE_PANELS.find((p) => p.id === id) || SYS_PANELS.find((p) => p.id === id) || null; }
-  cityPanels(all = false) { return dockPanels(CORE_PANELS).filter(({ p }) => all || panelAvailable(p, this) || this.panel === p.id); }
+  cityPanels(all = false) { return dockPanels(CORE_PANELS).filter(({ p }) => all || this.showAllPanels || panelAvailable(p, this) || this.panel === p.id); }
   // Neu verfügbare Panels einmal kurz ankündigen
   refreshAvail() {
     const ids = this.cityPanels().map(({ p }) => p.id).join(',');
@@ -866,7 +866,7 @@ ${this.view !== 'none' ? `<button class="pop-foot" data-pa="view" data-v="none" 
       const title = p.id === 'transit' ? 'U-Bahn' : p.title;
       return `<button class="pop-row${this.panel === p.id ? ' on' : ''}" data-pa="panel" data-v="${esc(p.id)}" style="--pc:${m.color}" data-tip="${esc(title)}" data-tip-desc="${esc(m.desc || title)}" ${m.key ? `data-key="${m.key}"` : ''}><span class="pi">${iconAny(p.icon, 'layers', 17, 2.1)}</span><span class="t"><b>${esc(title)}</b>${m.desc ? `<small>${esc(m.desc)}</small>` : ''}</span>${v !== null && v !== undefined && v !== 0 && v !== '' ? `<span class="pb">${esc(v)}</span>` : ''}</button>`;
     };
-    return `${groups.map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4>${gr.items.map(row).join('')}</div>`).join('')}${hidden > 0 ? `<p class="pop-note">${icon('lock', 13, 2.2)}<span>${hidden === 1 ? 'Ein weiterer Bereich kommt' : `${hidden} weitere Bereiche kommen`} dazu, wenn die Stadt wächst.</span></p>` : ''}`;
+    return `${groups.map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4>${gr.items.map(row).join('')}</div>`).join('')}${hidden > 0 ? `<p class="pop-note">${icon('lock', 13, 2.2)}<span>${hidden === 1 ? 'Ein weiterer Bereich kommt' : `${hidden} weitere Bereiche kommen`} dazu, wenn die Stadt wächst.</span><button class="pop-more" data-pa="allpanels" data-tip="Alle zeigen" data-tip-desc="Auch Bereiche zeigen, die erst später wichtig werden.">Alle zeigen</button></p>` : ''}`;
   }
   popCity() { return `${this.popHead('Stadt', 'Verwaltung, Zahlen und Pläne', 'city')}<div class="pop-b">${this.popCityBody()}</div>`; }
   popCheck() {
@@ -911,6 +911,7 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
       case 'panel': this.closePop(); if (this.freshPanels) this.freshPanels.delete(v); this.openPanel(v); this.refreshBadges(); return;
       case 'prob': { const p = problems(this.g).find((x) => x.id === v); this.closePop(); if (p) this.runAction(p); return; }
       case 'advisor': this.closePop(); this.openPanel('advisor'); return;
+      case 'allpanels': this.showAllPanels = true; this.renderPop(); return;
       case 'save': this.closePop(); if (this.app.save(1) !== false) this.toast('Gespeichert in Platz 1.', 'good'); return;
       case 'slots': this.closePop(); this.setTab = 'spiel'; this.openPanel('settings'); return;
       case 'settings': this.closePop(); if (this.setTab === 'spiel' || this.setTab === 'hilfe') this.setTab = 'grafik'; this.openPanel('settings'); return;
