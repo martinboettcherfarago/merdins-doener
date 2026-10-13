@@ -35,7 +35,8 @@ function showView(input) {
   input.e._districtPainting = !!districtTool.stroke;
 }
 
-function startStroke(input, t, e) {
+// tiles: feste Felder statt Pinselabdruck (Bestätigungsmodus per Touch: Rechteck mit Griffen) – der Strich endet sofort
+function startStroke(input, t, e, tiles = null) {
   const g = input.g;
   const D = districtsOf(g);
   if (lockText(g)) { input.ui.toast(lockText(g), 'bad'); input.audio.play('error'); return; }
@@ -61,9 +62,41 @@ function startStroke(input, t, e) {
   }
   districtTool.stroke = { id, mode, x: t.x, y: t.y, changed: 0, created: !!districtTool.created };
   districtTool.created = false;
-  districtTool.stroke.changed += paintTiles(g, id, stampTiles(g, t.x, t.y, mode));
-  if (mode !== 'fill' && e && e.pointerId !== undefined) { try { input.e.canvas.setPointerCapture(e.pointerId); } catch (err) { /* egal */ } }
-  if (mode === 'fill') endStroke(input);
+  districtTool.stroke.changed += paintTiles(g, id, tiles && mode !== 'fill' ? tiles : stampTiles(g, t.x, t.y, mode));
+  if (!tiles && mode !== 'fill' && e && e.pointerId !== undefined) { try { input.e.canvas.setPointerCapture(e.pointerId); } catch (err) { /* egal */ } }
+  if (mode === 'fill' || tiles) endStroke(input);
+}
+
+// Bestätigungsmodus (Touch): Malen/Radieren als Rechteck mit Griffen, Füllen als Punkt – gemalt wird erst mit ✓
+function pendTiles(input, p) {
+  const g = input.g;
+  if (p.kind === 'point') return blockTiles(g, p.y * g.W + p.x);
+  const x0 = Math.min(p.sx, p.ex), x1 = Math.max(p.sx, p.ex), y0 = Math.min(p.sy, p.ey), y1 = Math.max(p.sy, p.ey);
+  const out = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) out.push(y * g.W + x);
+  return out;
+}
+function pendPreview(input, p) {
+  const g = input.g, ov = input.e.overlay;
+  showView(input);
+  const mode = modeOf(input, null);
+  const tiles = pendTiles(input, p);
+  const i0 = p.kind === 'point' ? p.y * g.W + p.x : p.sy * g.W + p.sx;
+  const under = districtAt(g, i0);
+  const act = activeDistrict(g);
+  const target = mode === 'erase' || mode === 'new' ? null : under && mode === 'paint' ? under : act;
+  ov.showTiles(tiles.map((i) => ({ i, color: mode === 'erase' ? 0xff5a4a : target ? target.color : 0xffffff })));
+  const lock = lockText(g);
+  const n = tiles.length;
+  const title = mode === 'erase' ? 'Bezirk radieren' : target ? target.name : 'Neuer Bezirk';
+  const reason = lock || (!n ? (mode === 'fill' ? 'Hier gibt es keinen Block (freies Feld zwischen Straßen antippen)' : 'Keine Felder') : '');
+  return { title, sub: `${n} ${n === 1 ? 'Feld' : 'Felder'}`, ok: !reason, reason, okLabel: mode === 'erase' ? 'Radieren' : mode === 'fill' ? 'Füllen' : 'Malen', price: '' };
+}
+function pendApply(input, p) {
+  const t = p.kind === 'point' ? { x: p.x, y: p.y, i: p.y * input.g.W + p.x } : { x: p.sx, y: p.sy, i: p.sy * input.g.W + p.sx };
+  startStroke(input, t, null, p.kind === 'point' ? null : pendTiles(input, p));
+  input.e._districtPainting = false;
+  return true;
 }
 function continueStroke(input, t) {
   const s = districtTool.stroke;
@@ -123,6 +156,9 @@ registerTool('district', {
   move(input, t, e) { input._lastEvt = e; if (districtTool.stroke) continueStroke(input, t); },
   up(input, t, e) { input._lastEvt = e; if (districtTool.stroke) { continueStroke(input, t); endStroke(input); } preview(input, t); },
   hover(input, t) { preview(input, t); },
+  pendKind(input) { return (input.tool.type || 'paint') === 'fill' ? 'point' : 'rect'; },
+  pendPreview,
+  pendApply,
   cancel(input) {
     if (districtTool.stroke) endStroke(input);
     input.e._districtTool = false;
