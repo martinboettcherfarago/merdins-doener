@@ -11,7 +11,7 @@
 //   emitDust(x, y, z, größe, deckkraft)                          Baustaub (von buildings.js genutzt)
 //   showIcons (bool)
 import * as THREE from 'three';
-import { makeGlowTexture, makePointsMaterial, PointBuffer, atmo, ATMO_FOG_GLSL } from './materials.js';
+import { makeGlowTexture, makePointsMaterial, PointBuffer, atmo, ATMO_FOG_GLSL, shared } from './materials.js';
 import { ICONS, BUILDING_PROBLEMS } from '../registry.js';
 
 // Index im Symbol-Atlas für registrierte Symbole (ab 8)
@@ -724,7 +724,7 @@ void main() {
       for (const list of this.staticLights.values()) {
         for (const l of list) {
           this.lights.add(l.x, l.y, l.z, l.size, l.r * 1.6, l.g * 1.6, l.b * 1.6, a * 0.8);
-          if (l.pool > 0) this.pools.add(l.x, 0.02, l.z, l.pool, l.r, l.g, l.b, a * 0.35);
+          if (l.pool > 0) this.pools.add(l.x, 0.02, l.z, l.pool, l.r, l.g, l.b, a * 0.35 * (1 - 0.5 * ((shared.uSnow && shared.uSnow.value) || 0)));
         }
       }
     }

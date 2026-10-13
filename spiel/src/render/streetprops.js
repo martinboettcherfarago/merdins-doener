@@ -732,7 +732,7 @@ export function roadMaterials(renderer, cityName) {
   patchSnowWet(glow, { sig: true });
   const fog = { fogNear: { value: 100 }, fogFar: { value: 600 } };
   const light = new THREE.ShaderMaterial({
-    uniforms: { uNight: shared.uNight, uWet: shared.uWet, ...fog },
+    uniforms: { uNight: shared.uNight, uWet: shared.uWet, uSnow: shared.uSnow, ...fog },
     vertexShader: `attribute float aI; varying float vI; varying float vD;
 void main(){ vI = aI; vec4 lp = vec4(position, 1.0);
 #ifdef USE_INSTANCING
@@ -752,8 +752,8 @@ if (position.y > 0.5) {
 } else vI = aI * 0.3;
 #endif
 }`,
-    fragmentShader: `uniform float uNight; uniform float uWet; uniform float fogNear; uniform float fogFar; varying float vI; varying float vD;
-void main(){ float f = 1.0 - smoothstep(fogNear, fogFar, vD); float k = vI * smoothstep(0.05, 0.6, uNight) * f * (1.0 + uWet * 0.15);
+    fragmentShader: `uniform float uNight; uniform float uWet; uniform float uSnow; uniform float fogNear; uniform float fogFar; varying float vI; varying float vD;
+void main(){ float f = 1.0 - smoothstep(fogNear, fogFar, vD); float k = vI * smoothstep(0.05, 0.6, uNight) * f * (1.0 + uWet * 0.15) * (1.0 - uSnow * 0.55);
 gl_FragColor = vec4(vec3(1.0, 0.74, 0.42) * k, 1.0); }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   });

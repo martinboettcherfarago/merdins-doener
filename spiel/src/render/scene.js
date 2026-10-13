@@ -415,9 +415,12 @@ export class Engine {
     if (this.post) {
       const p = this.post.params;
       p.exposure = exposure;
-      p.threshold = 1.7 - 0.95 * night;
-      p.knee = 0.6;
-      p.bloom = (0.22 + 0.6 * night) * (this.quality.name === 'ultra' ? 1.1 : 1);
+      // Bloom nur für echte Lichtquellen (Fenster, Laternen, Neon): Schwelle auch nachts hoch, damit Schnee, nasser Asphalt
+      // und Laternen-Lichtflecken nicht zu großen weißen Wolken verschwimmen (auf echten Grafikkarten deutlich sichtbar)
+      const snowK = (shared.uSnow && shared.uSnow.value) || 0;
+      p.threshold = 1.8 - 0.4 * night + 0.35 * snowK;
+      p.knee = 0.35;
+      p.bloom = (0.18 + 0.2 * night) * (1 - 0.35 * snowK) * (this.quality.name === 'ultra' ? 1.1 : 1);
       p.aoRadius = Math.min(1.1, Math.max(0.1, dist * 0.011));
       p.aoIntensity = 1.0;
       p.aoStrength = 0.85 - 0.3 * night - 0.25 * overcast;

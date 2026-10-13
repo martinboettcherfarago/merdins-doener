@@ -15,6 +15,8 @@ void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const COMMON = /* glsl */`
 varying vec2 vUv;
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+// Ungültige Pixel (NaN/Inf, negative Werte) entschärfen: Apple-GPUs machen sonst aus NaN beim Bloom große weiße Flecken
+vec3 safeCol(vec3 v) { bvec3 bad = bvec3(v.r != v.r || abs(v.r) > 6.0e4, v.g != v.g || abs(v.g) > 6.0e4, v.b != v.b || abs(v.b) > 6.0e4); return any(bad) ? vec3(0.0) : max(v, vec3(0.0)); }
 `;
 
 const AO_FRAG = /* glsl */`
@@ -98,10 +100,10 @@ uniform float uKnee;
 uniform float uClampMax;
 vec3 karis(vec3 c) { return c / (1.0 + max(c.r, max(c.g, c.b))); }
 void main() {
-  vec3 a = texture2D(tColor, vUv + uTexel * vec2(-1.0, -1.0)).rgb;
-  vec3 b = texture2D(tColor, vUv + uTexel * vec2(1.0, -1.0)).rgb;
-  vec3 c = texture2D(tColor, vUv + uTexel * vec2(-1.0, 1.0)).rgb;
-  vec3 d = texture2D(tColor, vUv + uTexel * vec2(1.0, 1.0)).rgb;
+  vec3 a = safeCol(texture2D(tColor, vUv + uTexel * vec2(-1.0, -1.0)).rgb);
+  vec3 b = safeCol(texture2D(tColor, vUv + uTexel * vec2(1.0, -1.0)).rgb);
+  vec3 c = safeCol(texture2D(tColor, vUv + uTexel * vec2(-1.0, 1.0)).rgb);
+  vec3 d = safeCol(texture2D(tColor, vUv + uTexel * vec2(1.0, 1.0)).rgb);
   float wa = 1.0 / (1.0 + max(a.r, max(a.g, a.b)));
   float wb = 1.0 / (1.0 + max(b.r, max(b.g, b.b)));
   float wc = 1.0 / (1.0 + max(c.r, max(c.g, c.b)));
@@ -189,7 +191,7 @@ vec3 toSRGB(vec3 c) {
 float sceneZ(vec2 uv) { return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uProj.z, uProj.w); }
 
 void main() {
-  vec3 c = texture2D(tColor, vUv).rgb;
+  vec3 c = safeCol(texture2D(tColor, vUv).rgb);
   float z = 0.0;
 #if defined(USE_AO) || defined(USE_DOF)
   z = sceneZ(vUv);
@@ -266,7 +268,7 @@ export class PostFX {
       uRadius: { value: 0.35 }, uIntensity: { value: 1 }, uProjScale: { value: 300 }, uMaxPx: { value: 48 },
     }, { AO_SAMPLES: c.aoSamples });
     this.blurMat = mkMat(BLUR_FRAG, { tAO: { value: null }, uDir: { value: new THREE.Vector2() } });
-    this.preMat = mkMat(PREFILTER_FRAG, { tColor: { value: null }, uTexel: { value: new THREE.Vector2() }, uThreshold: { value: 1 }, uKnee: { value: 0.5 }, uClampMax: { value: 40 } });
+    this.preMat = mkMat(PREFILTER_FRAG, { tColor: { value: null }, uTexel: { value: new THREE.Vector2() }, uThreshold: { value: 1 }, uKnee: { value: 0.5 }, uClampMax: { value: 6 } });
     this.downMat = mkMat(DOWN_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } });
     this.upMat = mkMat(UP_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uWeight: { value: 1 } });
     this.upMat.blending = THREE.CustomBlending;
