@@ -2,7 +2,7 @@
 
 Ein 3D-Städtebau- und Verkehrsspiel aus der Gottperspektive, das komplett im Browser läuft.
 
-Du baust Straßen, weist Wohn-, Gewerbe-, Industrie- und Bürozonen aus, versorgst die Stadt mit Strom, Wasser, Abwasser, Müllabfuhr, Fernwärme, Polizei, Feuerwehr, Krankenhäusern, Friedhöfen, Kitas, Schulen und Universitäten. Die Stadt verbindest du mit der **Pulsbahn**, einer Hochbahn nach Mini-Metro-Regeln, dazu mit Bus- und Straßenbahnlinien, Fernzügen, Fähren und einem Flughafen. Jede Woche wählst du eine von drei Wochenkarten, und jede Zugankunft spielt einen Ton.
+Du baust Straßen, weist Wohn-, Gewerbe-, Industrie- und Bürozonen aus, versorgst die Stadt mit Strom, Wasser, Abwasser, Müllabfuhr, Fernwärme, Polizei, Feuerwehr, Krankenhäusern, Friedhöfen, Kitas, Schulen und Universitäten. Die Stadt verbindest du mit der **Pulsbahn**, einer U-Bahn nach Mini-Metro-Regeln, die im Tunnel unter der Stadt fährt (eigene Untergrund-Ansicht), dazu mit Bus- und Straßenbahnlinien, Fernzügen, Fähren und einem Flughafen. Jede Woche wählst du eine von drei Wochenkarten, und jede Zugankunft spielt einen Ton.
 
 ## Was Stadtpuls 2.0 ausmacht
 
@@ -61,7 +61,7 @@ Version 2.0 hat ein Schwarm aus 17 spezialisierten Agenten gebaut, danach haben 
 | ? / F1 | Alle Tastenkürzel |
 | Strg + S | Schnellspeichern |
 
-Auf dem Handy verschiebt ein Finger die Karte, zwei Finger zoomen und drehen.
+Auf Handy und Tablet verschiebt ein Finger die Karte, zwei Finger zoomen und drehen. Beim Bauen setzt Antippen erst eine Vorschau (verschiebbar, bei Straßen und Zonen mit Griffen); gebaut wird erst mit ✓ in der Leiste. Das lässt sich in den Optionen unter „Bauen bestätigen“ einstellen.
 
 ### Erste Schritte
 
@@ -71,7 +71,7 @@ Auf dem Handy verschiebt ein Finger die Karte, zwei Finger zoomen und drehen.
 4. Eine Deponie hält die Stadt sauber. Ein Abwasserauslass oder später eine Kläranlage entsorgt das Abwasser; das Pumpwerk dafür weit entfernt bauen.
 5. Mit wachsender Stadt kommen Wochenkarten, Dienste, Friedhof, Schulen und die Pulsbahn dazu.
 
-Die Checkliste „Erste Schritte" und die Ratgeberin führen im Spiel durch diese Punkte. Wer ein klares Ziel möchte, wählt im Hauptmenü ein Szenario oder den Metro-Modus.
+Eine geführte Einführung zeigt im Spiel Schritt für Schritt, wo du klicken musst; danach nennt der Begleiter immer das nächste Ziel. Die Hilfe „So funktioniert's" (Taste ? oder F1) erklärt alle Grundideen. Wer ein klares Ziel möchte, wählt im Hauptmenü ein Szenario oder den Metro-Modus.
 
 ## Entwicklung
 
