@@ -106,6 +106,11 @@ const P = {
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   minus: '<path d="M5 12h14"/>',
+  // --- Runde 3: Stadt-Check, Stadtverwaltung, Untergrund
+  pulse: '<path d="M2 12h4l2.5-6 4 12 3-8 1.5 2H22"/>',
+  city: '<path d="M3 21h18M5 21V9l5-3v15M10 21V4l9 4v13M13.5 10h2M13.5 13.5h2M13.5 17h2M7 12h1M7 15.5h1"/>',
+  underground: '<path d="M3 20V12a9 9 0 0 1 18 0v8"/><path d="M7 20v-7a5 5 0 0 1 10 0v7M3 20h18"/><path d="M10 15.5h4"/>',
+  ubahn: '<rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="M8.5 7.5v5.5a3.5 3.5 0 0 0 7 0V7.5"/>',
 };
 
 export function registerUiIcon(name, path) { if (!P[name]) P[name] = path; }
