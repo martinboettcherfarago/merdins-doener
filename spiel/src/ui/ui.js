@@ -506,7 +506,7 @@ export class UI {
       const c = this.el.check;
       c.classList.remove('ok', 'warn', 'bad');
       c.classList.add(sev);
-      c.classList.toggle('adv', lvl >= 2 && !probs.length);
+      c.classList.toggle('hasadv', lvl >= 2 && !probs.length);
       this.el.checkn.textContent = probs.length ? String(probs.length) : '';
       c.dataset.tipDesc = probs.length ? `${probs.length === 1 ? 'Eine Sache braucht' : `${probs.length} Dinge brauchen`} Aufmerksamkeit: ${probs.slice(0, 3).map((p) => p.text).join(' · ')}. Klick: Lösungen zeigen.` : 'Alles im grünen Bereich. Klick: Lagebericht und Rat der Ratgeberin.';
       if (this.pop === 'check') this.renderPop();
