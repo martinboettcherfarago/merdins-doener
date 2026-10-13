@@ -313,7 +313,7 @@ b, strong { font-weight: 800; }
 /* ---------- Baukatalog (über dem Dock): Reiter · Lavendel-Kopf · Liste */
 .tray {
   position: absolute; left: var(--gap); bottom: calc(var(--gap) + var(--bb-h) + 12px + var(--safe-b));
-  width: min(540px, calc(100% - 2 * var(--gap))); max-height: calc(100% - var(--top) - var(--bb-h) - var(--gap) - 22px - var(--safe-b));
+  width: min(540px, calc(100% - 2 * var(--gap))); max-height: min(660px, calc(100% - var(--top) - var(--bb-h) - var(--gap) - 22px - var(--safe-b)));
   display: flex; flex-direction: column; z-index: 6; filter: drop-shadow(0 16px 26px rgba(52, 19, 122, 0.3));
 }
 .tray.enter { animation: trayIn 0.22s var(--ease-out); }
@@ -1205,7 +1205,9 @@ kbd { font-family: var(--f-num); font-weight: 600; background: #fff; border: 1.5
   .toolbar .line { flex: 6 1 0; gap: 0; }
   .dk-menu { flex: 0 0 46px !important; }
   .cap { display: none; }
-  .dock .lbl { display: block; font-size: 9.5px; max-width: none; overflow: visible; letter-spacing: -0.01em; }
+  .dock .lbl { display: block; font-size: 9px; max-width: none; overflow: visible; letter-spacing: -0.02em; }
+  /* Begleiter der Einführung (EINSTIEG, schwebt über dem Dock) nicht über Katalog, Inspektor oder Panel legen */
+  #hud.tray-open #ob-guide.free, #hud:has(.inspector:not([hidden])) #ob-guide.free, #hud:has(.panel:not([hidden])) #ob-guide.free { display: none !important; }
   .cat, .dk-menu { width: auto; flex: 1 1 0; gap: 2px; min-width: 0; }
   .cat.danger { flex: 1 1 0; }
   .cat .stop, .dk-menu .stop { width: 40px; height: 38px; border-radius: 12px; }
