@@ -157,7 +157,11 @@ export default async (page, h) => {
     for (const st of STATES) {
       await setState(st);
       // Einführung und Begleiter zeichnen sich erst im nächsten Takt (bei wenigen Bildern pro Sekunde etwas später)
-      if (st === 'onboarding' || st === 'guide' || st === 'minimap') await h.wait(1500);
+      if (st === 'onboarding' || st === 'guide' || st === 'minimap') {
+        const sel = st === 'onboarding' ? '#ob-layer .ob-card' : '#ob-guide';
+        await page.waitForFunction((s) => { const e = document.querySelector(s); if (!e || !e.checkVisibility()) return false; const r = e.getBoundingClientRect(); return r.width > 40 && (r.left > 1 || r.top > 1); }, sel, { timeout: 8000 }).catch(() => {});
+        await h.wait(600);
+      }
       if (st === 'placebar') {
         // echter Klick auf die Karte: mit „immer bestätigen" entsteht eine Vorschau samt Leiste
         await page.mouse.move(w * 0.52, hh * 0.5);

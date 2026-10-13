@@ -185,6 +185,8 @@ const CSS = `
 @keyframes obMark { 0% { transform: scale(.8); } 60% { transform: scale(1.15); } 100% { transform: scale(.8); } }
 .ob-card { position: fixed; pointer-events: auto; width: 328px; max-width: calc(100vw - 24px); background: var(--card-bg, var(--card, #fff)); color: var(--ink, #1d2330); border-radius: 20px; box-shadow: var(--inner-hi, none), var(--shadow, 0 10px 30px rgba(40,24,90,.18)), 0 24px 50px -20px rgba(52, 19, 122, .45); padding: 14px 16px 16px; font-family: var(--f-ui, system-ui); zoom: var(--ui, 1); transition: opacity .2s ease; }
 .ob-card.enter { animation: obIn .35s var(--ease-out, ease); }
+/* noch nicht platziert (erstes Bild nach dem Start): unsichtbar statt kurz oben links über der Kopfzeile */
+.ob-card:not([style*="top"]) { visibility: hidden; }
 @keyframes obIn { from { opacity: 0; transform: translateY(6px) scale(.98); } }
 .ob-card .ob-top { display: flex; align-items: center; gap: 8px; font: 600 13px/1.2 var(--f-display, var(--f-ui, system-ui)); letter-spacing: .01em; color: var(--accent, #6c4fe0); }
 .ob-card .ob-top .grow { flex: 1; }
