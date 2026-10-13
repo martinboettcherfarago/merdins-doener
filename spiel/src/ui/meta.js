@@ -91,30 +91,42 @@ export function toolbarGroups() {
 // --- Infoansichten
 export const VIEW_GROUPS = [
   { id: 'versorgung', name: 'Versorgung' },
-  { id: 'dienste', name: 'Dienste' },
-  { id: 'umwelt', name: 'Umwelt & Wert' },
-  { id: 'leben', name: 'Leben & Verkehr' },
+  { id: 'dienste', name: 'Dienste & Schutz' },
+  { id: 'leben', name: 'Menschen' },
+  { id: 'verkehr', name: 'Verkehr' },
+  { id: 'umwelt', name: 'Umwelt & Boden' },
   { id: 'mehr', name: 'Weitere' },
 ];
+// Anzeigenamen (kurz und verständlich) – überschreiben die Namen aus den Ansichten
+export const VIEW_NAME = { transit: 'U-Bahn' };
+// Gruppen der Oberfläche haben Vorrang vor den Feldern der Ansicht selbst (damit „Weitere" klein bleibt)
 export const VIEW_META = {
   none: { icon: 'eye', group: '' },
   power: { icon: 'power', group: 'versorgung' },
   water: { icon: 'water', group: 'versorgung' },
-  garbage: { icon: 'garbage', group: 'versorgung' },
   sewage: { icon: 'water', group: 'versorgung' },
+  garbage: { icon: 'garbage', group: 'versorgung' },
+  goods: { group: 'versorgung' },
   health: { icon: 'cross', group: 'dienste' },
   police: { icon: 'shield', group: 'dienste' },
   fire: { icon: 'flame', group: 'dienste' },
   edu: { icon: 'book', group: 'dienste' },
   deathcare: { icon: 'services', group: 'dienste' },
+  safety: { group: 'dienste' },
+  happiness: { icon: 'heart', group: 'leben' },
+  crime: { icon: 'mask', group: 'leben' },
+  age: { group: 'leben' },
+  eduLevel: { group: 'leben' },
+  districts: { group: 'leben' },
+  traffic: { icon: 'car', group: 'verkehr' },
+  transit: { icon: 'ubahn', group: 'verkehr' },
+  ptransport: { group: 'verkehr' },
   landValue: { icon: 'coin', group: 'umwelt' },
   pollution: { icon: 'smoke', group: 'umwelt' },
   noise: { icon: 'sound', group: 'umwelt' },
   resources: { icon: 'map', group: 'umwelt' },
-  crime: { icon: 'mask', group: 'leben' },
-  happiness: { icon: 'heart', group: 'leben' },
-  traffic: { icon: 'car', group: 'leben' },
-  transit: { icon: 'line', group: 'leben' },
+  floodrisk: { group: 'umwelt' },
+  snowcov: { group: 'umwelt' },
 };
 export const VIEW_TEXT = {
   power: 'Grün: versorgt. Rot: kein Strom. Strom fließt durch die Leitungen unter den Straßen – jedes zusammenhängende Straßennetz ist ein eigenes Stromnetz.',
@@ -138,7 +150,7 @@ export function viewList() {
   const order = VIEW_GROUPS.map((g) => g.id);
   return allOverlays().map((o, k) => {
     const m = VIEW_META[o.id] || {};
-    return { ...o, k, icon: o.icon || m.icon || 'layers', group: o.group || (o.id === 'none' ? '' : m.group || 'mehr'), text: o.text || VIEW_TEXT[o.id] || '' };
+    return { ...o, k, name: VIEW_NAME[o.id] || o.name, icon: o.icon || m.icon || 'layers', group: o.id === 'none' ? '' : m.group || o.group || 'mehr', text: o.text || VIEW_TEXT[o.id] || '' };
   }).sort((a, b) => (a.id === 'none' ? -1 : b.id === 'none' ? 1 : order.indexOf(a.group) - order.indexOf(b.group) || a.k - b.k));
 }
 

@@ -823,7 +823,11 @@ export class UI {
     st.left = Math.round(x) + 'px';
     el.style.setProperty('--ox', `${Math.round(clamp((alignLeft ? L + 24 : R - 24) - x, 0, w))}px`);
     el.style.setProperty('--oy', below ? '0%' : '100%');
-    const maxH = below ? H - B - 24 : T - 24;
+    // nie über die Kopfzeile ragen (oben) bzw. über die Werkzeugleiste (unten)
+    const tb = this.root.querySelector('.topbar'), bb = this.el.bottom;
+    const topLimit = tb ? tb.getBoundingClientRect().bottom / z + 10 : 24;
+    const botLimit = bb ? bb.getBoundingClientRect().top / z - 10 : H - 24;
+    const maxH = below ? botLimit - B - 8 : T - 10 - topLimit;
     st.maxHeight = Math.max(200, Math.round(maxH)) + 'px';
   }
   renderPop() {
@@ -850,7 +854,7 @@ export class UI {
     const rest = list.filter((o) => !VIEW_GROUPS.some((gr) => gr.id === o.group));
     if (rest.length) { const m = groups.find((gr) => gr.id === 'mehr'); if (m) m.items.push(...rest.filter((o) => !m.items.includes(o))); }
     return `<button class="pop-row ug${ug ? ' on' : ''}" data-pa="underground" data-tour="underground" data-tip="Untergrund" data-tip-desc="Die Oberwelt tritt zurück: Tunnel, Bahnsteige und fahrende U-Bahn-Züge werden sichtbar."><span class="pi" style="--pc:#2f8fe0">${icon('underground', 17, 2.1)}</span><span class="t"><b>Untergrund</b><small>U-Bahn-Tunnel und Züge sehen</small></span><span class="switch${ug ? ' on' : ''}" aria-hidden="true"></span></button>
-${groups.filter((gr) => gr.items.length).map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4><div class="pop-grid">${gr.items.map((o) => `<button class="pop-tile${this.view === o.id ? ' on' : ''}" data-pa="view" data-v="${esc(o.id)}" data-tip="${esc(o.name)}" data-tip-desc="${esc(o.text || '')}">${iconAny(o.icon, 'layers', 16, 2.1)}<span>${esc(o.name)}</span></button>`).join('')}</div></div>`).join('')}
+<div class="pop-cols">${groups.filter((gr) => gr.items.length).map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4><div class="pop-list">${gr.items.map((o) => `<button class="pop-tile${this.view === o.id ? ' on' : ''}" data-pa="view" data-v="${esc(o.id)}" data-tip="${esc(o.name)}" data-tip-desc="${esc(o.text || '')}">${iconAny(o.icon, 'layers', 16, 2.1)}<span>${esc(o.name)}</span></button>`).join('')}</div></div>`).join('')}</div>
 ${this.view !== 'none' ? `<button class="pop-foot" data-pa="view" data-v="none" data-tip="Normale Ansicht" data-tip-desc="Farbige Karte ausblenden." data-key="V">${icon('eye', 15)}<span>Normale Ansicht</span><kbd>V</kbd></button>` : ''}`;
   }
   popViews() { return `${this.popHead('Ansichten', 'Farbige Karten über der Stadt', 'layers')}<div class="pop-b">${this.popViewsBody()}</div>`; }
@@ -866,7 +870,7 @@ ${this.view !== 'none' ? `<button class="pop-foot" data-pa="view" data-v="none" 
       const title = p.id === 'transit' ? 'U-Bahn' : p.title;
       return `<button class="pop-row${this.panel === p.id ? ' on' : ''}" data-pa="panel" data-v="${esc(p.id)}" style="--pc:${m.color}" data-tip="${esc(title)}" data-tip-desc="${esc(m.desc || title)}" ${m.key ? `data-key="${m.key}"` : ''}><span class="pi">${iconAny(p.icon, 'layers', 17, 2.1)}</span><span class="t"><b>${esc(title)}</b>${m.desc ? `<small>${esc(m.desc)}</small>` : ''}</span>${v !== null && v !== undefined && v !== 0 && v !== '' ? `<span class="pb">${esc(v)}</span>` : ''}</button>`;
     };
-    return `${groups.map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4>${gr.items.map(row).join('')}</div>`).join('')}${hidden > 0 ? `<p class="pop-note">${icon('lock', 13, 2.2)}<span>${hidden === 1 ? 'Ein weiterer Bereich kommt' : `${hidden} weitere Bereiche kommen`} dazu, wenn die Stadt wächst.</span><button class="pop-more" data-pa="allpanels" data-tip="Alle zeigen" data-tip-desc="Auch Bereiche zeigen, die erst später wichtig werden.">Alle zeigen</button></p>` : ''}`;
+    return `<div class="pop-cols">${groups.map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4>${gr.items.map(row).join('')}</div>`).join('')}</div>${hidden > 0 ? `<p class="pop-note">${icon('lock', 13, 2.2)}<span>${hidden === 1 ? 'Ein weiterer Bereich kommt' : `${hidden} weitere Bereiche kommen`} dazu, wenn die Stadt wächst.</span><button class="pop-more" data-pa="allpanels" data-tip="Alle zeigen" data-tip-desc="Auch Bereiche zeigen, die erst später wichtig werden.">Alle zeigen</button></p>` : ''}`;
   }
   popCity() { return `${this.popHead('Stadt', 'Verwaltung, Zahlen und Pläne', 'city')}<div class="pop-b">${this.popCityBody()}</div>`; }
   popCheck() {

@@ -636,7 +636,13 @@ button.chip:hover { background: var(--paper-3); }
 .pop { position: absolute; z-index: 25; width: 344px; max-width: calc(100% - 20px); max-height: calc(100% - 40px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--paper-3) transparent; padding: 6px; transform-origin: var(--ox, 50%) var(--oy, 100%); }
 .pop.enter { animation: popOpen 0.16s var(--ease-out); }
 @keyframes popOpen { from { opacity: 0; transform: scale(0.97) translateY(4px); } }
-.pop.pop-views { width: 392px; }
+.pop.pop-views { width: 580px; }
+.pop.pop-city { width: 600px; }
+.pop-cols { columns: 3; column-gap: 6px; }
+.pop-city .pop-cols { columns: 2; column-gap: 8px; }
+.pop-cols .pop-sec { break-inside: avoid; border-top: 0; padding: 0 0 6px; }
+.pop-cols .pop-sec h4 { margin-top: 6px; }
+.pop-list { display: flex; flex-direction: column; gap: 1px; }
 .pop.pop-menu { width: 300px; }
 .pop.pop-check { width: 360px; }
 .pop-h { display: flex; align-items: center; gap: 10px; padding: 6px 4px 8px 8px; }
@@ -689,6 +695,7 @@ button.chip:hover { background: var(--paper-3); }
 .pop.sheet.enter { animation: sheetUp 0.26s var(--ease-out); }
 .pop.sheet .pop-h { flex-wrap: wrap; padding-top: 2px; }
 .pop.sheet .sh-grab { display: block; flex-basis: 100%; }
+.pop.sheet .pop-cols { columns: 2; }
 .pop-grid.city { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .pop-grid.city .pop-tile { flex-direction: column; align-items: center; gap: 5px; padding: 10px 2px 8px; font-size: 11px; font-weight: 700; text-align: center; background: var(--paper-2); line-height: 1.15; }
 .pop-grid.city .pop-tile span { white-space: normal; overflow-wrap: anywhere; }
