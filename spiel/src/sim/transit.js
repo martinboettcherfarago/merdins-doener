@@ -1,4 +1,4 @@
-// Pulsbahn: Hochbahn-Stationen, Linien (oktilinear wie auf einem Netzplan), Züge, Fahrgäste.
+// Pulsbahn – die U-Bahn der Stadt: Stationen (unterirdische Bahnsteige, oben ein Eingang), Linien (oktilinear wie auf einem Netzplan), Züge im Tunnel, Fahrgäste.
 // Fahrgäste haben eine Form je Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro.
 import { TRANSIT, BUILDINGS, T } from '../config.js';
 import { stationName } from '../util.js';
