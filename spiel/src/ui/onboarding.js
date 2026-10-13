@@ -20,6 +20,8 @@ import * as META from './meta.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ic = (name, size = 16, stroke = 2.2) => { try { return icon(name, size, stroke); } catch (e) { return ''; } };
 const isMetro = (g) => !!(g.opts && g.opts.scenario === 'metro');
+// Hinweise des Ratgebers, die ein Aufbauziel sind (kein Problem)
+const GOAL_IDS = new Set(['start-road', 'start-zone', 'power-none', 'water-none', 'jobs', 'garbage-none', 'nofire', 'noschool', 'nohealth', 'nopolice', 'transit', 'noparks', 'milestone']);
 
 // ------------------------------------------------------------------ Ziele finden
 const LEGACY = {
@@ -567,14 +569,16 @@ export class Onboarding {
     const goal = this.ui.advisor && this.ui.advisor.goal;
     if (!goal) { el.hidden = true; return; }
     const s = this.settings();
-    const color = goal.prio >= 3 ? 'var(--bad, #d4433a)' : goal.prio >= 2 ? 'var(--cta-2, #ff8a00)' : 'var(--accent, #6c4fe0)';
-    const head = goal.prio >= 3 ? 'Jetzt wichtig' : goal.id === 'milestone' ? 'Nächstes Ziel' : goal.prio >= 2 ? 'Nächstes Ziel' : 'Tipp';
+    // Ziele (der nächste Aufbauschritt) ruhig in Violett, Probleme orange/rot, Tipps grün
+    const isGoal = GOAL_IDS.has(goal.id);
+    const color = isGoal ? 'var(--accent, #6c4fe0)' : goal.prio >= 3 ? 'var(--bad, #d4433a)' : goal.prio >= 2 ? 'var(--cta-2, #ff8a00)' : 'var(--good, #23864b)';
+    const head = isGoal ? 'Nächstes Ziel' : goal.prio >= 3 ? 'Jetzt wichtig' : goal.prio >= 2 ? 'Wichtig' : 'Tipp';
     // Handy mit aktivem Werkzeug: nur eine Zeile, damit die Karte frei bleibt
     const toolOn = this.ui.app.input && this.ui.app.input.tool && this.ui.app.input.tool.kind !== 'select';
     const min = !!s.guideMin || (this.ui.mobile() && toolOn);
     const html = min
       ? `<div class="gh"><span>${esc(head)}</span><span class="grow"></span>${!s.guideMin && goal.act ? `<button data-g="go" aria-label="${esc(goal.label || 'Zeigen')}" title="${esc(goal.label || 'Zeigen')}">${ic('arrowR', 14, 2.4)}</button>` : `<button data-g="min" aria-label="Aufklappen" title="Aufklappen">${ic('chevronU', 14, 2.4)}</button>`}</div><div class="gt">${esc(goal.text)}</div>`
-      : `<div class="gh"><span>${ic(goal.prio >= 3 ? 'warn' : 'target', 13, 2.6)}</span><span>${esc(head)}</span><span class="grow"></span><button data-g="min" aria-label="Einklappen" title="Einklappen">${ic('chevronD', 14, 2.4)}</button></div>
+      : `<div class="gh"><span>${ic(!isGoal && goal.prio >= 3 ? 'warn' : 'target', 13, 2.6)}</span><span>${esc(head)}</span><span class="grow"></span><button data-g="min" aria-label="Einklappen" title="Einklappen">${ic('chevronD', 14, 2.4)}</button></div>
 <div class="gt">${esc(goal.text)}</div>${goal.why ? `<div class="gw">${esc(goal.why)}</div>` : ''}
 <div class="ga">${goal.act ? `<button class="go" data-g="go">${esc(goal.label || 'Zeigen')} ${ic('arrowR', 14, 2.4)}</button>` : ''}${goal.help ? '<button class="lk" data-g="why">Warum?</button>' : ''}${goal.id !== 'milestone' ? '<button class="lk" data-g="later">Später</button>' : ''}</div>`;
     if (html !== this._gHtml || force) {

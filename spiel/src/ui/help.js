@@ -107,7 +107,7 @@ const TOPICS = [
     `Kredite gibt es ab ${ms(2)}. Bei jedem Meilenstein gibt es eine Belohnung.`,
   ], act: { panel: 'budget' }, actLabel: 'Haushalt öffnen' },
   { id: 'ubahn', title: 'U-Bahn', icon: 'transit', lead: 'Die Pulsbahn ist die U-Bahn deiner Stadt. Sie fährt im Tunnel unter der Erde.', points: [
-    'Zeichne eine Linie: Klicke nacheinander die Orte der Bahnhöfe an. Enter oder Rechtsklick beendet.',
+    'Zeichne eine Linie: Klicke oder tippe nacheinander die Orte der Bahnhöfe an. Enter, Rechtsklick oder „Fertig" beendet die Linie.',
     'Setze Bahnhöfe nah an Wohnviertel und Arbeitsplätze. Jeder Bahnhof sammelt Fahrgäste im Umkreis.',
     'Weniger Autos heißt weniger Stau und weniger Lärm.',
     'Ist ein Bahnhof überfüllt, setze mehr Züge oder Wagen ein.',
