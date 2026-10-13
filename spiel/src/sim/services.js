@@ -337,6 +337,9 @@ export function happinessFactors(g, b, out, ctx) {
   const cov = g.cov, fld = g.fields;
   const f = out ? (label, v) => { if (Math.abs(v) >= 0.5) out.push([label, v]); return v; } : (label, v) => v;
   let h = 60;
+  // Aufbruchstimmung: Junge Städte verzeihen anfangs mehr (+8 bei 0 Einwohnern, ab 800 Einwohnern 0) – der Einstieg soll motivieren
+  const pop0 = (g.stats && g.stats.pop) || 0;
+  if (pop0 < 800 && !(g.opts && g.opts.scenario)) h += f('Aufbruchstimmung', 8 * (1 - pop0 / 800));
   if (!b.connected) h += f('Keine Verbindung zur Autobahn', -22);
   h += f(b.powered ? 'Strom' : 'Kein Strom', b.powered ? 0 : -28);
   h += f(b.watered ? 'Wasser' : 'Kein Wasser', b.watered ? 0 : -24);
