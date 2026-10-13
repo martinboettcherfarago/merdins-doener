@@ -5,7 +5,8 @@
 export const SYSTEMS = [];            // { id, init(g), step(g, minutes), hourly(g, h), daily(g, day), weekly(g), serialize(g), load(g, data), renderables(g) }
 export const SERVICE_TYPES_EXTRA = []; // zusätzliche Abdeckungsarten, z. B. 'deathcare'
 export const HAPPINESS_FACTORS = [];   // fn(g, b, i) → [label, wert] | null
-export const LANDVALUE_TERMS = [];     // fn(g, i) → zusätzlicher Bodenwert
+export const LANDVALUE_TERMS = [];     // fn(g, i) → zusätzlicher Bodenwert (pro Feld aufgerufen – für ganze Felder besser LANDVALUE_FIELDS)
+export const LANDVALUE_FIELDS = [];    // fn(g) → Float32Array(N) | null – zusätzlicher Bodenwert als ganzes Feld (ein Aufruf pro Durchlauf)
 export const DEMAND_MODIFIERS = [];    // fn(g, demand) → verändert demand[1..4] direkt
 export const BUDGET_LINES = [];        // { id, label, kind: 'income'|'expense', amount(g) → € pro Tag }
 export const BUILDING_PROBLEMS = [];   // fn(g, b) → Icon-ID (String) | null – für Problemsymbole

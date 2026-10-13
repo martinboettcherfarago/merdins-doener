@@ -2,7 +2,7 @@
 // Umweltfelder (Verschmutzung, Lärm, Kriminalität, Bodenwert) und Glück.
 import { BUILDINGS, LEVELS, ROADS, R, T, Z, RES } from '../config.js';
 import { clamp, hash2 } from '../util.js';
-import { SERVICE_TYPES_EXTRA, HAPPINESS_FACTORS, LANDVALUE_TERMS, POWER_MODIFIERS, warnOnce } from '../registry.js';
+import { SERVICE_TYPES_EXTRA, HAPPINESS_FACTORS, LANDVALUE_TERMS, LANDVALUE_FIELDS, POWER_MODIFIERS, warnOnce } from '../registry.js';
 
 export const SERVICE_TYPES = ['police', 'fire', 'health', 'garbage', 'edu'];
 export const allServiceTypes = () => [...SERVICE_TYPES, ...SERVICE_TYPES_EXTRA];
@@ -114,12 +114,21 @@ export function computeCoverage(g) {
     if (!facs.length) { const nr = g.nearestFac[type]; if (nr) nr.fill(0); continue; }
     bestD.fill(1e9);
     bestF.fill(-1);
-    facs.forEach((f, fi) => {
-      const s = bDef(f).service;
-      forDisc(g, f.x + f.w / 2, f.y + f.h / 2, s.radius, (t, d) => {
-        if (d < bestD[t]) { bestD[t] = d; bestF[t] = fi; }
-      });
-    });
+    // Nächste Einrichtung je Feld (forDisc ausgeschrieben – heißeste Schleife der Abdeckung)
+    const { W, H } = g;
+    for (let fi = 0; fi < facs.length; fi++) {
+      const f = facs[fi], r = bDef(f).service.radius, cx = f.x + f.w / 2, cy = f.y + f.h / 2;
+      const x0 = Math.max(0, Math.floor(cx - r)), x1 = Math.min(W - 1, Math.ceil(cx + r));
+      const y0 = Math.max(0, Math.floor(cy - r)), y1 = Math.min(H - 1, Math.ceil(cy + r));
+      for (let y = y0; y <= y1; y++) {
+        const dy = y + 0.5 - cy, row = y * W;
+        for (let x = x0; x <= x1; x++) {
+          const dx = x + 0.5 - cx;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d <= r && d < bestD[row + x]) { bestD[row + x] = d; bestF[row + x] = fi; }
+        }
+      }
+    }
     const demand = new Float32Array(facs.length);
     for (const b of zoneBlds) {
       const fi = bestF[b.y * g.W + b.x];
@@ -149,17 +158,16 @@ export function computeCoverage(g) {
       });
       continue;
     }
+    // Je Einrichtung vorab: Radius, Wirksamkeit, ID (statt Nachschlagen pro Feld)
+    const nf = facs.length;
+    const invR = new Float32Array(nf), effC = new Float32Array(nf), fid = new Int32Array(nf);
+    for (let fi = 0; fi < nf; fi++) { invR[fi] = 1 / bDef(facs[fi]).service.radius; effC[fi] = clamp(eff[fi], 0, 1); fid[fi] = facs[fi].id; }
     for (let t = 0; t < N; t++) {
       const fi = bestF[t];
       if (fi < 0) continue;
-      const f = facs[fi];
-      const s = bDef(f).service;
-      const r = s.radius;
-      const fall = 1 - 0.45 * (bestD[t] / r) * (bestD[t] / r);
-      let v = clamp(eff[fi], 0, 1) * fall;
-      if (type === 'edu') v *= s.eduMax;
-      cov[t] = v;
-      if (nearest) nearest[t] = f.id;
+      const q = bestD[t] * invR[fi];
+      cov[t] = effC[fi] * (1 - 0.45 * q * q);
+      if (nearest) nearest[t] = fid[fi];
     }
   }
 
@@ -185,22 +193,25 @@ export function computeCoverage(g) {
 }
 
 function boxBlur(src, dst, W, H, r, tmp) {
+  const d = 2 * r + 1, xm = W - 1, ym = H - 1;
   // horizontal
   for (let y = 0; y < H; y++) {
     let acc = 0;
     const row = y * W;
-    for (let x = -r; x <= r; x++) acc += src[row + clamp(x, 0, W - 1)];
+    for (let x = -r; x <= r; x++) acc += src[row + (x < 0 ? 0 : x > xm ? xm : x)];
     for (let x = 0; x < W; x++) {
-      tmp[row + x] = acc / (2 * r + 1);
-      acc += src[row + clamp(x + r + 1, 0, W - 1)] - src[row + clamp(x - r, 0, W - 1)];
+      tmp[row + x] = acc / d;
+      const xa = x + r + 1, xb = x - r;
+      acc += src[row + (xa > xm ? xm : xa)] - src[row + (xb < 0 ? 0 : xb)];
     }
   }
   for (let x = 0; x < W; x++) {
     let acc = 0;
-    for (let y = -r; y <= r; y++) acc += tmp[clamp(y, 0, H - 1) * W + x];
+    for (let y = -r; y <= r; y++) acc += tmp[(y < 0 ? 0 : y > ym ? ym : y) * W + x];
     for (let y = 0; y < H; y++) {
-      dst[y * W + x] = acc / (2 * r + 1);
-      acc += tmp[clamp(y + r + 1, 0, H - 1) * W + x] - tmp[clamp(y - r, 0, H - 1) * W + x];
+      dst[y * W + x] = acc / d;
+      const ya = y + r + 1, yb = y - r;
+      acc += tmp[(ya > ym ? ym : ya) * W + x] - tmp[(yb < 0 ? 0 : yb) * W + x];
     }
   }
 }
@@ -267,10 +278,26 @@ export function computeFields(g) {
   const lv = g.fields.landValue;
   const { park, police, health, edu, garbage, transit, lvBonus } = g.cov;
   const terr = g.world.terrain, wd = g.world.waterDist;
+  const garb = g.stats.pop > 300;
+  // Straßen-Bodenwert je Straßentyp (0 = keine Straße)
+  const rlv = new Float32Array(8);
+  for (const k of Object.keys(ROADS)) if (+k > 0 && +k < 8) rlv[+k] = ROADS[k].lv || 0;
+  // Ganze Felder aus LANDVALUE_FIELDS (ein Aufruf pro Durchlauf) statt pro Feld
+  const extra = [];
+  for (const fn of LANDVALUE_FIELDS) {
+    try { const f = fn(g); if (f && f.length === N) extra.push(f); } catch (e) { warnOnce('LANDVALUE_FIELDS', e); }
+  }
+  // Terme ohne Feld-Parameter (fn.length < 2, z. B. (g) => …) hängen nicht vom Feld ab: einmal auswerten
+  let base = 0;
+  const terms = [];
+  for (const fn of LANDVALUE_TERMS) {
+    if (fn.length < 2) { try { const v = fn(g, 0); if (Number.isFinite(v)) base += v; } catch (e) { warnOnce('LANDVALUE_TERMS', e); } } else terms.push(fn);
+  }
+  const nt = terms.length;
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const i = y * W + x;
-      let v = 26;
+      let v = 26 + base;
       const d = wd[i];
       if (d > 0 && d <= 4) v += 11 * (1 - (d - 1) / 4);
       if (terr[i] === T.SAND) v += 3;
@@ -279,16 +306,17 @@ export function computeFields(g) {
       v += transit[i] * 9;
       v += lvBonus[i];
       v -= pol[i] * 46 + noise[i] * 16 + crime[i] * 10;
-      if (g.stats.pop > 300) v -= (1 - garbage[i]) * 5;
-      // Alleen werten auf, Autobahn wertet ab
+      if (garb) v -= (1 - garbage[i]) * 5;
+      // Alleen werten auf, Autobahn wertet ab (Maximum über die vier Nachbarn, mindestens 0)
       let rb = 0;
-      if (x > 0 && road[i - 1]) rb = Math.max(rb, ROADS[road[i - 1]].lv);
-      if (x < W - 1 && road[i + 1]) rb = Math.max(rb, ROADS[road[i + 1]].lv);
-      if (y > 0 && road[i - W]) rb = Math.max(rb, ROADS[road[i - W]].lv);
-      if (y < H - 1 && road[i + W]) rb = Math.max(rb, ROADS[road[i + W]].lv);
+      if (x > 0 && road[i - 1]) rb = Math.max(rb, rlv[road[i - 1]]);
+      if (x < W - 1 && road[i + 1]) rb = Math.max(rb, rlv[road[i + 1]]);
+      if (y > 0 && road[i - W]) rb = Math.max(rb, rlv[road[i - W]]);
+      if (y < H - 1 && road[i + W]) rb = Math.max(rb, rlv[road[i + W]]);
       v += rb;
-      for (const term of LANDVALUE_TERMS) v += term(g, i);
-      lv[i] = clamp(v, 0, 100);
+      for (let k = 0; k < extra.length; k++) v += extra[k][i];
+      for (let k = 0; k < nt; k++) v += terms[k](g, i);
+      lv[i] = v < 0 ? 0 : v > 100 ? 100 : v;
     }
   }
 }

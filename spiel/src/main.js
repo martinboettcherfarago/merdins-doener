@@ -59,6 +59,14 @@ registerIcon({
   },
 });
 
+// Ansicht abbauen und den WebGL-Kontext sofort freigeben (Browser erlauben nur ~16 gleichzeitig;
+// sonst gehen nach mehreren Wechseln Menü ↔ Spiel ältere Kontexte verloren).
+function releaseEngine(e) {
+  if (!e) return;
+  try { e.dispose(); } catch (err) { console.warn('Stadtpuls: Ansicht nicht sauber abgebaut', err); }
+  try { if (e.renderer && e.renderer.forceContextLoss) e.renderer.forceContextLoss(); } catch (err) { /* egal */ }
+}
+
 function webglOk() {
   try {
     const c = document.createElement('canvas');
@@ -84,7 +92,7 @@ const app = {
   teardown() {
     if (this.ui) { this.ui.dispose(); this.ui = null; }
     if (this.input) { this.input.dispose(); this.input = null; }
-    if (this.engine) { this.engine.dispose(); this.engine = null; }
+    if (this.engine) { releaseEngine(this.engine); this.engine = null; }
     this.game = null;
   },
 
@@ -98,7 +106,7 @@ const app = {
   },
   menuPreview(opts) {
     if (this.mode !== 'menu') return;
-    if (this.engine) { this.engine.dispose(); this.engine = null; }
+    if (this.engine) { releaseEngine(this.engine); this.engine = null; }
     let g;
     if (opts) {
       g = new Game({ size: opts.size, seed: opts.seed, mapType: opts.mapType, difficulty: 'sandbox', name: 'Vorschau' });
@@ -146,7 +154,7 @@ const app = {
     this.ui = new UI(this);
     this.input = new Input(this.engine, this.ui, this.audio);
     this.ui.markToolButtons();
-    g.on('day', () => this.save('auto'));
+    g.on('day', () => this.queueAutosave());
     window.__stadtpuls = this;
     this.debug = { buildDemoCity };
   },
@@ -157,6 +165,15 @@ const app = {
   },
 
   // ---------- Speichern
+  // Automatisch speichern nicht mitten im Tageswechsel (der ist schon teuer), sondern im nächsten ruhigen Moment
+  queueAutosave() {
+    if (this._autoQ) return;
+    this._autoQ = true;
+    const g = this.game;
+    const run = () => { this._autoQ = false; if (this.game === g && this.mode === 'game') this.save('auto'); };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 3000 });
+    else setTimeout(run, 60);
+  },
   save(slot) {
     if (!this.game) return false;
     let data, txt;
@@ -167,6 +184,11 @@ const app = {
     }
     const ok = LS.set(KEY(slot), txt);
     if (ok) LS.set(KEY(slot) + '.meta', JSON.stringify({ name: data.name, pop: data.pop, savedAt: data.savedAt }));
+    else if (this.ui && (slot !== 'auto' || !this._quotaWarned)) {
+      // Browser-Speicher voll (große Karten brauchen über 1 MB pro Platz) – der alte Stand auf dem Platz bleibt erhalten
+      this._quotaWarned = true;
+      setTimeout(() => this.ui && this.ui.toast(`Speichern ${slot === 'auto' ? '(automatisch) ' : ''}fehlgeschlagen: Der Browser-Speicher ist voll. Alte Plätze löschen oder den Spielstand als Datei exportieren.`, 'bad'), 50);
+    }
     return ok;
   },
   slotMeta(slot) {
