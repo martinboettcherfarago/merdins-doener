@@ -1,12 +1,17 @@
 // Alle Spieldaten an einem Ort: Zonen, Straßen, Gebäude, Meilensteine, Verordnungen.
 
-export const VERSION = 1;
+// Spielstand-Format: 1 = Stadtpuls 1.x (ohne Systemdaten), 2 = Stadtpuls 2.0 (mit g.ext, Budgets, Zufallszustand)
+export const VERSION = 2;
 
 // Zeit: Ein Spieltag dauert bei 1× Geschwindigkeit 30 Sekunden.
 export const GAME_MIN_PER_SEC = 48;
 export const SPEEDS = [0, 1, 2, 4];
 export const DAY = 1440;
 export const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+// Ein Spieljahr = 4 Jahreszeiten × 28 Tage (wie das Wetterjahr in sim/systems/weather.js)
+export const YEAR_DAYS = 112;
+// Höchste Stufe der Spezialindustrie (Bauernhof, Forst, Bergwerk, Ölförderung); Modelle gibt es bis Stufe 5
+export const SPEC_MAX_LEVEL = 5;
 
 export const T = { GRASS: 0, WATER: 1, SAND: 2, ROCK: 3 };
 export const RES = { NONE: 0, FERTILE: 1, ORE: 2, OIL: 3 };
