@@ -72,7 +72,7 @@ const CSS = `
 .s5-ach.done{background:#fff;box-shadow:inset 0 0 0 2px var(--tier)}
 .s5-ach.locked{opacity:.55}
 .s5-ach .nm{font-weight:700;font-size:13.5px;line-height:1.2;display:flex;gap:6px;align-items:baseline}
-.s5-ach .nm .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--tier);font-weight:800}
+.s5-ach .nm .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--tier) 60%,#1d2330);font-weight:800}
 .s5-ach .ds{font-size:12px;color:var(--ink-2);line-height:1.35;margin-top:2px}
 .s5-ach .pg{display:flex;align-items:center;gap:8px;margin-top:5px;font-family:var(--f-num);font-size:12.5px;font-weight:600;color:var(--ink-3)}
 .s5-ach .pg .meter{flex:1;height:6px}

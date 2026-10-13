@@ -759,7 +759,7 @@ ${groups.map((gr) => { const L = lineById(gr.line); return `<div class="lg" styl
     d.querySelector('.tt').textContent = msg;
     if (opts.where) d.addEventListener('click', () => { this.focusTile(opts.where.x, opts.where.y, 20); d.remove(); });
     this.toasts.appendChild(d);
-    while (this.toasts.children.length > 3) this.toasts.firstChild.remove();
+    while (this.toasts.children.length > (this.mobile() ? 2 : 3)) this.toasts.firstChild.remove();
     d._t = setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 400); }, opts.where ? 5200 : 3400);
   }
   floatMoney(amount, mouse) {

@@ -202,6 +202,7 @@ input[type=text], input[type=search], input[type=number], textarea { user-select
   #hud:has(.s5-hud) .inspector { max-height: calc(100% - var(--top) - var(--tb-h) - 92px); }
 }
 @media (max-width: 760px) { .rstack, #u-objectives { display: contents; } }
+@media (min-width: 761px) { body:has(#u-panel:not([hidden])) #toasts { left: calc((100% - 450px) / 2); } body:has(#u-panel:not([hidden])) .toast { max-width: min(540px, calc(100vw - 490px)); } }
 
 /* ---------- Docks: Infoansichten (links) und Panels (rechts) */
 .dock {
@@ -423,9 +424,9 @@ input[type=range] { width: 100%; accent-color: var(--ink); }
 .tabs button.on { background: var(--ink); color: var(--paper); box-shadow: none; }
 .tabs button:hover:not(.on) { background: var(--paper-3); }
 /* Gleiche Reiterleiste für die Panels der Systeme (Bevölkerung, Wirtschaft, Verkehr, Wetter, Ziele) */
-.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) { display: flex; flex-wrap: nowrap; gap: 2px; padding: 3px; margin: 0 0 14px; background: var(--paper-2); border-radius: 11px; overflow-x: auto; scrollbar-width: none; }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) { display: flex; flex-wrap: wrap; gap: 1px; padding: 3px; margin: 0 0 14px; background: var(--paper-2); border-radius: 11px; }
 .panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs)::-webkit-scrollbar { display: none; }
-.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button { flex: 1 1 auto; padding: 7px 7px; border-radius: 9px; background: transparent; font-weight: 700; font-size: 12.5px; color: var(--ink-2); white-space: nowrap; position: relative; }
+.panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button { flex: 1 1 auto; padding: 7px 5px; border-radius: 9px; background: transparent; font-weight: 700; font-size: 12px; color: var(--ink-2); white-space: nowrap; position: relative; }
 .panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button:hover:not(.on) { background: var(--paper-3); }
 .panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs) button.on { background: var(--ink); color: var(--paper); }
 .panel .tabs button svg { display: none; }
@@ -448,10 +449,10 @@ input[type=range] { width: 100%; accent-color: var(--ink); }
 .hb .ht { height: 8px; border-radius: 4px; background: var(--paper-3); overflow: hidden; }
 .hb .ht i { display: block; height: 100%; border-radius: 4px; transition: width 0.5s var(--ease); }
 .hb .hv { text-align: right; font-weight: 600; font-size: 14px; }
-.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .tile { background: var(--paper-2); border-radius: 10px; padding: 7px 9px; display: flex; flex-direction: column; min-width: 0; }
-.tile .k { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tile .v { font-size: 19px; font-weight: 600; }
+.tile .k { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v { font-size: 19px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tile .v.sm { font-size: 15px; }
 .donutrow { display: flex; align-items: center; gap: 14px; }
 .donut-l { font-family: var(--f-num); font-weight: 700; font-size: 17px; fill: var(--ink); }
@@ -924,7 +925,7 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 .sh-card h3 { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-3); margin: 12px 0 8px; }
 .sh-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .sh-grid button span { max-width: 100%; overflow-wrap: anywhere; }
-.sh-grid button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 4px 8px; border-radius: 12px; background: var(--paper-2); font-size: 11.5px; font-weight: 700; color: var(--ink-2); text-align: center; line-height: 1.15; }
+.sh-grid button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 2px 8px; border-radius: 12px; background: var(--paper-2); font-size: 11px; letter-spacing: -0.01em; font-weight: 700; color: var(--ink-2); text-align: center; line-height: 1.15; }
 .sh-grid button.on { background: var(--pc, var(--ink)); color: #fff; }
 .sh-grid.views button.on { background: var(--ink); }
 
@@ -1057,4 +1058,9 @@ kbd { font-family: var(--f-num); font-weight: 700; background: var(--paper-hi); 
 .lowfps .ld-tip.in { opacity: 1; }
 @media (max-width: 760px) {
   .panel .body :is(.cz-tabs, .eco-tabs, .s5-tabs, .wx-tabs, .tp-tabs, .tabs) { flex-wrap: wrap; }
+}
+/* Handy: Meldungen kurz halten (zwei Zeilen) und bei offenem Panel/Inspektor nur die neueste zeigen */
+@media (max-width: 760px) {
+  .toast .tt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  body:has(#u-panel:not([hidden])) #toasts > :not(:last-child), body:has(#u-insp:not([hidden])) #toasts > :not(:last-child) { display: none; }
 }

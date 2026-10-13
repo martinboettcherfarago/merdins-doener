@@ -45,7 +45,8 @@ function ensureStyles() {
 .cz-flow .st span { font-size:11.5px; font-weight:700; }
 .cz-flow .st em { font-style:normal; font-size:10.5px; color:var(--ink-3); }
 .cz-flow .st.over { background:#f6dcd8; } .cz-flow .st.over em { color:#9e2b23; }
-.cz-flow .st.none { background:var(--paper-3); opacity:.75; }
+.cz-flow .st.none { background:var(--paper-3); opacity:.9; }
+.cz-flow .st.none em { color:var(--bad); font-weight:700; }
 .cz-flow .st.ok { background:#e6e0f3; }
 .cz-flow .ar { align-self:center; color:var(--ink-3); font-weight:800; font-size:18px; }
 .cz-note { font-size:12.5px; color:var(--ink-2); line-height:1.45; margin:6px 0 0; }
