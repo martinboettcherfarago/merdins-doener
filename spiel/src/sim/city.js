@@ -1,7 +1,7 @@
 // Zonen-Simulation: Nachfrage, Wachstum, Belegung, Stufenaufstieg, Verfall, Brände, Bildung.
-import { LEVELS, Z, T, RES, TRANSIT, MILESTONES } from '../config.js';
+import { LEVELS, Z, T, RES, TRANSIT, MILESTONES, BUILDINGS, SPEC_MAX_LEVEL } from '../config.js';
 import { clamp } from '../util.js';
-import { DEMAND_MODIFIERS, CAPACITY_MODIFIERS } from '../registry.js';
+import { DEMAND_MODIFIERS, CAPACITY_MODIFIERS, warnOnce } from '../registry.js';
 
 const LEVEL_GATE = [2, 2, 3, 4, 5, 5, 5, 5];
 
@@ -15,8 +15,10 @@ export function maxLevelAt(g, x, y) {
 export function capacityOf(b, g) {
   let c = LEVELS[b.zone].cap[b.level] * (b.w || 1) * (b.h || 1);
   if (b.spec) c = Math.round(c * 1.2);
-  if (g) for (const fn of CAPACITY_MODIFIERS) c = fn(g, b, c);
-  return Math.round(c);
+  if (g) for (const fn of CAPACITY_MODIFIERS) {
+    try { const v = fn(g, b, c); if (Number.isFinite(v)) c = v; } catch (e) { warnOnce('CAPACITY_MODIFIERS', e); }
+  }
+  return Math.max(0, Math.round(c));
 }
 
 // Kennzahlen der Stadt aufsummieren.
@@ -26,9 +28,15 @@ export function aggregate(g) {
   const cap = [0, 0, 0, 0, 0];
   const planned = [0, 0, 0, 0, 0];
   const count = [0, 0, 0, 0, 0];
-  let abandoned = 0, unpowered = 0, unwatered = 0, burning = 0, noRoad = 0, garbageProb = 0;
+  let abandoned = 0, unpowered = 0, unwatered = 0, burning = 0, noRoad = 0, garbageProb = 0, offBoost = 0;
+  // Forschungszentren wertet das Bürger-System selbst aus (Büro-Nachfrage), alle anderen offBoost-Gebäude der Kern
+  const skipResearch = !!(g.ext && g.ext.citizens);
   for (const b of g.buildings.values()) {
-    if (!b.zone) continue;
+    if (!b.zone) {
+      const d = BUILDINGS[b.key];
+      if (d && d.offBoost && b.powered && b.construct >= 1 && !b.abandoned && !(skipResearch && b.key === 'research')) offBoost += d.offBoost * 0.5;
+      continue;
+    }
     count[b.zone]++;
     if (b.abandoned) { abandoned++; continue; }
     if (b.burning) burning++;
@@ -65,6 +73,7 @@ export function aggregate(g) {
   s.burning = burning;
   s.noRoad = noRoad;
   s.garbageProb = garbageProb;
+  s.offBoost = offBoost;
   // Arbeitsplätze füllen
   for (const b of g.buildings.values()) {
     if (!b.zone || b.zone === Z.RES || b.abandoned || b.construct < 1) continue;
@@ -104,13 +113,17 @@ export function updateDemand(g) {
   // Büro: gebildete Arbeitskräfte
   const offNeed = s.eduWorkers * 0.6 + pop * 0.03;
   let O = clamp(((offNeed - P[4]) / Math.max(18, P[4] * 0.25)) * 40, -80, 80) * 0.6 + labor * s.edu * 0.8 - (tax[4] - 10) * 4 + g.eff('offDemand');
+  // Wahrzeichen und Verkehrsknoten mit offBoost (Pulsturm, Flughafen, Messe …) ziehen Büros an
+  O += s.offBoost || 0;
   if (!g.isUnlocked('zone4')) O = 0;
   d[1] = clamp(R, -100, 100);
   d[2] = clamp(C, -100, 100);
   d[3] = clamp(I, -100, 100);
   d[4] = clamp(O, -100, 100);
-  for (const fn of DEMAND_MODIFIERS) fn(g, d);
-  for (let z = 1; z <= 4; z++) d[z] = clamp(d[z], -100, 100);
+  for (const fn of DEMAND_MODIFIERS) {
+    try { fn(g, d); } catch (e) { warnOnce('DEMAND_MODIFIERS', e); }
+  }
+  for (let z = 1; z <= 4; z++) d[z] = Number.isFinite(d[z]) ? clamp(d[z], -100, 100) : 0;
 }
 
 // Neue Gebäude auf freien Zonenfeldern.
@@ -243,7 +256,7 @@ export function dailyBuildings(g) {
     }
     // Stufen
     const ml = maxLevelAt(g, b.x, b.y);
-    const maxSpec = b.spec ? Math.min(ml, 3) : ml;
+    const maxSpec = b.spec ? Math.min(ml, SPEC_MAX_LEVEL) : ml;
     if (b.level > maxSpec) {
       g.setBuildingLevel(b, maxSpec);
     } else if (b.level < maxSpec && b.powered && b.watered && b.happy >= 45) {

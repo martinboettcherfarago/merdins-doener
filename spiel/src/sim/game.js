@@ -1,30 +1,40 @@
 // Das Spiel: Zustand, Aktionen des Spielers, Zeitablauf, Speichern/Laden.
 import {
   VERSION, GAME_MIN_PER_SEC, SPEEDS, DAY, WEEKDAYS, T, RES, Z, ZONE_INFO, R, ROADS, BRIDGE_FACTOR,
-  CLEAR_TREE_COST, ZONE_COST, BUILDINGS, MILESTONES, TRANSIT, LOANS, DIFFICULTIES, POLICIES,
+  CLEAR_TREE_COST, ZONE_COST, BUILDINGS, MILESTONES, TRANSIT, LOANS, DIFFICULTIES, POLICIES, YEAR_DAYS, MAP_TYPES,
 } from '../config.js';
-import { Emitter, mulberry32, clamp, typedToB64, b64ToTyped, hash2, fmtMoney } from '../util.js';
+import { Emitter, clamp, typedToB64, b64ToTyped, hash2, fmtMoney } from '../util.js';
+import { makeRng } from './rng.js';
 import '../content/index.js';
 import './systems/index.js';
 import { generateWorld } from './world.js';
 import { rebuildNetwork, updateBuildingAccess, PathCache } from './network.js';
 import { computeUtilities, computeCoverage, computeFields, computeHappiness, allServiceTypes } from './services.js';
-import { SYSTEMS, BUDGET_LINES } from '../registry.js';
+import { SYSTEMS, BUDGET_LINES, warnOnce, emit as busEmit } from '../registry.js';
 import { aggregate, updateDemand, growthStep, constructionStep, dailyBuildings, hourlyFires, checkMilestones, capacityOf, maxLevelAt } from './city.js';
 import { computeBudget, dailyEconomy, weeklyLoans } from './economy.js';
 import { Traffic } from './traffic.js';
 import { Transit } from './transit.js';
 import { offerCards, chooseCard, maybeEvent, resolveEvent, chatter } from './progress.js';
 
+// Fehler beim Laden eines Spielstands mit verständlicher Meldung (für die Oberfläche)
+export class SaveError extends Error {
+  constructor(msg) { super(msg); this.name = 'SaveError'; this.friendly = true; }
+}
+
+const fin = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
+const int = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : d);
+
 export class Game extends Emitter {
-  constructor(opts) {
+  constructor(opts = {}) {
     super();
     const { size = 96, seed = 12345, mapType = 'river', difficulty = 'normal', name = 'Neustadt' } = opts;
     this.opts = { ...opts, size, seed, mapType, difficulty, name };
     this.name = name;
     this.world = generateWorld(size, seed, mapType);
     const W = (this.W = size), H = (this.H = size), N = (this.N = W * H);
-    this.rng = mulberry32((seed * 7919) ^ 0x5bd1e995);
+    this.rng = makeRng((seed * 7919) ^ 0x5bd1e995);
+    this.errors = []; // abgefangene Fehler aus Systemen und Ereignissen: { where, msg, day }
     this.road = new Uint8Array(N);
     this.zone = new Uint8Array(N);
     this.bld = new Int32Array(N);
@@ -35,6 +45,7 @@ export class Game extends Emitter {
     this.access = new Int32Array(N).fill(-1);
     this.trafficLoad = new Float32Array(N);
     this.congestion = new Float32Array(N);
+    this.tileDelay = new Float32Array(N); // zusätzliche Fahrzeit-Anteile (Ampeln …), siehe registry.js
     this.transitPenalty = new Uint8Array(N);
     this.cov = {};
     for (const t of [...allServiceTypes(), 'park', 'transit', 'lvBonus', 'happyBonus', 'comBoost', 'resBoost']) this.cov[t] = new Float32Array(N);
@@ -97,24 +108,49 @@ export class Game extends Emitter {
     rebuildNetwork(this);
     computeFields(this);
     this.ext = {};
-    for (const s of SYSTEMS) if (s.init) s.init(this);
+    for (const s of SYSTEMS) if (s.init) this._sys(s, 'init');
     this.lastBudget = computeBudget(this);
+  }
+
+  // ---------- Robustheit: Fehler in Systemen und Ereignis-Empfängern halten das Spiel nicht an
+  reportError(where, e) {
+    const msg = (e && e.message) || String(e);
+    if (this.errors.length < 50) this.errors.push({ where, msg, day: this.time ? Math.floor(this.time / DAY) : 0 });
+    warnOnce(where, e);
+    if (!this._errSent) { this._errSent = true; try { busEmit('simError', { where, msg }); } catch (e2) { /* egal */ } }
+  }
+  _sys(s, hook, a, b) {
+    try { return s[hook](this, a, b); } catch (e) { this.reportError(`System „${s.id}“ (${hook})`, e); return undefined; }
+  }
+  emit(ev, ...args) {
+    const h = this.handlers[ev];
+    if (!h) return;
+    for (const f of h.slice()) {
+      try { f(...args); } catch (e) { this.reportError(`Ereignis „${ev}“`, e); }
+    }
   }
 
   // Alle Fahrzeuge/Objekte, die Erweiterungssysteme darstellen lassen wollen (Busse, Schiffe, Flugzeuge …)
   renderables() {
     const out = [];
-    for (const s of SYSTEMS) if (s.renderables) { const r = s.renderables(this); if (r && r.length) for (const x of r) out.push(x); }
+    for (const s of SYSTEMS) if (s.renderables) { const r = this._sys(s, 'renderables'); if (r && r.length) for (const x of r) out.push(x); }
     return out;
   }
   system(id) { return SYSTEMS.find((s) => s.id === id) || null; }
+  // Gebäude wird nach einer Katastrophe repariert (Baustelle mit Reparatur-Symbol statt Neubau)
+  isRepairing(b) { const d = this.ext.disasters; return !!(b && d && d.repairs && d.repairs[b.id]); }
 
   // ---------- Zeit
   day() { return Math.floor(this.time / DAY); }
   hour() { return (this.time % DAY) / 60; }
   weekday() { return this.day() % 7; }
   week() { return Math.floor(this.day() / 7) + 1; }
-  year() { return Math.floor(this.day() / 364) + 1; }
+  // Spieljahr: 112 Tage (4 Jahreszeiten × 28), passend zum Wetterkalender
+  year() {
+    const w = this.ext && this.ext.weather;
+    if (w && Number.isFinite(w.year) && w.year > 0) return w.year;
+    return Math.floor(this.day() / YEAR_DAYS) + 1;
+  }
   clockText() {
     const m = Math.floor(this.time % DAY);
     const hh = String(Math.floor(m / 60)).padStart(2, '0');
@@ -602,14 +638,14 @@ export class Game extends Emitter {
       this.time += simSec * GAME_MIN_PER_SEC;
       let guard = 0;
       while (this.time >= this.nextStep && guard++ < 40) {
-        this.simStep(10);
+        try { this.simStep(10); } catch (e) { this.reportError('Simulation', e); }
         this.nextStep += 10;
         if (this.blocking) break;
       }
       if (this.time > this.nextStep + 60) this.nextStep = this.time;
     }
-    this.traffic.update(simSec);
-    this.transit.update(simSec);
+    try { this.traffic.update(simSec); } catch (e) { this.reportError('Verkehr', e); }
+    try { this.transit.update(simSec); } catch (e) { this.reportError('Pulsbahn', e); }
     return simSec;
   }
 
@@ -631,7 +667,7 @@ export class Game extends Emitter {
       this.lastDay = day;
       this.daily(day);
     }
-    for (const s of SYSTEMS) if (s.step) s.step(this, minutes);
+    for (const s of SYSTEMS) if (s.step) this._sys(s, 'step', minutes);
     this.emit('step');
   }
 
@@ -643,13 +679,13 @@ export class Game extends Emitter {
       this.dirty.coverage = false;
     }
     if (h % 2 === 0) computeFields(this);
-    computeHappiness(this);
+    computeHappiness(this, h & 1);
     this.traffic.hourly();
     this.transit.hourly();
     hourlyFires(this);
     if (h % 6 === 0) this.pathCache.clear();
     if (this.rng() < 0.2) chatter(this);
-    for (const s of SYSTEMS) if (s.hourly) s.hourly(this, h);
+    for (const s of SYSTEMS) if (s.hourly) this._sys(s, 'hourly', h);
     this.emit('hour', h);
   }
 
@@ -688,7 +724,7 @@ export class Game extends Emitter {
     checkMilestones(this);
     maybeEvent(this);
     if (day % 7 === 0) this.weekly();
-    for (const s of SYSTEMS) if (s.daily) s.daily(this, day);
+    for (const s of SYSTEMS) if (s.daily) this._sys(s, 'daily', day);
     this.emit('day', day);
   }
 
@@ -699,7 +735,7 @@ export class Game extends Emitter {
     this.weekIncome = 0;
     this.weekExpense = 0;
     if (this.milestone >= 1) offerCards(this);
-    for (const s of SYSTEMS) if (s.weekly) s.weekly(this);
+    for (const s of SYSTEMS) if (s.weekly) this._sys(s, 'weekly');
     this.emit('week');
   }
 
@@ -707,11 +743,19 @@ export class Game extends Emitter {
   maxLevelAt(x, y) { return maxLevelAt(this, x, y); }
 
   // ---------- Speichern / Laden
+  // Format v2: wie v1 (Stadtpuls 1.x) plus serviceBudget, ext (Systemdaten), rng/trng (Zufallszustand).
   serialize() {
     const bl = [];
     for (const b of this.buildings.values()) {
-      bl.push([b.id, b.key, b.zone, b.x, b.y, b.w, b.h, b.rot, b.level, b.occ, b.variant, Math.round(b.happy), b.age, +b.edu.toFixed(3), Math.round(b.commute), +b.construct.toFixed(3), b.abandoned ? 1 : 0, b.abandonedDays, b.spec || '']);
+      bl.push([b.id, b.key, b.zone, b.x, b.y, b.w, b.h, b.rot, b.level, b.occ, b.variant, Math.round(fin(b.happy, 50)), int(b.age, 0), +fin(b.edu, 0).toFixed(3), Math.round(fin(b.commute, 0)), +fin(b.construct, 1).toFixed(3), b.abandoned ? 1 : 0, int(b.abandonedDays, 0), b.spec || '']);
     }
+    const ext = {};
+    for (const s of SYSTEMS) {
+      if (!s.serialize) continue;
+      try { const d = s.serialize(this); if (d !== undefined) ext[s.id] = d; } catch (e) { this.reportError(`System „${s.id}“ (serialize)`, e); }
+    }
+    let transit = null;
+    try { transit = this.transit.serialize(); } catch (e) { this.reportError('Pulsbahn (serialize)', e); }
     return {
       v: VERSION,
       opts: this.opts,
@@ -721,57 +765,150 @@ export class Game extends Emitter {
       time: this.time, money: this.money, speed: this.speed, taxes: this.taxes, policies: [...this.policies], milestone: this.milestone,
       mods: this.mods, serviceBudget: this.serviceBudget, effects: this.effects, loans: this.loans, cardCount: this.cardCount, cardsTaken: this.cardsTaken,
       vouchers: [...this.landmarkVouchers], nextEventDay: this.nextEventDay, lastEventId: this.lastEventId, debtDays: this.debtDays,
-      history: this.history, news: this.newsLog.slice(-30), transit: this.transit.serialize(), savedAt: Date.now(),
-      ext: Object.fromEntries(SYSTEMS.filter((s) => s.serialize).map((s) => [s.id, s.serialize(this)])),
+      history: this.history, news: this.newsLog.slice(-30), transit, savedAt: Date.now(),
+      rng: this.rng.state(), trng: this.traffic.rng.state(),
+      ext,
       pop: this.stats.pop,
     };
   }
 
-  static fromSave(data) {
-    const g = new Game({ ...data.opts, name: data.name });
-    g.road = b64ToTyped(data.road, Uint8Array);
-    g.zone = b64ToTyped(data.zone, Uint8Array);
-    g.rubble = b64ToTyped(data.rubble, Uint8Array);
-    g.world.trees = b64ToTyped(data.trees, Uint8Array);
-    g.nextId = data.nextId;
+  // Lädt einen Spielstand (Objekt oder JSON-Text). Beschädigte Teile werden übersprungen und in g.loadNotes vermerkt;
+  // ist der Spielstand unbrauchbar, kommt ein SaveError mit verständlicher Meldung.
+  static fromSave(raw) {
+    let data = raw;
+    if (typeof data === 'string') {
+      try { data = JSON.parse(data); } catch (e) { throw new SaveError('Das ist kein gültiger Stadtpuls-Spielstand (beschädigt oder unvollständig).'); }
+    }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new SaveError('Das ist kein gültiger Stadtpuls-Spielstand (beschädigt oder unvollständig).');
+    if (typeof data.road !== 'string' || typeof data.zone !== 'string' || !Array.isArray(data.buildings)) throw new SaveError('Der Spielstand ist unvollständig oder beschädigt.');
+    const v = int(data.v, 1);
+    const o = data.opts && typeof data.opts === 'object' && !Array.isArray(data.opts) ? data.opts : {};
+    const size = int(o.size, 96);
+    if (size < 16 || size > 256) throw new SaveError('Die Kartengröße im Spielstand ist ungültig.');
+    const opts = {
+      ...o, size, seed: int(o.seed, 12345),
+      mapType: MAP_TYPES.some((m) => m.id === o.mapType) ? o.mapType : 'river',
+      difficulty: DIFFICULTIES.some((d) => d.id === o.difficulty) ? o.difficulty : 'normal',
+    };
+    const name = typeof data.name === 'string' && data.name.trim() ? data.name.slice(0, 60) : 'Neustadt';
+    const g = new Game({ ...opts, name });
+    const notes = (g.loadNotes = []);
+    if (v > VERSION) notes.push('Der Spielstand stammt aus einer neueren Version – nicht alles wird übernommen.');
+    if (v < 2) notes.push('Spielstand aus Stadtpuls 1 übernommen – Wetter, Bezirke, Wirtschaft und Verkehr starten frisch.');
+    const N = g.N, W = g.W, H = g.H;
+    const grid = (b64, label, required) => {
+      let arr = null;
+      try { arr = typeof b64 === 'string' ? b64ToTyped(b64, Uint8Array) : null; } catch (e) { arr = null; }
+      if (!arr || arr.length !== N) {
+        if (required) throw new SaveError(`Der Spielstand ist beschädigt (${label} passen nicht zur Karte).`);
+        return null;
+      }
+      return arr;
+    };
+    g.road = grid(data.road, 'Straßen', true);
+    g.zone = grid(data.zone, 'Zonen', true);
+    g.rubble = grid(data.rubble, 'Trümmer', false) || new Uint8Array(N);
+    const trees = grid(data.trees, 'Bäume', false);
+    if (trees) g.world.trees = trees;
+    let fixed = 0;
+    for (let i = 0; i < N; i++) {
+      if (g.road[i] > R.HIGHWAY) { g.road[i] = 0; fixed++; }
+      if (g.zone[i] > Z.OFF || (g.zone[i] && g.road[i])) { g.zone[i] = 0; fixed++; }
+    }
+    for (const t of g.world.highway) g.road[t] = R.HIGHWAY;
+    if (fixed) notes.push(`${fixed} beschädigte Kartenfelder wurden bereinigt.`);
+    // Gebäude
     g.buildings = new Map();
     g.bld.fill(0);
+    let skipped = 0, maxId = 0;
     for (const a of data.buildings) {
-      const [id, key, zone, x, y, w, h, rot, level, occ, variant, happy, age, edu, commute, construct, abandoned, abandonedDays, spec] = a;
+      if (!Array.isArray(a) || a.length < 9) { skipped++; continue; }
+      const [id, key, zone, x, y, w0, h0, rot, level, occ, variant, happy, age, edu, commute, construct, abandoned, abandonedDays, spec] = a;
+      const z = int(zone, -1);
+      const w = int(w0, 1), h = int(h0, 1);
+      const okKey = z === 0 ? !!BUILDINGS[key] : z >= 1 && z <= 4;
+      if (!Number.isInteger(id) || id <= 0 || g.buildings.has(id) || !okKey || w < 1 || h < 1 || w > 8 || h > 8
+        || !Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x + w > W || y + h > H) { skipped++; continue; }
+      let free = true;
+      for (let yy = y; yy < y + h && free; yy++) for (let xx = x; xx < x + w; xx++) if (g.bld[yy * W + xx]) { free = false; break; }
+      if (!free) { skipped++; continue; }
       const b = {
-        id, key, zone, x, y, w, h, rot, level, cap: 0, occ, variant, happy, age, edu, commute, powered: false, watered: false, construct,
-        abandoned: !!abandoned, abandonedDays, burning: 0, extinguishAt: 0, noPower: 0, noWater: 0, noRoad: 0, unhappyDays: 0, upCount: 0,
-        spec: spec || null, access: -1, comp: -1, connected: false, crime: 0, transitShare: 0, load: 0,
+        id, key: z ? 'zone' : key, zone: z, x, y, w, h, rot: clamp(int(rot, 0), 0, 3), level: clamp(int(level, 1), 1, 5), cap: 0, occ: Math.max(0, int(occ, 0)),
+        variant: Math.max(0, int(variant, 0)), happy: clamp(fin(happy, 50), 0, 100), age: Math.max(0, int(age, 0)), edu: clamp(fin(edu, 0), 0, 5),
+        commute: Math.max(0, fin(commute, 0)), powered: false, watered: false, construct: clamp(fin(construct, 1), 0, 1),
+        abandoned: !!abandoned, abandonedDays: Math.max(0, int(abandonedDays, 0)), burning: 0, extinguishAt: 0, noPower: 0, noWater: 0, noRoad: 0, unhappyDays: 0, upCount: 0,
+        spec: z && typeof spec === 'string' && spec ? spec : null, access: -1, comp: -1, connected: false, crime: 0, transitShare: 0, load: 0,
       };
-      if (zone) b.cap = capacityOf(b, g);
-      for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) g.bld[yy * g.W + xx] = id;
+      if (z) { b.cap = capacityOf(b, g); if (z === Z.RES) b.occ = Math.min(b.occ, b.cap); }
+      for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) g.bld[yy * W + xx] = id;
       g.buildings.set(id, b);
+      if (id > maxId) maxId = id;
     }
+    if (skipped) notes.push(`${skipped} beschädigte Gebäude wurden entfernt.`);
+    g.nextId = Math.max(int(data.nextId, 1), maxId + 1);
+    // Werte
+    const obj = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : null);
+    const arr = (x) => (Array.isArray(x) ? x : []);
+    const nums = (x) => { const out = {}; for (const [k, val] of Object.entries(obj(x) || {})) if (typeof val === 'number' && Number.isFinite(val)) out[k] = val; return out; };
+    const taxes = { ...g.taxes };
+    for (let zz = 1; zz <= 4; zz++) { const t = obj(data.taxes) ? data.taxes[zz] : undefined; if (Number.isFinite(t)) taxes[zz] = clamp(Math.round(t), 0, 25); }
     Object.assign(g, {
-      time: data.time, money: data.money, speed: data.speed || 1, taxes: data.taxes, policies: new Set(data.policies), milestone: data.milestone,
-      mods: { ...g.mods, ...data.mods }, serviceBudget: data.serviceBudget || {}, effects: data.effects || [], loans: data.loans || [], cardCount: data.cardCount || {}, cardsTaken: data.cardsTaken || [],
-      landmarkVouchers: new Set(data.vouchers || []), nextEventDay: data.nextEventDay || 5, lastEventId: data.lastEventId, debtDays: data.debtDays || 0,
-      history: data.history || [], newsLog: data.news || [],
+      time: Math.max(0, fin(data.time, g.time)), money: fin(data.money, g.money), speed: clamp(int(data.speed, 1), 0, SPEEDS.length - 1) || 1, taxes,
+      policies: new Set(arr(data.policies).filter((p) => typeof p === 'string')), milestone: clamp(int(data.milestone, 0), 0, MILESTONES.length - 1),
+      mods: { ...g.mods, ...nums(data.mods) }, serviceBudget: nums(data.serviceBudget),
+      effects: arr(data.effects).filter((e) => obj(e) && typeof e.key === 'string' && Number.isFinite(e.value) && Number.isFinite(e.until)),
+      loans: arr(data.loans).filter((l) => obj(l)), cardCount: obj(data.cardCount) || {}, cardsTaken: arr(data.cardsTaken),
+      landmarkVouchers: new Set(arr(data.vouchers)), nextEventDay: int(data.nextEventDay, 5), lastEventId: data.lastEventId ?? null, debtDays: Math.max(0, int(data.debtDays, 0)),
+      history: arr(data.history).filter((x) => obj(x)), newsLog: arr(data.news).filter((x) => obj(x)),
     });
+    if (g.sandbox) g.milestone = MILESTONES.length - 1;
+    if (Number.isFinite(data.rng)) g.rng.setState(data.rng);
+    if (Number.isFinite(data.trng)) g.traffic.rng.setState(data.trng);
     g.nextStep = Math.ceil(g.time / 10) * 10 + 10;
     g.lastHour = Math.floor(g.time / 60);
     g.lastDay = Math.floor(g.time / DAY);
-    for (let i = 0; i < g.N; i++) {
-      if (g.zone[i] && !g.bld[i] && !g.road[i]) g.zoneFree[g.zone[i]].add(i);
+    for (let i = 0; i < N; i++) {
+      if (g.zone[i] && !g.bld[i] && !g.road[i] && !g.rubble[i]) g.zoneFree[g.zone[i]].add(i);
     }
     g._zoneDirty();
     rebuildNetwork(g);
-    g.transit.load(data.transit);
-    for (const sys of SYSTEMS) if (sys.load && data.ext && data.ext[sys.id] !== undefined) sys.load(g, data.ext[sys.id]);
+    if (obj(data.transit)) {
+      try { g.transit.load(data.transit); } catch (e) {
+        g.reportError('Pulsbahn (load)', e);
+        g.stationAt.fill(0);
+        g.trackCount.fill(0);
+        g.transit = new Transit(g);
+        if (g.sandbox) g.transit.linesMax = 10;
+        notes.push('Die Pulsbahn war beschädigt und wurde zurückgesetzt.');
+      }
+    }
+    const ext = obj(data.ext) || {};
+    for (const sys of SYSTEMS) {
+      if (!sys.load || ext[sys.id] === undefined) continue;
+      try { sys.load(g, ext[sys.id]); } catch (e) {
+        g.reportError(`System „${sys.id}“ (load)`, e);
+        if (sys.init) g._sys(sys, 'init');
+        notes.push(`Teil „${sys.id}“ war beschädigt und startet neu.`);
+      }
+    }
+    // Abgeleitete Werte neu berechnen; gespeicherte Belegung und Zufriedenheit dabei unverändert lassen
+    const keep = [...g.buildings.values()].map((b) => [b, b.occ, b.happy]);
     aggregate(g);
     computeUtilities(g);
     computeCoverage(g);
     g.transit.applyCoverage();
     computeFields(g);
     computeHappiness(g);
+    let hs = 0, hw = 0;
+    for (const [b, occ, happy] of keep) {
+      b.occ = occ; b.happy = b.abandoned ? 0 : happy;
+      if (b.zone && b.construct >= 1 && !b.abandoned) { const wgt = Math.max(1, b.occ); hs += b.happy * wgt; hw += wgt; }
+    }
+    if (hw > 0) g.stats.happiness = hs / hw;
     updateDemand(g);
     g.traffic.rebuildLists();
     g.lastBudget = computeBudget(g);
+    if (!Number.isFinite(g.lastBudget.net)) throw new SaveError('Der Spielstand ist beschädigt (Haushalt nicht berechenbar).');
     return g;
   }
 }
