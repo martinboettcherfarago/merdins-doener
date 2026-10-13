@@ -16,7 +16,7 @@ import { PlaceBar } from './ui/placebar.js';
 
 const SLOP = 10; // px: bis hierhin gilt eine Fingerbewegung als Tippen
 const SLOP_LINE = 18; // Linien: großzügiger, damit Stationen auch mit leichtem Verrutschen sitzen
-const HOLD_MS = 450; // Finger so lange ruhig halten: Vorschau entsteht sofort und folgt dem Finger
+const HOLD_MS = 500; // Finger so lange ruhig halten: Vorschau entsteht sofort und folgt dem Finger (input.holdMs)
 const HANDLE_R = 36; // Fangradius der Griffe (px)
 const GHOST_R = 46; // Fangradius um die Gebäudevorschau (px)
 const _v = new Vector3();
@@ -40,6 +40,7 @@ export class Input {
     this.gest = null; // laufende Geste im Bestätigungsmodus
     this.touchIds = new Set();
     this.lastType = 'mouse';
+    this.holdMs = HOLD_MS;
     this.bar = new PlaceBar(this);
     const c = engine.canvas;
     this.onDown = (e) => this.pointerDown(e);
@@ -412,7 +413,7 @@ export class Input {
         try { if (navigator.vibrate) navigator.vibrate(12); } catch (err) { /* egal */ }
         this.audio.play('click');
         this.refreshPend();
-      }, HOLD_MS);
+      }, this.holdMs);
     }
     if (this.pend) this.refreshPend();
   }

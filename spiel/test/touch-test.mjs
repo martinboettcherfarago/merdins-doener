@@ -98,6 +98,11 @@ async function startGame(ctxOpts, settings = {}) {
     rig.focus(bx + 5 - W / 2, by + 6 - H / 2, 30);
     rig.goal.pitch = 1.05; rig.goal.yaw = 0;
     rig.cur = { ...rig.cur, ...rig.goal };
+    // Prüfstand: weniger Bildpunkte rendern (Software-WebGL), Simulation anhalten – die Eingabe bleibt unverändert
+    app.engine.quality = { ...app.engine.quality, pr: 0.5 }; app.engine.resize();
+    g.speed = 0;
+    // Halten-und-Ziehen nur im eigenen Prüfschritt (Software-WebGL ist langsam: sonst zählt jedes Ziehen als Halten)
+    app.input.holdMs = 1e7;
     const V = app.engine.camera.position.constructor;
     window.__T = {
       scr(x, y) {
@@ -268,7 +273,9 @@ try {
   await tapBar(page, 'cancel');
   check('✕: keine Straße gebaut', !(await page.evaluate(([x, y]) => window.__T.road(x, y), [bx + 3, ry + 4])) && !(await st(page)).pend);
   // Halten und ziehen
-  await touchDrag(page, cdp, await scr(page, bx + 1, ry + 4), await scr(page, bx + 4, ry + 4), 8, 650);
+  await page.evaluate(() => { window.__stadtpuls.input.holdMs = 500; });
+  await touchDrag(page, cdp, await scr(page, bx + 1, ry + 4), await scr(page, bx + 4, ry + 4), 8, 1500);
+  await page.evaluate(() => { window.__stadtpuls.input.holdMs = 1e7; });
   s = await st(page);
   check('Halten und ziehen zieht die Strecke direkt auf', s.pend && s.pend.sx === bx + 1 && s.pend.ex === bx + 4 && !(await page.evaluate(([x, y]) => window.__T.road(x, y), [bx + 2, ry + 4])), JSON.stringify(s.pend));
   await tapBar(page, 'cancel');
