@@ -137,6 +137,7 @@ void main() {
     this.pulse = new GlowPoints(engine.scene, 400);
     this.tmpA = { x: 0, z: 0, yaw: 0 }; this.tmpB = { x: 0, z: 0, yaw: 0 }; this.tmp = { x: 0, z: 0, yaw: 0 };
     this.lineY = new Map();
+    this.hallLights = [];
     this.stats = { tris: 0 };
   }
 
@@ -188,7 +189,8 @@ void main() {
     const k = new VKit(2);
     const gl = new Glass();
     const tr2 = new Trace();
-    const hallsAt = new Map(); // Station → tiefste Hallensohle
+    const hallsAt = new Map(); // Station → oberster Bahnsteig (für den Schacht)
+    this.hallLights = [];
     for (const line of tr.lines) {
       if (!line.pts || line.pts.length < 2 || !(line.length > 0)) continue;
       const col = LINE_COLORS[line.color];
@@ -237,6 +239,7 @@ void main() {
         // Schacht zum obersten Bahnsteig, quer zu dessen Linie versetzt
         const prev = hallsAt.get(h.sid);
         const pc = this.pose(line, h.d, this.tmp);
+        this.hallLights.push([pc.x, Y + 0.2, pc.z, 0.6 + h.hl * 0.5]);
         if (!prev) hallsAt.set(h.sid, { top: Y, yaw: pc.yaw });
         else if (Y > prev.top) { prev.top = Y; prev.yaw = pc.yaw; }
       }
@@ -506,6 +509,8 @@ void main() {
         }
       }
     }
+    // warmer Lichtschein über den Bahnsteighallen
+    if (k > 0.002) for (const q of this.hallLights) this.glow.add(q[0], q[1], q[2], q[3], 1, 0.86, 0.62, 0.22 * k);
     fl.end();
     this.glow.end(this.e.renderer);
     this.pulse.end(this.e.renderer);

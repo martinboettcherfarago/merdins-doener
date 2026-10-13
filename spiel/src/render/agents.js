@@ -495,6 +495,8 @@ export class TransitView {
     this.archCache = new Map();
     this.archMeshes = [];
     this.archSets = [];
+    this.archLights = [];
+    this.lampGlow = new GlowPoints(engine.scene, 600);
     this.rebuild();
   }
 
@@ -586,7 +588,10 @@ export class TransitView {
     let parts = null;
     try {
       const res = buildArch('station', 1, v, 1, 1, {}, [2, 1, 0][lod]);
-      if (res && res.meshes) parts = res.meshes.map((p) => ({ geometry: p.geometry, material: getMaterial(p.material) }));
+      if (res && res.meshes) {
+        parts = res.meshes.map((p) => ({ geometry: p.geometry, material: getMaterial(p.material) }));
+        parts.lights = (res.lights || []).map((l) => [l.x, l.y, l.z, new THREE.Color(l.color), l.size]);
+      }
     } catch (e) { console.warn('U-Bahn-Eingang: Baustein fehlgeschlagen', e); }
     this.archCache.set(key, parts);
     return parts;
@@ -612,7 +617,7 @@ export class TransitView {
           return mesh;
         });
       });
-      this.archSets.push({ list, lods });
+      this.archSets.push({ list, lods, lights: (this.archModel(v, 0) || {}).lights || [] });
     });
     this.archTimer = 0;
     this.updateArchLods(true);
@@ -624,7 +629,9 @@ export class TransitView {
     this.archTimer = 20;
     const cam = this.e.camera.position;
     const m4 = this.m4, q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), p = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-    for (const { list, lods } of this.archSets) {
+    const lp = new THREE.Vector3();
+    this.archLights.length = 0;
+    for (const { list, lods, lights } of this.archSets) {
       const counts = [0, 0, 0];
       for (const [x, z, yaw] of list) {
         const d = Math.hypot(x - cam.x, cam.y, z - cam.z);
@@ -636,6 +643,8 @@ export class TransitView {
         q.setFromAxisAngle(up, yaw); p.set(x, 0, z); m4.compose(p, q, s);
         const i = counts[lod]++;
         for (const mesh of set) mesh.setMatrixAt(i, m4);
+        // Nachtlichter (U-Schild, Glasdach) aus dem Baustein
+        for (const [lx, ly, lz, c, sz] of lights) { lp.set(lx, ly, lz).applyMatrix4(m4); this.archLights.push([lp.x, lp.y, lp.z, sz, c.r, c.g, c.b]); }
       }
       lods.forEach((set, lod) => {
         if (!set) return;
@@ -694,7 +703,12 @@ export class TransitView {
       this.paxMesh[k].count = Math.min(counts[k], 1200);
       this.paxMesh[k].instanceMatrix.needsUpdate = true;
     }
-    void night;
+    // Leuchtende U-Schilder und Eingänge bei Nacht
+    const gl = this.lampGlow;
+    gl.begin();
+    const nl = Math.max(0, Math.min(1, (night - 0.15) / 0.5));
+    if (nl > 0.01) for (const q of this.archLights) gl.add(q[0], q[1], q[2], q[3] * 0.9, q[4], q[5], q[6], 0.75 * nl);
+    gl.end(this.e.renderer);
   }
 
   stats() {
