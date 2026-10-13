@@ -446,7 +446,8 @@ void main() {
     const g = this.g, tr = g.transit;
     if (tr.version !== this.version) this.rebuild();
     const goal = this.on ? 1 : 0;
-    const step = Math.min(1, dt * FADE);
+    // Überblendung nach echter Zeit (auch bei sehr langsamen Bildern in ≈ 0,3 s fertig)
+    const step = Math.min(1, Math.min(0.5, Math.max(dt, this.e.realDt || 0)) * FADE);
     this.k += Math.sign(goal - this.k) * Math.min(Math.abs(goal - this.k), step);
     const k = smooth(Math.max(0, Math.min(1, this.k)));
     this.kv = k;
