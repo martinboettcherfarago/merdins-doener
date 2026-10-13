@@ -1,14 +1,14 @@
 // Fortschritt: Wochenkarten, Ereignisse mit Entscheidungen, Stadtfunk (Bürgerstimmen).
-import { BUILDINGS, MILESTONES } from '../config.js';
+import { BUILDINGS, MILESTONES, TRANSIT } from '../config.js';
 import { fmtMoney, citizenName, pick } from '../util.js';
 
 const grantAmount = (g) => Math.round((6000 + g.stats.pop * 3.2) / 500) * 500;
 
 export const CARDS = [
   { id: 'grant', name: 'Fördermittel', tag: 'Geld', color: '#e3a925', w: 3, text: (g) => `${fmtMoney(grantAmount(g))} vom Land – sofort.`, apply: (g) => { g.money += grantAmount(g); } },
-  { id: 'line', name: 'Neue Linie', tag: 'Pulsbahn', color: '#e8543f', w: 2.4, cond: (g) => g.isUnlocked('transit') && g.transit.linesMax < 10, text: () => 'Ein zusätzlicher Linienplatz für die Pulsbahn.', apply: (g) => { g.transit.linesMax++; } },
-  { id: 'trains', name: 'Zwei Züge', tag: 'Pulsbahn', color: '#2f8fe0', w: 2.2, cond: (g) => g.isUnlocked('transit'), text: () => 'Zwei Züge gratis im Depot. Setze sie im Linienfenster ein.', apply: (g) => { g.transit.freeTrains += 2; } },
-  { id: 'wagons', name: 'Waggons', tag: 'Pulsbahn', color: '#22a866', w: 2, cond: (g) => g.isUnlocked('transit'), text: () => 'Drei Waggons gratis: +6 Plätze je Waggon.', apply: (g) => { g.transit.freeWagons += 3; } },
+  { id: 'line', name: 'Neue Linie', tag: 'U-Bahn', color: '#e8543f', w: 2.4, cond: (g) => g.isUnlocked('transit') && g.transit.linesMax < 10, text: () => 'Ein zusätzlicher Linienplatz für die Pulsbahn.', apply: (g) => { g.transit.linesMax++; } },
+  { id: 'trains', name: 'Zwei Züge', tag: 'U-Bahn', color: '#2f8fe0', w: 2.2, cond: (g) => g.isUnlocked('transit'), text: () => 'Zwei Züge gratis im Depot. Setze sie im Linienfenster ein.', apply: (g) => { g.transit.freeTrains += 2; } },
+  { id: 'wagons', name: 'Wagen', tag: 'U-Bahn', color: '#22a866', w: 2, cond: (g) => g.isUnlocked('transit'), text: () => `Drei Wagen gratis: +${TRANSIT.wagonCapacity} Plätze je Wagen.`, apply: (g) => { g.transit.freeWagons += 3; } },
   { id: 'festival', name: 'Stadtfest', tag: 'Glück', color: '#f06fae', w: 2, text: () => '+8 Glück in der ganzen Stadt für 7 Tage.', apply: (g) => g.addEffect('happy', 8, 7, 'Stadtfest') },
   { id: 'boom', name: 'Konjunktur', tag: 'Geld', color: '#e3a925', w: 1.6, cond: (g) => g.stats.pop > 200, text: () => '+25 % Steuereinnahmen für 7 Tage.', apply: (g) => g.addEffect('taxMul', 0.25, 7, 'Konjunktur') },
   { id: 'immigration', name: 'Zuzugswelle', tag: 'Wachstum', color: '#63c27a', w: 2, text: () => 'Wohnnachfrage +35 für 6 Tage.', apply: (g) => g.addEffect('resDemand', 35, 6, 'Zuzugswelle') },
@@ -19,7 +19,7 @@ export const CARDS = [
   { id: 'teachers', name: 'Lehrkräfte', tag: 'Dauerhaft', color: '#8f5ad8', w: 1.3, cond: (g) => g.milestone >= 1 && (g.cardCount.teachers || 0) < 2, text: () => 'Bildung wächst dauerhaft 30 % schneller.', apply: (g) => { g.mods.edu *= 1.3; } },
   { id: 'firesafety', name: 'Brandschutz', tag: 'Dauerhaft', color: '#e8543f', w: 1.1, cond: (g) => (g.cardCount.firesafety || 0) < 2, text: () => 'Brandrisiko dauerhaft −30 %.', apply: (g) => { g.mods.fire *= 0.7; } },
   { id: 'roadcrew', name: 'Straßenbaukolonne', tag: 'Bauen', color: '#5f6b78', w: 1.6, text: () => 'Straßen kosten 7 Tage lang nur die Hälfte.', apply: (g) => g.addEffect('roadCost', -0.5, 7, 'Straßenbaukolonne') },
-  { id: 'express', name: 'Expresszüge', tag: 'Pulsbahn', color: '#10a9a3', w: 1.2, cond: (g) => g.isUnlocked('transit') && (g.cardCount.express || 0) < 2, text: () => 'Pulsbahn-Züge dauerhaft 20 % schneller.', apply: (g) => { g.mods.trainSpeed *= 1.2; } },
+  { id: 'express', name: 'Expresszüge', tag: 'U-Bahn', color: '#10a9a3', w: 1.2, cond: (g) => g.isUnlocked('transit') && (g.cardCount.express || 0) < 2, text: () => 'U-Bahn-Züge dauerhaft 20 % schneller.', apply: (g) => { g.mods.trainSpeed *= 1.2; } },
   { id: 'filters', name: 'Filteranlagen', tag: 'Dauerhaft', color: '#22a866', w: 1.2, cond: (g) => g.stats.jobsByZone[3] > 40 && (g.cardCount.filters || 0) < 3, text: () => 'Industrie-Abgase dauerhaft −15 %.', apply: (g) => { g.mods.pollution *= 0.85; } },
   { id: 'tourism', name: 'Werbekampagne', tag: 'Tourismus', color: '#ff8a1f', w: 1.1, cond: (g) => g.stats.tourism > 50, text: () => 'Touristen +50 % für 7 Tage.', apply: (g) => g.addEffect('tourism', 50, 7, 'Werbekampagne') },
 ];
@@ -156,7 +156,7 @@ export const EVENTS = [
     id: 'traffic', title: 'Stau-Beschwerden', minPop: 800, cond: (g) => g.stats.trafficFlow < 0.75,
     text: 'Pendler beschweren sich über den täglichen Stau. Die Zeitung fordert Lösungen.',
     options: [
-      { label: 'Verkehrsgutachten', hint: () => '−3.000 €, Pulsbahn-Fahrgäste +25 % für 7 Tage', apply: (g) => { g.money -= 3000; g.addEffect('ridership', 0.25, 7, 'Kampagne „Steig um"'); } },
+      { label: 'Verkehrsgutachten', hint: () => '−3.000 €, U-Bahn-Fahrgäste +25 % für 7 Tage', apply: (g) => { g.money -= 3000; g.addEffect('ridership', 0.25, 7, 'Kampagne „Steig um"'); } },
       { label: 'Abwiegeln', hint: () => 'Glück −3 für 4 Tage', apply: (g) => g.addEffect('happy', -3, 4, 'Stau-Frust') },
     ],
   },
@@ -194,8 +194,8 @@ export const CHATTER = [
   { when: (g) => g.stats.unemployment > 0.12, texts: ['Ich suche seit Wochen Arbeit. Gibt es hier keine Firmen?', 'Zu wenig Jobs in der Stadt. Wir brauchen Gewerbe und Industrie.'] },
   { when: (g) => g.stats.happiness > 75, texts: ['Ich liebe diese Stadt! ❤', 'Sonnenschein, Parks und nette Nachbarn. Perfekt.', 'Bester Bürgermeister aller Zeiten.'] },
   { when: (g) => g.stats.happiness < 40 && g.stats.pop > 100, texts: ['Die Stimmung in der Stadt ist mies. Irgendwer muss was tun.', 'Ich packe die Umzugskartons.'] },
-  { when: (g) => g.stats.ridersToday > 40, texts: ['Mit der Pulsbahn in 6 Minuten zur Arbeit. Herrlich!', 'Die Aussicht aus der Hochbahn ist der Wahnsinn.', 'Ich habe heute in der Pulsbahn meine Jugendliebe getroffen.'] },
-  { when: (g) => g.transit.lines.length && [...g.transit.stations.values()].some((s) => s.waiting.length > 10), texts: ['Die Station ist rappelvoll. Mehr Züge, bitte!', 'Drei Bahnen sind an mir vorbeigefahren – alle voll.'] },
+  { when: (g) => g.stats.ridersToday > 40, texts: ['Mit der Pulsbahn in 6 Minuten zur Arbeit. Herrlich!', 'Unten im Tunnel, oben kein Stau – die U-Bahn ist der Wahnsinn.', 'Ich habe heute in der Pulsbahn meine Jugendliebe getroffen.'] },
+  { when: (g) => g.transit.lines.length && [...g.transit.stations.values()].some((s) => s.waiting.length > 10), texts: ['Der Bahnhof ist rappelvoll. Mehr Züge, bitte!', 'Drei Bahnen sind an mir vorbeigefahren – alle voll.'] },
   { when: (g) => g.stats.pollutionAvg > 0.25, texts: ['Die Luft schmeckt nach Industrie. Ich will Bäume!', 'Mein Balkon ist voller Ruß.'] },
   { when: (g) => g.stats.crimeAvg > 0.35 && g.stats.pop > 300, texts: ['Mir wurde das Fahrrad geklaut. Schon wieder.', 'Nachts fühle ich mich hier nicht mehr sicher. Mehr Polizei!'] },
   { when: (g) => g.stats.pop > 300 && g.stats.healthAvg < 0.3, texts: ['Der nächste Arzt ist ewig weit weg.', 'Wir brauchen eine Arztpraxis im Viertel.'] },

@@ -305,8 +305,10 @@ export class Ambience {
     const sv = s.veh.siren;
     b.siren.set(sv.p * near * (paused ? 0 : 1), now, 0.4, sv.pan);
     const pb = s.veh.pulsbahn;
-    b.pulsbahn.set(pb.p * near * 0.9 * (paused ? 0 : 1), now, 0.5, pb.pan);
-    if (b.pulsbahn.p.st.o) b.pulsbahn.p.st.o.frequency.setTargetAtTime(150 + pb.p * 60 - pb.vr * 3, now, 0.5);
+    // U-Bahn unter der Erde: dumpfes Grollen aus der Tiefe, in der Untergrund-Ansicht klarer
+    const pbUg = s.underground ? 1 : 0.45;
+    b.pulsbahn.set(pb.p * near * 0.9 * pbUg * (paused ? 0 : 1), now, 0.5, pb.pan);
+    if (b.pulsbahn.p.st.o) b.pulsbahn.p.st.o.frequency.setTargetAtTime((s.underground ? 150 : 110) + pb.p * 60 - pb.vr * 3, now, 0.5);
     b.jet.set((s.veh.plane.p * 0.9 + s.poi.airport.p * 0.22 * (1 - night * 0.6)) * (paused ? 0.3 : 1), now, 1, s.veh.plane.p > 0.05 ? s.veh.plane.pan : s.poi.airport.pan);
     b.heli.set(s.veh.heli.p * (paused ? 0.3 : 1), now, 0.6, s.veh.heli.pan);
     b.plow.set(s.veh.plow.p * near * (paused ? 0 : 1), now, 0.6, s.veh.plow.pan);
@@ -391,7 +393,7 @@ export class Ambience {
 
     // --- Pulsbahn: Schienenstöße, wenn ein Zug nah vorbeifährt
     const pbv = s.veh.pulsbahn;
-    if (!paused && pbv.p > 0.25 && P(1.8 * pbv.p)) ev('rail', S.railClack, { gain: 0.08 * pbv.p * near, pan: pbv.pan, send: 0.25 }, 0.25);
+    if (!paused && pbv.p > 0.25 && P(1.8 * pbv.p)) ev('rail', S.railClack, { gain: 0.08 * pbv.p * near * (s.underground ? 1 : 0.35), pan: pbv.pan, send: s.underground ? 0.45 : 0.25 }, 0.25);
 
     // --- Nacht: Grillen, Frösche, Kauz
     const cl = this.cricketLevel(s);

@@ -156,8 +156,8 @@ export const ACHIEVEMENTS = [
   { id: 'harborcity', cat: 'money', tier: 2, name: 'Hafenstadt', desc: '1.500 Einheiten Fracht über den Hafen umgeschlagen.', goal: 1500, v: (g) => g.ext.industry?.tot?.harborUsed || 0, req: (g) => typeof g.ext.industry?.tot?.harborUsed === 'number' },
   { id: 'recession', cat: 'money', tier: 3, name: 'Durch die Krise', desc: 'Eine Rezession überstanden, ohne ins Minus zu rutschen.', goal: 1, v: (g, F, C) => (C.recessionOk ? 1 : 0), hint: (g, F, C) => (C.inRecession ? 'Rezession läuft – Kasse im Plus halten!' : 'Wartet auf die nächste Rezession …'), req: (g) => typeof g.ext.industry?.cycle?.value === 'number' },
   // --- Verkehr
-  { id: 'firstline', cat: 'transit', tier: 1, metro: true, name: 'Erste Fahrt', desc: 'Die erste Pulsbahn-Linie fährt.', goal: 1, v: (g, F) => F.lines },
-  { id: 'lines5', cat: 'transit', tier: 2, metro: true, name: 'Liniennetz', desc: 'Fünf Pulsbahn-Linien gleichzeitig.', goal: 5, v: (g, F) => F.lines },
+  { id: 'firstline', cat: 'transit', tier: 1, metro: true, name: 'Erste Fahrt', desc: 'Die erste U-Bahn-Linie fährt.', goal: 1, v: (g, F) => F.lines },
+  { id: 'lines5', cat: 'transit', tier: 2, metro: true, name: 'Liniennetz', desc: 'Fünf U-Bahn-Linien gleichzeitig.', goal: 5, v: (g, F) => F.lines },
   { id: 'ring', cat: 'transit', tier: 2, metro: true, name: 'Ringbahn', desc: 'Eine Ringlinie mit mindestens 6 Stationen.', goal: 6, v: (g, F) => F.loopStops },
   { id: 'hub', cat: 'transit', tier: 2, metro: true, name: 'Umsteigeknoten', desc: 'Eine Station, an der drei Linien halten.', goal: 3, v: (g, F) => F.hubLines },
   { id: 'riders500', cat: 'transit', tier: 2, metro: true, name: 'Volle Züge', desc: '500 Fahrgäste an einem Tag.', goal: 500, v: (g, F, C) => C.maxRiders },
@@ -568,7 +568,7 @@ const G = {
   happy: (target, hold) => ({ id: 'happy', label: `Glück ≥ ${target} %`, cur: (g) => g.stats.happiness, target, hold, fmt: (v) => `${Math.round(v)} %` }),
   money: (target) => ({ id: 'money', label: `${fmtMoney(target)} in der Kasse`, cur: (g) => g.money, target, fmt: fmtMoney }),
   net: (target, hold) => ({ id: 'net', label: `Tagesbilanz ≥ +${fmtMoney(target)}`, cur: (g) => g.lastBudget?.net || 0, target, hold, fmt: fmtMoney }),
-  riders: (target, hold) => ({ id: 'riders', label: `${fmt(target)} Pulsbahn-Fahrgäste pro Tag`, cur: (g) => g.stats.ridersToday || 0, target, hold, fmt }),
+  riders: (target, hold) => ({ id: 'riders', label: `${fmt(target)} U-Bahn-Fahrgäste pro Tag`, cur: (g) => g.stats.ridersToday || 0, target, hold, fmt }),
   // ÖPNV gesamt (Pulsbahn heute + Bus & Tram gestern) – wie die Kopfzeile „ÖPNV"
   oepnv: (target, hold) => ({ id: 'oepnv', label: `${fmt(target)} ÖPNV-Fahrgäste pro Tag`, cur: (g) => (g.stats.ridersToday || 0) + (g.ext.transport?.day?.riders || 0), target, hold, fmt }),
   flow: (target, hold) => ({ id: 'flow', label: `Ø Verkehrsfluss ≥ ${target} %`, cur: (g) => (S(g).counters.dayFlow || 0) * 100, target, hold, fmt: (v) => `${Math.round(v)} %` }),
@@ -584,7 +584,7 @@ const G = {
   islands: (target) => ({ id: 'islands', label: `${target} besiedelte Inseln`, cur: (g) => settledIslands(g), target, fmt }),
   unemp: (target) => ({ id: 'unemp', label: `Arbeitslosigkeit ≤ ${target} %`, cur: (g) => g.stats.unemployment * 100, target, cmp: '<=', fmt: (v) => `${Math.round(v)} %` }),
   commute: (target, hold) => ({ id: 'commute', label: `Ø Pendelzeit ≤ ${target} Min.`, cur: (g) => (S(g).facts || cityFacts(g)).commute, target, cmp: '<=', hold, fmt: (v) => `${Math.round(v)} Min.` }),
-  share: (target) => ({ id: 'share', label: `Pulsbahn-Anteil ≥ ${target} %`, cur: (g) => (g.stats.transitShare || 0) * 100, target, fmt: (v) => `${Math.round(v)} %` }),
+  share: (target) => ({ id: 'share', label: `U-Bahn-Anteil ≥ ${target} %`, cur: (g) => (g.stats.transitShare || 0) * 100, target, fmt: (v) => `${Math.round(v)} %` }),
   popMax: (target) => ({ id: 'popmax', label: `Höchstens ${fmt(target)} Einwohner`, cur: (g) => g.stats.pop, target, cmp: '<=', fmt }),
 };
 
@@ -624,7 +624,7 @@ export const SCENARIOS = [
     desc: 'Die Autobahn endet auf einer kleinen Insel. Drüben locken die große Hauptinsel und ein paar Eilande. Brücken sind teuer – plane klug und verbinde mindestens drei Inseln zu einer Stadt.',
     script: [
       { day: 0, who: 'bau', text: 'Unsere Insel ist klein. Eine Brücke zur Hauptinsel ist teuer – aber erst dahinter ist Platz für eine echte Stadt.' },
-      { day: 6, who: 'verkehr', text: 'Die Pulsbahn fährt über das Wasser, ohne dass wir eine Brücke für Autos brauchen.' },
+      { day: 6, who: 'verkehr', text: 'Die U-Bahn fährt unter dem Wasser hindurch – ganz ohne Brücke für Autos.' },
       { day: 30, who: 'bau', text: 'Die kleinen Eilande im Norden warten noch auf Siedler.' },
     ],
     goals: [G.pop(2500), G.islands(3), G.riders(100)],
@@ -1458,7 +1458,7 @@ export function adviceFor(g) {
     if (idle.length) add('m_idle', 'verkehr', 90, `${idle.length} Station${idle.length > 1 ? 'en' : ''} ohne Anschluss`, `${idle.map((x) => x.name).slice(0, 3).join(', ')} füllen sich trotzdem. Verlängere eine Linie dorthin oder zeichne eine neue.`);
     if (m && m.worst > 0.4) add('m_over', 'verkehr', 95, `${m.worstName} läuft über`, `Der rote Ring ist zu ${Math.round(m.worst * 100)} % gefüllt. Mehr Züge oder Waggons auf die Linie – oder eine zweite Linie durch die Station.`);
     if (tr.freeTrains > 0) add('m_trains', 'verkehr', 70, `${tr.freeTrains} Zug${tr.freeTrains > 1 ? 'e' : ''} im Depot`, 'Setze sie im Pulsbahn-Fenster auf die vollsten Linien.');
-    if (tr.freeWagons > 0) add('m_wagons', 'verkehr', 65, `${tr.freeWagons} Waggon${tr.freeWagons > 1 ? 's' : ''} im Depot`, 'Waggons erhöhen die Kapazität eines Zuges um je 6 Plätze.');
+    if (tr.freeWagons > 0) add('m_wagons', 'verkehr', 65, `${tr.freeWagons} Wagen im Depot`, `Jeder Wagen bringt einem Zug ${TRANSIT.wagonCapacity} Plätze mehr.`);
     if (tr.lines.length < tr.linesMax) add('m_lines', 'verkehr', 60, 'Freie Linie', `Du hast ${tr.linesMax - tr.lines.length} ungenutzte Linie(n). Eine Linie zwischen Wohnen ● und Arbeit ■▲◆ bringt die meisten Fahrgäste.`);
     add('m_tip', 'verkehr', 20, 'Tipp: Ringe und Umsteigen', 'Ringlinien haben keine Wendezeiten. Stationen, an denen sich zwei Linien kreuzen, verteilen Fahrgäste schneller.');
     return out.sort((a, b) => b.prio - a.prio);
@@ -1480,8 +1480,8 @@ export function adviceFor(g) {
       if (free < 8) add('demand' + z, 'bau', 58, `Gefragt: ${name}`, `Die Nachfrage ist hoch, aber es gibt kaum freie Flächen (${free}). Weise mehr ${name} aus.`);
     }
   }
-  if (s.trafficFlow < 0.75 && pop > 400) add('traffic', 'verkehr', 70, 'Stau in der Stadt', `Verkehrsfluss ${Math.round(s.trafficFlow * 100)} %. Alleen haben doppelte Kapazität, die Pulsbahn nimmt Autos von der Straße.`);
-  if (g.isUnlocked('transit') && g.transit.lines.length === 0 && pop > 500) add('transit', 'verkehr', 62, 'Die Pulsbahn wartet', 'Du kannst jetzt Hochbahn-Linien zeichnen. Verbinde Wohnviertel mit Arbeitsplätzen – das senkt Stau und hebt den Bodenwert.');
+  if (s.trafficFlow < 0.75 && pop > 400) add('traffic', 'verkehr', 70, 'Stau in der Stadt', `Verkehrsfluss ${Math.round(s.trafficFlow * 100)} %. Alleen haben doppelte Kapazität, die U-Bahn nimmt Autos von der Straße.`);
+  if (g.isUnlocked('transit') && g.transit.lines.length === 0 && pop > 500) add('transit', 'verkehr', 62, 'Die U-Bahn wartet', 'Du kannst jetzt U-Bahn-Linien zeichnen. Verbinde Wohnviertel mit Arbeitsplätzen – das senkt Stau und hebt den Bodenwert.');
   const crowded = [...g.transit.stations.values()].filter((st) => st.over > 0.4);
   if (crowded.length) add('crowd', 'verkehr', 85, `Station ${crowded[0].name} überfüllt`, 'Mehr Züge oder Waggons einsetzen, sonst geben die Fahrgäste auf und das Viertel wird unzufrieden.');
   if (g.transit.freeTrains > 0) add('freetrains', 'verkehr', 45, 'Züge im Depot', `${g.transit.freeTrains} Zug/Züge warten im Depot. Setze sie im Pulsbahn-Fenster ein.`);

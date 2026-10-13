@@ -1,193 +1,213 @@
-// Pulsbahn: Hochbahnsteig `station` (1 × 1, steht über der Straße) und Umsteigebahnhof `metro_hub` (2 × 1).
-// Bahnsteigoberkante liegt auf TRANSIT.trackHeight (Oberkante Fahrbalken, dort stehen die Züge). Besitzer: G6.
-// Station: Gleisbereich entlang Modell-z in der Mitte (|x| < 0.28) frei, Seitenbahnsteige außen, Oberkante
-// trackHeight + 0.035; G10 dreht das Modell in Fahrtrichtung. Dachoberkante < trackHeight + 0.48 (Symbol darüber).
-import * as THREE from 'three';
+// Pulsbahn – die U-Bahn der Stadt. Oberirdisch stehen nur die Eingänge (Besitzer: UBAHN, vorher G6).
+// `station` (1 × 1), Front (+z) zur Straße:
+//   Variante 0 „Platz“: eigener Eingangsplatz mit Treppenabgang unter einem Glasdach und U-Säule.
+//   Variante 1 „Gehweg“: der Bahnhof liegt unter einer Straße; schmaler Abgang mit Geländer auf dem Gehweg
+//              (Modell-x = Straßenrichtung, Abgang am Rand +z). TransitView dreht das Modell passend.
+//   Variante 2 „Kreuzung“: kurzer Abgang auf der Gehweg-Ecke (+x/+z) mit U-Säule.
+// `metro_hub` (2 × 1): großer Umsteigebahnhof mit gläserner Eingangshalle, zwei Abgängen und U-Säule.
+// Der Abgang selbst liegt unter dem Gelände; oben wirkt er durch dunkler werdende Stufen und abfallende
+// Handläufe tief. Bahnsteige und Tunnel zeichnet render/underground.js (Untergrund-Ansicht).
 import { registerArch } from './index.js';
 import { M } from './kit.js';
-import { TRANSIT } from '../../config.js';
-import { beam, rod, lathe, glassRail, lamp, bench, face, tube, crowd } from './lm_parts.js';
+import { beam, lamp, bench, crowd, bollard } from './lm_parts.js';
 import { text } from './lm_text.js';
 
-const H = TRANSIT.trackHeight;
+const WELL = ['concrete_panel', 'concrete', 'concrete_dark', 'stone_dark', 'metal_dark', 'paint_black'];
 
-// Gläserner Aufzugsschacht mit Kabine
-function elevator(kit, x, z, top, w = 1.5 * M) {
-  kit.box('concrete', x, 0, z, w + 0.3 * M, 0.3 * M, w + 0.3 * M);
-  kit.box('glass_curtain_blue', x, 0.3 * M, z, w, top - 0.3 * M, w, { lit: 0.5 });
-  if (kit.detail > 0) {
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) kit.box('metal_dark', x + sx * w / 2, 0.3 * M, z + sz * w / 2, 0.14 * M, top - 0.3 * M, 0.14 * M);
-    const n = Math.max(2, Math.round(top / (3.2 * M)));
-    for (let k = 1; k <= n; k++) kit.box('metal_dark', x, (k * top) / n - 0.06 * M, z, w + 0.12 * M, 0.12 * M, w + 0.12 * M);
-    kit.box('metal_panel_white', x, top * 0.45, z, w * 0.8, 2.3 * M, w * 0.8);
-  }
-  kit.box('metal_dark', x, top, z, w + 0.2 * M, 0.5 * M, w + 0.2 * M);
-}
-
-// Wendeltreppe um eine Stütze
-function spiralStair(kit, x, z, top, r = 0.95 * M) {
+// Blaues U-Schild als Würfel auf einer Säule (Mitte x/z, Unterkante Würfel y0, Kantenlänge s)
+export function uPylon(kit, x, z, h, s = 0.9 * M) {
   const d = kit.detail;
-  kit.cyl('concrete', x, 0, z, 0.28 * M, top, { seg: 8 });
-  if (d === 0) { tube(kit, 'metal_light', helix(x, z, r, top, 12), 0.25 * M, { tubular: 48, radial: 3 }); return; }
-  const turns = top / (3.0 * M), steps = d === 2 ? Math.round(turns * 14) : Math.round(turns * 5);
-  for (let i = 0; i < steps; i++) {
-    const t = i / steps, a = t * turns * Math.PI * 2, y = t * top;
-    const cx = x + Math.cos(a) * r * 0.55, cz = z + Math.sin(a) * r * 0.55;
-    kit.add('concrete_panel', new THREE.BoxGeometry(r * 1.1, 0.12 * M, d === 2 ? 0.42 * M : 1.1 * M), { x: cx, y: y + 0.06 * M, z: cz, ry: -a });
-  }
-  tube(kit, 'metal_dark', helix(x, z, r * 1.08, top, Math.round(turns * 10), 1.0 * M), 0.04 * M, { tubular: Math.round(turns * 24), radial: 3 });
-}
-function helix(x, z, r, top, n, dy = 0) {
-  const turns = top / (3.0 * M), pts = [];
-  for (let i = 0; i <= n; i++) { const t = i / n, a = t * turns * Math.PI * 2; pts.push([x + Math.cos(a) * r, t * top + dy, z + Math.sin(a) * r]); }
-  return pts;
-}
-
-// Bahnsteigdach mit Stützen, Lichtband und Schriftzug
-function canopy(kit, cx, cz, sx, sz, y0, posts) {
-  const RH = 4.1 * M;
-  for (const [px, pz] of posts) kit.cyl('metal_light', px, y0, pz, 0.12 * M, RH, { seg: 8 });
-  kit.box('metal_panel_white', cx, y0 + RH, cz, sx, 0.3 * M, sz);
-  if (kit.detail > 0) {
-    kit.box('glass_curtain_blue', cx, y0 + RH + 0.02 * M, cz, sx * 0.5, 0.3 * M, sz * 0.5, { lit: 0.5 });
-    kit.box('emissive_cool', cx, y0 + RH - 0.04 * M, cz, sx * 0.7, 0.05 * M, 0.25 * M);
-    kit.box('emissive_cool', cx, y0 + RH - 0.04 * M, cz, 0.25 * M, 0.05 * M, sz * 0.7);
-    for (const [fx, fz, ry, len] of [[cx, cz + sz / 2, 0, sx], [cx, cz - sz / 2, Math.PI, sx], [cx + sx / 2, cz, Math.PI / 2, sz], [cx - sx / 2, cz, -Math.PI / 2, sz]]) {
-      const [tx, tz] = face(fx, fz, ry).at(0, 0.02 * M);
-      kit.box('paint_blue', tx, y0 + RH - 0.02 * M, tz, len, 0.34 * M, 0.04 * M, { ry });
-      if (kit.detail === 2) { const [qx, qz] = face(fx, fz, ry).at(0, 0.05 * M); text(kit, 'paint_white', 'PULSBAHN', qx, y0 + RH + 0.02 * M, qz, ry, 0.24 * M, { depth: 0.02 * M }); }
+  kit.cyl('metal_dark', x, 0, z, 0.09 * M, h, { seg: d === 2 ? 8 : 5 });
+  if (d === 2) kit.cyl('metal_dark', x, 0, z, 0.2 * M, 0.25 * M, { seg: 8 });
+  kit.box('paint_blue', x, h, z, s, s, s);
+  if (d > 0) {
+    kit.box('paint_white', x, h + s - 0.04 * M, z, s + 0.02 * M, 0.06 * M, s + 0.02 * M);
+    for (let k = 0; k < 4; k++) {
+      const ry = (k * Math.PI) / 2;
+      const ox = Math.sin(ry) * (s / 2 + 0.005 * M), oz = Math.cos(ry) * (s / 2 + 0.005 * M);
+      text(kit, 'paint_white', 'U', x + ox, h + s * 0.2, z + oz, ry, s * 0.6, { depth: 0.03 * M, weight: 1.15, lod: true });
     }
   }
-  kit.light(cx, y0 + RH - 0.2 * M, cz, 0xdcefff, 0.7);
+  kit.light(x, h + s / 2, z, 0x5d8fff, 0.55);
+}
+
+// Treppenabgang: Öffnung w × len (entlang z, oberes Ende bei +z), Mitte cx/cz.
+// rail: 'stone' (Brüstung aus Naturstein) oder 'metal' (Geländer auf dem Gehweg)
+function stairwell(kit, cx, cz, w, len, rail = 'stone') {
+  const d = kit.detail;
+  const z0 = cz - len / 2, z1 = cz + len / 2;
+  const hw = w / 2;
+  // „Tiefe“: Stufenbänder von hell (oben) nach dunkel (unten)
+  const n = d === 0 ? 3 : WELL.length;
+  for (let k = 0; k < n; k++) {
+    const mat = d === 0 ? ['concrete', 'stone_dark', 'paint_black'][k] : WELL[k];
+    const a = z1 - (len * k) / n, b = z1 - (len * (k + 1)) / n;
+    kit.box(mat, cx, 0.07 * M, (a + b) / 2, w, 0.02 * M, a - b);
+    if (d === 2 && k < n - 1) kit.box('metal_light', cx, 0.095 * M, b + 0.03 * M, w - 0.1 * M, 0.012 * M, 0.06 * M);
+  }
+  // Brüstung bzw. Geländer
+  if (rail === 'stone') {
+    const H = 1.05 * M, T = 0.28 * M;
+    for (const s of [-1, 1]) kit.box('trim_stone', cx + s * (hw + T / 2), 0, cz, T, H, len + T);
+    kit.box('trim_stone', cx, 0, z0 - T / 2, w + 2 * T, H, T);
+    if (d > 0) {
+      // Innenseiten dunkler zur Tiefe hin
+      for (let k = 0; k < 3; k++) {
+        const a = z1 - (len * k) / 3, b = z1 - (len * (k + 1)) / 3;
+        for (const s of [-1, 1]) kit.box(['concrete', 'concrete_dark', 'metal_dark'][k], cx + s * (hw - 0.015 * M), 0.08 * M, (a + b) / 2, 0.03 * M, H - 0.1 * M, a - b);
+      }
+      kit.box('metal_dark', cx, 0.08 * M, z0 + 0.015 * M, w, H - 0.1 * M, 0.03 * M);
+    }
+  }
+  // Handläufe fallen in die Tiefe ab – wirkt wie eine Treppe nach unten
+  if (d > 0) for (const s of [-1, 1]) beam(kit, 'metal_light', [cx + s * (hw - 0.12 * M), 0.95 * M, z1 + 0.1 * M], [cx + s * (hw - 0.12 * M), 0.14 * M, z0 + 0.35 * M], 0.05 * M, 0.05 * M);
+  // Licht aus der Tiefe
+  if (d > 0) kit.box('emissive_cool', cx, 0.1 * M, z0 + 0.05 * M, w * 0.7, 0.22 * M, 0.04 * M);
+}
+
+// Glasdach auf vier Stützen über dem Abgang
+function glassCanopy(kit, cx, cz, sx, sz, h) {
+  const d = kit.detail;
+  for (const s of [-1, 1]) for (const t of [-1, 1]) kit.box('metal_dark', cx + s * (sx / 2 - 0.1 * M), 0, cz + t * (sz / 2 - 0.25 * M), 0.12 * M, h, 0.12 * M);
+  kit.box('glass_skylight', cx, h, cz, sx, 0.08 * M, sz, { lit: 0.25 });
+  kit.box('metal_dark', cx, h + 0.08 * M, cz + sz / 2 - 0.05 * M, sx + 0.1 * M, 0.18 * M, 0.12 * M);
+  if (d > 0) {
+    kit.box('metal_dark', cx, h + 0.08 * M, cz - sz / 2 + 0.05 * M, sx + 0.1 * M, 0.18 * M, 0.12 * M);
+    for (const s of [-1, 1]) kit.box('metal_dark', cx + s * (sx / 2), h + 0.08 * M, cz, 0.1 * M, 0.14 * M, sz);
+    // Schriftband an der Stirnseite
+    kit.box('paint_blue', cx, h - 0.42 * M, cz + sz / 2 - 0.06 * M, sx * 0.86, 0.42 * M, 0.06 * M);
+    if (d === 2) text(kit, 'paint_white', 'PULSBAHN', cx, h - 0.35 * M, cz + sz / 2 - 0.02 * M, 0, 0.26 * M, { depth: 0.02 * M });
+    kit.box('emissive_cool', cx, h - 0.06 * M, cz, sx * 0.5, 0.04 * M, 0.12 * M);
+  }
+  kit.light(cx, h - 0.3 * M, cz, 0xdcefff, 0.5);
 }
 
 registerArch('station', {
-  variants: 1,
+  variants: 3,
   build(ctx) {
     const { kit, detail } = ctx;
-    const TH = ctx.trackHeight ?? H;
-    // Gleisbereich entlang z in der Mitte (|x| < GX) bleibt frei; Seitenbahnsteige außen.
-    // G10 dreht das Modell in Fahrtrichtung der ersten Linie (Modell-z = Fahrtrichtung).
-    const GX = 2.8 * M, PX = 4.9 * M, PT = TH + 0.35 * M, L = 4.95 * M;
-    const C = 4.35 * M;
-    // Stützen: zwei Eckstützen, Wendeltreppe und Aufzug in den anderen Ecken
-    for (const [sx, sz] of [[1, -1], [-1, 1]]) {
-      kit.cyl('concrete', sx * C, 0, sz * C, 0.42 * M, TH - 0.6 * M, { seg: 10, rTop: 0.34 * M });
-      kit.cyl('concrete_dark', sx * C, 0, sz * C, 0.58 * M, 0.5 * M, { seg: 10 });
+    if ((ctx.variant | 0) % 3 === 2) {
+      // Kreuzung: kurzer Abgang auf der Gehweg-Ecke (+x/+z), U-Säule an der Ecke
+      sideWellZ(kit, 3.72 * M, 3.5 * M, 2.3 * M, 1.25 * M);
+      uPylon(kit, 4.55 * M, 2.15 * M, 3.2 * M, 1.2 * M);
+      return kit.build();
     }
-    spiralStair(kit, -C, -C, PT - 0.05 * M);
-    elevator(kit, C - 0.2 * M, C - 0.2 * M, TH + 3.8 * M, 1.3 * M);
-    // Querträger unter den Bahnsteigen (außerhalb des Gleisbereichs bis zur Mitte durchlaufend unter dem Fahrbalken)
-    for (const s of [-1, 1]) {
-      kit.box('concrete', s * C, TH - 1.2 * M, 0, 0.8 * M, 0.9 * M, 9.8 * M);
-      kit.box('concrete', 0, TH - 1.5 * M, s * C, 9.8 * M, 0.7 * M, 0.7 * M);
+    if ((ctx.variant | 0) % 3 === 1) {
+      // Gehweg-Abgang: Straße entlang Modell-x, Abgang auf dem Gehweg am Rand +z
+      const cz = 3.72 * M, w = 1.45 * M, len = 4.4 * M;
+      sideWell(kit, 0, cz, len, w);
+      uPylon(kit, 2.9 * M, cz, 3.2 * M, 1.2 * M);
+      if (detail === 2) { bollard(kit, -2.9 * M, cz); kit.box('paint_blue', -2.9 * M, 0, cz - 0.3 * M, 0.5 * M, 1.5 * M, 0.08 * M); }
+      return kit.build();
     }
-    // Seitenbahnsteige mit Kante, Sicherheitslinie und Leitstreifen
-    for (const s of [-1, 1]) {
-      const cx = s * (GX + PX) / 2, w = PX - GX;
-      kit.box('concrete_panel', cx, TH - 0.6 * M, 0, w, PT - TH + 0.6 * M, L * 2);
-      if (detail > 0) {
-        kit.box('paint_yellow', s * (GX + 0.25 * M), PT, 0, 0.12 * M, 0.02 * M, L * 2 - 0.1 * M);
-        kit.box('paint_white', s * (GX + 0.6 * M), PT, 0, 0.3 * M, 0.02 * M, L * 2 - 0.4 * M);
-        kit.box('metal_dark', s * (GX + 0.03 * M), PT - 0.35 * M, 0, 0.08 * M, 0.35 * M, L * 2);
-      }
-      // Windschutz aus Glas an der Außenkante (Lücke für Treppe/Aufzug)
-      if (detail > 0) {
-        const xg = s * (PX - 0.1 * M);
-        const z0 = s > 0 ? -L + 0.2 * M : -L + 2.2 * M, z1 = s > 0 ? L - 2.2 * M : L - 0.2 * M;
-        kit.box('glass_skylight', xg, PT, (z0 + z1) / 2, 0.05 * M, 2.4 * M, z1 - z0, { lit: 0.2 });
-        for (let k = 0; k <= 4; k++) kit.box('metal_dark', xg, PT, z0 + ((z1 - z0) * k) / 4, 0.1 * M, 2.5 * M, 0.1 * M);
-      }
-    }
-    // Stege zu Treppe und Aufzug
-    kit.box('concrete_panel', -C, PT - 0.3 * M, -C, 1.6 * M, 0.3 * M, 1.6 * M);
-    kit.box('concrete_panel', C - 0.2 * M, PT - 0.3 * M, C - 1.2 * M, 1.3 * M, 0.3 * M, 0.8 * M);
-    // Gleisbereich: Wanne unter dem Fahrbalken (bleibt unter TH − 0.1)
-    kit.box('concrete_dark', 0, TH - 1.25 * M, 0, GX * 2, 0.3 * M, L * 2);
-    // Dach über beide Bahnsteige
-    canopy(kit, 0, 0, 9.6 * M, 9.6 * M, PT, [[-4.4 * M, -2.6 * M], [-4.4 * M, 2.6 * M], [4.4 * M, -2.6 * M], [4.4 * M, 2.6 * M]]);
-    // Ausstattung: Bänke, Anzeiger, Automat
-    if (detail === 2) for (const s of [-1, 1]) {
-      bench(kit, s * 4.1 * M, -0.8 * M * s, s * -Math.PI / 2);
-      kit.cyl('metal_dark', s * 3.6 * M, PT, 1.6 * M * s, 0.06 * M, 2.2 * M, { seg: 5 });
-      kit.box('glass_curtain_blue', s * 3.6 * M, PT + 2.2 * M, 1.6 * M * s, 0.12 * M, 0.5 * M, 1.4 * M, { lit: 1 });
-      kit.box('paint_blue', s * 4.4 * M, PT, -2.8 * M * s, 0.4 * M, 1.6 * M, 0.5 * M);
-    }
-    crowd(kit, 3.8 * M, 0, 1.4 * M, 7.0 * M, 3, { y0: PT });
-    crowd(kit, -3.8 * M, 0, 1.4 * M, 7.0 * M, 3, { y0: PT });
-    // Bodenebene: Eingangsschild am Aufzug
+    // Eingangsplatz
+    kit.box('pavers', 0, 0, 0, 9.8 * M, 0.06 * M, 9.8 * M);
+    if (detail > 0) kit.box('stone_dark', 0, 0, 4.75 * M, 9.8 * M, 0.08 * M, 0.3 * M);
+    const cx = -0.6 * M, cz = -0.2 * M, w = 2.8 * M, len = 5.6 * M;
+    stairwell(kit, cx, cz, w, len, 'stone');
+    glassCanopy(kit, cx, cz + 0.2 * M, w + 1.2 * M, len + 1.2 * M, 2.9 * M);
+    uPylon(kit, 3.2 * M, 3.4 * M, 3.4 * M, 1.3 * M);
     if (detail > 0) {
-      kit.box('paint_blue', C - 0.2 * M, 2.4 * M, C + 0.52 * M, 1.3 * M, 0.5 * M, 0.06 * M);
-      if (detail === 2) text(kit, 'paint_white', 'P', C - 0.2 * M, 2.45 * M, C + 0.56 * M, 0, 0.36 * M, { depth: 0.02 * M });
+      // Netzplan-Vitrine und Fahrkartenautomat
+      kit.box('metal_dark', 2.9 * M, 0, -1.6 * M, 0.12 * M, 2.1 * M, 1.5 * M);
+      kit.box('glass_curtain_blue', 2.97 * M, 0.7 * M, -1.6 * M, 0.04 * M, 1.2 * M, 1.3 * M, { lit: 0.9 });
+      kit.box('paint_blue', 3.0 * M, 0, 0.4 * M, 0.6 * M, 1.7 * M, 0.5 * M);
+      kit.box('emissive_cool', 3.32 * M, 1.0 * M, 0.4 * M, 0.04 * M, 0.4 * M, 0.3 * M);
+    }
+    if (detail === 2) {
+      bench(kit, -3.9 * M, 2.6 * M, Math.PI / 2);
+      lamp(kit, -3.9 * M, -3.6 * M, 4.2 * M, { head: 'emissive_cool', color: 0xdcefff, ry: Math.PI / 4 });
+      for (let k = 0; k < 4; k++) kit.box('metal_light', 1.6 * M + k * 0.55 * M, 0, -4.1 * M, 0.05 * M, 0.75 * M, 0.7 * M);
+      crowd(kit, 1.6 * M, 2.4 * M, 2.4 * M, 2.0 * M, 3);
     }
     return kit.build();
   },
 });
 
+// Kurzer Abgang mit Laufrichtung entlang z (oberes Ende bei −z), für Gehweg-Ecken an Kreuzungen
+function sideWellZ(kit, cx, cz, len, w) {
+  const d = kit.detail;
+  const z0 = cz - len / 2, z1 = cz + len / 2, hw = w / 2;
+  const n = d === 0 ? 2 : 4;
+  for (let k = 0; k < n; k++) {
+    const mat = d === 0 ? ['stone_dark', 'paint_black'][k] : WELL[k + 2];
+    const a = z0 + (len * k) / n, b = z0 + (len * (k + 1)) / n;
+    kit.box(mat, cx, 0.075 * M, (a + b) / 2, w, 0.02 * M, b - a);
+  }
+  kit.box('concrete_dark', cx, 0, cz, w + 0.14 * M, 0.075 * M, len + 0.14 * M);
+  if (d > 0) {
+    const H = 1.0 * M;
+    const pts = [[cx - hw, z0], [cx - hw, z1], [cx + hw, z1], [cx + hw, z0]];
+    for (let i = 0; i < 3; i++) beam(kit, 'metal_dark', [pts[i][0], H, pts[i][1]], [pts[i + 1][0], H, pts[i + 1][1]], 0.06 * M, 0.06 * M);
+    for (const s of [-1, 1]) beam(kit, 'metal_light', [cx + s * (hw - 0.1 * M), 0.9 * M, z0 - 0.1 * M], [cx + s * (hw - 0.1 * M), 0.15 * M, z1 - 0.3 * M], 0.05 * M, 0.05 * M);
+    kit.box('emissive_cool', cx, 0.1 * M, z1 - 0.05 * M, w * 0.7, 0.2 * M, 0.04 * M);
+  }
+}
+
+// Abgang quer (Laufrichtung entlang x, oberes Ende bei +x), für den Gehweg
+function sideWell(kit, cx, cz, len, w) {
+  const d = kit.detail;
+  const x0 = cx - len / 2, x1 = cx + len / 2, hw = w / 2;
+  const n = d === 0 ? 3 : WELL.length;
+  for (let k = 0; k < n; k++) {
+    const mat = d === 0 ? ['concrete', 'stone_dark', 'paint_black'][k] : WELL[k];
+    const a = x1 - (len * k) / n, b = x1 - (len * (k + 1)) / n;
+    kit.box(mat, (a + b) / 2, 0.075 * M, cz, a - b, 0.02 * M, w);
+    if (d === 2 && k < n - 1) kit.box('metal_light', b + 0.03 * M, 0.1 * M, cz, 0.06 * M, 0.012 * M, w - 0.1 * M);
+  }
+  kit.box('concrete_dark', cx, 0, cz, len + 0.14 * M, 0.075 * M, w + 0.14 * M);
+  if (d > 0) {
+    const H = 1.0 * M;
+    const pts = [[x1, cz - hw], [x0, cz - hw], [x0, cz + hw], [x1, cz + hw]];
+    for (let i = 0; i < 3; i++) beam(kit, 'metal_dark', [pts[i][0], H, pts[i][1]], [pts[i + 1][0], H, pts[i + 1][1]], 0.06 * M, 0.06 * M);
+    if (d === 2) for (const [px, pz] of [...pts, [cx, cz - hw], [cx, cz + hw]]) kit.box('metal_dark', px, 0, pz, 0.06 * M, H, 0.06 * M);
+    for (const s of [-1, 1]) beam(kit, 'metal_light', [x1 + 0.1 * M, 0.9 * M, cz + s * (hw - 0.1 * M)], [x0 + 0.35 * M, 0.15 * M, cz + s * (hw - 0.1 * M)], 0.05 * M, 0.05 * M);
+    kit.box('emissive_cool', x0 + 0.05 * M, 0.1 * M, cz, 0.04 * M, 0.2 * M, w * 0.7);
+  }
+}
+
 registerArch('metro_hub', {
   variants: 1,
   build(ctx) {
     const { kit, detail } = ctx;
-    const W = 19.6 * M, D = 9.6 * M;
-    kit.box('pavers', 0, 0, 0, 19.8 * M, 0.08 * M, 9.8 * M);
-    // Empfangshalle am Boden (Glas mit weißem Rahmen)
-    const GH = 6.0 * M;
-    kit.box('stone_dark', 0, 0, -0.6 * M, 14.0 * M, 0.3 * M, 7.0 * M);
-    kit.box('glass_curtain_blue', 0, 0.3 * M, -0.6 * M, 13.6 * M, GH - 0.3 * M, 6.6 * M, { lit: 0.95 });
-    if (detail > 0) {
-      for (let k = 0; k <= 10; k++) kit.box('metal_panel_white', -6.8 * M + k * 1.36 * M, 0.3 * M, 2.72 * M, 0.14 * M, GH - 0.3 * M, 0.14 * M);
-      kit.box('metal_panel_white', 0, 3.1 * M, 2.72 * M, 13.6 * M, 0.16 * M, 0.16 * M);
-    }
-    kit.box('metal_panel_white', 0, GH, -0.6 * M, 14.4 * M, 0.5 * M, 7.4 * M);
-    kit.box('metal_panel_white', 0, GH - 0.4 * M, 3.6 * M, 8.0 * M, 0.3 * M, 2.4 * M);
-    kit.box('paint_blue', 0, GH + 0.5 * M, 2.9 * M, 7.0 * M, 1.0 * M, 0.2 * M);
-    text(kit, 'paint_white', 'PULSBAHN', 0, GH + 0.65 * M, 3.02 * M, 0, 0.6 * M, { depth: 0.05 * M });
-    // Tragwerk: vier große Stützen und zwei Treppen-/Aufzugstürme an den Enden
-    for (const sx of [-1, 1]) {
-      for (const sz of [-1, 1]) {
-        if (sz > 0) continue;
-        kit.cyl('concrete', sx * 5.4 * M, 0, sz * 3.8 * M, 0.6 * M, H - 0.6 * M, { seg: 12, rTop: 0.5 * M });
-      }
-      const tx = sx * 8.6 * M;
-      kit.box('concrete_panel', tx, 0, -1.0 * M, 2.4 * M, H + 0.2 * M, 3.2 * M);
-      kit.box('glass_curtain_blue', tx, 0.6 * M, 0.62 * M, 2.0 * M, H - 1.0 * M, 0.06 * M, { lit: 0.6 });
-      if (detail > 0) for (let y = 3.2 * M; y < H; y += 3.2 * M) kit.box('metal_dark', tx, y, 0.66 * M, 2.1 * M, 0.12 * M, 0.08 * M);
-      kit.box('paint_blue', tx, H - 3.0 * M, 0.7 * M, 1.4 * M, 1.4 * M, 0.08 * M);
-      if (detail > 0) text(kit, 'paint_white', 'P', tx, H - 2.75 * M, 0.75 * M, 0, 0.9 * M, { depth: 0.03 * M });
-    }
-    // Gläserne Aufzüge vor den Treppentürmen und ein Steg vom Hallendach
-    for (const s of [-1, 1]) elevator(kit, s * 8.6 * M, 1.6 * M, H + 0.4 * M, 1.6 * M);
-    if (detail > 0) for (const s of [-1, 1]) kit.box('metal_panel_white', s * 7.8 * M, GH + 0.5 * M, 1.6 * M, 1.8 * M, 0.25 * M, 1.4 * M);
-    // Bahnsteigdeck über die ganze Fläche
-    kit.box('concrete', 0, H - 1.2 * M, 0, W - 0.2 * M, 0.9 * M, D - 0.4 * M);
-    kit.box('concrete_panel', 0, H - 0.3 * M, 0, W, 0.29 * M, D);
-    if (detail > 0) {
-      for (const z of [-2.4, 2.4]) kit.box('paint_yellow', 0, H - 0.005 * M, z * M, W - 0.4 * M, 0.02 * M, 0.25 * M);
-      kit.box('paint_white', 0, H - 0.008 * M, 0, W - 0.4 * M, 0.02 * M, 0.12 * M);
-    }
-    // Hallendach: Tonnengewölbe aus Glas mit weißen Bögen, offen an beiden Enden
-    const RY = H + 2.4 * M, R = 4.6 * M;
-    const vault = new THREE.CylinderGeometry(R, R, W, detail === 2 ? 14 : 8, 1, true, -Math.PI / 2, Math.PI);
-    kit.add('glass_curtain_blue', vault, { x: 0, y: RY, z: 0, rx: -Math.PI / 2, ry: Math.PI / 2, sz: 0.4, lit: 0.4 });
-    for (let k = 0; k <= (detail === 2 ? 8 : detail === 1 ? 4 : 2); k++) {
-      const x = -W / 2 + (k * W) / (detail === 2 ? 8 : detail === 1 ? 4 : 2);
-      kit.add('metal_panel_white', new THREE.TorusGeometry(R + 0.05 * M, 0.16 * M, 3, 12, Math.PI), { x, y: RY, z: 0, ry: Math.PI / 2, sy: 0.4 });
-      for (const sz of [-1, 1]) kit.cyl('metal_panel_white', x, H, sz * (R - 0.1 * M), 0.14 * M, 2.4 * M, { seg: 6 });
-    }
-    if (detail > 0) {
-      kit.box('emissive_cool', 0, RY + R * 0.4 - 0.3 * M, 0, W - 1 * M, 0.06 * M, 0.3 * M);
-      kit.light(-5 * M, H + 2 * M, 0, 0xdcefff, 0.8);
-      kit.light(5 * M, H + 2 * M, 0, 0xdcefff, 0.8);
-      if (detail === 2) for (const x of [-6, -2, 2, 6]) bench(kit, x * M, -3.8 * M, 0);
-    }
-    crowd(kit, 0, -2.6 * M, 16 * M, 1.6 * M, 8, { y0: H });
-    crowd(kit, 0, 4.0 * M, 12 * M, 1.4 * M, 6);
     // Vorplatz
+    kit.box('pavers', 0, 0, 0, 19.8 * M, 0.06 * M, 9.8 * M);
+    // Eingangshalle aus Glas mit weit auskragendem Dach
+    const HX = -3.4 * M, HZ = -1.3 * M, HW = 12.0 * M, HD = 6.4 * M, GH = 5.0 * M;
+    kit.box('stone_dark', HX, 0, HZ, HW + 0.4 * M, 0.3 * M, HD + 0.4 * M);
+    kit.box('glass_curtain_blue', HX, 0.3 * M, HZ, HW, GH - 0.3 * M, HD, { lit: 0.95 });
     if (detail > 0) {
-      for (const s of [-1, 1]) { lamp(kit, s * 7.6 * M, 4.2 * M, 4.0 * M, { head: 'emissive_cool', color: 0xdcefff }); kit.box('metal_dark', s * 4.6 * M, 0, 4.4 * M, 1.8 * M, 0.5 * M, 0.5 * M); }
-      kit.light(0, GH - 0.6 * M, 3.8 * M, 0xdcefff, 0.6);
+      for (let k = 0; k <= 8; k++) kit.box('metal_panel_white', HX - HW / 2 + (k * HW) / 8, 0.3 * M, HZ + HD / 2 + 0.02 * M, 0.16 * M, GH - 0.3 * M, 0.12 * M);
+      kit.box('metal_panel_white', HX, 2.8 * M, HZ + HD / 2 + 0.02 * M, HW, 0.14 * M, 0.12 * M);
+      // Eingangsportal (dunkle Glastüren)
+      kit.box('glass_curtain_dark', HX, 0.3 * M, HZ + HD / 2 + 0.06 * M, 4.0 * M, 2.4 * M, 0.06 * M, { lit: 0.5 });
     }
-    void rod; void lathe; void glassRail;
+    kit.box('metal_panel_white', HX + 0.6 * M, GH, HZ + 1.0 * M, HW + 2.6 * M, 0.45 * M, HD + 2.6 * M);
+    if (detail > 0) {
+      kit.box('glass_skylight', HX, GH + 0.45 * M, HZ, HW * 0.6, 0.12 * M, HD * 0.5, { lit: 0.4 });
+      kit.box('emissive_cool', HX + 0.6 * M, GH - 0.04 * M, HZ + HD / 2 + 1.6 * M, HW, 0.05 * M, 0.2 * M);
+      for (const s of [-1, 1]) kit.cyl('metal_panel_white', HX + s * (HW / 2 + 0.8 * M), 0, HZ + HD / 2 + 1.9 * M, 0.14 * M, GH, { seg: 8 });
+    }
+    // Großes U-Schild über dem Eingang und Schriftzug
+    kit.box('paint_blue', HX - 3.6 * M, GH + 0.45 * M, HZ + HD / 2 + 1.5 * M, 1.6 * M, 1.6 * M, 0.25 * M);
+    text(kit, 'paint_white', 'U', HX - 3.6 * M, GH + 0.75 * M, HZ + HD / 2 + 1.64 * M, 0, 1.0 * M, { depth: 0.04 * M, weight: 1.15, lod: true });
+    kit.box('paint_blue', HX + 1.4 * M, GH + 0.5 * M, HZ + HD / 2 + 1.55 * M, 7.0 * M, 0.7 * M, 0.12 * M);
+    if (detail > 0) text(kit, 'paint_white', 'PULSBAHN', HX + 1.4 * M, GH + 0.6 * M, HZ + HD / 2 + 1.62 * M, 0, 0.5 * M, { depth: 0.03 * M });
+    kit.light(HX - 3.6 * M, GH + 1.2 * M, HZ + HD / 2 + 1.8 * M, 0x5d8fff, 0.8);
+    kit.light(HX, GH - 0.6 * M, HZ + HD / 2 + 1.2 * M, 0xdcefff, 0.7);
+    // Zweiter, offener Abgang mit Glasdach auf dem Vorplatz
+    stairwell(kit, 6.6 * M, -0.6 * M, 2.8 * M, 5.4 * M, 'stone');
+    glassCanopy(kit, 6.6 * M, -0.4 * M, 4.0 * M, 6.6 * M, 3.0 * M);
+    uPylon(kit, 8.9 * M, 3.9 * M, 4.4 * M, 1.4 * M);
+    if (detail > 0) {
+      for (const s of [-1, 1]) lamp(kit, 3.0 * M + s * 0.01 * M, s > 0 ? 4.2 * M : -4.2 * M, 4.4 * M, { head: 'emissive_cool', color: 0xdcefff });
+      for (let k = 0; k < 6; k++) kit.box('metal_light', -8.6 * M + k * 0.55 * M, 0, 4.1 * M, 0.05 * M, 0.75 * M, 0.7 * M);
+    }
+    if (detail === 2) {
+      for (const x of [-1.5, 1.5]) bench(kit, x * M, 4.2 * M, 0);
+      crowd(kit, -2.0 * M, 3.6 * M, 9 * M, 1.6 * M, 7);
+      crowd(kit, 6.6 * M, 3.8 * M, 2 * M, 1.0 * M, 2);
+    }
     return kit.build();
   },
 });

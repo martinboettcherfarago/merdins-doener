@@ -98,7 +98,7 @@ const NEW_EVENTS = [
     id: 'bikelanes', title: 'Radentscheid', minPop: 800,
     text: 'Tausende Unterschriften für sichere Radwege. Die Autolobby ist dagegen, die Bäckerinnung dafür.',
     options: [
-      { label: 'Radwege bauen', hint: (g) => `−${fmtMoney(sc(g, 5000))}, Glück +3 für 12 Tage, Pulsbahn +10 %`, apply: (g) => { money(g, -sc(g, 5000)); g.addEffect('happy', 3, 12, 'Neue Radwege'); g.addEffect('ridership', 0.1, 12, 'Radwege zur Station'); } },
+      { label: 'Radwege bauen', hint: (g) => `−${fmtMoney(sc(g, 5000))}, Glück +3 für 12 Tage, U-Bahn-Fahrgäste +10 %`, apply: (g) => { money(g, -sc(g, 5000)); g.addEffect('happy', 3, 12, 'Neue Radwege'); g.addEffect('ridership', 0.1, 12, 'Radwege zur Station'); } },
       { label: 'Ablehnen', hint: () => 'Glück −3 für 6 Tage', apply: (g) => g.addEffect('happy', -3, 6, 'Radentscheid abgelehnt') },
     ],
   },
@@ -116,7 +116,7 @@ const NEW_EVENTS = [
     text: 'Über Nacht 40 Zentimeter Neuschnee. Busse stecken fest, Kinder bauen Iglus auf der Hauptstraße.',
     options: [
       { label: 'Winterdienst aufstocken', hint: (g) => `−${fmtMoney(sc(g, 3500))}`, apply: (g) => money(g, -sc(g, 3500)) },
-      { label: 'Schneefrei für alle!', hint: () => 'Steuern −20 % für 2 Tage, Glück +3, Pulsbahn +25 %', apply: (g) => { g.addEffect('taxMul', -0.2, 2, 'Schneefrei'); g.addEffect('happy', 3, 3, 'Schneefrei'); g.addEffect('ridership', 0.25, 3, 'Alle fahren Bahn'); } },
+      { label: 'Schneefrei für alle!', hint: () => 'Steuern −20 % für 2 Tage, Glück +3, U-Bahn-Fahrgäste +25 %', apply: (g) => { g.addEffect('taxMul', -0.2, 2, 'Schneefrei'); g.addEffect('happy', 3, 3, 'Schneefrei'); g.addEffect('ridership', 0.25, 3, 'Alle fahren Bahn'); } },
       { label: 'Abwarten', hint: () => 'Glück −4 für 3 Tage', apply: (g) => g.addEffect('happy', -4, 3, 'Schneechaos') },
     ],
   },
@@ -237,7 +237,7 @@ const NEW_EVENTS = [
     id: 'smog', title: 'Smogalarm', minPop: 600, cond: (g) => g.stats.pollutionAvg > 0.12,
     text: 'Eine braune Dunstglocke hängt über der Stadt. Der Arzt im Fernsehen rät, die Fenster geschlossen zu halten.',
     options: [
-      { label: 'Fahrverbote und Werksdrosselung', hint: () => 'Industrie-Nachfrage −20, Pulsbahn +30 %, Glück −1 für 5 Tage', apply: (g) => { g.addEffect('indDemand', -20, 5, 'Smog-Fahrverbot'); g.addEffect('ridership', 0.3, 5, 'Smog-Fahrverbot'); g.addEffect('happy', -1, 5, 'Smog-Fahrverbot'); } },
+      { label: 'Fahrverbote und Werksdrosselung', hint: () => 'Industrie-Nachfrage −20, U-Bahn-Fahrgäste +30 %, Glück −1 für 5 Tage', apply: (g) => { g.addEffect('indDemand', -20, 5, 'Smog-Fahrverbot'); g.addEffect('ridership', 0.3, 5, 'Smog-Fahrverbot'); g.addEffect('happy', -1, 5, 'Smog-Fahrverbot'); } },
       { label: 'Abwarten, bis Wind kommt', hint: () => 'Glück −5 und Gesundheit −20 % für 5 Tage', apply: (g) => { g.addEffect('happy', -5, 5, 'Smog'); g.addEffect('healthCov', -0.2, 5, 'Smog'); } },
     ],
   },
@@ -331,9 +331,9 @@ const NEW_EVENTS = [
   },
   {
     id: 'fog', title: 'Dichter Nebel', minPop: 500, cond: (g) => (g.ext.weather?.fog ?? 0) > 0.5 || season(g) === 'autumn',
-    text: 'Seit dem Morgen sieht man keine zehn Meter weit. Autofahrer kriechen, die Pulsbahn fährt hoch über dem Nebel.',
+    text: 'Seit dem Morgen sieht man keine zehn Meter weit. Autofahrer kriechen, nur die U-Bahn fährt unten im Tunnel pünktlich.',
     options: [
-      { label: 'Pulsbahn verstärken', hint: (g) => `−${fmtMoney(sc(g, 1500))}, Pulsbahn +30 % für 3 Tage`, apply: (g) => { money(g, -sc(g, 1500)); g.addEffect('ridership', 0.3, 3, 'Nebel-Takt'); } },
+      { label: 'Pulsbahn verstärken', hint: (g) => `−${fmtMoney(sc(g, 1500))}, U-Bahn-Fahrgäste +30 % für 3 Tage`, apply: (g) => { money(g, -sc(g, 1500)); g.addEffect('ridership', 0.3, 3, 'Nebel-Takt'); } },
       { label: 'Nichts unternehmen', hint: () => 'Glück −1 für 2 Tage', apply: (g) => g.addEffect('happy', -1, 2, 'Nebelfrust') },
     ],
   },
@@ -381,7 +381,7 @@ const NEW_EVENTS = [
     id: 'trainfans', title: 'Pulsbahn-Fanclub', minPop: 800, cond: (g) => lines(g) >= 3,
     text: 'Ein Verein von Bahnfans will die erste Pulsbahn-Fahrzeugschau organisieren – mit Führerstandsmitfahrten.',
     options: [
-      { label: 'Fahrzeugschau unterstützen', hint: () => '−1.500 €, Pulsbahn +25 % für 7 Tage, Glück +2', apply: (g) => { money(g, -1500); g.addEffect('ridership', 0.25, 7, 'Bahn-Fanfest'); g.addEffect('happy', 2, 5, 'Bahn-Fanfest'); } },
+      { label: 'Fahrzeugschau unterstützen', hint: () => '−1.500 €, U-Bahn-Fahrgäste +25 % für 7 Tage, Glück +2', apply: (g) => { money(g, -1500); g.addEffect('ridership', 0.25, 7, 'Bahn-Fanfest'); g.addEffect('happy', 2, 5, 'Bahn-Fanfest'); } },
       { label: 'Nein danke', hint: () => 'Nichts passiert', apply: () => {} },
     ],
   },
@@ -390,7 +390,7 @@ const NEW_EVENTS = [
     text: 'Die Busfahrer legen die Arbeit nieder. An den Haltestellen stehen Menschen und tippen ungeduldig auf ihre Uhren.',
     options: [
       { label: 'Schnelle Einigung', hint: (g) => `−${fmtMoney(sc(g, 3000))}`, apply: (g) => money(g, -sc(g, 3000)) },
-      { label: 'Die Pulsbahn springt ein', hint: () => 'Pulsbahn +30 % und Glück −2 für 4 Tage', apply: (g) => { g.addEffect('ridership', 0.3, 4, 'Busstreik'); g.addEffect('happy', -2, 4, 'Busstreik'); } },
+      { label: 'Die Pulsbahn springt ein', hint: () => 'U-Bahn-Fahrgäste +30 % und Glück −2 für 4 Tage', apply: (g) => { g.addEffect('ridership', 0.3, 4, 'Busstreik'); g.addEffect('happy', -2, 4, 'Busstreik'); } },
     ],
   },
   {
@@ -468,10 +468,10 @@ const NEW_EVENTS = [
   },
   {
     id: 'pigeon', title: 'Taubenplage am Bahnhof', minPop: 900, cond: (g) => lines(g) >= 1 || g.hasBuilt('train_station'),
-    text: 'Tausende Tauben haben die Pulsbahn-Stationen für sich entdeckt. Die Fahrgäste klagen über Hinterlassenschaften.',
+    text: 'Tausende Tauben haben die U-Bahn-Eingänge für sich entdeckt. Die Fahrgäste klagen über Hinterlassenschaften.',
     options: [
       { label: 'Taubenschläge bauen', hint: () => '−1.800 €, Glück +1', apply: (g) => { money(g, -1800); g.addEffect('happy', 1, 5, 'Saubere Stationen'); } },
-      { label: 'Ignorieren', hint: () => 'Pulsbahn −10 % für 5 Tage', apply: (g) => g.addEffect('ridership', -0.1, 5, 'Taubenplage') },
+      { label: 'Ignorieren', hint: () => 'U-Bahn-Fahrgäste −10 % für 5 Tage', apply: (g) => g.addEffect('ridership', -0.1, 5, 'Taubenplage') },
     ],
   },
 ];

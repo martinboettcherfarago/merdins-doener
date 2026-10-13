@@ -93,7 +93,7 @@ E((g) => (W(g).rain || 0) > 0.4, [
   'Schon wieder nass bis auf die Socken. Danke, Wetter.',
   'Die Gullys gurgeln. Hoffentlich hält die Kanalisation.',
   'Regenwetter = volle Cafés. Der Bäcker freut sich.',
-  'Die Pulsbahn ist bei Regen doppelt so voll. Logisch, oben ist es trocken.',
+  'Die Pulsbahn ist bei Regen doppelt so voll. Logisch, unten ist es trocken.',
 ]);
 E((g) => (W(g).snow || 0) > 0.3, [
   'Es schneit! Die ganze Stadt sieht aus wie eine Schneekugel.',
@@ -119,7 +119,7 @@ E((g) => W(g).storm || (W(g).wind || 0) > 0.75, [
 ]);
 E((g) => (W(g).fog || 0) > 0.5, [
   'Nebel wie in einem Krimi. Ich warte auf den Kommissar.',
-  'Die Pulsbahn schwebt über dem Nebel. Sieht aus wie ein Zug in den Wolken.',
+  'Im Nebel sieht man nur die leuchtenden U-Bahn-Eingänge.',
   'Ich habe mich auf dem Weg zum Bäcker verlaufen. Er ist um die Ecke.',
   'Man hört die Stadt, aber man sieht sie nicht. Gespenstisch schön.',
   'Nebelhorn am Hafen, Nebelsuppe auf den Straßen.',
@@ -214,8 +214,8 @@ E((g) => built(g, 'ferry_pier'), [
 // Pulsbahn
 // ---------------------------------------------------------------------------------------------
 E((g) => g.isUnlocked('transit') && g.transit.lines.length === 0 && pop(g) > 500, [
-  'Wann kommt endlich die Pulsbahn? Die Stelzen stehen im Kopf schon.',
-  'Andere Städte haben eine Hochbahn. Nur so als Hinweis.',
+  'Wann kommt endlich die U-Bahn? Den Tunnel habe ich im Kopf schon gegraben.',
+  'Andere Städte haben eine U-Bahn. Nur so als Hinweis.',
   'Ich habe einen Linienplan auf eine Serviette gemalt. Wer will ihn?',
   'Eine Pulsbahn vom Wohngebiet zur Fabrik – das wär’s.',
 ]);
