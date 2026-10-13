@@ -876,7 +876,7 @@ ${this.view !== 'none' ? `<button class="pop-foot" data-pa="view" data-v="none" 
   popCheck() {
     const probs = problems(this.g);
     const lvl = adviceLevel(this.advisor);
-    const how = (p) => p.view ? 'Zeigt die passende Ansicht' : p.panel ? 'Öffnet das passende Fenster' : p.cat ? 'Öffnet das passende Werkzeug' : '';
+    const how = (p) => p.panel ? 'Öffnet das passende Fenster' : p.view && p.cat ? 'Zeigt, wo es hakt, und passende Gebäude' : p.view ? 'Zeigt auf der Karte, wo es hakt' : p.cat ? 'Öffnet passende Gebäude' : '';
     const body = probs.length
       ? probs.map((p) => `<button class="pop-row prob ${p.sev}" data-pa="prob" data-v="${esc(p.id)}" data-tip="${esc(p.text)}" data-tip-desc="${esc(how(p))}."><span class="pi">${icon(p.icon, 16, 2.3)}</span><span class="t"><b>${esc(p.text)}</b><small>${esc(how(p))}</small></span><span class="go">${icon('arrowR', 15, 2.4)}</span></button>`).join('')
       : `<div class="allgood">${icon('check', 18, 2.6)}<span><b>Alles im grünen Bereich.</b><small>Strom, Wasser, Müll, Geld und Verkehr laufen.</small></span></div>`;
