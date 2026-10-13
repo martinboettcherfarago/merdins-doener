@@ -126,18 +126,48 @@ export function iconAny(v, fallback = 'layers', size = 20, stroke = 2) {
   return icon(v && P[v] ? v : fallback, size, stroke);
 }
 
-// Runde 3b (Vorlage): bunte, gefüllte Abzeichen für Pillen-Chips und Karten – Stern (Rang), Münze (Kasse),
-// Figur (Einwohner), Gesichter (Glück: smile|meh|sad), Sonne. Ohne Verläufe mit IDs, damit mehrfaches Einbetten sicher ist.
+// Runde 3c (PREMIUM): glänzende, runde Abzeichen für Pillen-Chips und Karten – Stern (Rang), Münze (Kasse, metallisch gold),
+// Figur (Einwohner), Gesichter (Glück: smile|meh|sad), Sonne. Die Verläufe liegen einmal als gemeinsame <defs> im Dokument
+// (#spb-defs, wird beim ersten Abzeichen eingefügt), damit mehrfaches Einbetten sicher bleibt und keine IDs doppelt vorkommen.
+const DEFS = `<defs>
+<linearGradient id="spb-rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff0b0"/><stop offset=".42" stop-color="#f5ad1c"/><stop offset="1" stop-color="#a95f00"/></linearGradient>
+<linearGradient id="spb-bevel" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b86800"/><stop offset=".6" stop-color="#f2a414"/><stop offset="1" stop-color="#ffe7a0"/></linearGradient>
+<radialGradient id="spb-face" cx=".36" cy=".3" r=".85"><stop offset="0" stop-color="#fff6c8"/><stop offset=".32" stop-color="#ffd453"/><stop offset=".78" stop-color="#f6aa16"/><stop offset="1" stop-color="#e48f00"/></radialGradient>
+<radialGradient id="spb-ball" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="#fff4a8"/><stop offset=".4" stop-color="#ffd23c"/><stop offset=".85" stop-color="#f7a40c"/><stop offset="1" stop-color="#e38900"/></radialGradient>
+<radialGradient id="spb-ball2" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="#fff6c4"/><stop offset=".45" stop-color="#ffdf76"/><stop offset="1" stop-color="#eeb022"/></radialGradient>
+<radialGradient id="spb-ball3" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="#ffe1d2"/><stop offset=".45" stop-color="#ff9c7c"/><stop offset="1" stop-color="#e5544d"/></radialGradient>
+<linearGradient id="spb-rose" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe3e7"/><stop offset=".5" stop-color="#ffb7c1"/><stop offset="1" stop-color="#e9798a"/></linearGradient>
+<radialGradient id="spb-rose-in" cx=".4" cy=".3" r=".9"><stop offset="0" stop-color="#fffafa"/><stop offset="1" stop-color="#ffd3da"/></radialGradient>
+<linearGradient id="spb-shirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff7a73"/><stop offset="1" stop-color="#cf2f3c"/></linearGradient>
+<radialGradient id="spb-skin" cx=".4" cy=".35" r=".75"><stop offset="0" stop-color="#ffe2c6"/><stop offset="1" stop-color="#eeaa78"/></radialGradient>
+<linearGradient id="spb-star" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe489"/><stop offset=".55" stop-color="#ffb81f"/><stop offset="1" stop-color="#ec8a00"/></linearGradient>
+<linearGradient id="spb-gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+<clipPath id="spb-clip"><circle cx="20" cy="20" r="15.4"/></clipPath>
+</defs>`;
+function ensureDefs() {
+  if (typeof document === 'undefined' || !document.body || document.getElementById('spb-defs')) return;
+  const d = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  d.id = 'spb-defs';
+  d.setAttribute('aria-hidden', 'true');
+  d.setAttribute('focusable', 'false');
+  // nicht display:none – sonst greifen die Verläufe in Chromium nicht
+  d.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none');
+  d.innerHTML = DEFS;
+  document.body.prepend(d);
+}
+const GLOSS = '<ellipse cx="14.6" cy="10.6" rx="8.2" ry="4.2" transform="rotate(-28 14.6 10.6)" fill="url(#spb-gloss)" opacity=".8"/>';
+const EYES = (c) => `<ellipse cx="14.4" cy="16.8" rx="2.2" ry="2.8" fill="${c}"/><ellipse cx="25.6" cy="16.8" rx="2.2" ry="2.8" fill="${c}"/><circle cx="15.1" cy="15.8" r=".8" fill="#fff" opacity=".85"/><circle cx="26.3" cy="15.8" r=".8" fill="#fff" opacity=".85"/>`;
 const B = {
-  star: '<path d="M20 3.5l4.9 10 11 1.6-8 7.8 1.9 11L20 28.7 10.2 33.9l1.9-11-8-7.8 11-1.6L20 3.5Z" fill="#f7a90c" stroke="#d27f00" stroke-width="2" stroke-linejoin="round"/><path d="M20 7.5l3.6 7.4 8.1 1.2-2.6 2.5C24 17 17 19 12.2 24.9l.6-3.4-5.9-5.7 8.1-1.2L20 7.5Z" fill="#ffd34d"/>',
-  coin: '<circle cx="20" cy="20" r="17" fill="#e99a06"/><circle cx="20" cy="18.6" r="15.6" fill="#ffc21f"/><circle cx="20" cy="18.6" r="11.6" fill="none" stroke="#e99a06" stroke-width="2"/><path d="M24.6 13.8a6.4 6.4 0 1 0 0 9.6M12.6 17h9M12.6 20.4h9" fill="none" stroke="#b86a00" stroke-width="2.6" stroke-linecap="round"/>',
-  person: '<circle cx="20" cy="20" r="18" fill="#ffe0e4"/><path d="M8 34.5c1.2-7 6-10.5 12-10.5s10.8 3.5 12 10.5A17.9 17.9 0 0 1 20 38c-4.6 0-8.8-1.3-12-3.5Z" fill="#e5484d"/><circle cx="20" cy="15.5" r="7" fill="#f8c49b"/><path d="M13 14.6c0-4.6 3.2-7.4 7.2-7.4s6.8 2.6 6.8 6.4c-2.4.4-5.6-.6-7.6-2.6-1.4 2-3.8 3.4-6.4 3.6Z" fill="#7a3b1f"/>',
-  smile: '<circle cx="20" cy="20" r="17" fill="#ffc21f" stroke="#e99a06" stroke-width="2"/><circle cx="14.4" cy="16.4" r="2.4" fill="#5a2a00"/><circle cx="25.6" cy="16.4" r="2.4" fill="#5a2a00"/><path d="M12.4 23.2c2 3.6 4.6 5.2 7.6 5.2s5.6-1.6 7.6-5.2" fill="none" stroke="#5a2a00" stroke-width="2.6" stroke-linecap="round"/>',
-  meh: '<circle cx="20" cy="20" r="17" fill="#ffd66b" stroke="#e5a400" stroke-width="2"/><circle cx="14.4" cy="16.4" r="2.4" fill="#5a2a00"/><circle cx="25.6" cy="16.4" r="2.4" fill="#5a2a00"/><path d="M13.6 25.6h12.8" fill="none" stroke="#5a2a00" stroke-width="2.6" stroke-linecap="round"/>',
-  sad: '<circle cx="20" cy="20" r="17" fill="#ff9a7a" stroke="#e5484d" stroke-width="2"/><circle cx="14.4" cy="16.4" r="2.4" fill="#5a1a10"/><circle cx="25.6" cy="16.4" r="2.4" fill="#5a1a10"/><path d="M13 28c2-3 4.4-4.4 7-4.4s5 1.4 7 4.4" fill="none" stroke="#5a1a10" stroke-width="2.6" stroke-linecap="round"/>',
-  sun: '<g stroke="#ffb000" stroke-width="3" stroke-linecap="round"><path d="M20 2.5v5M20 32.5v5M2.5 20h5M32.5 20h5M7.6 7.6l3.5 3.5M28.9 28.9l3.5 3.5M7.6 32.4l3.5-3.5M28.9 11.1l3.5-3.5"/></g><circle cx="20" cy="20" r="9.5" fill="#ffc21f" stroke="#ff9d00" stroke-width="2"/>',
+  star: '<path d="M20 3.2l5 10.1 11.2 1.6-8.1 7.9 1.9 11.1L20 28.7 10 33.9l1.9-11.1-8.1-7.9L15 13.3 20 3.2Z" fill="url(#spb-star)" stroke="#bb6a00" stroke-width="1.8" stroke-linejoin="round"/><path d="M20 7.6l3.6 7.3 8 1.2-2.2 2.2C24.2 17.4 17.5 19 12.6 24.2l.5-3.2-5.8-5.6 8-1.2L20 7.6Z" fill="#fff3b8" opacity=".75"/>',
+  coin: '<circle cx="20" cy="20" r="18" fill="url(#spb-rim)"/><circle cx="20" cy="20" r="14.8" fill="url(#spb-bevel)"/><circle cx="20" cy="20" r="13.3" fill="url(#spb-face)"/><path d="M24.6 15.4a6.3 6.3 0 1 0 0 9.4M12.8 18.6h8.6M12.8 21.9h8.6" transform="translate(.4 .9)" fill="none" stroke="#fff6cf" stroke-width="2.6" stroke-linecap="round" opacity=".75"/><path d="M24.6 15.4a6.3 6.3 0 1 0 0 9.4M12.8 18.6h8.6M12.8 21.9h8.6" fill="none" stroke="#a65d00" stroke-width="2.6" stroke-linecap="round"/>' + GLOSS,
+  person: '<circle cx="20" cy="20" r="18" fill="url(#spb-rose)"/><circle cx="20" cy="20" r="15.4" fill="url(#spb-rose-in)"/><g clip-path="url(#spb-clip)"><path d="M7.4 38.5c.9-7.8 5.9-12.2 12.6-12.2s11.7 4.4 12.6 12.2Z" fill="url(#spb-shirt)"/><path d="M17.2 23.6h5.6v3.6a2.8 2.8 0 0 1-5.6 0Z" fill="#e9a273"/><circle cx="20" cy="16.4" r="6.8" fill="url(#spb-skin)"/><path d="M13.1 15.6c0-4.7 3.1-7.8 7.2-7.8 4.3 0 7.1 2.9 7.1 6.8-2.6.3-5.9-.8-7.8-2.9-1.5 2.2-3.9 3.7-6.5 3.9Z" fill="#6e3518"/></g>' + GLOSS,
+  smile: '<circle cx="20" cy="20" r="17.6" fill="url(#spb-ball)" stroke="#d98300" stroke-width="1.2"/>' + EYES('#5a2a00') + '<circle cx="11.4" cy="22.6" r="2.6" fill="#ff7a4d" opacity=".32"/><circle cx="28.6" cy="22.6" r="2.6" fill="#ff7a4d" opacity=".32"/><path d="M12.8 23.4c2 3.5 4.4 5 7.2 5s5.2-1.5 7.2-5" fill="none" stroke="#5a2a00" stroke-width="2.5" stroke-linecap="round"/>' + GLOSS,
+  meh: '<circle cx="20" cy="20" r="17.6" fill="url(#spb-ball2)" stroke="#d9a000" stroke-width="1.2"/>' + EYES('#5a2a00') + '<path d="M13.8 25.4h12.4" fill="none" stroke="#5a2a00" stroke-width="2.5" stroke-linecap="round"/>' + GLOSS,
+  sad: '<circle cx="20" cy="20" r="17.6" fill="url(#spb-ball3)" stroke="#c9363d" stroke-width="1.2"/>' + EYES('#5a1a10') + '<path d="M13.4 28c2-3 4.2-4.3 6.6-4.3s4.6 1.3 6.6 4.3" fill="none" stroke="#5a1a10" stroke-width="2.5" stroke-linecap="round"/>' + GLOSS,
+  sun: '<g stroke="#ffad0a" stroke-width="3" stroke-linecap="round"><path d="M20 2.5v5M20 32.5v5M2.5 20h5M32.5 20h5M7.6 7.6l3.5 3.5M28.9 28.9l3.5 3.5M7.6 32.4l3.5-3.5M28.9 11.1l3.5-3.5"/></g><circle cx="20" cy="20" r="10" fill="url(#spb-ball)" stroke="#e58f00" stroke-width="1.4"/><ellipse cx="16.8" cy="15.6" rx="4.2" ry="2.4" transform="rotate(-28 16.8 15.6)" fill="url(#spb-gloss)" opacity=".8"/>',
 };
 export function badge(name, size = 32) {
+  ensureDefs();
   return `<svg class="bdg bdg-${name}" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">${B[name] || B.star}</svg>`;
 }
 

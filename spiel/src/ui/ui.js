@@ -318,16 +318,30 @@ export class UI {
     this.refreshSpeed();
     this.refreshHUD();
     requestAnimationFrame(() => this.fitTop());
+    // Größenänderungen von Kopfzeile, Dock und Zeit-Karte (Schrift geladen, Gruppen freigeschaltet, Wetter) sofort übernehmen
+    if (typeof ResizeObserver === 'function') {
+      this.layoutObs = new ResizeObserver(() => this.fitTop());
+      for (const el of [this.root.querySelector('.topbar'), this.el.dock, this.el.timecard]) if (el) this.layoutObs.observe(el);
+    }
   }
 
-  // Kopfzeile kann (Handy, schmale Fenster) umbrechen – Hinweise, Ziele und Meldungen beginnen darunter
+  // Kopfzeile kann (Handy, schmale Fenster) umbrechen – Hinweise, Ziele und Meldungen beginnen darunter.
+  // Dazu werden Dock und Zeit-Karte gemessen (--bb-h, --tc-h): Katalog, Panels, Inspektor, Begleiter, Minikarte und die
+  // Bestätigungsleiste richten sich nach den echten Maßen statt nach geschätzten Werten – so überlappt nichts.
   fitTop() {
     const de = document.documentElement.style;
     const tb = this.root.querySelector('.topbar');
     if (!tb || this.root.hidden) return;
     const z = this.uiZoom();
-    const v = Math.round(tb.getBoundingClientRect().bottom / z + 10) + 'px';
-    if (de.getPropertyValue('--top') !== v) de.setProperty('--top', v);
+    const set = (k, v) => { if (de.getPropertyValue(k) !== v) de.setProperty(k, v); };
+    set('--top', Math.round(tb.getBoundingClientRect().bottom / z + 8) + 'px');
+    const dock = this.el.dock, tc = this.el.timecard;
+    if (dock) { const h = dock.getBoundingClientRect().height / z; if (h > 0) set('--bb-h', Math.round(h) + 'px'); }
+    if (tc) {
+      const r = tc.getBoundingClientRect();
+      // Auf dem Handy steht die Zeit-Karte oben bei der Kopfzeile: unten braucht sie dann keinen Platz
+      if (r.height > 0) set('--tc-h', (r.top > window.innerHeight / 2 ? Math.round(r.height / z) : 0) + 'px');
+    }
   }
   uiZoom() { return parseFloat(getComputedStyle(this.root).zoom) || parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || 1; }
 
@@ -349,7 +363,8 @@ export class UI {
     this.root.innerHTML = '';
     this.root.hidden = true;
     this.root.className = '';
-    document.documentElement.style.removeProperty('--top');
+    if (this.layoutObs) this.layoutObs.disconnect();
+    for (const k of ['--top', '--bb-h', '--tc-h']) document.documentElement.style.removeProperty(k);
     this.modalRoot.innerHTML = '';
     this.tooltip(null);
   }
@@ -748,7 +763,7 @@ export class UI {
       try { hint = T2.hint ? T2.hint(input) || '' : ''; } catch (e) { hint = ''; }
       ic = T2.icon || 'brush';
     }
-    const html = `<span class="th-i" style="background:${col}">${iconAny(ic, 'select', 14, 2.3)}</span><b>${esc(name)}</b>${hint ? `<span class="th-h">${esc(hint)}</span>` : ''}${extra.map(([a, n, ii, d]) => `<button class="th-b" data-th="${a}" data-tip="${n}" data-tip-desc="${d}" data-tip-fast="1">${icon(ii, 14, 2.4)}${n}</button>`).join('')}<button class="th-x" data-th="cancel" data-tip="Abbrechen" data-tip-desc="Werkzeug weglegen und wieder auswählen." data-key="Esc" data-tip-fast="1" aria-label="Werkzeug abbrechen">${icon('close', 14, 2.4)}</button>`;
+    const html = `<span class="th-i" style="--thc:${col}">${iconAny(ic, 'select', 14, 2.3)}</span><b>${esc(name)}</b>${hint ? `<span class="th-h">${esc(hint)}</span>` : ''}${extra.map(([a, n, ii, d]) => `<button class="th-b" data-th="${a}" data-tip="${n}" data-tip-desc="${d}" data-tip-fast="1">${icon(ii, 14, 2.4)}${n}</button>`).join('')}<button class="th-x" data-th="cancel" data-tip="Abbrechen" data-tip-desc="Werkzeug weglegen und wieder auswählen." data-key="Esc" data-tip-fast="1" aria-label="Werkzeug abbrechen">${icon('close', 14, 2.4)}</button>`;
     if (html !== this._thHtml) { this._thHtml = html; el.innerHTML = html; }
     el.style.setProperty('--tc', col);
     el.hidden = false;
@@ -864,11 +879,14 @@ export class UI {
     if (this.mobile() || !a) return;
     const z = this.uiZoom();
     const r = a.getBoundingClientRect();
+    // Senkrecht am ganzen Dock bzw. an der Kopfzeile ausrichten (nicht am Knopf darin), damit das Menü nie an der Leiste klebt
+    const host = a.closest('.dock, .topbar .hchip, .topbar .rbtn') || a;
+    const hr = host.getBoundingClientRect();
     const W = window.innerWidth / z, H = window.innerHeight / z;
-    const L = r.left / z, R = r.right / z, T = r.top / z, B = r.bottom / z;
+    const L = r.left / z, R = r.right / z, T = Math.min(r.top, hr.top) / z, B = Math.max(r.bottom, hr.bottom) / z;
     const w = el.offsetWidth;
     const below = T < H / 2;
-    if (below) { st.top = Math.round(B + 8) + 'px'; } else { st.bottom = Math.round(H - T + 10) + 'px'; }
+    if (below) { st.top = Math.round(B + 10) + 'px'; } else { st.bottom = Math.round(H - T + 10) + 'px'; }
     // Dock unten links (Menü, Ansichten, Stadt): links bündig; Kopfzeile rechts (Stadt-Check): rechts bündig
     const alignLeft = (L + R) / 2 < W / 2;
     const x = clamp(alignLeft ? L : R - w, 10, Math.max(10, W - w - 10));
