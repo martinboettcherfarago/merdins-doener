@@ -480,30 +480,30 @@ else { roughnessFactor = 0.35; metalnessFactor = 0.0; }`)
   if (part == 4) {
     float on = rail ? (isFront ? max(0.35, lightsOn) : 0.0) : lightsOn;
     diffuseColor.rgb = mix(vec3(0.75, 0.78, 0.8), vec3(1.0, 0.97, 0.9), on);
-    em = vec3(1.0, 0.9, 0.72) * on * 2.6;
+    em = vec3(1.0, 0.9, 0.72) * on * 1.3;
   } else if (part == 5) {
     float on = rail ? (isFront ? 0.0 : max(0.3, lightsOn)) : lightsOn;
     float brake = (flags & 16) != 0 ? 1.0 : 0.0;
-    em = vec3(1.0, 0.05, 0.02) * (0.12 + on * 1.3 + brake * 1.6);
+    em = vec3(1.0, 0.05, 0.02) * (on * 0.8 + brake * uNight * 0.9);
   } else if (part == 6) {
     if ((flags & 1) != 0) {
       float ph = uTime * 9.0 + vseed * 6.2831 + (vLocal.x > 0.0 ? 3.14159 : 0.0) + vLocal.z * 8.0;
       float f = pow(max(0.0, sin(ph)), 5.0);
-      em = vec3(0.12, 0.32, 1.0) * f * (2.6 + uNight * 2.5);
+      em = vec3(0.12, 0.32, 1.0) * f * (0.15 + uNight * 1.2);
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.65, 1.0), f);
     }
   } else if (part == 7) {
     if ((flags & 1) != 0) {
       float f = pow(max(0.0, sin(uTime * 6.0 + vseed * 6.2831 + atan(vLocal.z, vLocal.x) * 1.0)), 4.0);
-      em = vec3(1.0, 0.55, 0.05) * f * (2.0 + uNight * 2.0);
+      em = vec3(1.0, 0.55, 0.05) * f * (0.12 + uNight * 1.0);
     }
   } else if (part == 8) {
-    em = diffuseColor.rgb * (0.45 + uNight * 1.4);
+    em = diffuseColor.rgb * (0.08 + uNight * 0.6);
   } else if (part == 11 || part == 12) {
     bool on = part == 11 ? (flags & 4) != 0 : (flags & 8) != 0;
     if (on) {
       float f = step(0.5, fract(uTime * 1.5 + vseed));
-      em = vec3(1.0, 0.5, 0.04) * f * (1.6 + uNight * 1.8);
+      em = vec3(1.0, 0.5, 0.04) * f * (0.1 + uNight * 0.8);
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.7, 0.2), f);
     }
   } else if (part == 3) {
@@ -514,9 +514,9 @@ else { roughnessFactor = 0.35; metalnessFactor = 0.0; }`)
   } else if (part == 14) {
     em = diffuseColor.rgb * (dark ? 0.0 : uNight) * 2.2;
   } else if (part == 15) {
-    em = vec3(1.0, 0.06, 0.04) * pow(max(0.0, sin(uTime * 3.4 + vseed * 6.2831)), 14.0) * (2.0 + uNight * 4.0);
+    em = vec3(1.0, 0.06, 0.04) * pow(max(0.0, sin(uTime * 3.4 + vseed * 6.2831)), 14.0) * (0.2 + uNight * 1.5);
   } else if (part == 16) {
-    em = vec3(1.0) * step(0.92, fract(uTime * 1.05 + vseed)) * (3.0 + uNight * 5.0);
+    em = vec3(1.0) * step(0.92, fract(uTime * 1.05 + vseed)) * (0.2 + uNight * 1.8);
   } else if (part == 20) {
     em = diffuseColor.rgb * (0.12 + uNight * 0.55);
   }

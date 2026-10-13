@@ -115,7 +115,7 @@ varying vec2 vUv;
 void main() {
   float along = vUv.y;
   float across = abs(vUv.x - 0.5) * 2.0;
-  float a = pow(1.0 - along, 1.6) * smoothstep(1.0, 0.25, across) * smoothstep(0.0, 0.1, along) * uI * 0.32;
+  float a = pow(1.0 - along, 1.6) * smoothstep(1.0, 0.25, across) * smoothstep(0.0, 0.1, along) * uI * 0.16;
   if (a < 0.003) discard;
   gl_FragColor = vec4(vec3(1.0, 0.88, 0.66), a);
 }`,
@@ -208,8 +208,9 @@ export class VehicleView {
 
   updateLights(night) {
     const w = this.g.ext && this.g.ext.weather;
-    let L = smooth(0.12, 0.45, night);
-    if (w) L = Math.max(L, (w.fog || 0) * 0.9, (w.rain || 0) * 0.6, (w.snow || 0) * 0.6, w.storm ? 0.7 : 0, (w.cloud || 0) > 0.85 ? 0.3 : 0);
+    // Fahrzeuglichter nur nachts (Spielerwunsch: dezent, tagsüber aus); Nebel verstärkt sie nachts leicht
+    let L = smooth(0.18, 0.5, night);
+    if (w && L > 0) L = Math.min(1, L * (1 + (w.fog || 0) * 0.3));
     VU.uLights.value = L;
     VU.uEnv.value = this.e.scene.environment ? 1 : 0;
     return L;
@@ -248,32 +249,29 @@ export class VehicleView {
   lightsFor(m, x, y, z, yaw, pitch, d2, flags, seed, sz = 1) {
     const L = this.L;
     const beacon = (flags & F.BEACON) !== 0;
-    if (L < 0.08 && !beacon && !(flags & F.BRAKE)) return;
+    if (L < 0.08 && !(beacon && this.night > 0.15)) return;
     if (d2 > this.glowR2) return;
     const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
     const v = this.v3, G = this.glow;
     // Lichter wachsen mit dem Abstand, damit nächtliche Verkehrsströme aus der Ferne lesbar bleiben
-    const grow = 1 + Math.sqrt(d2) * 0.045;
+    const grow = 1 + Math.sqrt(d2) * 0.012;
     if (L >= 0.08) {
       for (const h of m.head) for (const s of [1, -1]) {
         toWorld(v, h[0] * s, h[1], h[2] * sz, x, y, z, cy, sy, cp, sp);
-        G.add(v[0], v[1], v[2], 0.055 * grow, 1.0, 0.9, 0.72, 0.85 * L);
+        G.add(v[0], v[1], v[2], 0.03 * grow, 1.0, 0.9, 0.72, 0.4 * L);
       }
       for (const t of m.tail) for (const s of [1, -1]) {
         toWorld(v, t[0] * s, t[1], t[2] * sz, x, y, z, cy, sy, cp, sp);
-        G.add(v[0], v[1], v[2], 0.04 * grow, 1.0, 0.08, 0.04, (flags & F.BRAKE ? 0.95 : 0.65) * L);
+        G.add(v[0], v[1], v[2], 0.022 * grow, 1.0, 0.08, 0.04, (flags & F.BRAKE ? 0.5 : 0.3) * L);
       }
       if (m.beam && m.head.length && d2 < this.fleet.mid2) {
         const hz = m.head[0][2] * sz;
         this.beams.push(x + sy * hz, y + 0.004, z + cy * hz, yaw, pitch, 0, m.wid / 0.18, 1, 1 + (m.wid - 0.18) * 1.5, 1, 1, 1, 0, 0);
       }
-    } else if (flags & F.BRAKE) {
-      for (const t of m.tail) for (const s of [1, -1]) {
-        toWorld(v, t[0] * s, t[1], t[2] * sz, x, y, z, cy, sy, cp, sp);
-        G.add(v[0], v[1], v[2], 0.035, 1.0, 0.1, 0.05, 0.25);
-      }
     }
-    if (beacon) {
+    // Blau- und Rundumlicht leuchten nur nachts als kleiner Lichtpunkt; tagsüber blinkt nur die Lampe am Fahrzeug selbst
+    if (beacon && this.night > 0.15) {
+      const nk = smooth(0.15, 0.5, this.night);
       const t = this.time;
       for (const b of m.beacons) {
         const amber = b[3] === 'amber';
@@ -281,11 +279,11 @@ export class VehicleView {
         const f = Math.pow(Math.max(0, Math.sin(ph)), amber ? 4 : 5);
         if (f < 0.05) continue;
         toWorld(v, b[0], b[1], b[2] * sz, x, y, z, cy, sy, cp, sp);
-        if (amber) G.add(v[0], v[1], v[2], 0.16, 1.0, 0.55, 0.08, f * (0.35 + this.night * 0.6));
-        else G.add(v[0], v[1], v[2], 0.2, 0.2, 0.42, 1.0, f * (0.45 + this.night * 0.7));
+        if (amber) G.add(v[0], v[1], v[2], 0.07, 1.0, 0.55, 0.08, f * 0.35 * nk);
+        else G.add(v[0], v[1], v[2], 0.08, 0.2, 0.42, 1.0, f * 0.4 * nk);
         // nachts färbt das Blaulicht die Straße (Lichtfleck von effects.js, G1)
         const P = this.night > 0.2 && d2 < this.fleet.mid2 && this.e.effects && this.e.effects.pools;
-        if (P) P.add(v[0], 0.02, v[2], amber ? 0.3 : 0.38, amber ? 1.0 : 0.22, amber ? 0.55 : 0.4, amber ? 0.1 : 1.0, f * 0.45 * this.night);
+        if (P) P.add(v[0], 0.02, v[2], amber ? 0.22 : 0.28, amber ? 1.0 : 0.22, amber ? 0.55 : 0.4, amber ? 0.1 : 1.0, f * 0.2 * nk);
       }
     }
   }
@@ -308,7 +306,7 @@ export class VehicleView {
       case VT.VAN: model = hashf(id * 19 + 4) < 0.6 ? 'van_box' : 'van'; col = hashf(id * 23) < 0.8 ? 0xf2f2ee : carPaint(hashf(id * 29)); pal = BOX_PAL[Math.floor(hashf(id * 3 + 9) * 6)]; break;
       case VT.FIRE: model = hashf(id * 23 + 1) < 0.75 ? 'fire' : 'fire_ladder'; flags |= F.BEACON; break;
       case VT.POLICE: model = hashf(id * 37 + 2) < 0.8 ? 'police' : 'police_van'; if (hashf(id * 41 + 3) < 0.35) flags |= F.BEACON; break;
-      case VT.GARBAGE: model = 'garbage'; flags |= F.BEACON; break;
+      case VT.GARBAGE: model = 'garbage'; break; // kein Dauer-Rundumlicht im Alltagsverkehr
       default: model = 'car_compact';
     }
     const W = g.W, H = g.H;
