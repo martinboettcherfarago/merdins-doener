@@ -8,8 +8,10 @@ import { buildOil } from './indoff_oil.js';
 import { buildMine } from './indoff_mine.js';
 import { buildForest } from './indoff_forest.js';
 
-registerArch('ind', { variants: 6, build: buildInd });
-registerArch('farm', { variants: 6, build: buildFarm });
-registerArch('oil', { variants: 6, build: buildOil });
-registerArch('mine', { variants: 6, build: buildMine });
-registerArch('forest', { variants: 6, build: buildForest });
+// mix: Die Ansicht wählt den Archetyp nach Lage (mix.js), damit Nachbarn verschieden aussehen
+const six = () => 6;
+registerArch('ind', { mix: true, count: six, build: buildInd });
+registerArch('farm', { mix: true, count: six, build: buildFarm });
+registerArch('oil', { mix: true, count: six, build: buildOil });
+registerArch('mine', { mix: true, count: six, build: buildMine });
+registerArch('forest', { mix: true, count: six, build: buildForest });

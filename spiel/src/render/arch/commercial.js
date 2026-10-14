@@ -583,7 +583,7 @@ function gzLaeden(ctx, g, P) {
 function hotel(ctx, g, P, o = {}) {
   const { rng, level } = ctx;
   const { W: PW, D: PD } = P;
-  const n = o.floors ?? (level >= 5 ? 14 : level >= 4 ? 8 + Math.floor(rng() * 2) : 5);
+  const n = Math.max(3, Math.round((o.floors ?? (level >= 5 ? 14 : level >= 4 ? 8 + Math.floor(rng() * 2) : 5)) * (ctx.hf || 1)));
   const tall = n >= 10;
   const front = tall && PD < 1.5 ? 2.6 * M : 3.6 * M;
   const w = PW - 0.6 * M, d = Math.min(PD - front - (tall ? 0.5 : 1.5) * M, (PD > 1.5 ? 15 : 10.5) * M);
@@ -853,7 +853,7 @@ function einkaufsturm(ctx, g, P, o = {}) {
   // LED-Wand am Podium
   if (g.detail >= 1) { const sw = Math.min(w * 0.35, 8 * M); g.wbox('metal_dark', fF, -w / 2 + sw / 2 + 0.6 * M, pst.top - 0.2 * M, 0.2 * M, sw + 0.3 * M, 3.4 * M, 0.3 * M); g.wquad(g.neon(rpick(rng, ['neon_cyan', 'neon_pink', 'sign_white', 'neon_yellow'])), fF, -w / 2 + sw / 2 + 0.6 * M, pst.top, 0.36 * M, sw, 3.0 * M); }
   // Turm
-  const n = Math.min(small ? 17 : 99, o.floors ?? 16 + Math.floor(rng() * 8));
+  const n = Math.max(3, Math.round((Math.min(small ? 17 : 99, o.floors ?? 16 + Math.floor(rng() * 8))) * (ctx.hf || 1)));
   const tw = small ? w - 1.6 * M : Math.min(w * 0.55, 18 * M), td = small ? d - 1.2 * M : Math.min(d * 0.6, 16 * M);
   const tcx = small ? 0 : w * 0.18, tcz = small ? cz - 0.4 * M : cz - d * 0.1;
   const tst = stack(pst.top, 4.0 * M, 3.6 * M, n);

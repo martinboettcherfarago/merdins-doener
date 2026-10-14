@@ -26,6 +26,7 @@ import { getMaterial } from './matlib.js';
 import { Kit, M, FLOOR, pick, range } from './arch/kit.js';
 
 const COS = [1, 0, -1, 0], SIN = [0, 1, 0, -1];
+const TALL_KEYS = new Set(['res', 'com', 'off']); // Zonen mit Höhenstaffelung (Türme lesen ctx.hf)
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const LOD_TICK = 0.3;
 const LOD_NEAR = 13, LOD_MID = 32; // Kameraabstand für Detail 2 bzw. 1 (Qualität „medium")
@@ -1494,7 +1495,7 @@ export class BuildingView {
     const salt = { 1: 0, 2: 3, 3: 5, 4: 7 }[b.zone] || 0;
     const idx = this.mix.pick(n, b.x, b.y, salt + level);
     let hc = 0;
-    if (level >= 4) {
+    if (level >= 4 && TALL_KEYS.has(key)) {
       const t = this._density(b) * 0.75 + (this.mix.noise(b.x, b.y) - 0.5) * 0.5;
       const hi = level >= 5 ? 0.42 : 0.5, lo = level >= 5 ? 0.12 : 0.16;
       hc = t > hi ? 1 : t < lo ? 2 : 0;
