@@ -444,6 +444,7 @@ export class Transit {
 
   arrive(t, line) {
     const g = this.g;
+    const capWait = g.opts && g.opts.scenario === 'metro' ? Infinity : Math.ceil(TRANSIT.stationCapacity * 1.5);
     t.cur = t.to;
     if (line.loop && t.d >= line.length - 1e-6) t.d = 0;
     t.state = 'dwell';
@@ -462,7 +463,12 @@ export class Transit {
         line.ridersToday++;
         if (st) st.served++;
       } else if (this.hops(p.dest, nextSid) < this.hops(p.dest, sid)) keep.push(p);
-      else { moved++; if (st) st.waiting.push(p); }
+      else {
+        moved++;
+        // Umsteigen: Außerhalb des Metro-Modus gilt dieselbe Obergrenze wie für neue Fahrgäste – an einer übervollen
+        // Station nehmen Umsteiger lieber das Auto (sonst stauen sich an Knoten Tausende und der Spielstand wird riesig)
+        if (st && (capWait === Infinity || st.waiting.length < capWait)) st.waiting.push(p);
+      }
     }
     t.pax = keep;
     if (st) {
