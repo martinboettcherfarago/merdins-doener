@@ -164,14 +164,15 @@ const app = {
     }
     if (warm) {
       const en = this.engine, t0 = performance.now();
-      holdLoader('warm');
+      const hk = 'warm' + (this._warmSeq = (this._warmSeq || 0) + 1); // eigener Schlüssel je Ansicht
+      holdLoader(hk);
       en.warming = true;
       en.onWarm = (p, text) => setLoader(0.62 + 0.38 * Math.max(0, Math.min(1, p)), text, true);
-      en.onWarmDone = () => releaseLoader('warm');
+      en.onWarmDone = () => releaseLoader(hk);
       // Sicherung: nie länger als nötig hinter dem Ladebildschirm festhängen
       const guard = setInterval(() => {
-        if (!en.warming || this.engine !== en) { clearInterval(guard); releaseLoader('warm'); return; }
-        if (performance.now() - t0 > 30000) { en.warming = false; clearInterval(guard); releaseLoader('warm'); }
+        if (!en.warming || this.engine !== en) { clearInterval(guard); releaseLoader(hk); return; }
+        if (performance.now() - t0 > 30000) { en.warming = false; clearInterval(guard); releaseLoader(hk); }
       }, 1000);
     }
     this.ui = new UI(this);
