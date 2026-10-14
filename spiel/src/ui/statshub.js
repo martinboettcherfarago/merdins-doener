@@ -372,7 +372,7 @@ function areaMenschen(ui, ctx) {
   }
   // Glück
   {
-    const f = happyFactors(g).filter(([l]) => l !== 'Strom' && l !== 'Wasser');
+    const f = ctx.dry ? [] : happyFactors(g).filter(([l]) => l !== 'Strom' && l !== 'Wasser');
     const pos = f.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 4);
     const neg = f.filter(([, v]) => v < 0).sort((a, b) => a[1] - b[1]).slice(0, 4);
     const max = Math.max(4, ...f.map(([, v]) => Math.abs(v)));
@@ -507,7 +507,7 @@ export function statsAreas(ui, ctx) {
   ctx = ctx || makeCtx(ui);
   const g = ui.g, s = g.stats, u = g.util;
   // Karten einmal „trocken" berechnen, um ihre Ampel zu kennen
-  if (!ctx.done) { for (const k of Object.keys(AREA_FN)) { try { AREA_FN[k](ui, ctx); } catch (e) { /* egal */ } } ctx.done = true; }
+  if (!ctx.done) { ctx.dry = true; for (const k of Object.keys(AREA_FN)) { try { AREA_FN[k](ui, ctx); } catch (e) { /* egal */ } } ctx.dry = false; ctx.done = true; }
   const sevOf = (area) => worst(Object.entries(ctx.sev).filter(([c]) => CARD_AREA[c] === area).map(([, v]) => v));
   const issueCount = (area) => Object.entries(ctx.sev).filter(([c, v]) => CARD_AREA[c] === area && (v === 'bad' || v === 'warn')).length;
   const Cz = g.ext.citizens, S = Cz && Cz.stats;

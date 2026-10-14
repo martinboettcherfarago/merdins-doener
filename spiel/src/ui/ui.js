@@ -55,6 +55,8 @@ function wxKind(w) {
 // Baukatalog-Gruppe → Bereich der Statistik (Knopf im Katalogkopf)
 const TRAY_STATS = { versorgung: 'versorgung', dienste: 'dienste', verkehr: 'verkehr', freizeit: 'umwelt' };
 const TRAY_STATS_DESC = { versorgung: 'Strom, Wasser, Abwasser, Müll und Fernwärme: Bedarf, Kapazität und Anlagen.', dienste: 'Gesundheit, Bildung, Polizei, Feuerwehr und Friedhof: Abdeckung und Plätze.', verkehr: 'Verkehrsfluss, Staus, Bus, Straßenbahn und U-Bahn.', freizeit: 'Abgase, Lärm, Parks und Wetter.' };
+// Infoansicht → Bereich der Statistik (Verweis in der Legende)
+const VIEW_STATS = { power: 'versorgung', water: 'versorgung', sewage: 'versorgung', garbage: 'versorgung', health: 'dienste', police: 'dienste', fire: 'dienste', edu: 'dienste', deathcare: 'dienste', happiness: 'menschen', age: 'menschen', eduLevel: 'menschen', crime: 'dienste', traffic: 'verkehr', transit: 'verkehr', ptransport: 'verkehr', pollution: 'umwelt', noise: 'umwelt' };
 // Funktionstasten der Stadt-Fenster (wie in PANEL_META angezeigt)
 const PANEL_KEYS = { F2: 'budget', F3: 'stats', F4: 'policies' };
 const itemKey = (it) => `${it.kind}:${it.key || it.type || it.zone || it.panel || ''}`;
@@ -198,6 +200,7 @@ export class UI {
       <span class="k">Nachfrage</span>
       <span class="bars">${[1, 2, 3, 4].map((z) => `<span class="col" id="u-demc${z}" style="--zc:${zoneCol(z)}" data-tip="${esc(ZONE_INFO[z].name)}" data-tip-pos="bottom" data-tip-fast="1"><span class="bar"><i id="u-dem${z}" style="background:${zoneCol(z)}"></i></span><span class="zi" aria-hidden="true">${icon(ZONE_ICON[z], 14, 2.5)}</span><span class="lbl">${ZONE_INFO[z].short}</span></span>`).join('')}</span>
     </button>
+    <button class="rbtn statsbtn" id="u-statsbtn" data-tour="stats" data-tip="Statistik" data-tip-desc="Alle Zahlen der Stadt nach Themen: Strom, Wasser, Abwasser, Müll, Dienste, Menschen, Geld, Verkehr und Umwelt." data-key="F3" data-tip-pos="bottom" aria-label="Statistik">${icon('stats', 20, 2.5)}</button>
   </div>
   <div class="spacer"></div>
   <div class="hud-r">
@@ -209,7 +212,6 @@ export class UI {
     </div>
     <div class="sysbtns" id="u-sys">
       <button class="hchip check ok" id="u-check" data-pop="check" data-tour="check" data-tip="Stadt-Check" data-tip-desc="Zeigt, was gerade Aufmerksamkeit braucht – mit einem Klick zur Lösung." data-key="H" data-tip-pos="bottom" aria-label="Stadt-Check"><span class="ck-i">${icon('pulse', 17, 2.6)}</span><span class="ck-l">Stadt-Check</span><span class="ck-n num" id="u-checkn"></span></button>
-      <button class="rbtn" data-sys="stats" data-tour="stats" data-tip="Statistik" data-tip-desc="Alle Zahlen der Stadt nach Themen: Strom, Wasser, Abwasser, Müll, Dienste, Menschen, Geld, Verkehr und Umwelt." data-key="F3" data-tip-pos="bottom" aria-label="Statistik">${icon('stats', 19, 2.4)}</button>
       <button class="rbtn" data-sys="notes" data-tour="notes" data-tip="Meldungen" data-tip-desc="Alles Wichtige der letzten Tage mit Ort und Zeit." data-key="N" data-tip-pos="bottom" aria-label="Meldungen">${icon('bell', 19, 2.4)}<span class="count" id="u-notecount" hidden></span></button>
       <button class="rbtn" data-sys="help" data-tour="help" data-tip="Hilfe" data-tip-desc="So funktioniert's: Straßen, Zonen, Versorgung, Glück, Geld und U-Bahn kurz erklärt." data-key="F1" data-tip-pos="bottom" aria-label="Hilfe">${icon('help', 19, 2.4)}</button>
     </div>
@@ -243,7 +245,7 @@ export class UI {
 `;
     const $ = (id) => document.getElementById(id);
     this.el = {};
-    for (const id of ['name', 'rank', 'rankbar', 'lvl', 'plate', 'trend', 'smile', 'timecard', 'dock', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'demand', 'date', 'time', 'speed', 'weather', 'sys', 'check', 'checkn', 'notecount', 'menubtn', 'toolhint', 'legend', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'bottom', 'viewsbtn', 'viewlbl', 'citybtn', 'citydot', 'toolbar', 'cats', 'panel', 'insp', 'scrim', 'popover', 'pop', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
+    for (const id of ['name', 'rank', 'rankbar', 'lvl', 'plate', 'trend', 'smile', 'timecard', 'dock', 'pop', 'popd', 'money', 'net', 'happy', 'happyd', 'demand', 'date', 'time', 'speed', 'weather', 'sys', 'check', 'checkn', 'notecount', 'menubtn', 'toolhint', 'legend', 'leftstack', 'bubble', 'tutorial', 'mini', 'mmopen', 'tray', 'bottom', 'viewsbtn', 'viewlbl', 'citybtn', 'citydot', 'statsbtn', 'toolbar', 'cats', 'panel', 'insp', 'scrim', 'popover', 'pop', 'dem1', 'dem2', 'dem3', 'dem4']) this.el[id] = $('u-' + id);
     this.el.name.textContent = this.g.name;
     this.renderToolbar();
     this.minimap = new Minimap(this, this.el.mini);
@@ -264,6 +266,7 @@ export class UI {
     on(this.root, 'click', (e) => { const b = e.target.closest('[data-pop]'); if (b && this.root.contains(b)) { this.app.audio.play('click'); this.togglePop(b.dataset.pop, b); } });
     on(this.root.querySelector('.topbar'), 'click', (e) => { const b = e.target.closest('[data-stat]'); if (b) { if (b.dataset.stat === 'happy') this.app.audio.play('click'); this.statAction(b.dataset.stat); } });
     on(this.el.plate, 'click', () => { this.togglePanel(this.panelDef('progression') ? 'progression' : 'stats'); });
+    on(this.el.statsbtn, 'click', () => { this.closePop(); this.togglePanel('stats'); });
     on(this.el.demand, 'click', () => { this.app.audio.play('click'); if (this.group === 'zones') this.closeTray(); else this.openTray('zones'); });
     on(this.el.weather, 'click', () => { if (this.panelDef('weather')) this.togglePanel('weather'); });
     on(this.el.cats, 'click', (e) => {
@@ -845,9 +848,13 @@ ${gr && TRAY_STATS[gr.id] ? `<button class="close tr-stats" data-act="traystats"
     else if (items) leg = `<div class="litems">${items.map(([c, l]) => `<span><i style="background:${typeof c === 'number' ? hex(c) : c}"></i>${esc(l)}</span>`).join('')}</div>`;
     else if (lg && lg.gradient) { leg = `<div class="ramp" style="background:${lg.gradient}"></div><div class="ends"><span>${esc((lg.ends || [])[0] || '')}</span><span>${esc((lg.ends || [])[1] || '')}</span></div>`; }
     else if (id === 'power' || id === 'water') leg = `<div class="litems"><span><i style="background:${id === 'power' ? '#45c46b' : '#3fa0e0'}"></i>versorgt</span><span><i style="background:#e5483c"></i>fehlt</span></div>`;
-    this.el.legend.innerHTML = `<h4><span class="lg-i">${iconAny(def.icon, 'layers', 15, 2.2)}</span><span>${esc(def.name)}</span><button class="close" data-act="offview" data-tip="Ansicht schließen" data-tip-desc="Zurück zur normalen Stadt." data-key="V" data-tip-fast="1" aria-label="Ansicht schließen">${icon('close', 14)}</button></h4>${leg}<p>${esc(def.text || '')}</p>`;
+    this.el.legend.innerHTML = `<h4><span class="lg-i">${iconAny(def.icon, 'layers', 15, 2.2)}</span><span>${esc(def.name)}</span><button class="close" data-act="offview" data-tip="Ansicht schließen" data-tip-desc="Zurück zur normalen Stadt." data-key="V" data-tip-fast="1" aria-label="Ansicht schließen">${icon('close', 14)}</button></h4>${leg}<p>${esc(def.text || '')}</p>${VIEW_STATS[id] && this.panelDef('stats') ? `<button class="lg-stats" data-act="viewstats" data-v="${VIEW_STATS[id]}" data-tip="Zahlen dazu" data-tip-desc="Bedarf, Kapazität und Anlagen in der Statistik." data-key="F3" data-tip-fast="1">${icon('stats', 14, 2.4)}<span>Zahlen in der Statistik</span>${icon('arrowR', 13, 2.4)}</button>` : ''}`;
     this.el.legend.hidden = false;
-    this.el.legend.onclick = (e) => { if (e.target.closest('[data-act=offview]')) { this.app.audio.play('close'); this.setView('none'); } };
+    this.el.legend.onclick = (e) => {
+      if (e.target.closest('[data-act=offview]')) { this.app.audio.play('close'); this.setView('none'); return; }
+      const st = e.target.closest('[data-act=viewstats]');
+      if (st) { this.app.audio.play('open'); openStats(this, st.dataset.v); }
+    };
   }
   markViewButton() {
     if (!this.el || !this.el.viewsbtn) return;
@@ -1227,6 +1234,7 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
     for (const b of this.root.querySelectorAll('#u-sys button[data-sys]')) b.classList.toggle('on', b.dataset.sys === this.panel);
     const isCity = !!this.panel && this.cityPanels(true).some(({ p }) => p.id === this.panel);
     if (this.el.citybtn) this.el.citybtn.classList.toggle('on', isCity);
+    if (this.el.statsbtn) this.el.statsbtn.classList.toggle('on', this.panel === 'stats');
     if (this.el.check) this.el.check.classList.toggle('on', this.panel === 'advisor');
     if (this.el.menubtn) this.el.menubtn.classList.toggle('on', this.panel === 'settings');
   }

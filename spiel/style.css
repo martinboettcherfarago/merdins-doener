@@ -360,6 +360,9 @@ b, strong { font-weight: 800; }
 .legend .litems span { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: var(--ink-2); }
 .legend .litems i { width: 13px; height: 13px; border-radius: 4px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), inset 0 0 0 1px rgba(0, 0, 0, 0.08); }
 .legend p { margin-top: 8px; margin-bottom: 0; color: var(--ink-2); line-height: 1.4; }
+.legend .lg-stats { display: flex; align-items: center; gap: 6px; width: calc(100% - 28px); margin-top: 10px; padding: 6px 10px; border-radius: var(--r-pill); background: var(--m-soft); box-shadow: var(--e-soft); color: var(--accent); font-family: var(--f-display); font-weight: 600; font-size: 12.5px; }
+.legend .lg-stats span { flex: 1; text-align: left; }
+.legend .lg-stats:active { transform: translateY(2px); box-shadow: var(--p-soft); }
 @keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
 @keyframes dotPulse { 50% { transform: scale(1.25); } }
 /* ---------- Dock unten links: Menü · Bau-Gruppen · Abriss · Ansichten · Stadt (Milchglas-Leiste, lackierte Quadrat-Knöpfe) */
@@ -787,11 +790,14 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .pop-row.sz-hero { margin: 0 0 6px; padding: 10px; background: var(--grain-soft), radial-gradient(120% 140% at 0% 0%, #f8f3ff 0%, #ece3fd 60%, #e5dafb 100%); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(91, 47, 179, 0.12); }
 .pop-row.sz-hero .pi { background: var(--m-violet); color: #fff; box-shadow: var(--e-violet); }
 .pop-row.sz-hero .go { color: var(--accent); }
-.sz-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--s2); padding: 0 2px; }
-.sz-quick button { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px 0 9px; border-radius: var(--r-pill); background: var(--m-white); box-shadow: var(--e-white); font-family: var(--f-display); font-weight: 600; font-size: 12.5px; color: var(--accent-ink); }
+.sz-quick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0 0 var(--s2); padding: 0 2px 4px; }
+.sz-quick button { display: flex; align-items: center; gap: 6px; min-width: 0; height: 32px; padding: 0 10px 0 9px; border-radius: var(--r-pill); background: var(--m-white); box-shadow: var(--e-white); font-family: var(--f-display); font-weight: 600; font-size: 12.5px; color: var(--accent-ink); }
 .sz-quick button svg { color: color-mix(in srgb, var(--cc, var(--accent)) 78%, var(--accent-ink)); }
 .sz-quick .sz-lamp { width: 8px; height: 8px; }
+.sz-quick button span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pop .sz-quick button:active { transform: translateY(2px); box-shadow: var(--p-white); }
+/* Statistik-Knopf in der Kopfzeile neben der Nachfrage (auf dem Handy steckt Statistik im Menü ☰ und im Stadt-Check) */
+@media (max-width: 760px) { .topbar .statsbtn { display: none; } }
 
 /* Linienliste (Linienfarbe als Ring und Abzeichen statt Seitenstreifen) */
 .line-card { border-radius: var(--r-lg); background: linear-gradient(180deg, #f9f6fe, #f3eefc); padding: var(--s3) 14px; margin-bottom: 10px; box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1.5px color-mix(in srgb, var(--lc, var(--accent)) 30%, transparent); }
