@@ -25,7 +25,7 @@ export const OVERLAYS = [
 export const allOverlays = () => [...OVERLAYS, ...OVERLAYS_EXTRA];
 
 // Zonenflächen außerhalb des Zonen-Werkzeugs: Farbe zu einem hellen Bauplatz-Ton gemischt, wenig deckend
-const ZONE_SOFT = { base: new THREE.Color(0xd9d3c3), mix: 0.5, opacity: 0.2, grey: new THREE.Color(0x555555) };
+const ZONE_SOFT = { base: new THREE.Color(0xdcdad0), mix: 0.58, opacity: 0.2, grey: new THREE.Color(0x555555) };
 
 const GOOD = [new THREE.Color(0xe5483c), new THREE.Color(0xf2c230), new THREE.Color(0x45c46b)];
 function ramp(v, bad, out) {
