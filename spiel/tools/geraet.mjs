@@ -16,7 +16,8 @@ export default async function geraet(page, h) {
   // 2. echte Schleife: kleines Fenster, damit Bilder < 250 ms dauern (sonst gelten sie als Ladeunterbrechung)
   const vw = page.viewportSize();
   await page.setViewportSize({ width: 360, height: 240 });
-  await page.evaluate(() => { const en = window.__stadtpuls.engine; en.forceGovern = true; window.__stadtpuls.game.speed = 1; });
+  // (SwiftShader braucht hier eher 0,5–3 s je Bild: Obergrenze für gültige Bildabstände anheben)
+  await page.evaluate(() => { const en = window.__stadtpuls.engine; en.forceGovern = true; en.gov.maxMs = 6000; window.__stadtpuls.game.speed = 1; });
   const secs = +(process.env.GERAET_SECS || 75);
   const trace = [];
   for (let t = 0; t < secs; t += 5) {

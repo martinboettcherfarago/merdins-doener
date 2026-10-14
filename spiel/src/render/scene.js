@@ -657,12 +657,26 @@ export class Engine {
       if (fm) for (const m of Object.values(fm)) { add(m, true); add(m, true, true); }
       const veg = this.terrain && this.terrain.veg;
       if (veg && veg.lodMats) { for (const set of veg.lodMats) for (const m of Object.values(set)) add(m, true, true); if (veg.grassMat) add(veg.grassMat, true, true); }
-      // Schattenprogramme (Tiefenmaterialien): Gebäude mit/ohne drehende Teile, Pflanzen, Straßen-Kleinteile
+      // Schattenprogramme (Tiefenmaterialien) lassen sich mit compile() nicht passend vorbereiten (anderer Zustand
+      // im Schattendurchgang): stattdessen für ein Bild entartete Probe-Meshes (keine Fläche) in die Szene hängen,
+      // die echte Schattendurchgang übersetzt dann genau die richtigen Programme
       if (this.renderer.shadowMap.enabled && !this._pcDepth) {
         this._pcDepth = true;
-        for (const anim of [false, true]) { add(g9DepthMaterial(anim), true); add(g9DepthMaterial(anim), false); }
-        if (veg && veg.depthMats) for (const m of Object.values(veg.depthMats)) add(m, true, true);
-        if (this.roads && this.roads.fadeDepth) add(this.roads.fadeDepth, true);
+        const probe = new THREE.Group();
+        const base = g9Materials()[0];
+        const pm = (mat, depth, inst, color = false) => {
+          const m = inst ? new THREE.InstancedMesh(geo2, mat, 1) : new THREE.Mesh(geo2, mat);
+          if (inst && color) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3);
+          m.customDepthMaterial = depth; m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
+          probe.add(m);
+        };
+        const geo2 = geo.clone();
+        if (base) for (const anim of [false, true]) { pm(base.mat, g9DepthMaterial(anim), true); pm(base.mat, g9DepthMaterial(anim), false); }
+        if (veg && veg.depthMats && veg.lodMats) for (const m of Object.values(veg.depthMats)) { pm(veg.lodMats[0].solid, m, true, true); pm(veg.mats.solid, m, true, true); }
+        if (this.roads && this.roads.fadeDepth) { pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true); pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true, true); }
+        this.scene.add(probe);
+        this._pcProbe = { group: probe, geo: geo2, frames: 2 };
+        this.renderer.shadowMap.needsUpdate = true;
       }
       const r = this.renderer, before = r.info.programs.length;
       // Wie beim echten Zeichnen ins HDR-Ziel der Nachbearbeitung übersetzen (Tonwert und Farbraum gehören zum
@@ -670,9 +684,12 @@ export class Engine {
       const prevRT = r.getRenderTarget();
       if (this.post) { if (!this.post.sceneRT) this.post.allocate(); r.setRenderTarget(this.post.sceneRT); }
       else r.setRenderTarget(null);
-      if (full && r.compileAsync) {
-        // hinter dem Ladebildschirm: parallel übersetzen lassen (KHR_parallel_shader_compile) und darauf warten
-        this._pcWait = Promise.all([r.compileAsync(tmp, this.camera, this.scene), r.compileAsync(this.scene, this.camera)]).then(() => { this._pcWait = null; }, () => { this._pcWait = null; });
+      if (r.compileAsync) {
+        // parallel übersetzen lassen (KHR_parallel_shader_compile); hinter dem Ladebildschirm wird darauf gewartet
+        const jobs = [r.compileAsync(tmp, this.camera, this.scene)];
+        if (full) jobs.push(r.compileAsync(this.scene, this.camera));
+        const wait = Promise.all(jobs).then(() => { if (this._pcWait === wait) this._pcWait = null; }, () => { if (this._pcWait === wait) this._pcWait = null; });
+        this._pcWait = wait;
       } else r.compile(tmp, this.camera, this.scene);
       r.setRenderTarget(prevRT);
       this._pcNew = r.info.programs.length - before;
@@ -687,9 +704,14 @@ export class Engine {
   // bevor sie zum ersten Mal ins Bild kommen
   precompileIdle(now) {
     if (this.warming || now < (this._pcT || 0)) return;
-    if (!this.cameraCalm()) { this._pcT = now + 500; return; }
+    // nur, wenn neue Gebäudematerialien dazugekommen sind (sonst nichts zu tun)
+    const n = g9Materials().length;
+    if (n === this._pcCount && this._pcDepth) { this._pcT = now + 1000; return; }
+    if (!this.cameraCalm() && now - (this._pcLast || 0) < 4000) { this._pcT = now + 300; return; }
+    this._pcCount = n;
+    this._pcLast = now;
     const ms = this.precompile(false);
-    this._pcT = now + (ms > 25 ? 12000 : 3000);
+    this._pcT = now + (ms > 25 ? 8000 : 1500);
   }
 
   frame(dt, simDt) {
@@ -780,6 +802,13 @@ export class Engine {
       try { gl.finish(); } catch (e) { /* egal */ }
       this.gov.probe(performance.now() - pt0);
       this._probeSkip = 2; // Abstand des Messbilds und des nächsten nicht als Bildrate werten
+    }
+    // Probe-Meshes für Schattenprogramme nach ihren Bildern wieder entfernen
+    const pr = this._pcProbe;
+    if (pr && --pr.frames <= 0) {
+      this.scene.remove(pr.group); pr.geo.dispose();
+      for (const m of pr.group.children) if (m.dispose) m.dispose();
+      this._pcProbe = null;
     }
   }
 }
