@@ -562,7 +562,9 @@ function makeVegMaterial(u, variant = 'solid') {
     g7Rough = 0.8;
   }
   float sn = uSnowK * smoothstep(0.1, 0.65, wn.y + (fract(vSeed * 13.0) - 0.5) * 0.25) * (conifer ? 1.0 : 0.8) * (blade ? 0.35 : 1.0);
-  col = mix(col, g7lin(vec3(0.92, 0.94, 0.98)), sn);
+  // Schnee auf Zweigen: oben hell, an den Flanken kühl bläulich, mit leichter Körnung
+  vec3 snC = mix(g7lin(vec3(0.74, 0.8, 0.92)), g7lin(vec3(0.95, 0.96, 0.98)), smoothstep(0.35, 0.9, wn.y));
+  col = mix(col, snC * (0.93 + 0.1 * fract(vSeed * 29.0)), sn);
   diffuseColor.rgb = col;
 }`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = g7Rough;')
@@ -916,9 +918,10 @@ export class Vegetation {
     // Jahreszeit: Laub, Blüte, Frühlingsgrün
     const t = s.t;
     // Austrieb schon in den letzten Wintertagen (t 0,95 → 0,03), damit die Bäume zum Spielbeginn im Frühling belaubt sind;
-    // Laubfall im Herbst (t 0,79 → 0,87). Über den Jahreswechsel stetig.
+    // Laubfall im Spätherbst (t 0,66 → 0,76), damit der Winter kahle, verschneite Kronen zeigt statt halb belaubter
+    // Herbstbäume. Über den Jahreswechsel stetig.
     const tt = (t + 0.05) % 1;
-    const leaf = tt < 0.5 ? smoothstep(0.0, 0.08, tt) : 1 - smoothstep(0.84, 0.92, tt);
+    const leaf = tt < 0.5 ? smoothstep(0.0, 0.08, tt) : 1 - smoothstep(0.71, 0.81, tt);
     u.uLeaf.value = leaf;
     this.setBare(leaf < 0.985);
     u.uAutumnK.value = s.autumn;

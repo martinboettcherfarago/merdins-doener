@@ -121,19 +121,49 @@ const FRAG_SURF = `
     vec3 aut = mix(vec3(0.62, 0.2, 0.04), vec3(0.78, 0.5, 0.08), mc.g) * (0.6 + 0.8 * dot(ta.rgb, vec3(0.333)));
     alb = mix(alb, aut * 0.55, k);
   }
-  // Schnee auf nach oben zeigenden Flächen
+  // Schnee auf nach oben zeigenden Flächen: Verwehungen, Körnung, kühle Mulden, Glitzern; Fahrbahnen geräumt (Matsch)
   float up = N.y;
   float snowCap = smoothstep(0.3, 0.72, up) * p3.w;
   float snowK = 0.0;
+  float plowed = 0.0;
   if (uSnow > 0.001 && snowCap > 0.0) {
-    float cov = uSnow * snowCap * 1.35 - (0.55 * mc.b + 0.25 * (1.0 - sAO) + 0.2 * mc.a) * 0.6;
+    vec2 su = P.xz;
+    vec2 sgx = dPx.xz, sgy = dPy.xz;
+    vec4 sg1 = textureGrad(uSAlb, vec3(su * 0.37 + vec2(0.21, 0.63), 0.0), sgx * 0.37, sgy * 0.37);
+    vec4 sg2 = textureGrad(uSAlb, vec3(su * 1.9 + vec2(0.57, 0.11), 0.0), sgx * 1.9, sgy * 1.9);
+    float drift = sg1.r * 0.65 + mc.g * 0.35;
+    float cov = uSnow * snowCap * 1.35 - (0.55 * mc.b + 0.25 * (1.0 - sAO) + 0.2 * mc.a) * 0.6 + (drift - 0.5) * 0.3;
+    if ((flags & 16) != 0) {
+      // Geräumte Fahrbahn: nur Matschflecken und Reste am Rand, dazwischen nasser, dunkler Asphalt
+      plowed = 1.0;
+      float slush = smoothstep(0.5, 0.78, sg1.g * 0.55 + sg2.b * 0.25 + mc.a * 0.2);
+      cov = uSnow * (0.08 + 0.6 * slush);
+      alb *= 1.0 - 0.12 * uSnow;
+      sRough = mix(sRough, 0.48, uSnow * 0.6);
+    }
     snowK = smoothstep(0.15, 0.45, cov);
-    vec3 snowC = vec3(0.86, 0.89, 0.94) * (0.93 + 0.07 * mc.r) * (0.86 + 0.14 * sAO);
+    float grain = sg2.r * 0.6 + sg2.g * 0.4;
+    vec3 snowHi = vec3(0.92, 0.93, 0.95), snowLo = vec3(0.70, 0.77, 0.90);
+    vec3 snowC = mix(snowLo, snowHi, smoothstep(0.25, 0.8, drift * 0.7 + sAO * 0.3)) * (0.94 + 0.09 * grain);
+    if (plowed > 0.5) snowC = mix(vec3(0.55, 0.56, 0.57), vec3(0.78, 0.8, 0.83), smoothstep(0.4, 0.8, sg2.g)) * (0.92 + 0.12 * grain);
     alb = mix(alb, snowC, snowK);
-    sRough = mix(sRough, 0.62, snowK);
+    sRough = mix(sRough, mix(0.5, 0.72, grain), snowK);
     sMetal = mix(sMetal, 0.0, snowK);
-    nW = normalize(mix(nW, N, snowK * 0.7));
-    sAO = mix(sAO, 1.0, snowK * 0.7);
+    // Körnung und Verwehungen als feine Normalenstörung, nahe Glitzerpunkte als kleine glatte Facetten
+    float fw = length(sgx) + length(sgy);
+    float nearK = 1.0 - smoothstep(0.02, 0.08, fw);
+    vec3 sNrm = normalize(N + vec3(sg2.r - 0.5, 0.0, sg2.b - 0.5) * 0.35 * nearK + vec3(sg1.b - 0.5, 0.0, sg1.a - 0.5) * 0.25);
+    float glintK = 0.0;
+    if (plowed < 0.5) {
+      vec2 gc = floor(su * 34.0);
+      float gh = fract(sin(dot(gc, vec2(127.1, 311.7))) * 43758.5453);
+      glintK = step(0.94, gh) * (1.0 - smoothstep(0.006, 0.02, fw)) * snowK;
+      vec3 gd = vec3(fract(gh * 17.31) - 0.5, 0.0, fract(gh * 31.77) - 0.5);
+      sNrm = normalize(sNrm + gd * 1.2 * glintK);
+    }
+    nW = normalize(mix(nW, sNrm, snowK));
+    sRough = mix(sRough, 0.16, glintK);
+    sAO = mix(sAO, 1.0, snowK * 0.6);
   }
   // Nässe: dunkler, glatter; Pfützen auf ebenen Böden
   if (uWet > 0.001) {

@@ -177,9 +177,13 @@ void main() {
   p.x = uCenter.x + mod(base.x + drift.x - uCenter.x, uBox.x) - uBox.x * 0.5;
   p.z = uCenter.z + mod(base.z + drift.y - uCenter.z, uBox.z) - uBox.z * 0.5;
   vec4 mv = viewMatrix * vec4(p, 1.0);
-  float size = 0.07 + 0.06 * fract(aSeed.w * 9.7);
-  gl_PointSize = clamp(size * uScale / max(0.5, -mv.z), 1.0, 40.0);
-  vA = smoothstep(1.0, 4.0, -mv.z) * smoothstep(0.0, 0.5, p.y);
+  // Feine Flocken mit wenigen größeren; nahe Flocken bleiben klein und durchscheinend (keine weißen Scheiben vor der Kamera)
+  float rs = fract(aSeed.w * 9.7);
+  float size = 0.035 + 0.035 * rs + 0.03 * rs * rs * rs;
+  float ps = size * uScale / max(0.5, -mv.z);
+  gl_PointSize = clamp(ps, 1.0, 14.0);
+  vA = smoothstep(1.5, 5.0, -mv.z) * smoothstep(0.0, 0.5, p.y) * mix(1.0, 0.45, smoothstep(5.0, 14.0, ps));
+  vA *= 0.7 + 0.3 * sin(t * 3.0 + aSeed.x * 60.0);
   if (uAtmoFogA.w > 0.5) { vec3 rd; vA *= 1.0 - atmoFogFactor(p, cameraPosition, uAtmoFogA, uAtmoFogC, rd) * 0.8; }
   gl_Position = projectionMatrix * mv;
 }`;
@@ -190,7 +194,7 @@ uniform float uAlpha;
 varying float vA;
 void main() {
   float r = length(gl_PointCoord - 0.5) * 2.0;
-  float a = smoothstep(1.0, 0.35, r) * vA * uAlpha;
+  float a = (smoothstep(1.0, 0.55, r) * 0.55 + smoothstep(0.5, 0.1, r) * 0.45) * vA * uAlpha;
   if (a < 0.004) discard;
   gl_FragColor = vec4(uColor, a);
 }`;

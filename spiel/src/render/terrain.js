@@ -243,6 +243,7 @@ varying vec3 vWN;
 varying vec2 vEx;
 float g7Hgt = 0.0;
 float g7Rough = 0.95;
+vec3 g7Spark = vec3(0.0);
 ${GLSL_COMMON}
 `;
 
@@ -374,9 +375,22 @@ const TERRAIN_COLOR = /* glsl */`
   float sN = (nC.g - 0.5) * 0.5 + (gh - 0.5) * 0.25;
   float snowLine = 5.1 + (nB.r - 0.5) * 2.2;
   float peak = smoothstep(snowLine, snowLine + 0.7, wp.y + sN * 2.0) * smoothstep(0.74, 0.32, slope + sN * 0.3);
-  float seas = uSnowK * smoothstep(0.62 - 0.32 * uSnowK, 0.86, wn.y + sN) * (1.0 - under) * (1.0 - wetLine * 0.6);
+  // Winterdecke: großräumige Verwehungen, dünnere Stellen unter Bäumen, Grasbüschel und Halme schauen durch
+  vec4 nD = texture2D(tNoise, wp.xz * 0.021 + vec2(0.13, 0.57));
+  vec4 nF = texture2D(tNoise, wp.xz * 0.61 + vec2(0.47, 0.29));
+  float drift = nD.g * 0.6 + nB.b * 0.4;
+  float sDepth = uSnowK * (1.2 + (drift - 0.5) * 0.7 - forest * 0.3 - urban * 0.08) - (gh - 0.5) * 0.35;
+  float seas = smoothstep(0.32, 0.62, sDepth) * smoothstep(0.62 - 0.32 * uSnowK, 0.86, wn.y + sN) * (1.0 - under) * (1.0 - wetLine * 0.6);
   float snow = clamp(max(peak, seas), 0.0, 1.0);
-  col = mix(col, g7lin(vec3(0.93, 0.95, 0.99)) * (0.9 + 0.12 * gh), snow);
+  // Farbe: Kämme hell und leicht warm, Mulden und Windschatten kühl bläulich, feine Körnung, am Stadtrand etwas grauer
+  float crest = smoothstep(0.3, 0.75, drift * 0.7 + nC.g * 0.3);
+  vec3 snowC = mix(g7lin(vec3(0.80, 0.85, 0.95)), g7lin(vec3(0.97, 0.97, 0.98)), crest);
+  snowC *= 0.93 + 0.09 * nF.r + 0.04 * gh;
+  snowC = mix(snowC, snowC * vec3(0.9, 0.89, 0.87), urban * 0.45 * smoothstep(0.4, 0.7, nC.b));
+  // Wo die Decke dünn wird: welkes, olivbraunes Wintergras statt Sommergrün
+  vec3 winterGrass = mix(g7lin(vec3(0.42, 0.40, 0.27)), g7lin(vec3(0.55, 0.50, 0.33)), nB.g) * gdet;
+  col = mix(col, winterGrass, uSnowK * (1.0 - forest * 0.6) * (1.0 - rockAmt) * (1.0 - scree) * (1.0 - sandM) * (1.0 - bank) * (1.0 - under) * 0.85);
+  col = mix(col, snowC, snow);
 
   col *= 1.0 - uWetK * 0.28 * (1.0 - snow) * (1.0 - under);
   col *= vEx.x;
@@ -384,11 +398,21 @@ const TERRAIN_COLOR = /* glsl */`
 
   g7Hgt = mix(gh * 0.22 * (1.0 - urban * 0.5), rockH * 1.1, max(rockAmt, scree * 0.6));
   g7Hgt = mix(g7Hgt, sandH * 0.35, sandM * (1.0 - bank) + under * 0.6);
-  g7Hgt *= 1.0 - snow * 0.75;
+  // Schneerelief: weiche Verwehungen und vom Wind geriffelte Oberfläche (nur in der Nähe)
+  float sNear = 1.0 - smoothstep(0.35, 1.2, px);
+  vec2 wdir = vec2(0.8, 0.6);
+  float rip = sin(dot(wp.xz, wdir) * 21.0 + nB.r * 7.0 + nC.g * 3.0) * 0.5 + 0.5;
+  float snowH = drift * 0.5 + nC.g * 0.18 + (rip * 0.1 + nF.r * 0.08) * sNear;
+  g7Hgt = mix(g7Hgt, snowH, snow * 0.8);
+  // Glitzern: einzelne Kristallfacetten (nur nah, damit in der Ferne nichts flimmert)
+  vec2 gc = floor(wp.xz * 30.0);
+  float gk = step(0.95, g7h(gc + 0.37)) * snow * (1.0 - smoothstep(0.2, 0.55, px));
+  g7Spark = vec3(g7h(gc + 7.1) - 0.5, 0.0, g7h(gc + 2.9) - 0.5) * 1.4 * gk;
   g7Rough = mix(0.97, 0.84, rockAmt);
   g7Rough = mix(g7Rough, 0.93, sandM);
   g7Rough = mix(g7Rough, 0.45, wetLine);
-  g7Rough = mix(g7Rough, 0.62, snow);
+  g7Rough = mix(g7Rough, mix(0.55, 0.72, nF.g), snow);
+  g7Rough = mix(g7Rough, 0.15, gk);
   g7Rough -= uWetK * 0.4 * (1.0 - snow);
 }
 `;
@@ -412,7 +436,7 @@ vWN = normalize(mat3(modelMatrix) * objectNormal);`);
       .replace('#include <common>', `#include <common>\n${TERRAIN_FRAG_PARS}`)
       .replace('#include <color_fragment>', `#include <color_fragment>\n${TERRAIN_COLOR}`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(g7Rough, 0.04, 1.0);')
-      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = g7bump(-vViewPosition, normal, g7Hgt * 0.9, faceDirection);');
+      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = g7bump(-vViewPosition, normal, g7Hgt * 0.9, faceDirection);\nnormal = normalize(normal + (viewMatrix * vec4(g7Spark, 0.0)).xyz);');
   };
   mat.customProgramCacheKey = () => 'g7terrain';
   return mat;

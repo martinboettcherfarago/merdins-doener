@@ -545,7 +545,7 @@ ${opts.sig ? 'varying vec4 vSig;' : ''}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = mix(roughnessFactor, 0.5, uWet * ${opts.paint ? '0.6' : '0.4'});`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-${opts.paint ? 'diffuseColor.a *= 1.0 - 0.85 * uSnow;' : ''}
+${opts.paint ? 'diffuseColor.a *= 1.0 - 0.55 * uSnow;' : ''}
 ${opts.sig ? `
 {
   float kind = vSig.x;

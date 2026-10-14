@@ -1040,8 +1040,8 @@ export const fbm = G.fbm, cells = G.cells, ihash = G.ihash;
 // layer: Schicht, second: Zweitfarbe (Hex, sRGB) oder 'dark' | 'dirt' | 'base', scale: Kacheln je 4 m ([u, v] oder Zahl),
 // rough: Faktor auf die Rauheit der Schicht, normal: Normalenstärke, flags: GROUND (Weltprojektion von oben),
 // CUTOUT (Löcher verwerfen), PUDDLE (Pfützen bei Nässe), LEAVES (Herbstfärbung), grime: Schmutz am Wandfuß 0..1,
-// porous: Abdunkeln bei Nässe 0..1, snow: Schneehaftung 0..1
-export const F_GROUND = 1, F_CUTOUT = 2, F_PUDDLE = 4, F_LEAVES = 8;
+// porous: Abdunkeln bei Nässe 0..1, snow: Schneehaftung 0..1, PLOW (Fahrbahn: im Winter geräumt, nur Matsch und Schneereste)
+export const F_GROUND = 1, F_CUTOUT = 2, F_PUDDLE = 4, F_LEAVES = 8, F_PLOW = 16;
 const P = (layer, o = {}) => ({ layer, ...o });
 export const SURFACE = {
   plaster_white: P('plaster', { second: 'dirt' }), plaster_cream: P('plaster', { second: 'dirt' }), plaster_ochre: P('plaster', { second: 'dirt' }),
@@ -1068,7 +1068,7 @@ export const SURFACE = {
   paint_blue: P('paint', { second: 0x8a8580 }), paint_green: P('paint', { second: 0x8a8580 }), paint_orange: P('paint', { second: 0x8a8580 }),
   awning_red: P('fabric', { second: 'base' }), awning_blue: P('fabric', { second: 'base' }), awning_green: P('fabric', { second: 'base' }),
   awning_yellow: P('fabric', { second: 'base' }), awning_striped: P('fabric', { second: 0xf2efe6 }), canvas_white: P('fabric', { second: 'base' }),
-  asphalt: P('asphalt', { second: 0x3c3f45, flags: F_GROUND | F_PUDDLE, grime: 0 }), asphalt_dark: P('asphalt', { second: 0x2d2f33, flags: F_GROUND | F_PUDDLE, grime: 0 }),
+  asphalt: P('asphalt', { second: 0x3c3f45, flags: F_GROUND | F_PUDDLE | F_PLOW, grime: 0 }), asphalt_dark: P('asphalt', { second: 0x2d2f33, flags: F_GROUND | F_PUDDLE | F_PLOW, grime: 0 }),
   pavers: P('pavers', { second: 0x9e9686, flags: F_GROUND | F_PUDDLE, grime: 0 }), sidewalk: P('slabs', { second: 0x8d887e, flags: F_GROUND | F_PUDDLE, grime: 0 }),
   curb: P('granite', { second: 0x6f6c66, grime: 0.6 }),
   grass: P('grass', { second: 0xb3a35c, flags: F_GROUND, grime: 0, porous: 0.5 }), grass_dry: P('grass', { second: 0xc2ad6a, flags: F_GROUND, grime: 0, porous: 0.5 }),
@@ -1086,7 +1086,7 @@ export const SURFACE = {
   container_red: P('corrugated', { second: 0x5a3328, scale: 0.5 }), container_blue: P('corrugated', { second: 0x7a5236, scale: 0.5 }),
   container_green: P('corrugated', { second: 0x6a5236, scale: 0.5 }), container_yellow: P('corrugated', { second: 0x7a5a36, scale: 0.5 }),
   tank_white: P('cassette', { second: 0x9c9c98, scale: 0.5 }), pipe_metal: P('metal', { second: 0x6a5040 }), rust: P('rust', { second: 0x4a2a18 }),
-  tarmac: P('concrete', { second: 0x4a4a48, scale: 0.5, flags: F_GROUND | F_PUDDLE, grime: 0 }), runway_marking: P('paint', { second: 0x9a9a96, rough: 1.4, grime: 0 }),
+  tarmac: P('concrete', { second: 0x4a4a48, scale: 0.5, flags: F_GROUND | F_PUDDLE | F_PLOW, grime: 0 }), runway_marking: P('paint', { second: 0x9a9a96, rough: 1.4, grime: 0 }),
   rail_track: P('wood', { second: 0x2a2018, scale: 1.5 }), ballast: P('gravel', { second: 0x4f4b45, scale: 0.6, flags: F_GROUND, grime: 0 }),
   hay: P('straw', { second: 0x8a7038 }), log_wood: P('bark', { second: 0x5a4632, scale: 1.5 }),
   // Ergänzungen von G2

@@ -331,7 +331,9 @@ export class Engine {
     // Sonnenlicht
     const sunUp = smooth(-0.035, 0.06, s);
     sunLightColor(elev, L.sunColor);
-    const sunAtt = (1 - 0.82 * overcast) * (1 - 0.5 * storm) * (1 - 0.35 * wx.fog) * (1 - 0.25 * wx.rain);
+    // Bei Schneedecke etwas mehr Sonne durch die Wolken: Schatten und Formen bleiben lesbar, die Welt wirkt nicht milchig-flach
+    const snowCov = wx.snowCover || 0;
+    const sunAtt = (1 - (0.82 - 0.3 * snowCov) * overcast) * (1 - 0.5 * storm) * (1 - 0.35 * wx.fog) * (1 - 0.25 * wx.rain);
     const sunI = 3.1 * sunUp * (0.45 + 0.55 * smooth(0.0, 0.35, s)) * sunAtt;
     // Nacht-Hauptlicht: Mond (oder heller Himmel, wenn der Mond fehlt)
     const moonKey = 0.12 + 0.3 * illum * moonUp;
@@ -350,7 +352,7 @@ export class Engine {
 
     // Himmel
     const st = this.skyState;
-    const exposure = 1 + night * 0.4 + overcast * 0.12 * (1 - night) + wx.fog * 0.05;
+    const exposure = (1 + night * 0.4 + overcast * 0.12 * (1 - night) + wx.fog * 0.05) * (1 - 0.1 * snowCov * (1 - night));
     st.s = s; st.night = night; st.cloud = Math.max(cloud, storm * 0.95, wx.rain * 0.85, wx.snow * 0.8); st.storm = storm;
     st.flash = this.flash; st.time = this.time; st.exposure = exposure;
     st.sunColor.copy(L.sunColor).multiplyScalar(sunUp);
@@ -374,7 +376,7 @@ export class Engine {
     const amb = L.ambient.copy(pal.zen).lerp(pal.hor, 0.5);
     this.hemi.color.copy(amb).lerp(new THREE.Color(1, 1, 1), 0.25);
     this.hemi.groundColor.setRGB(0.42, 0.36, 0.28).multiplyScalar(0.25 + 0.75 * sunUp);
-    const hemiDay = 0.42 + 0.35 * overcast;
+    const hemiDay = (0.42 + 0.35 * overcast) * (1 - 0.18 * snowCov);
     const hemiNight = 0.34;
     this.hemi.intensity = (hemiDay * (1 - night) + hemiNight * night) * (1 + this.flash * 4);
     if (night > 0.5) { this.hemi.color.setRGB(0.42, 0.52, 0.85); this.hemi.groundColor.setRGB(0.16, 0.14, 0.16); }
@@ -389,7 +391,7 @@ export class Engine {
     fog.color.copy(pal.hor).lerp(_c3, Math.min(0.85, wf * 1.1)).multiplyScalar(1 / exposure);
     const dist = this.rig.cur.dist;
     fog.near = dist * 2.2 + 30; fog.far = dist * 6 + 200;
-    atmo.fogA[0] = (0.0016 + 0.012 * wf + 0.0035 * wx.rain + 0.003 * wx.snow + 0.002 * storm) * (1 - 0.35 * night);
+    atmo.fogA[0] = (0.0016 + 0.012 * wf + 0.0035 * wx.rain + 0.0018 * wx.snow + 0.002 * storm) * (1 - 0.35 * night);
     atmo.fogA[1] = 0.22 + 0.25 * wf;
     atmo.fogA[2] = 0;
     atmo.fogA[3] = 1;
@@ -427,10 +429,10 @@ export class Engine {
       const golden = sunUp * (1 - smooth(0.05, 0.35, s));
       p.wb.setRGB(1.0 + 0.05 * golden, 1.0 + 0.005 * golden, 0.98 - 0.06 * golden);
       if (night > 0) p.wb.lerp(_c2.setRGB(0.93, 0.98, 1.08), night);
-      p.contrast = 0.1 + 0.04 * (1 - overcast) - 0.03 * night;
-      p.saturation = 1.06 - 0.16 * overcast - 0.12 * night - 0.06 * wx.fog;
+      p.contrast = 0.1 + 0.04 * (1 - overcast) - 0.03 * night + 0.06 * snowCov * (1 - night);
+      p.saturation = 1.06 - 0.16 * overcast * (1 - 0.4 * snowCov) - 0.12 * night - 0.06 * wx.fog + 0.05 * snowCov;
       p.vignette = 0.22 + 0.1 * night;
-      p.shadowTint.setRGB(0.02, 0.05, 0.12).multiplyScalar(1 - night * 0.5);
+      p.shadowTint.setRGB(0.02, 0.05 + 0.02 * snowCov, 0.12 + 0.08 * snowCov).multiplyScalar(1 - night * 0.5);
     }
     this.roads.setNight(night);
     if (this.overlay && this.overlay.setNight) this.overlay.setNight(night);
