@@ -369,7 +369,7 @@ ${g.opts.daily ? `<p style="text-align:center;margin:0">Tageskarte ${esc(dailyMe
     const nextSc = SCENARIOS.slice(idx + 1).find((x) => !x.metro) || null;
     html = `<div class="modal s5-modal"><div class="hero" style="background:${sc.color}"><div class="eyebrow">Szenario geschafft</div><h2>${esc(sc.name)}</h2><p>${esc(g.name)} hat es geschafft – nach ${daysDat(st.endDay - st.startDay)}.</p></div>
 <div class="bigstars">${'★'.repeat(st.stars)}<span class="off">${'★'.repeat(3 - st.stars)}</span></div>
-<p style="text-align:center;margin:0 0 6px">${st.stars === 3 ? 'Meisterhaft! Schneller geht es kaum.' : st.stars === 2 ? 'Stark! Mit etwas mehr Tempo gibt es den dritten Stern.' : 'Geschafft! Für mehr Sterne musst du schneller sein.'}</p>
+<p style="text-align:center;margin:0 0 6px">${st.stars === 3 ? 'Meisterhaft! Schneller geht es kaum.' : st.stars === 2 ? 'Stark! Schneller = dritter Stern.' : 'Geschafft! Für mehr Sterne musst du schneller sein.'}</p>
 <ul class="s5-goallist">${ss.goals.map((r) => `<li class="ok">${esc(r.goal.label)} – ${esc(r.text)}</li>`).join('')}</ul>
 <div class="acts"><button class="btn ghost" data-act="menu">Hauptmenü</button>${nextSc ? `<button class="btn ghost" data-act="next" data-id="${nextSc.id}">Nächstes: ${esc(nextSc.name)}</button>` : ''}<button class="btn" data-act="free">Weiterbauen</button></div></div>`;
   } else {
@@ -521,13 +521,13 @@ MENU_SECTIONS.push({
     }).join('');
     const best = prof.metro[s5.map] || 0;
     const daily = dailyMetro();
-    return `<div class="card s5-menu"><h3>Szenarien</h3><p class="seg-hint" style="margin:-6px 0 10px">Feste Karten, klare Ziele, knappe Zeit. Je schneller, desto mehr Sterne.</p>${rows}</div>
+    return `<div class="card s5-menu"><h3>Szenarien</h3><p class="seg-hint" style="margin:-6px 0 10px">Je schneller, desto mehr Sterne.</p>${rows}</div>
 <div class="card s5-menu"><h3 style="display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:50%;background:${metro.color};display:inline-block"></span>Metro-Modus</h3>
 <p class="seg-hint" style="margin:-6px 0 10px">${esc(metro.desc)}</p>
 <div class="field"><label>Karte</label><div class="seg">${METRO_MAPS.map((m) => `<button data-act="s5-map" data-v="${m.id}" class="${m.id === s5.map ? 'on' : ''}">${esc(m.name)}${prof.metro[m.id] ? ` · ${fmt(prof.metro[m.id])}` : ''}</button>`).join('')}</div></div>
-<div class="acts" style="align-items:center"><button class="btn big go" data-act="s5-metro">Metro starten</button>${best ? `<span class="seg-hint">Rekord: <b>${fmt(best)}</b> Fahrgäste ${stars(metroStarsFor(best))}</span>` : '<span class="seg-hint">Noch kein Rekord auf dieser Karte.</span>'}</div>
+<div class="acts" style="align-items:center"><button class="btn big go" data-act="s5-metro">Metro starten</button>${best ? `<span class="seg-hint">Rekord: <b>${fmt(best)}</b> Fahrgäste ${stars(metroStarsFor(best))}</span>` : '<span class="seg-hint">Noch kein Rekord.</span>'}</div>
 <div class="slot" style="margin-top:8px;border-top:1px solid var(--rule)"><div class="grow"><div class="t">Tageskarte ${esc(daily.label)} · ${esc(METRO_MAPS.find((m) => m.id === daily.opts.mapType)?.name || '')}</div><div class="s">Heute für alle gleich.${prof.daily?.[daily.key] ? ` Dein Bestwert: ${fmt(prof.daily[daily.key])}` : ' Noch nicht gespielt.'}</div></div><button class="btn small" data-act="s5-daily">Spielen</button></div></div>
-<div class="card s5-menu"><h3>Ehrentafel</h3><div class="s5-prof"><div><div class="k">Erfolge</div><div class="v">${achCount} / ${ACHIEVEMENTS.length}</div></div><div><div class="k">Punkte</div><div class="v">${pts}</div></div><div><div class="k">Sterne</div><div class="v">${totalStars} / ${list.length * 3}</div></div></div><p class="seg-hint" style="margin:6px 0 0">${esc(rankFor(pts).rank.name)} · Erfolge sammelst du in jeder Stadt außer im Sandkasten.</p></div>`;
+<div class="card s5-menu"><h3>Ehrentafel</h3><div class="s5-prof"><div><div class="k">Erfolge</div><div class="v">${achCount} / ${ACHIEVEMENTS.length}</div></div><div><div class="k">Punkte</div><div class="v">${pts}</div></div><div><div class="k">Sterne</div><div class="v">${totalStars} / ${list.length * 3}</div></div></div><p class="seg-hint" style="margin:6px 0 0">${esc(rankFor(pts).rank.name)} </p></div>`;
   },
   click(menu, act, el) {
     const s5 = (menu._s5 ||= { sel: null, map: 'river' });

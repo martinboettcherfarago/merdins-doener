@@ -152,7 +152,7 @@ ${s.dead ? `<span>Verstorbene warten</span><span class="v neg">${fmt(s.dead)}</s
 </div>
 <div class="sec"><h3>Steuern im Bezirk</h3>
 <div class="dt-tax"><input type="range" min="-5" max="5" step="1" value="${d.tax}" id="dist-tax" data-id="${d.id}"><span class="val" id="dist-tax-v">${d.tax > 0 ? '+' : d.tax < 0 ? '−' : '±'}${Math.abs(d.tax)} %</span></div>
-<p class="dt-note">Zuschlag oder Nachlass auf alle Steuersätze der Stadt, nur in diesem Bezirk. Jeder Prozentpunkt kostet dort etwa 1,7 Glückspunkte – oder bringt sie.</p></div>
+<p class="dt-note">Je Prozentpunkt ±1,7 Glück im Bezirk.</p></div>
 <div class="sec"><h3>Verordnungen im Bezirk</h3>${pols}</div>
 <div class="sec"><button class="btn small ghost" data-act="del" data-id="${d.id}" style="color:var(--bad)">${view.confirmDel === d.id ? 'Wirklich auflösen?' : 'Bezirk auflösen'}</button></div>`;
 }
@@ -167,10 +167,10 @@ registerPanel({
     if (view.sel && !D.byId[view.sel]) view.sel = 0;
     if (!view.sel && D.byId[districtTool.active]) view.sel = districtTool.active;
     if (!view.sel && D.list.length) view.sel = D.list[0].id;
-    const intro = D.list.length ? '' : `<div class="sec"><p class="dt-note" style="margin-top:0">Bezirke geben Stadtteilen einen Namen und eigene Regeln: <b>Hochhausverbot</b> in der Altstadt, <b>Verkehrsberuhigung</b> im Wohnviertel, eine <b>Einkaufsmeile</b> in der Mitte, Steuernachlass für den Problemkiez. Wähle <b>Malen</b> und ziehe mit der Maus über die Karte – ein Klick mit <b>Block füllen</b> färbt einen ganzen Straßenblock.</p></div>`;
+    const intro = D.list.length ? '' : `<div class="sec"><p class="dt-note" style="margin-top:0">Stadtteile mit Namen und eigenen Regeln. <b>Malen</b> wählen und über die Karte ziehen.</p></div>`;
     let tot = 0, totTax = 0, totCost = 0;
     for (const d of D.list) { const s = districtStats(g, d.id); if (s) { tot += s.residents; totTax += s.taxDelta; totCost += s.policyCost; } }
-    const summary = D.list.length ? `<p class="dt-note" style="margin:0 0 10px">${D.list.length} von ${MAX_DISTRICTS} Bezirken · ${fmt(tot)} Einwohner in Bezirken · Steuerzuschläge ${totTax >= 0 ? '+' : '−'}${fmtMoney(Math.abs(totTax))}/Tag · Verordnungen ${fmtMoney(totCost)}/Tag</p>` : '';
+    const summary = D.list.length ? `<p class="dt-note" style="margin:0 0 10px">${D.list.length} von ${MAX_DISTRICTS} Bezirken · ${fmt(tot)} Einwohner · Steuern ${totTax >= 0 ? '+' : '−'}${fmtMoney(Math.abs(totTax))}/Tag · Verordnungen ${fmtMoney(totCost)}/Tag</p>` : '';
     const sel = D.byId[view.sel];
     let cmp = '';
     if (D.list.length >= 2) {

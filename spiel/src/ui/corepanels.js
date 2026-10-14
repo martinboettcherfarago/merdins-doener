@@ -36,13 +36,13 @@ const budget = {
 <div class="hero ${b.net < 0 ? 'neg' : 'pos'}"><div><div class="k">Saldo pro Tag</div><div class="v num">${signed(b.net)}</div><div class="s">${g.sandbox ? 'Sandkasten – Geld spielt keine Rolle' : `Kasse ${fmtMoney(g.money)}`}</div></div>${svgSpark(nets, { w: 130, h: 44, color: b.net < 0 ? '#d4433a' : '#2b9a57', zero: true })}</div>
 <div class="sec"><h3>Einnahmen · ${fmtMoney(b.income)}</h3>${incItems.length ? barsHTML(incItems, { max }) : '<p class="empty">Noch keine Einnahmen.</p>'}</div>
 <div class="sec"><h3>Ausgaben · ${fmtMoney(b.expense)}</h3>${expItems.length ? barsHTML(expItems, { max }) : '<p class="empty">Noch keine Ausgaben.</p>'}</div>
-<div class="sec"><h3>Steuersätze</h3>${taxes}<p class="hint">Über 10 % sinken Nachfrage und Glück spürbar, über 15 % stark.</p></div>
-<div class="sec"><h3>Kredite</h3>${loans || '<p class="empty">Keine laufenden Kredite.</p>'}<div class="rule"></div>${g.isUnlocked('loans') ? offers : `<p class="hint">${g.lockReason('zone4')}</p>`}</div>`;
+<div class="sec"><h3>Steuersätze</h3>${taxes}<p class="hint">Über 10 %: weniger Nachfrage und Glück.</p></div>
+<div class="sec"><h3>Kredite</h3>${loans || '<p class="empty">Keine Kredite.</p>'}<div class="rule"></div>${g.isUnlocked('loans') ? offers : `<p class="hint">${g.lockReason('zone4')}</p>`}</div>`;
   },
   click(ui, act, el) {
     const g = ui.g;
     if (act === 'loan') { if (g.takeLoan(+el.dataset.i)) { ui.toast('Kredit aufgenommen.', 'good'); ui.app.audio.play('loan'); } }
-    if (act === 'repay') { if (!g.repayLoan(+el.dataset.i)) ui.toast('Nicht genug Geld zum Ablösen.', 'bad'); }
+    if (act === 'repay') { if (!g.repayLoan(+el.dataset.i)) ui.toast('Zu wenig Geld.', 'bad'); }
     return true;
   },
   input(ui, el) {
@@ -60,7 +60,7 @@ const policies = {
     const g = ui.g;
     const active = POLICIES.filter((p) => g.policies.has(p.id));
     const total = active.reduce((a, p) => a + p.cost * (g.stats.pop / 100), 0);
-    return `<p class="lede">Verordnungen gelten für die ganze Stadt. Die Kosten steigen mit der Einwohnerzahl.</p>
+    return `
 <div class="res-strip two"><div><div class="k">Aktiv</div><div class="v">${active.length} / ${POLICIES.length}</div></div><div><div class="k">Kosten</div><div class="v">${fmtMoney(total)}<small> / Tag</small></div></div></div>` + POLICIES.map((p) => {
       const locked = !g.sandbox && g.milestone < p.unlock;
       const on = g.policies.has(p.id);
@@ -107,8 +107,8 @@ const transit = {
     return `
 <div class="res-strip"><div><div class="k">Linien</div><div class="v">${tr.lines.length} / ${tr.linesMax}</div></div><div><div class="k">Züge im Depot</div><div class="v">${tr.freeTrains}</div></div><div><div class="k">Waggons</div><div class="v">${tr.freeWagons}</div></div></div>
 <div class="acts row-acts"><button class="btn" data-act="newline" ${tr.lines.length >= tr.linesMax ? 'disabled' : ''}>${icon('line', 16)} Neue Linie zeichnen</button><button class="btn ghost" data-act="station">${icon('station', 16)} Station setzen</button></div>
-${linesHtml || '<p class="lede">Noch keine Linie. Klicke auf „Neue Linie zeichnen" und dann nacheinander auf Felder in Wohn- und Arbeitsvierteln. Ein Klick auf die erste Station schließt einen Ring.</p>'}
-${tr.lines.length ? TIMETABLE_HINT : ''}<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3><p class="hint">Jede Station sammelt Fahrgäste im Umkreis von ${String(TRANSIT.catchment).replace(".", ",")} Feldern. Symbole über den Stationen zeigen das Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro. Wird eine Station zu voll, läuft ein roter Ring – mehr Züge oder Waggons helfen. Solange dieses Fenster offen ist, zeigt die Stadt den Untergrund mit Tunneln und Zügen.</p></div>`;
+${linesHtml || '<p class="lede">Noch keine Linie. Stationen nacheinander antippen – die erste noch einmal: Ring.</p>'}
+${tr.lines.length ? TIMETABLE_HINT : ''}<div class="sec" style="margin-top:14px"><h3>Ziele der Fahrgäste</h3><div class="chips" style="margin:0"><span class="chip">● Wohnen</span><span class="chip">▲ Gewerbe</span><span class="chip">■ Industrie</span><span class="chip">◆ Büro</span></div><p class="hint">Einzugsgebiet ${String(TRANSIT.catchment).replace(".", ",")} Felder · roter Ring = überfüllt</p></div>`;
   },
   click(ui, act, el) {
     const g = ui.g;

@@ -35,7 +35,7 @@ function portrait(b, color) {
 }
 
 const head = (stripe, title, sub, pic = '') => `<div class="stripe" style="background:${stripe}"></div>
-<header>${pic}<div class="grow"><h2>${title}</h2><div class="sub">${sub}</div></div><div class="hbtns"><button class="close" data-act="help" data-tip="Was ist das?" data-tip-desc="Kurz erklärt in der Hilfe." data-tip-fast="1" aria-label="Was ist das?">${icon('help', 16)}</button><button class="close" data-act="focus" data-tip="Hinfliegen" data-tip-desc="Die Kamera fährt zu diesem Ort." data-tip-fast="1" aria-label="Hinfliegen">${icon('target', 16)}</button><button class="close" data-act="close" data-tip="Schließen" data-tip-desc="Auswahl aufheben." data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 16)}</button></div></header>`;
+<header>${pic}<div class="grow"><h2>${title}</h2><div class="sub">${sub}</div></div><div class="hbtns"><button class="close" data-act="help" data-tip="Hilfe" data-tip-fast="1" aria-label="Hilfe">${icon('help', 16)}</button><button class="close" data-act="focus" data-tip="Hinfliegen" data-tip-fast="1" aria-label="Hinfliegen">${icon('target', 16)}</button><button class="close" data-act="close" data-tip="Schließen" data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 16)}</button></div></header>`;
 
 const pips = (level, color) => `<span class="pips" style="--c:${color}">${[1, 2, 3, 4, 5].map((k) => `<i class="${k <= level ? 'on' : ''}"></i>`).join('')}</span>`;
 
@@ -56,7 +56,7 @@ export function inspectorHTML(ui) {
     if (!r) return null;
     const d = ROADS[r];
     const cong = g.congestion[i];
-    html = `${head('#5d6470', d.name, `${g.world.terrain[i] === T.WATER ? 'Brücke · ' : ''}Feld ${i % g.W}, ${Math.floor(i / g.W)}`)}
+    html = `${head('#5d6470', d.name, g.world.terrain[i] === T.WATER ? 'Brücke' : '')}
 <div class="body"><div class="kv"><span>Verkehr pro Stunde</span><span class="v">${fmt(g.trafficLoad[i])}</span><span>Kapazität</span><span class="v">${fmt(d.capacity)}</span><span>Auslastung</span><span class="v ${cong > 0.9 ? 'neg' : ''}">${Math.round(cong * 100)} %</span></div>
 ${meterHTML(cong, 1, cong > 0.9 ? 'var(--bad)' : cong > 0.6 ? 'var(--warn)' : 'var(--good)')}
 <p class="desc">${esc(d.desc)}</p></div>`;
@@ -64,9 +64,9 @@ ${meterHTML(cong, 1, cong > 0.9 ? 'var(--bad)' : cong > 0.6 ? 'var(--warn)' : 'v
     const i = s.i;
     const ter = ['Wiese', 'Wasser', 'Strand', 'Fels'][g.world.terrain[i]] || 'Gelände';
     const res = g.world.resource[i] === RES.FERTILE ? 'fruchtbarer Boden' : g.world.resource[i] === RES.ORE ? 'Erzvorkommen' : g.world.resource[i] === RES.OIL ? 'Ölvorkommen' : g.world.forest && g.world.forest[i] ? 'Wald (Forstwirtschaft)' : '';
-    html = `${head('#9bc887', ter + (res ? ' · ' + res : ''), `Feld ${i % g.W}, ${Math.floor(i / g.W)}${g.zone[i] ? ' · Zone ' + ZONE_INFO[g.zone[i]].name : ''}`)}
+    html = `${head('#9bc887', ter + (res ? ' · ' + res : ''), g.zone[i] ? 'Zone ' + ZONE_INFO[g.zone[i]].name : '')}
 <div class="body"><div class="kv"><span>Bodenwert</span><span class="v">${Math.round(g.fields.landValue[i])}</span><span>Verschmutzung</span><span class="v">${Math.round(g.fields.pollution[i] * 100)} %</span><span>Lärm</span><span class="v">${Math.round(g.fields.noise[i] * 100)} %</span>${g.world.trees[i] ? '<span>Wald</span><span class="v">ja</span>' : ''}</div>
-${g.zone[i] && !g.bld[i] ? `<p class="desc">${g.access[i] < 0 ? 'Keine Straße in Reichweite (max. 2 Felder).' : g.roadComp[g.access[i]] !== g.outsideComp ? 'Die Straße ist nicht mit der Autobahn verbunden.' : g.demand[g.zone[i]] <= 4 ? 'Wartet auf Nachfrage.' : 'Bereit zum Bebauen.'}</p>` : ''}</div>`;
+${g.zone[i] && !g.bld[i] ? `<p class="desc">${g.access[i] < 0 ? 'Keine Straße in Reichweite.' : g.roadComp[g.access[i]] !== g.outsideComp ? 'Straße ohne Autobahn-Anschluss.' : g.demand[g.zone[i]] <= 4 ? 'Wartet auf Nachfrage.' : 'Bereit zum Bebauen.'}</p>` : ''}</div>`;
   }
   let ext = '';
   for (const fn of INSPECTORS) {
@@ -90,10 +90,10 @@ function inspZone(ui, b) {
   const L = LEVELS[b.zone];
   const ml = g.maxLevelAt(b.x, b.y);
   let next = '';
-  if (b.abandoned) next = '<span class="chip no">Verlassen – wird bald abgerissen</span>';
+  if (b.abandoned) next = '<span class="chip no">Verlassen</span>';
   else if (b.construct < 1) next = `<span class="chip warn">Im Bau · ${Math.round(b.construct * 100)} %</span>`;
   else if (b.level >= 5) next = 'Höchste Stufe erreicht.';
-  else if (b.level >= ml) next = g.policies.has('lowrise') && ml === 3 ? 'Hochhausverbot begrenzt die Höhe.' : `Höhere Stufen ab Meilenstein „${MILESTONES[[0, 0, 2, 3, 4, 4][b.level + 1] ?? 4].name}".`;
+  else if (b.level >= ml) next = g.policies.has('lowrise') && ml === 3 ? 'Hochhausverbot begrenzt die Höhe.' : `Nächste Stufe ab „${MILESTONES[[0, 0, 2, 3, 4, 4][b.level + 1] ?? 4].name}".`;
   else {
     const need = L.need[b.level + 1];
     const score = b.zone === Z.IND ? null : g.fields.landValue[i];
@@ -106,7 +106,7 @@ function inspZone(ui, b) {
   }
   const occLabel = b.zone === Z.RES ? 'Bewohner' : 'Beschäftigte';
   const fmax = Math.max(4, ...factors.map((f) => Math.abs(f[1])));
-  return `${head(col, esc(title), `${ZONE_INFO[b.zone].name} · Feld ${b.x}, ${b.y}`, portrait(b, col))}
+  return `${head(col, esc(title), ZONE_INFO[b.zone].name, portrait(b, col))}
 <div class="body">
   <div class="lvl"><span>Stufe ${b.level}</span>${pips(b.level, col)}</div>
   <div class="chips">${chip(b.connected, 'Straße')}${chip(b.powered, 'Strom')}${chip(b.watered, 'Wasser')}${chip(g.cov.garbage[i] > 0.3, 'Müllabfuhr')}${b.burning ? '<span class="chip no">Brennt!</span>' : ''}${g.cov.transit[i] > 0 ? '<span class="chip ok">Pulsbahn</span>' : ''}</div>
@@ -115,7 +115,7 @@ function inspZone(ui, b) {
   <span>Bodenwert</span><span class="v">${Math.round(g.fields.landValue[i])}</span>
   ${b.zone === Z.RES ? `<span>Bildung</span><span class="v">${Math.round(b.edu * 100)} %</span><span>Pendelzeit</span><span class="v">${Math.round(b.commute)} Min.</span>` : ''}
   </div>
-  <div class="sec"><h3>Was das Glück beeinflusst</h3><div class="fbars">${factors.slice(0, 9).map(([l, v]) => `<div class="fb"><span class="fl">${esc(l)}</span><span class="ft"><i class="${v < 0 ? 'n' : 'p'}" style="width:${(Math.abs(v) / fmax) * 50}%"></i></span><span class="fv ${v < 0 ? 'neg' : 'pos'}">${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(0)}</span></div>`).join('') || '<p class="empty">Alles im Lot.</p>'}</div></div>
+  <div class="sec"><h3>Glück</h3><div class="fbars">${factors.slice(0, 9).map(([l, v]) => `<div class="fb"><span class="fl">${esc(l)}</span><span class="ft"><i class="${v < 0 ? 'n' : 'p'}" style="width:${(Math.abs(v) / fmax) * 50}%"></i></span><span class="fv ${v < 0 ? 'neg' : 'pos'}">${v > 0 ? '+' : '−'}${Math.abs(v).toFixed(0)}</span></div>`).join('') || '<p class="empty">Alles im Lot.</p>'}</div></div>
   <p class="desc">${next}</p>
   <div class="acts"><button class="btn small ghost danger-t" data-act="demolish">${icon('bulldoze', 14)} Abreißen</button></div>
 </div>`;
@@ -144,7 +144,7 @@ function inspService(ui, b) {
   const cm = catMeta(d.cat);
   const col = cm.color;
   const load = d.service ? b.load || 0 : null;
-  return `${head(col, esc(d.name), `${esc(cm.name)} · Feld ${b.x}, ${b.y}`, portrait(b, col))}
+  return `${head(col, esc(d.name), esc(cm.name), portrait(b, col))}
 <div class="body">
   <div class="chips"><span class="chip ${b.connected || b.comp >= 0 ? 'ok' : 'no'}">Straße</span><span class="chip ${b.powered ? 'ok' : d.power ? 'ok' : 'no'}">${d.power ? 'Kraftwerk' : 'Strom'}</span>${d.unique ? '<span class="chip">Einmalig</span>' : ''}${b.construct < 1 ? `<span class="chip warn">Im Bau · ${Math.round(b.construct * 100)} %</span>` : ''}${b.burning ? '<span class="chip no">Brennt!</span>' : ''}</div>
   <div class="kv">${facts.map(([k, v]) => `<span>${k}</span><span class="v">${v}</span>`).join('')}</div>
@@ -162,7 +162,7 @@ function inspStation(ui, st) {
   const sym = ['', '●', '▲', '■', '◆'];
   const over = st.over > 0.02 ? `<span class="chip no">Überfüllt · ${Math.round(st.over * 100)} %</span>` : '';
   const cap = TRANSIT.stationCapacity;
-  return `${head(lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999', esc(st.name), 'U-Bahn-Station · Feld ' + st.x + ', ' + st.y, `<div class="portrait art roundel" style="--c:${lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999'}">${icon('station', 34, 2)}</div>`)}
+  return `${head(lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999', esc(st.name), 'U-Bahn-Station', `<div class="portrait art roundel" style="--c:${lines.length ? hex(LINE_COLORS[lines[0].color]) : '#999'}">${icon('station', 34, 2)}</div>`)}
 <div class="body">
   <div class="chips">${lines.map((l) => `<span class="chip" style="background:${hex(LINE_COLORS[l.color])};color:#fff">Linie ${LINE_COLOR_NAMES[l.color]}</span>`).join('') || '<span class="chip no">Keine Linie</span>'}${over}</div>
   <div class="kv"><span>Wartende Fahrgäste</span><span class="v ${st.waiting.length > cap ? 'neg' : ''}">${st.waiting.length} / ${cap}</span></div>

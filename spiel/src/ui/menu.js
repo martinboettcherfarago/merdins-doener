@@ -72,32 +72,32 @@ export class Menu {
   <div class="side">
     <div class="brand">${logo(58)}<div><h1>Stadtpuls</h1><div class="tag">Städtebau im Takt der U-Bahn</div></div></div>
     <p class="lede">Baue eine Stadt, die im Takt schlägt – mit einer U&#8209;Bahn, deren Züge bei jeder Ankunft einen Ton spielen.</p>
-    ${auto ? `<div class="card continue"><div class="cc-line"></div><div class="cc-row"><div class="grow"><div class="eyebrow">Weiterspielen</div><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue" data-tip="Fortsetzen" data-tip-desc="Dort weiterspielen, wo du aufgehört hast.">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}" data-tip="Laden" data-tip-desc="Spielstand aus Platz ${k} laden.">Laden</button></div>`).join('')}</div>` : ''}</div>` : ''}
-    ${modes ? `<div class="mtabs" role="tablist"><button role="tab" class="${tab === 'free' ? 'on' : ''}" data-act="mtab" data-v="free" data-tip="Freies Spiel" data-tip-desc="Eine eigene Stadt gründen – ohne Zeitdruck.">${icon('city', 16, 2.1)}<span>Freies Spiel</span></button><button role="tab" class="${tab === 'modes' ? 'on' : ''}" data-act="mtab" data-v="modes" data-tip="Herausforderungen" data-tip-desc="Szenarien mit Zielen, Metro-Modus und Ehrentafel.">${icon('trophy', 16, 2.1)}<span>Herausforderungen</span></button></div>` : ''}
+    ${auto ? `<div class="card continue"><div class="cc-line"></div><div class="cc-row"><div class="grow"><div class="eyebrow">Weiterspielen</div><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue" data-tip="Fortsetzen">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}" data-tip="Platz ${k} laden">Laden</button></div>`).join('')}</div>` : ''}</div>` : ''}
+    ${modes ? `<div class="mtabs" role="tablist"><button role="tab" class="${tab === 'free' ? 'on' : ''}" data-act="mtab" data-v="free" data-tip="Freies Spiel">${icon('city', 16, 2.1)}<span>Freies Spiel</span></button><button role="tab" class="${tab === 'modes' ? 'on' : ''}" data-act="mtab" data-v="modes" data-tip="Herausforderungen" data-tip-desc="Szenarien und Metro-Modus.">${icon('trophy', 16, 2.1)}<span>Herausforderungen</span></button></div>` : ''}
     ${tab === 'free' ? `<div class="card newcity${this.formOpen ? '' : ' closed'}">
       <button class="nc-head" data-act="toggleform" aria-expanded="${this.formOpen}"><h3>Neue Stadt gründen</h3>${auto ? `<span class="nc-chev">${icon(this.formOpen ? 'chevronU' : 'chevronD', 18, 2.4)}</span>` : ''}</button>
-      ${this.formOpen ? '' : `<p class="nc-sub">Name, Landschaft und Schwierigkeit wählen.</p>`}
+
       <div class="nc-form">
-      <div class="field"><label for="m-name">Name der Stadt</label><div class="inline"><input type="text" id="m-name" maxlength="28" value="${esc(o.name)}"><button class="btn ghost" data-act="rname" style="flex:none" data-tip="Würfeln" data-tip-desc="Einen zufälligen Stadtnamen vorschlagen.">Würfeln</button></div></div>
-      <div class="field"><label>Landschaft</label><div class="maps">${MAP_TYPES.map((m) => `<button data-act="map" data-v="${m.id}" class="mapbtn${m.id === o.mapType ? ' on' : ''}" data-tip="${esc(m.name)}" data-tip-desc="${esc(m.desc)}"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">${MAP_ART[m.id] || ''}</svg><span>${esc(m.name)}</span></button>`).join('')}</div><div class="seg-hint">${esc(mt.desc)}</div></div>
-      <div class="field"><label>Schwierigkeit</label><div class="seg">${DIFFICULTIES.map((d) => `<button data-act="diff" data-v="${d.id}" class="${d.id === o.difficulty ? 'on' : ''}" data-tip="${esc(d.name)}" data-tip-desc="${esc(d.desc)}">${d.name}</button>`).join('')}</div><div class="seg-hint">${esc(df.desc)}</div></div>
-      <button class="nc-more" data-act="moreopts" aria-expanded="${more}">${icon(more ? 'chevronU' : 'chevronD', 15, 2.4)}<span>${more ? 'Weniger Optionen' : 'Mehr Optionen: Größe, Startwert, Katastrophen'}</span></button>
+      <div class="field"><label for="m-name">Name der Stadt</label><div class="inline"><input type="text" id="m-name" maxlength="28" value="${esc(o.name)}"><button class="btn ghost" data-act="rname" style="flex:none" data-tip="Zufälliger Name">Würfeln</button></div></div>
+      <div class="field"><label>Landschaft</label><div class="maps">${MAP_TYPES.map((m) => `<button data-act="map" data-v="${m.id}" class="mapbtn${m.id === o.mapType ? ' on' : ''}" data-tip="${esc(m.name)}"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">${MAP_ART[m.id] || ''}</svg><span>${esc(m.name)}</span></button>`).join('')}</div><div class="seg-hint">${esc(mt.desc)}</div></div>
+      <div class="field"><label>Schwierigkeit</label><div class="seg">${DIFFICULTIES.map((d) => `<button data-act="diff" data-v="${d.id}" class="${d.id === o.difficulty ? 'on' : ''}" data-tip="${esc(d.name)}">${d.name}</button>`).join('')}</div><div class="seg-hint">${esc(df.desc)}</div></div>
+      <button class="nc-more" data-act="moreopts" aria-expanded="${more}">${icon(more ? 'chevronU' : 'chevronD', 15, 2.4)}<span>${more ? 'Weniger' : 'Mehr Optionen'}</span></button>
       <div class="nc-adv${more ? '' : ' closed'}">
         <div class="inline">
           <div class="field"><label for="m-size">Größe</label><select id="m-size">${MAP_SIZES.map((s) => `<option value="${s.id}" ${s.id === o.size ? 'selected' : ''}>${s.name}</option>`).join('')}</select></div>
-          <div class="field"><label for="m-seed">Startwert</label><div class="inline"><input type="number" id="m-seed" value="${o.seed}" min="0" max="999999"><button class="btn ghost" data-act="rseed" style="flex:none" data-tip="Neue Karte" data-tip-desc="Eine andere Landschaft würfeln." aria-label="Neue Karte">↻</button></div></div>
+          <div class="field"><label for="m-seed">Startwert</label><div class="inline"><input type="number" id="m-seed" value="${o.seed}" min="0" max="999999"><button class="btn ghost" data-act="rseed" style="flex:none" data-tip="Neue Karte" aria-label="Neue Karte">↻</button></div></div>
         </div>
         ${formExtra}
       </div>
-      <div class="acts"><button class="btn big go" data-act="start" data-tip="Stadt gründen" data-tip-desc="Los geht's – die Einführung zeigt die ersten Schritte.">Stadt gründen ${icon('arrowR', 16, 2.4)}</button><button class="btn big ghost" data-act="preview" data-tip="${this.previewing ? 'Beispielstadt' : 'Karte ansehen'}" data-tip-desc="${this.previewing ? 'Zurück zur Beispielstadt im Hintergrund.' : 'Die gewählte Landschaft im Hintergrund zeigen.'}">${icon('map', 16)} ${this.previewing ? 'Beispielstadt' : 'Karte ansehen'}</button></div>
+      <div class="acts"><button class="btn big go" data-act="start" data-tip="Stadt gründen">Stadt gründen ${icon('arrowR', 16, 2.4)}</button><button class="btn big ghost" data-act="preview" data-tip="${this.previewing ? 'Beispielstadt' : 'Karte ansehen'}" >${icon('map', 16)} ${this.previewing ? 'Beispielstadt' : 'Karte ansehen'}</button></div>
       </div>
     </div>` : `<div class="modes">${modes}</div>`}
     <div class="menu-foot">
-      <button class="btn ghost dark" data-act="settings" data-tip="Einstellungen" data-tip-desc="Grafik, Klang und Bedienung.">${icon('settings', 16)} Einstellungen</button>
-      <button class="btn ghost dark" data-act="keys" data-tip="Tastenkürzel" data-tip-desc="Alle Tasten auf einen Blick.">${icon('keyboard', 16)} Tasten</button>
-      ${window.STADTPULS_EMBED ? '' : `<label class="btn ghost dark file" data-tip="Spielstand aus Datei" data-tip-desc="Eine gesicherte Stadt (.json) öffnen.">${icon('download', 16)} Aus Datei<input type="file" id="m-file" accept=".json,application/json"></label>`}
+      <button class="btn ghost dark" data-act="settings" data-tip="Einstellungen">${icon('settings', 16)} Einstellungen</button>
+      <button class="btn ghost dark" data-act="keys" data-tip="Tastenkürzel">${icon('keyboard', 16)} Tasten</button>
+      ${window.STADTPULS_EMBED ? '' : `<label class="btn ghost dark file" data-tip="Spielstand aus Datei (.json)">${icon('download', 16)} Aus Datei<input type="file" id="m-file" accept=".json,application/json"></label>`}
     </div>
-    <div class="foot">Rechte Maus verschiebt · Mausrad zoomt · Q/E dreht · Tageslänge unter Einstellungen → Bedienung</div>
+    <div class="foot">Rechte Maus verschiebt · Rad zoomt · Q/E dreht</div>
   </div>
   <div class="stage-note">${this.previewing ? `<span class="pv-tag">${icon('map', 14)} Vorschau · ${esc(mt.name)} · ${esc((MAP_SIZES.find((s) => s.id === o.size) || {}).name || '')} · Startwert ${o.seed}</span>` : ''}</div>
 </div>`;
@@ -122,7 +122,7 @@ export class Menu {
     if (this.app.audio) this.app.audio.play('click');
     if (act === 'start') {
       o.name = (o.name || '').trim() || 'Neustadt';
-      this.launch(`${o.name} wird gegründet`, 'Landschaft formen, Straßen und Häuser vorbereiten …', () => this.app.newGame({ ...o }));
+      this.launch(`${o.name} wird gegründet`, 'Landschaft entsteht …', () => this.app.newGame({ ...o }));
       return;
     }
     if (act === 'continue') { this.launch('Weiterspielen', 'Spielstand wird geladen …', () => this.app.loadSlot('auto')); return; }

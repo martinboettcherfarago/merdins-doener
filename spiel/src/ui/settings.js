@@ -16,17 +16,17 @@ export const PRESETS = {
   ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' },
 };
 export const QUALITY = [
-  ['low', 'Niedrig', 'Ohne Schatten und Nachbearbeitung – für ältere Geräte und lange Akkulaufzeit.'],
-  ['medium', 'Mittel', 'Weiche Schatten, Umgebungsverdeckung und Leuchten bei Nacht. Gut für die meisten Geräte.'],
-  ['high', 'Hoch', 'Feine Schatten und volle Auflösung – für starke Grafikkarten.'],
-  ['ultra', 'Ultra', 'Alles auf Maximum, stärkste Kantenglättung – für sehr starke Grafikkarten.'],
+  ['low', 'Niedrig', 'Für ältere Geräte, schont den Akku.'],
+  ['medium', 'Mittel', 'Für die meisten Geräte.'],
+  ['high', 'Hoch', 'Für starke Grafikkarten.'],
+  ['ultra', 'Ultra', 'Alles auf Maximum.'],
 ];
 export const GFX_KEYS = ['quality', 'postfx', 'ao', 'bloom', 'shadows'];
 const UI_SCALES = [[0.9, '90 %'], [1, '100 %'], [1.1, '110 %'], [1.25, '125 %']];
 export const CONFIRM_PLACE = [
-  ['auto', 'Bei Touch', 'Mit Finger oder Stift erscheint erst eine Vorschau, gebaut wird mit ✓. Mit der Maus baut ein Klick sofort.'],
-  ['always', 'Immer', 'Jeder Bau – auch mit der Maus – zeigt erst eine Vorschau und wartet auf ✓.'],
-  ['never', 'Nie', 'Antippen bzw. Klicken baut sofort, ohne Vorschau.'],
+  ['auto', 'Bei Touch', 'Touch: Vorschau, dann ✓ · Maus: sofort.'],
+  ['always', 'Immer', 'Immer erst Vorschau, dann ✓.'],
+  ['never', 'Nie', 'Baut sofort.'],
 ];
 
 // Tageslänge: [id, Name, Spielminuten je Sekunde, Dauer eines Spieltags bei ×1]
@@ -94,28 +94,28 @@ export function settingsHTML(ctx) {
 <div class="sec"><h3>Qualitätsstufe</h3>${seg('quality', s.quality, QUALITY.map((x) => [x[0], x[1]]))}<p class="hint">${esc(q[2])}</p></div>
 ${caps.shadows ? `<div class="sec"><h3>Schatten</h3>${seg('shadows', s.shadows, [['off', 'Aus'], ['low', 'Weich'], ['high', 'Fein']])}</div>` : ''}
 ${caps.postfx || caps.ao || caps.bloom ? `<div class="sec"><h3>Effekte</h3>
-  ${caps.postfx ? sw('postfx', s.postfx && !noPost, 'Nachbearbeitung', noPost ? 'Dieser Browser unterstützt keine Nachbearbeitung (WebGL 2 fehlt).' : 'Farbkorrektur, Kantenglättung und Licht-Effekte.', noPost) : ''}
-  ${caps.ao ? sw('ao', s.ao && s.postfx && !noPost, 'Umgebungsverdeckung', 'Weiche Schatten in Ecken und Fugen – kostet Leistung.', !s.postfx || noPost) : ''}
-  ${caps.bloom ? sw('bloom', s.bloom && s.postfx && !noPost, 'Leuchten (Bloom)', 'Fenster, Laternen und Neon strahlen bei Nacht.', !s.postfx || noPost) : ''}
+  ${caps.postfx ? sw('postfx', s.postfx && !noPost, 'Nachbearbeitung', noPost ? 'Nicht möglich (WebGL 2 fehlt).' : '', noPost) : ''}
+  ${caps.ao ? sw('ao', s.ao && s.postfx && !noPost, 'Umgebungsverdeckung', '', !s.postfx || noPost) : ''}
+  ${caps.bloom ? sw('bloom', s.bloom && s.postfx && !noPost, 'Leuchten bei Nacht', '', !s.postfx || noPost) : ''}
 </div>` : ''}
 <div class="sec"><h3>Darstellung</h3>
-  ${sw('alwaysDay', s.alwaysDay, 'Immer Tag', 'Schaltet den Tag-Nacht-Wechsel ab.')}
-  ${ctx.inGame ? sw('icons', ctx.app.engine && ctx.app.engine.effects ? ctx.app.engine.effects.showIcons : true, 'Problem-Symbole', 'Blitz, Tropfen, Müll und Co. über Gebäuden (Taste I). Eine gestapelte Nadel bündelt mehrere Probleme in der Nähe – näher heranzoomen.') : ''}
+  ${sw('alwaysDay', s.alwaysDay, 'Immer Tag', '')}
+  ${ctx.inGame ? sw('icons', ctx.app.engine && ctx.app.engine.effects ? ctx.app.engine.effects.showIcons : true, 'Problem-Symbole (I)', '') : ''}
 </div>
-${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort.</span></div>` : `<div class="apply${pending ? ' pending' : ''}">${pending ? `${icon('info', 16)}<span>Geänderte Grafikwerte gelten nach einem Neustart der Ansicht.</span>` : `${icon('check', 16)}<span>Die Ansicht entspricht diesen Einstellungen.</span>`}<button class="btn small" data-act="applygfx" ${pending ? '' : 'disabled'}>${ctx.inGame ? 'Ansicht neu starten' : 'Übernehmen'}</button></div>`}`;
+${live ? `<div class="apply">${icon('check', 16)}<span>Gilt sofort.</span></div>` : `<div class="apply${pending ? ' pending' : ''}">${pending ? `${icon('info', 16)}<span>Gilt nach Neustart der Ansicht.</span>` : `${icon('check', 16)}<span>Aktuell.</span>`}<button class="btn small" data-act="applygfx" ${pending ? '' : 'disabled'}>${ctx.inGame ? 'Ansicht neu starten' : 'Übernehmen'}</button></div>`}`;
   } else if (tab === 'klang') {
     body = `<div class="sec"><h3>Lautstärke</h3>${slider('volume', 'Gesamt', s.volume)}${slider('music', 'Musik', s.music)}${slider('sfx', 'Effekte', s.sfx)}${slider('ambience', 'Umgebung', s.ambience ?? 1)}</div>
-<div class="sec">${sw('mute', !s.muted, 'Ton an', 'Taste M schaltet stumm.')}</div>`;
+<div class="sec">${sw('mute', !s.muted, 'Ton an (M)', '')}</div>`;
   } else if (tab === 'bedienung') {
     const cp = CONFIRM_PLACE.find((x) => x[0] === s.confirmPlace) || CONFIRM_PLACE[0];
     body = `<div class="sec"><h3>Größe der Oberfläche</h3>${seg('uiScale', s.uiScale, UI_SCALES)}</div>
-<div class="sec"><h3>Tageslänge</h3>${seg('dayLength', s.dayLength, DAY_LENGTHS.map((x) => [x[0], x[1]]))}<p class="hint">Ein Spieltag dauert bei ×1 ${esc(dayLengthText(s))}. Autos und Bahnen fahren immer gleich schnell – es ändert sich nur, wie rasch Uhr, Wachstum und Einnahmen voranschreiten.${ctx.app.game && ctx.app.game.opts && ctx.app.game.opts.scenario === 'metro' ? ' Im Metro-Modus gilt immer die normale Tageslänge.' : ''}</p></div>
+<div class="sec"><h3>Tageslänge</h3>${seg('dayLength', s.dayLength, DAY_LENGTHS.map((x) => [x[0], x[1]]))}<p class="hint">1 Tag = ${esc(dayLengthText(s))}${ctx.app.game && ctx.app.game.opts && ctx.app.game.opts.scenario === 'metro' ? ' (Metro-Modus: immer normal)' : ''}</p></div>
 <div class="sec" data-tour="confirmplace"><h3>Bauen bestätigen</h3>${seg('confirmPlace', s.confirmPlace, CONFIRM_PLACE.map((x) => [x[0], x[1]]))}<p class="hint">${esc(cp[2])}</p></div>
 <div class="sec"><h3>Hilfen</h3>
-  ${sw('minimap', s.minimapOpen, 'Minikarte', 'Übersichtskarte unten links (Taste K).')}
-  ${sw('advisor', s.advisor, 'Begleiter (Nächstes Ziel)', 'Zeigt immer das eine nächste Ziel – mit Knopf zum passenden Werkzeug.')}
-  ${sw('tooltips', s.tooltips, 'Tooltips', 'Erklärungen beim Überfahren von Knöpfen.')}
-  ${sw('tutorial', !s.tutorialDone, 'Einführung', 'Die geführte Einführung für neue Städte.')}
+  ${sw('minimap', s.minimapOpen, 'Minikarte (K)', '')}
+  ${sw('advisor', s.advisor, 'Nächstes Ziel', '')}
+  ${sw('tooltips', s.tooltips, 'Tooltips', '')}
+  ${sw('tutorial', !s.tutorialDone, 'Einführung', '')}
 </div>`;
   } else if (tab === 'spiel') {
     const slots = [1, 2, 3].map((k) => {
@@ -123,21 +123,18 @@ ${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort
       return `<div class="slot"><div class="grow"><div class="t">Platz ${k}${meta ? ': ' + esc(meta.name) : ''}</div><div class="s">${meta ? `${fmt(meta.pop)} Einwohner · ${new Date(meta.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}` : 'leer'}</div></div><button class="btn small" data-act="save" data-k="${k}">Speichern</button>${meta ? `<button class="btn small ghost" data-act="load" data-k="${k}">Laden</button>` : ''}</div>`;
     }).join('');
     body = `<div class="sec"><h3>Spielstände</h3>${slots}
-  <div class="acts">${window.STADTPULS_EMBED ? '' : '<button class="btn small ghost" data-act="export">Als Datei exportieren</button>'}<button class="btn small ghost" data-act="copy">In Zwischenablage</button></div>
-  <p class="hint">Automatisch gespeichert wird jeden Spieltag. Schnellspeichern mit Strg+S.</p></div>
+  <div class="acts">${window.STADTPULS_EMBED ? '' : '<button class="btn small ghost" data-act="export">Als Datei</button>'}<button class="btn small ghost" data-act="copy">In Zwischenablage</button></div>
+  <p class="hint">Auto-Speichern jeden Tag · Strg+S</p></div>
 ${ctx.extraPanels && ctx.extraPanels.length ? `<div class="sec"><h3>Weitere Einstellungen</h3><div class="acts">${ctx.extraPanels.map(([id, n]) => `<button class="btn small ghost" data-act="openpanel" data-v="${esc(id)}">${esc(n)}</button>`).join('')}</div></div>` : ''}
 <div class="sec"><button class="btn ghost" data-act="tomenu">${icon('menu', 16)} Zum Hauptmenü</button></div>`;
   } else {
-    body = `<div class="sec help"><h3>So wächst deine Stadt</h3><ul>
-  <li>Zonen brauchen eine Straße höchstens zwei Felder entfernt, die mit der Autobahn verbunden ist.</li>
-  <li>Strom und Wasser fließen durch das Straßennetz. Ein getrenntes Straßennetz braucht eigene Kraftwerke.</li>
-  <li>Gebäude steigen auf, wenn Bodenwert, Bildung und Glück stimmen. Höhere Stufen werden mit Meilensteinen frei.</li>
-  <li>Die Nachfrage-Balken (W G I B) zeigen, was die Stadt gerade braucht.</li>
-  <li>Jeden Montag wählst du eine von drei Wochenkarten. Gelegentlich musst du über Ereignisse entscheiden.</li>
-  <li>Symbole über Gebäuden zeigen Probleme (fehlender Strom, Wasser, Müll …). Eine gestapelte Nadel heißt: mehrere Probleme in diesem Viertel – näher heranzoomen.</li>
-  <li>Der Stadt-Check oben rechts zeigt, wo es gerade hakt – mit einem Klick zur Lösung. Dort fragst du auch die Ratgeberin.</li>
-  <li>Die U-Bahn fährt im Tunnel. Beim Linienzeichnen und im U-Bahn-Fenster siehst du den Untergrund, sonst über „Ansichten" → „Untergrund".</li></ul></div>
-<div class="sec"><button class="btn ghost" data-act="keys">${icon('keyboard', 16)} Alle Tastenkürzel</button></div>`;
+    body = `<div class="sec help"><h3>Kurz gesagt</h3><ul>
+  <li>Zonen brauchen eine Straße mit Autobahn-Anschluss.</li>
+  <li>Strom und Wasser fließen über Straßen.</li>
+  <li>Häuser wachsen mit Bodenwert, Bildung und Glück.</li>
+  <li>Symbole über Häusern zeigen Probleme.</li>
+  <li>Stadt-Check oben rechts: was gerade hakt.</li></ul></div>
+<div class="sec"><button class="btn ghost" data-act="keys">${icon('keyboard', 16)} Tastenkürzel</button></div>`;
   }
   return `<div class="tabs">${tabs.map(([id, n, ic]) => `<button data-act="settab" data-v="${id}" class="${id === tab ? 'on' : ''}">${icon(ic, 15)}<span>${n}</span></button>`).join('')}</div><div class="tabbody">${body}</div>`;
 }
