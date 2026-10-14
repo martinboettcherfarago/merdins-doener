@@ -2286,11 +2286,12 @@ export class BuildingView {
     // Takt alle 0,3 s – sofort, wenn die Kamera seit dem letzten Takt weit gesprungen ist
     this.lodT -= dt;
     // (große Städte: Durchlauf über einige Bilder verteilt, bei einem Kamerasprung sofort komplett)
-    const jumped = this._lastCam.distanceToSquared(cam) > 9;
+    const moved2 = this._lastCam.distanceToSquared(cam), jumped = moved2 > 9;
+    const teleport = moved2 > (20 + rigDist * 0.5) ** 2; // echter Sprung (Fokus auf einen Ort): sofort komplett
     if (!this._scan && (this.lodT <= 0 || jumped)) { this.lodT = LOD_TICK; this._lastCam.copy(cam); this._lodScanStart(); }
     if (this._scan) {
       const tk = performance.now();
-      if (this._lodScan(jumped || gap > 300 ? Infinity : Math.max(400, Math.ceil(this._scan.list.length / 4)))) this._lodDecide();
+      if (this._lodScan(teleport || gap > 300 ? Infinity : Math.max(400, Math.ceil(this._scan.list.length / 4)))) this._lodDecide();
       const tm = performance.now() - tk; if (tm > this.ev.maxTickMs) this.ev.maxTickMs = tm;
     }
     // Übergänge zeitlich verteilen (nächste zuerst): ~8 je Bild bei 60 Bildern/s

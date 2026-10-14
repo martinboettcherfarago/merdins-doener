@@ -31,7 +31,7 @@ import { UndergroundView } from './underground.js';
 import { EffectsView } from './effects.js';
 import { VIEWS } from '../registry.js';
 import { detectDevice, AutoGovernor } from './autoquality.js';
-import { g9Materials } from './protos.js';
+import { g9Materials, g9DepthMaterial } from './protos.js';
 
 // lod: Faktor der Detailabstände der Gebäude (buildings.js)
 export const QUALITY = {
@@ -648,6 +648,13 @@ export class Engine {
       if (fm) for (const m of Object.values(fm)) { add(m, true); add(m, true, true); }
       const veg = this.terrain && this.terrain.veg;
       if (veg && veg.lodMats) { for (const set of veg.lodMats) for (const m of Object.values(set)) add(m, true, true); if (veg.grassMat) add(veg.grassMat, true, true); }
+      // Schattenprogramme (Tiefenmaterialien): Gebäude mit/ohne drehende Teile, Pflanzen, Straßen-Kleinteile
+      if (this.renderer.shadowMap.enabled && !this._pcDepth) {
+        this._pcDepth = true;
+        for (const anim of [false, true]) { add(g9DepthMaterial(anim), true); add(g9DepthMaterial(anim), false); }
+        if (veg && veg.depthMats) for (const m of Object.values(veg.depthMats)) add(m, true, true);
+        if (this.roads && this.roads.fadeDepth) add(this.roads.fadeDepth, true);
+      }
       const r = this.renderer, before = r.info.programs.length;
       // Wie beim echten Zeichnen ins HDR-Ziel der Nachbearbeitung übersetzen (Tonwert und Farbraum gehören zum
       // Programm – sonst entstünden Varianten für den Bildschirm, und beim ersten Bild würde trotzdem übersetzt)
