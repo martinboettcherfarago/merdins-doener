@@ -129,30 +129,30 @@ function hints(g, S) {
   const info = (text) => out.push(['info', text]);
   const good = (text) => out.push(['good', text]);
   if (t.shortCom > 0.08) bad(`Den Läden fehlen ${P(t.shortCom)} der Waren – mehr Industrie oder eine Lagerhalle.`);
-  else if (t.importCom > 0.3) info(`${P(t.importCom)} der Ware in den Läden ist teure Importware. Eigene Fabriken${g.isUnlocked('food_factory') ? ' und eine Lebensmittelfabrik' : ''} machen das Gewerbe glücklicher.`);
+  else if (t.importCom > 0.3) info(`${P(t.importCom)} der Ladenware ist teurer Import – eigene Fabriken helfen.`);
   const wanted = [];
   for (const k of GOOD_KEYS) {
     const f = S.flow[k];
-    if (f.prod > 5 && f.unsold > f.prod * 0.08) bad(`${GOODS[k].name}: ${T(f.unsold)} am Tag finden keinen Abnehmer. Exportpreis senken (jetzt ${P(S.prices[k])}), eine Lagerhalle bauen oder ${f.exp + f.unsold > marketDemand(g, k) ? 'neue Märkte über Bahn oder Hafen erschließen' : 'mehr Frachtkapazität schaffen'}.`);
+    if (f.prod > 5 && f.unsold > f.prod * 0.08) bad(`${GOODS[k].name}: ${T(f.unsold)} am Tag unverkauft – Preis senken (${P(S.prices[k])}), Lager oder ${f.exp + f.unsold > marketDemand(g, k) ? 'Bahn/Hafen' : 'mehr Fracht'}.`);
     else if (f.exp > 10 && f.unsold < 1 && S.prices[k] < 1.5 && marketDemand(g, k) > f.exp * 1.6) wanted.push(GOODS[k].name);
   }
-  if (wanted.length) good(`Der Weltmarkt reißt sich um ${wanted.length > 1 ? wanted.slice(0, -1).join(', ') + ' und ' + wanted[wanted.length - 1] : wanted[0]}. Ein höherer Exportpreis (Reiter „Waren & Preise") bringt mehr Geld pro Tonne.`);
-  if (t.freightUse > 0.9 && t.freightCap > 0) bad(`Die Fracht ist zu ${P(t.freightUse)} ausgelastet.${g.hasBuilt('cargo_rail') ? '' : g.isUnlocked('cargo_rail') ? ' Ein Güterbahnhof bringt 900 t am Tag.' : ''}${!g.hasBuilt('cargo_harbor') && g.isUnlocked('cargo_harbor') ? ' Ein Frachthafen am Wasser bringt 2.000 t.' : ''}`);
+  if (wanted.length) good(`Gefragt: ${wanted.length > 1 ? wanted.slice(0, -1).join(', ') + ' und ' + wanted[wanted.length - 1] : wanted[0]} – Exportpreis erhöhen.`);
+  if (t.freightUse > 0.9 && t.freightCap > 0) bad(`Fracht zu ${P(t.freightUse)} ausgelastet.${g.hasBuilt('cargo_rail') ? '' : g.isUnlocked('cargo_rail') ? ' Güterbahnhof: +900 t/Tag.' : ''}${!g.hasBuilt('cargo_harbor') && g.isUnlocked('cargo_harbor') ? ' Frachthafen: +2.000 t/Tag.' : ''}`);
   for (const b of g.buildings.values()) {
     if (b.zone || !BUILDINGS[b.key]?.output || b.construct < 1) continue;
     const r = S.rec.get(b.id);
     if (!r) continue;
     const d = BUILDINGS[b.key];
-    if (r.cap > 0 && r.util < 0.3) bad(`${d.name} steht fast still: kaum ${GOODS[d.input].name}. ${SPEC_HOWTO[d.process]} – dort entstehen ${SPEC_PLURAL[d.process]}${S.buyRaw ? '' : ' –, oder den Zukauf erlauben'}.`);
-    else if (r.profit < -10) info(`${d.name} arbeitet mit Verlust (${money(r.profit)}/Tag)${r.impShare > 0.3 ? `: ${P(r.impShare)} der Rohstoffe werden teuer zugekauft. Eigene ${SPEC_PLURAL[d.process]} machen es rentabel` : ''}.`);
+    if (r.cap > 0 && r.util < 0.3) bad(`${d.name} steht fast still: kaum ${GOODS[d.input].name}. ${SPEC_HOWTO[d.process]}${S.buyRaw ? '' : ' oder Zukauf erlauben'}.`);
+    else if (r.profit < -10) info(`${d.name}: Verlust ${money(r.profit)}/Tag${r.impShare > 0.3 ? ` – ${P(r.impShare)} Rohstoffe zugekauft` : ''}.`);
   }
   const rawProd = RAW_KEYS.reduce((a, k) => a + S.flow[k].prod, 0);
   for (const k of RAW_KEYS) {
     const key = PROC_KEYS.find((p) => BUILDINGS[p].input === k);
     if (S.flow[k].prod > 60 && !g.hasBuilt(key) && g.isUnlocked(key)) { info(`${T(S.flow[k].prod)} ${GOODS[k].name} am Tag → ${BUILDINGS[key].name} macht ${GOODS[BUILDINGS[key].output].name} daraus.`); break; }
   }
-  if (S.cycle.value < -0.35 && t.stockCap > 0) info('Rezession: Lagerhallen auf „Füllen" stellen und die Ware im nächsten Aufschwung teurer verkaufen.');
-  if (S.cycle.value > 0.45 && t.stock > 50) good('Boom! Ein guter Moment, um Lagerhallen auf „Leeren" zu stellen.');
+  if (S.cycle.value < -0.35 && t.stockCap > 0) info('Rezession: Lager auf „Füllen" stellen.');
+  if (S.cycle.value > 0.45 && t.stock > 50) good('Boom! Lager auf „Leeren" stellen.');
   if (!g.hasBuilt('warehouse') && g.isUnlocked('warehouse') && g.stats.pop > 600 && (rawProd > 50 || t.shortCom > 0.03)) info('Eine Lagerhalle puffert Schwankungen.');
   if (!out.length) good('Alles im Lot.');
   const rank = { bad: 0, info: 1, good: 2 };
