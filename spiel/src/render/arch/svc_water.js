@@ -275,7 +275,8 @@ registerArch('landfill', {
     P.heap(k, 'grass', -3 * M, -4.4 * M, 9.5 * M, 6 * M, 4.9 * M, { y0: 0.01 * M, ridgeK: 0.6 });
     P.heap(k, 'dirt', 4.4 * M, -1 * M, 9 * M, 9.6 * M, 3.4 * M, { ridgeK: 0.7 });
     if (P.D1(k)) {
-      const cols = ['paint_blue', 'paint_red', 'paint_yellow', 'canvas_white', 'canvas_white', 'rubber', 'metal_light', 'paint_green', 'wood_planks', 'rubber', 'paint_orange', 'plaster_pink'];
+      // Müll in gedämpften Tönen (wenige Farbtupfer), damit die Deponie von oben nicht bunt flimmert
+      const cols = ['canvas_white', 'canvas_white', 'rubber', 'metal_light', 'concrete', 'wood_planks', 'rubber', 'plaster_grey', 'metal_panel_blue', 'stone_grey'];
       const n = P.D2(k) ? 90 : 30;
       for (let i = 0; i < n; i++) {
         const t = k.rng(), u = k.rng() - 0.5;

@@ -24,6 +24,9 @@ export const OVERLAYS = [
 
 export const allOverlays = () => [...OVERLAYS, ...OVERLAYS_EXTRA];
 
+// Zonenflächen außerhalb des Zonen-Werkzeugs: Farbe zu einem hellen Bauplatz-Ton gemischt, wenig deckend
+const ZONE_SOFT = { base: new THREE.Color(0xd9d3c3), mix: 0.5, opacity: 0.2, grey: new THREE.Color(0x555555) };
+
 const GOOD = [new THREE.Color(0xe5483c), new THREE.Color(0xf2c230), new THREE.Color(0x45c46b)];
 function ramp(v, bad, out) {
   if (bad) v = 1 - v;
@@ -56,9 +59,10 @@ export class OverlayView {
     const uv = plane.geometry.attributes.uv;
     for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
 
-    // Zonenflächen
-    const zgeo = new THREE.PlaneGeometry(0.9, 0.9); zgeo.rotateX(-Math.PI / 2);
-    this.zoneMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32, depthWrite: false, toneMapped: false });
+    // Zonenflächen: im Normalbetrieb ruhige, zurückgenommene Fläche ohne Raster (Bauplatz wirkt aufgeräumt);
+    // mit dem Zonen-Werkzeug kräftige Farbe und Kachelraster zum Abzählen (setZoneStrong).
+    const zgeo = new THREE.PlaneGeometry(1, 1); zgeo.rotateX(-Math.PI / 2);
+    this.zoneMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: ZONE_SOFT.opacity, depthWrite: false, toneMapped: false });
     this.zones = new THREE.InstancedMesh(zgeo, this.zoneMat, g.N);
     this.zones.frustumCulled = false;
     this.zones.count = 0;
@@ -114,16 +118,18 @@ export class OverlayView {
 
   refreshZones() {
     const g = this.g, W = g.W;
+    const strong = this.zoneStrong, sc = strong ? 0.9 : 1;
     let n = 0;
     for (let i = 0; i < g.N; i++) {
       const z = g.zone[i];
       if (!z || g.bld[i]) continue;
       const x = i % W, y = (i / W) | 0;
-      this.m4.makeTranslation(x + 0.5 - W / 2, 0, y + 0.5 - g.H / 2);
+      this.m4.makeScale(sc, 1, sc).setPosition(x + 0.5 - W / 2, 0, y + 0.5 - g.H / 2);
       this.zones.setMatrixAt(n, this.m4);
       this.c.setHex(ZONE_INFO[z].color);
+      if (!strong) this.c.lerp(ZONE_SOFT.base, ZONE_SOFT.mix);
       const ok = g.access[i] >= 0 && g.roadComp[g.access[i]] === g.outsideComp;
-      if (!ok) this.c.lerp(new THREE.Color(0x555555), 0.55);
+      if (!ok) this.c.lerp(ZONE_SOFT.grey, 0.55);
       if (g.rubble[i]) this.c.setHex(0x444444);
       this.zones.setColorAt(n, this.c);
       n++;
@@ -141,8 +147,11 @@ export class OverlayView {
   }
 
   setZoneStrong(on) {
+    on = !!on;
+    this.zoneMat.opacity = on ? 0.55 : ZONE_SOFT.opacity;
+    if (this.zoneStrong === on) return;
     this.zoneStrong = on;
-    this.zoneMat.opacity = on ? 0.55 : 0.3;
+    this.refreshZones();
   }
 
   setMode(mode) {
