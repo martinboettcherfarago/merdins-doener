@@ -5,6 +5,7 @@
 // Einbindung: timetableHTML(ui, line) im render, timetableClick(ui, act, el) im click, timetableAfterRender(ui) im afterRender,
 // timetableBusy() hält das Fenster während des Ziehens fest.
 import { LINE_COLORS, cycPos, cycLen, cycToP } from '../sim/transit.js';
+import { hideTip } from './tips.js';
 
 const PAD = 16; // Rand links/rechts im Streifen (px), damit Marker an den Endstationen ganz sichtbar bleiben
 const Y_TRACK = 56; // Mitte des Gleises im Streifen (px)
@@ -194,6 +195,7 @@ function markerEl(strip, m, t) {
     el.dataset.tid = t.id;
     el.tabIndex = 0;
     el.setAttribute('role', 'slider');
+    el.dataset.tipPos = 'bottom'; // Hinweis unter dem Streifen: Stationsnamen bleiben lesbar
     el.innerHTML = '<i class="tt-f"></i><b></b>';
     strip.appendChild(el);
     m.set(t.id, el);
@@ -260,7 +262,8 @@ function sync(ui) {
     if (el._f !== f) { el._f = f; el.style.setProperty('--f', f + '%'); }
     const label = n > 1 ? `${n}×` : String(it.num);
     if (el._n !== label) { el._n = label; el.lastChild.textContent = label; }
-    // Beschriftung (Tooltip, Bildschirmleser) nur bei Änderung
+    // Beschriftung (Tooltip, Bildschirmleser) nur bei Änderung; beim Ziehen ohne Hinweis-Kästchen (verdeckt sonst die Namen)
+    if (dragging) { if (el.dataset.tip) { delete el.dataset.tip; el._d = null; } return; }
     let tip, desc;
     if (n > 1) {
       const nums = ms.map((q) => q.num).sort((a, b) => a - b);
@@ -324,6 +327,7 @@ function bind(ui, strip) {
       if (!st) return;
       D.strip = st;
       D.moved = true;
+      hideTip(); // kein Hinweis-Kästchen über den Stationsnamen, solange gezogen wird
       D.last = pointerP(st, line, ev.clientX, ev.clientY);
       // Taktplätze: nahe dran → genau dorthin (vor dem Einrasten an Stationen)
       D.slots = taktSlots(ui.g.transit, line, D.tid, D.last.dir);
