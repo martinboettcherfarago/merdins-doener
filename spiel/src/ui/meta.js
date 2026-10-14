@@ -167,9 +167,10 @@ export const PANEL_GROUPS = [
 // desc: ein Satz für Menü und Tooltip · when(g): erst zeigen, wenn es gebraucht wird (fortschreitende Enthüllung)
 const ms = (n) => (g) => g.sandbox || g.milestone >= n;
 export const PANEL_META = {
+  // Statistik-Zentrale zuerst: alle Zahlen nach Themen (im Stadt-Menü als eigene Kopfzeile, siehe ui.popStatsHero)
+  stats: { group: 'verwaltung', order: 1, color: '#5b2fb3', key: 'F3', desc: 'Alle Zahlen der Stadt nach Themen' },
   budget: { group: 'verwaltung', order: 10, color: '#c98a0c', key: 'F2', desc: 'Einnahmen, Ausgaben und Steuern' },
   economy: { group: 'verwaltung', order: 12, color: '#c98a0c', desc: 'Konjunktur, Handel und Firmen', when: ms(1) },
-  stats: { group: 'verwaltung', order: 14, color: '#2f8fe0', key: 'F3', desc: 'Verläufe und Kennzahlen der Stadt' },
   policies: { group: 'verwaltung', order: 16, color: '#5d6470', key: 'F4', desc: 'Regeln für die ganze Stadt', when: (g) => g.isUnlocked('policies') },
   citizens: { group: 'menschen', order: 20, color: '#4fae67', desc: 'Wer hier wohnt und was die Leute brauchen', when: (g) => g.sandbox || g.milestone >= 1 || g.stats.pop >= 150 },
   districts: { group: 'menschen', order: 22, color: '#8f5ad8', desc: 'Stadtteile mit eigenen Regeln', when: ms(2) },

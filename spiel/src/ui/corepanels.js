@@ -6,6 +6,7 @@ import { fmt, fmtMoney, fmtShort, clamp } from '../util.js';
 import { LINE_COLORS, LINE_COLOR_NAMES } from '../sim/transit.js';
 import { icon } from './icons.js';
 import { drawLineChart, svgSpark, barsHTML, meterHTML, svgDonut, chartIndexAt } from './charts.js';
+import { STATS_PANEL } from './statshub.js';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -49,58 +50,8 @@ const budget = {
   change(ui, el) { if (el.dataset.tax) ui.renderPanel(); },
 };
 
-const stats = {
-  id: 'stats', title: 'Statistik', icon: 'stats',
-  render(ui) {
-    const g = ui.g, s = g.stats, u = g.util;
-    const tabs = [['pop', 'Einwohner'], ['money', 'Kasse'], ['net', 'Saldo'], ['happy', 'Glück'], ['riders', 'Fahrgäste'], ['flow', 'Verkehrsfluss']];
-    const counts = s.countByZone;
-    const pw = u.powerSupply ? u.powerDemand / u.powerSupply : 0, wt = u.waterSupply ? u.waterDemand / u.waterSupply : 0;
-    const zoneParts = [1, 2, 3, 4].map((z) => ({ value: counts[z], color: hex(ZONE_INFO[z].color) }));
-    return `
-<div class="sec"><h3>Verlauf</h3>
-  <div class="chart-tabs">${tabs.map(([k, n]) => `<button data-act="chart" data-k="${k}" class="${ui.chartKey === k ? 'on' : ''}">${n}</button>`).join('')}</div>
-  <canvas class="chart" id="chart-main"></canvas>
-</div>
-<div class="sec"><h3>Versorgung</h3>
-  <div class="kv"><span>${icon('power', 14)} Strom ${fmt(u.powerDemand)} / ${fmt(u.powerSupply)} MW</span><span class="v ${pw > 1 ? 'neg' : ''}">${Math.round(pw * 100)} %</span></div>
-  ${meterHTML(u.powerDemand, u.powerSupply, pw > 1 ? 'var(--bad)' : pw > 0.9 ? 'var(--warn)' : 'var(--l-yellow)')}
-  <div class="kv" style="margin-top:8px"><span>${icon('water', 14)} Wasser ${fmt(u.waterDemand)} / ${fmt(u.waterSupply)} m³</span><span class="v ${wt > 1 ? 'neg' : ''}">${Math.round(wt * 100)} %</span></div>
-  ${meterHTML(u.waterDemand, u.waterSupply, wt > 1 ? 'var(--bad)' : wt > 0.9 ? 'var(--warn)' : 'var(--l-blue)')}
-</div>
-<div class="sec"><h3>Bevölkerung & Arbeit</h3>
-  <div class="tiles">
-    <div class="tile"><span class="k">Einwohner</span><span class="v num">${fmt(s.pop)}</span></div>
-    <div class="tile"><span class="k">Arbeitskräfte</span><span class="v num">${fmt(s.workers)}</span></div>
-    <div class="tile"><span class="k">Arbeitslos</span><span class="v num ${s.unemployment > 0.12 ? 'neg' : ''}">${Math.round(s.unemployment * 100)} %</span></div>
-    <div class="tile"><span class="k">Bildung Ø</span><span class="v num">${Math.round(s.edu * 100)} %</span></div>
-    <div class="tile"><span class="k">Touristen/Tag</span><span class="v num">${fmt(s.tourism)}</span></div>
-    <div class="tile"><span class="k">Jobs G/I/B</span><span class="v num sm">${fmt(s.jobsByZone[2])} · ${fmt(s.jobsByZone[3])} · ${fmt(s.jobsByZone[4])}</span></div>
-  </div>
-</div>
-<div class="sec"><h3>Gebäude</h3>
-  <div class="donutrow">${svgDonut(zoneParts, { size: 92, thickness: 13, label: fmt(counts[1] + counts[2] + counts[3] + counts[4]) })}
-  <div class="kv grow">
-    ${[1, 2, 3, 4].map((z) => `<span><span class="zdot" style="background:${hex(ZONE_INFO[z].color)}"></span> ${ZONE_INFO[z].name}</span><span class="v">${fmt(counts[z])}</span>`).join('')}
-    <span>Verlassen</span><span class="v ${s.abandoned ? 'neg' : ''}">${fmt(s.abandoned)}</span>
-    <span>Ohne Strom / Wasser</span><span class="v ${s.unpowered + s.unwatered ? 'neg' : ''}">${fmt(s.unpowered)} / ${fmt(s.unwatered)}</span>
-  </div></div>
-</div>
-<div class="sec"><h3>Aktive Effekte</h3>${g.effects.length ? g.effects.map((e) => `<div class="row"><span class="grow">${esc(e.label)}</span><span class="val">noch ${Math.max(1, Math.ceil((e.until - g.time) / 1440))} T.</span></div>`).join('') : '<p class="empty">Keine.</p>'}</div>`;
-  },
-  afterRender(ui) {
-    const c = document.getElementById('chart-main');
-    if (!c) return;
-    const h = ui.g.history, k = ui.chartKey;
-    const vals = h.map((e) => e[k] ?? 0);
-    const col = { pop: '#4fae67', money: '#c98a0c', net: '#2f8fe0', happy: '#f06fae', riders: '#e8543f', flow: '#5d6470' }[k];
-    const opts = { color: col, zero: k === 'net' || k === 'money', startLabel: h.length ? `Tag ${h[0].d}` : '', endLabel: h.length ? `Tag ${h[h.length - 1].d}` : '', fmt: (v) => (Math.abs(v) >= 10000 ? fmtShort(v) : Math.round(v).toLocaleString('de-DE')) + (k === 'happy' || k === 'flow' ? ' %' : ''), label: (i) => `Tag ${h[i].d}` };
-    drawLineChart(c, vals, opts);
-    c.onpointermove = (e) => { const r = c.getBoundingClientRect(); drawLineChart(c, vals, { ...opts, hover: chartIndexAt(c, e.clientX - r.left, vals.length) }); };
-    c.onpointerleave = () => drawLineChart(c, vals, opts);
-  },
-  click(ui, act, el) { if (act === 'chart') { ui.chartKey = el.dataset.k; ui.app.audio.play('tab'); } return true; },
-};
+// Statistik-Zentrale: eigene Datei (statshub.js), nach Themen geordnet
+const stats = STATS_PANEL;
 
 const policies = {
   id: 'policies', title: 'Verordnungen', icon: 'policies',
