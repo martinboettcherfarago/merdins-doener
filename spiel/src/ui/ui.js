@@ -20,6 +20,7 @@ import * as wxPanel from './panels/weather.js';
 import { icon, iconAny, logo, badge } from './icons.js';
 import { viewList, VIEW_GROUPS, dockPanels, PANEL_GROUPS, catMeta, catLabel, toolbarGroups, groupOfCat, panelAvailable } from './meta.js';
 import { CORE_PANELS } from './corepanels.js';
+import { openStats, statsAreas } from './statshub.js';
 import { inspectorHTML, inspectorClick } from './inspector.js';
 import { catalogItems, searchCatalog, cardHTML, detailHTML, isActive, bindThumbSwap, allCatalogItems, freshCats, tourKey } from './catalog.js';
 import { pumpThumbs, thumbsPending } from './thumbs.js';
@@ -51,6 +52,11 @@ function wxKind(w) {
   if (w.cloud < 0.75) return 'cloudy';
   return 'overcast';
 }
+// Baukatalog-Gruppe → Bereich der Statistik (Knopf im Katalogkopf)
+const TRAY_STATS = { versorgung: 'versorgung', dienste: 'dienste', verkehr: 'verkehr', freizeit: 'umwelt' };
+const TRAY_STATS_DESC = { versorgung: 'Strom, Wasser, Abwasser, Müll und Fernwärme: Bedarf, Kapazität und Anlagen.', dienste: 'Gesundheit, Bildung, Polizei, Feuerwehr und Friedhof: Abdeckung und Plätze.', verkehr: 'Verkehrsfluss, Staus, Bus, Straßenbahn und U-Bahn.', freizeit: 'Abgase, Lärm, Parks und Wetter.' };
+// Funktionstasten der Stadt-Fenster (wie in PANEL_META angezeigt)
+const PANEL_KEYS = { F2: 'budget', F3: 'stats', F4: 'policies' };
 const itemKey = (it) => `${it.kind}:${it.key || it.type || it.zone || it.panel || ''}`;
 const SEASON = { spring: 'Frühling', summer: 'Sommer', autumn: 'Herbst', winter: 'Winter' };
 const ZONE_ICON = { 1: 'house', 2: 'shop', 3: 'industry', 4: 'office' };
@@ -203,6 +209,7 @@ export class UI {
     </div>
     <div class="sysbtns" id="u-sys">
       <button class="hchip check ok" id="u-check" data-pop="check" data-tour="check" data-tip="Stadt-Check" data-tip-desc="Zeigt, was gerade Aufmerksamkeit braucht – mit einem Klick zur Lösung." data-key="H" data-tip-pos="bottom" aria-label="Stadt-Check"><span class="ck-i">${icon('pulse', 17, 2.6)}</span><span class="ck-l">Stadt-Check</span><span class="ck-n num" id="u-checkn"></span></button>
+      <button class="rbtn" data-sys="stats" data-tour="stats" data-tip="Statistik" data-tip-desc="Alle Zahlen der Stadt nach Themen: Strom, Wasser, Abwasser, Müll, Dienste, Menschen, Geld, Verkehr und Umwelt." data-key="F3" data-tip-pos="bottom" aria-label="Statistik">${icon('stats', 19, 2.4)}</button>
       <button class="rbtn" data-sys="notes" data-tour="notes" data-tip="Meldungen" data-tip-desc="Alles Wichtige der letzten Tage mit Ort und Zeit." data-key="N" data-tip-pos="bottom" aria-label="Meldungen">${icon('bell', 19, 2.4)}<span class="count" id="u-notecount" hidden></span></button>
       <button class="rbtn" data-sys="help" data-tour="help" data-tip="Hilfe" data-tip-desc="So funktioniert's: Straßen, Zonen, Versorgung, Glück, Geld und U-Bahn kurz erklärt." data-key="F1" data-tip-pos="bottom" aria-label="Hilfe">${icon('help', 19, 2.4)}</button>
     </div>
@@ -226,7 +233,7 @@ export class UI {
   <div class="sign dock" id="u-dock">
     <button class="dk-menu" data-pop="menu" data-tour="settings" id="u-menubtn" data-tip="Menü" data-tip-desc="Speichern und Laden, Optionen, Fotomodus und Hauptmenü." aria-label="Menü"><span class="stop">${icon('menu', 26, 2.8)}</span><span class="lbl">Menü</span></button>
     <div class="toolbar" id="u-toolbar" data-tour="toolbar"><div class="track" id="u-cats"></div></div>
-    <div class="cap"><span class="dk-sep"></span><button class="capbtn" id="u-viewsbtn" data-pop="views" data-tour="views" data-tip="Ansichten" data-tip-desc="Farbige Karten für Strom, Wasser, Glück, Verkehr und mehr – und der Blick in den U-Bahn-Untergrund." aria-label="Ansichten"><span class="stop">${icon('layers', 21, 2.3)}</span><span class="lbl" id="u-viewlbl">Ansichten</span></button><button class="capbtn" id="u-citybtn" data-pop="city" data-tour="city" data-tip="Stadt" data-tip-desc="Stadtverwaltung: Haushalt, Statistik, Verordnungen, U-Bahn-Linien und mehr." aria-label="Stadt"><span class="stop">${icon('city', 21, 2.3)}<span class="dot" id="u-citydot" hidden></span></span><span class="lbl">Stadt</span></button></div>
+    <div class="cap"><span class="dk-sep"></span><button class="capbtn" id="u-viewsbtn" data-pop="views" data-tour="views" data-tip="Ansichten" data-tip-desc="Farbige Karten für Strom, Wasser, Glück, Verkehr und mehr – und der Blick in den U-Bahn-Untergrund." aria-label="Ansichten"><span class="stop">${icon('layers', 21, 2.3)}</span><span class="lbl" id="u-viewlbl">Ansichten</span></button><button class="capbtn" id="u-citybtn" data-pop="city" data-tour="city" data-tip="Stadt" data-tip-desc="Stadtverwaltung: Statistik, Haushalt, Verordnungen, U-Bahn-Linien und mehr." aria-label="Stadt"><span class="stop">${icon('city', 21, 2.3)}<span class="dot" id="u-citydot" hidden></span></span><span class="lbl">Stadt</span></button></div>
   </div>
 </div>
 <div class="sign panel" id="u-panel" hidden></div>
@@ -672,7 +679,7 @@ export class UI {
     const sub = isSearch ? 'Alle Gebäude und Werkzeuge' : this.catDesc(cat);
     this.el.tray.classList.toggle('has-tabs', !!tabs);
     this.el.tray.innerHTML = `${tabs}<div class="sign tr-card"><div class="tr-head"><span class="tr-badge">${iconAny(cm.icon, 'layers', 18, 2.4)}</span><div class="tr-t"><span class="tr-name">${esc(title)}</span><span class="tr-sub">${esc(sub)}</span></div>
-<label class="tr-search" data-tip="Suchen" data-tip-desc="Alle Gebäude und Werkzeuge nach Namen durchsuchen." data-key="F" data-tip-fast="1">${icon('search', 15, 2.6)}<input id="u-search" type="search" placeholder="Suchen …" value="${esc(this.search)}" autocomplete="off" spellcheck="false" aria-label="Gebäude suchen"></label>
+${gr && TRAY_STATS[gr.id] ? `<button class="close tr-stats" data-act="traystats" data-v="${TRAY_STATS[gr.id]}" data-tip="Statistik: ${esc(gr.name)}" data-tip-desc="${esc(TRAY_STATS_DESC[gr.id])}" data-key="F3" data-tip-fast="1" aria-label="Statistik ${esc(gr.name)}">${icon('stats', 17, 2.5)}</button>` : ''}<label class="tr-search" data-tip="Suchen" data-tip-desc="Alle Gebäude und Werkzeuge nach Namen durchsuchen." data-key="F" data-tip-fast="1">${icon('search', 15, 2.6)}<input id="u-search" type="search" placeholder="Suchen …" value="${esc(this.search)}" autocomplete="off" spellcheck="false" aria-label="Gebäude suchen"></label>
 <button class="close" data-act="closetray" data-tip="Schließen" data-tip-desc="Baukatalog zuklappen." data-key="Esc" data-tip-fast="1" aria-label="Schließen">${icon('close', 18, 3.2)}</button></div>
 <div class="tr-body"><div class="strip list" id="u-strip" role="list"></div></div></div>`;
     this.renderTrayBody();
@@ -703,6 +710,8 @@ export class UI {
   }
   trayClick(e) {
     if (e.target.closest('[data-act=closetray]')) { this.app.audio.play('close'); this.closeTray(); return; }
+    const ts = e.target.closest('[data-act=traystats]');
+    if (ts) { this.app.audio.play('open'); if (this.mobile()) this.closeTray(); openStats(this, ts.dataset.v); return; }
     const tab = e.target.closest('[data-tab]');
     if (tab) { this.app.audio.play('tab'); this.moreKey = null; this.openTray(tab.dataset.tab); return; }
     const rowOf = (el) => { const b = el && el.closest('button.item'); return b && this.trayList ? this.trayList[+b.dataset.i] : null; };
@@ -942,9 +951,17 @@ export class UI {
 ${this.view !== 'none' ? `<button class="pop-foot" data-pa="view" data-v="none" data-tip="Normale Ansicht" data-tip-desc="Farbige Karte ausblenden." data-key="V">${icon('eye', 15)}<span>Normale Ansicht</span><kbd>V</kbd></button>` : ''}`;
   }
   popViews() { return `${this.popHead('Ansichten', 'Farbige Karten über der Stadt', 'layers')}<div class="pop-b">${this.popViewsBody()}</div>`; }
+  // Statistik-Zentrale als erste, deutliche Zeile – darunter ein Sprung in jeden Bereich samt Ampel
+  popStatsHero() {
+    let areas = [];
+    try { areas = statsAreas(this); } catch (e) { areas = []; }
+    const bad = areas.filter((a) => a.sev === 'bad' || a.sev === 'warn').length;
+    return `<button class="pop-row sz-hero${this.panel === 'stats' ? ' on' : ''}" data-pa="stats" data-v="" data-tour="city-stats" data-tip="Statistik" data-tip-desc="Alle Zahlen der Stadt an einem Ort, nach Themen geordnet." data-key="F3"><span class="pi">${icon('stats', 18, 2.3)}</span><span class="t"><b>Statistik</b><small>${bad ? `${bad === 1 ? 'Ein Bereich braucht' : `${bad} Bereiche brauchen`} Aufmerksamkeit` : 'Alle Zahlen der Stadt – alles im grünen Bereich'}</small></span><kbd>F3</kbd><span class="go">${icon('arrowR', 15, 2.4)}</span></button>
+<div class="sz-quick">${areas.map((a) => `<button data-pa="stats" data-v="${a.id}" style="--cc:${a.color}" data-tip="${esc(a.name)}" data-tip-desc="${esc(a.text)}" data-tip-fast="1"><i class="sz-lamp ${a.sev}"></i>${icon(a.icon, 14, 2.4)}<span>${esc(a.name)}</span></button>`).join('')}</div>`;
+  }
   popCityBody() {
-    const list = this.cityPanels();
-    const hidden = this.cityPanels(true).length - list.length;
+    const list = this.cityPanels().filter(({ p }) => p.id !== 'stats');
+    const hidden = this.cityPanels(true).filter(({ p }) => p.id !== 'stats').length - list.length;
     const groups = PANEL_GROUPS.map((gr) => ({ ...gr, items: list.filter(({ m }) => m.group === gr.id) })).filter((gr) => gr.items.length);
     const row = ({ p, m }) => {
       let v = null;
@@ -954,7 +971,7 @@ ${this.view !== 'none' ? `<button class="pop-foot" data-pa="view" data-v="none" 
       const title = p.id === 'transit' ? 'U-Bahn' : p.title;
       return `<button class="pop-row${this.panel === p.id ? ' on' : ''}" data-pa="panel" data-v="${esc(p.id)}" style="--pc:${m.color}" data-tip="${esc(title)}" data-tip-desc="${esc(m.desc || title)}" ${m.key ? `data-key="${m.key}"` : ''}><span class="pi">${iconAny(p.icon, 'layers', 17, 2.1)}</span><span class="t"><b>${esc(title)}</b>${m.desc ? `<small>${esc(m.desc)}</small>` : ''}</span>${v !== null && v !== undefined && v !== 0 && v !== '' ? `<span class="pb">${esc(v)}</span>` : ''}</button>`;
     };
-    return `<div class="pop-cols">${groups.map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4>${gr.items.map(row).join('')}</div>`).join('')}</div>${hidden > 0 ? `<p class="pop-note">${icon('lock', 13, 2.2)}<span>${hidden === 1 ? 'Ein weiterer Bereich kommt' : `${hidden} weitere Bereiche kommen`} dazu, wenn die Stadt wächst.</span><button class="pop-more" data-pa="allpanels" data-tip="Alle zeigen" data-tip-desc="Auch Bereiche zeigen, die erst später wichtig werden.">Alle zeigen</button></p>` : ''}`;
+    return `${this.panelDef('stats') ? this.popStatsHero() : ''}<div class="pop-cols">${groups.map((gr) => `<div class="pop-sec"><h4>${esc(gr.name)}</h4>${gr.items.map(row).join('')}</div>`).join('')}</div>${hidden > 0 ? `<p class="pop-note">${icon('lock', 13, 2.2)}<span>${hidden === 1 ? 'Ein weiterer Bereich kommt' : `${hidden} weitere Bereiche kommen`} dazu, wenn die Stadt wächst.</span><button class="pop-more" data-pa="allpanels" data-tip="Alle zeigen" data-tip-desc="Auch Bereiche zeigen, die erst später wichtig werden.">Alle zeigen</button></p>` : ''}`;
   }
   popCity() { return `${this.popHead('Stadt', 'Verwaltung, Zahlen und Pläne', 'city')}<div class="pop-b">${this.popCityBody()}</div>`; }
   popCheck() {
@@ -965,7 +982,8 @@ ${this.view !== 'none' ? `<button class="pop-foot" data-pa="view" data-v="none" 
       ? probs.map((p) => `<button class="pop-row prob ${p.sev}" data-pa="prob" data-v="${esc(p.id)}" data-tip="${esc(p.text)}" data-tip-desc="${esc(how(p))}."><span class="pi">${icon(p.icon, 16, 2.3)}</span><span class="t"><b>${esc(p.text)}</b><small>${esc(how(p))}</small></span><span class="go">${icon('arrowR', 15, 2.4)}</span></button>`).join('')
       : `<div class="allgood">${icon('check', 18, 2.6)}<span><b>Alles im grünen Bereich.</b><small>Strom, Wasser, Müll, Geld und Verkehr laufen.</small></span></div>`;
     return `${this.popHead('Stadt-Check', probs.length ? 'Was gerade Aufmerksamkeit braucht' : 'Deine Stadt läuft rund', 'pulse')}<div class="pop-b">${body}
-<button class="pop-foot" data-pa="advisor" data-tip="Ratgeberin" data-tip-desc="Lagebericht und Tipps, was als Nächstes sinnvoll ist." data-key="H">${icon('advisor', 15)}<span>Ratgeberin fragen</span>${lvl >= 2 ? '<i class="pdot"></i>' : ''}<kbd>H</kbd></button></div>`;
+<button class="pop-foot" data-pa="advisor" data-tip="Ratgeberin" data-tip-desc="Lagebericht und Tipps, was als Nächstes sinnvoll ist." data-key="H">${icon('advisor', 15)}<span>Ratgeberin fragen</span>${lvl >= 2 ? '<i class="pdot"></i>' : ''}<kbd>H</kbd></button>
+<button class="pop-foot" data-pa="stats" data-v="overview" data-tip="Statistik" data-tip-desc="Alle Zahlen der Stadt nach Themen – Versorgung, Dienste, Menschen, Geld, Verkehr und Umwelt." data-key="F3">${icon('stats', 15)}<span>Alle Zahlen: Statistik</span><kbd>F3</kbd></button></div>`;
   }
   popMenu() {
     const mm = !this.el.mini.hidden && (!this.mobile() || this.el.mini.classList.contains('force'));
@@ -997,6 +1015,7 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
       case 'view': this.setView(this.view === v ? 'none' : v); if (this.mobile()) this.closePop(); return;
       case 'underground': this.toggleUnderground(); this.renderPop(); return;
       case 'panel': this.closePop(); if (this.freshPanels) this.freshPanels.delete(v); this.openPanel(v); this.refreshBadges(); return;
+      case 'stats': this.closePop(); openStats(this, v || null); return;
       case 'prob': { const p = problems(this.g).find((x) => x.id === v); this.closePop(); if (p) this.runAction(p); return; }
       case 'advisor': this.closePop(); this.openPanel('advisor'); return;
       case 'allpanels': this.showAllPanels = true; this.renderPop(); return;
@@ -1020,7 +1039,7 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
     const sel = (t) => `[data-tour="${CSS.escape(t)}"]`;
     try {
       // Handy: Ansichten, Stadt und Hilfe stecken im Menü ☰ (links im Dock)
-      if ((id === 'views' || id === 'city' || id === 'help') && this.mobile()) return vis(this.el.menubtn);
+      if ((id === 'views' || id === 'city' || id === 'help' || id === 'stats') && this.mobile()) return vis(this.el.menubtn);
       if (id === 'group-roads' || id === 'group-zones' || id.startsWith('group-')) {
         const b = q(`.toolbar [data-group="${CSS.escape(id.slice(6))}"]`);
         return vis(b);
@@ -1349,6 +1368,7 @@ ${this.mobile() ? '' : item('hud', 'eyeOff', 'Oberfläche ausblenden', 'Nur die 
     else if (ctrl && e.code === 'KeyS') { e.preventDefault(); if (this.app.save(1) !== false) this.toast('Gespeichert in Platz 1.', 'good'); }
     else if (ctrl) return;
     else if (e.code === 'F1') { e.preventDefault(); this.openHelp(); }
+    else if (PANEL_KEYS[e.code] && this.panelDef(PANEL_KEYS[e.code])) { e.preventDefault(); this.togglePanel(PANEL_KEYS[e.code]); }
     else if (e.key === '?') { e.preventDefault(); this.showKeys(); }
     else if (k === 'm') { this.app.settings.muted = !this.app.settings.muted; this.app.audio.applyVolumes(); this.app.saveSettings(); this.toast(this.app.settings.muted ? 'Ton aus' : 'Ton an'); }
     else if (k === 'i') { this.app.engine.effects.showIcons = !this.app.engine.effects.showIcons; this.toast(this.app.engine.effects.showIcons ? 'Problem-Symbole an' : 'Problem-Symbole aus'); }
