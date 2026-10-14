@@ -160,7 +160,7 @@ function renderWeather(ui) {
   html += `<div class="sec" style="margin-top:14px"><h3>Jahreszeiten</h3>
   <div class="wx-year">${SEASONS.map((s) => `<i style="background:${SEASON_INFO[s].color}"></i>`).join('')}<b style="left:${(cal.yearT * 100).toFixed(1)}%"></b></div>
   <div class="wx-yl">${SEASONS.map((s) => `<span>${SEASON_INFO[s].name}</span>`).join('')}</div>
-  <p class="wx-note">${seasonHint(w.season)} · ${SEASON_DAYS} Tage je Jahreszeit</p></div>`;
+  <p class="wx-note">${seasonHint(w.season)}</p></div>`;
   // Vorhersage
   const fcDays = forecastDays(g);
   const st = g.ext.disasters;

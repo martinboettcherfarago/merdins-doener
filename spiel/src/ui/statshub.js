@@ -407,7 +407,7 @@ function areaGeld(ui, ctx) {
     id: 'money', title: 'Haushalt', icon: 'budget', color: '#c98a0c',
     more: { panel: 'budget', desc: 'Haushalt: alle Posten, Steuersätze und Kredite.' },
     big: g.sandbox ? '∞' : signed(b.net), unit: g.sandbox ? 'Sandkasten' : 'pro Tag', bigSev: g.sandbox ? 'good' : g.money < 0 ? 'bad' : b.net < 0 ? 'warn' : 'good',
-    sub: g.sandbox ? 'Geld spielt keine Rolle' : `Kasse ${fmtMoney(g.money)}`,
+    sub: g.sandbox ? 'Sandkasten' : `Kasse ${fmtMoney(g.money)}`,
     body: `<div class="sz-spark">${spark(histVals(g, 'net', 30), b.net < 0 ? '#d4433a' : '#2b9a57', true)}<span>Saldo der letzten 30 Tage</span></div>
 <h5 class="sz-h5">Einnahmen · ${fmtMoney(b.income)}</h5>${inc.map(([k, v]) => row(lineLabel(k, INC_LABEL), v, '#2b9a57')).join('') || '<p class="sz-note">Noch keine Einnahmen.</p>'}
 <h5 class="sz-h5">Ausgaben · ${fmtMoney(b.expense)}</h5>${exp.map(([k, v]) => row(lineLabel(k, EXP_LABEL), v, '#e0434a')).join('') || '<p class="sz-note">Noch keine Ausgaben.</p>'}

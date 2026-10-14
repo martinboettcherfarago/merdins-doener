@@ -601,6 +601,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 
 /* Schalter: vertiefte Rinne, Porzellan-Kugel; an = violetter Lack */
 .toggle { display: flex; align-items: flex-start; gap: var(--s3); padding: var(--s3) 0; border-bottom: 1px solid var(--rule); }
+.toggle:not(:has(.s)) { align-items: center; padding: var(--s2) 0; }
 .toggle:last-child { border-bottom: 0; }
 .toggle.active .t { color: var(--good); }
 .switch { width: 48px; height: var(--h-xs); border-radius: 14px; background: linear-gradient(180deg, #ddd2f3, #e9e1f9); position: relative; flex: none; transition: background-color 0.2s; margin-top: 1px; box-shadow: inset 0 2px 4px rgba(42, 20, 99, 0.22), 0 1px 0 rgba(255, 255, 255, 0.9); }
@@ -609,7 +610,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .switch.on::after { left: 23px; }
 .switch:disabled { opacity: 0.5; cursor: not-allowed; }
 .toggle .t { font-weight: 700; color: var(--accent-ink); }
-.toggle .s { font-size: 12.5px; color: var(--ink-2); line-height: 1.38; font-weight: 600; }
+.toggle .s { font-size: 12.5px; color: var(--ink-2); line-height: 1.38; font-weight: 500; }
 .toggle.locked { opacity: 0.5; }
 
 /* Segmente (Auswahl): weiche Knöpfe, gewählt = violetter Lack */

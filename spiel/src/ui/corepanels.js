@@ -33,7 +33,7 @@ const budget = {
     const loans = g.loans.map((l, i) => `<div class="row"><span class="grow">${fmtMoney(l.amount)} · noch ${l.weeksLeft} Wochen<br><span class="sub">Tilgung ${fmtMoney(l.amount / l.weeks)} + Zinsen ${fmtMoney(l.weekly)} pro Woche</span></span><button class="btn small ghost" data-act="repay" data-i="${i}">Ablösen</button></div>`).join('');
     const offers = LOANS.map((l, i) => `<div class="row"><span class="grow">${fmtMoney(l.amount)} über ${l.weeks} Wochen<br><span class="sub">${(l.rate * 100).toFixed(1).replace('.', ',')} % Zins pro Woche</span></span><button class="btn small" data-act="loan" data-i="${i}" ${g.loans.length >= 3 || !g.isUnlocked('loans') ? 'disabled' : ''}>Aufnehmen</button></div>`).join('');
     return `
-<div class="hero ${b.net < 0 ? 'neg' : 'pos'}"><div><div class="k">Saldo pro Tag</div><div class="v num">${signed(b.net)}</div><div class="s">${g.sandbox ? 'Sandkasten – Geld spielt keine Rolle' : `Kasse ${fmtMoney(g.money)}`}</div></div>${svgSpark(nets, { w: 130, h: 44, color: b.net < 0 ? '#d4433a' : '#2b9a57', zero: true })}</div>
+<div class="hero ${b.net < 0 ? 'neg' : 'pos'}"><div><div class="k">Saldo pro Tag</div><div class="v num">${signed(b.net)}</div><div class="s">${g.sandbox ? 'Sandkasten' : `Kasse ${fmtMoney(g.money)}`}</div></div>${svgSpark(nets, { w: 130, h: 44, color: b.net < 0 ? '#d4433a' : '#2b9a57', zero: true })}</div>
 <div class="sec"><h3>Einnahmen · ${fmtMoney(b.income)}</h3>${incItems.length ? barsHTML(incItems, { max }) : '<p class="empty">Noch keine Einnahmen.</p>'}</div>
 <div class="sec"><h3>Ausgaben · ${fmtMoney(b.expense)}</h3>${expItems.length ? barsHTML(expItems, { max }) : '<p class="empty">Noch keine Ausgaben.</p>'}</div>
 <div class="sec"><h3>Steuersätze</h3>${taxes}<p class="hint">Über 10 %: weniger Nachfrage und Glück.</p></div>
@@ -105,7 +105,7 @@ const transit = {
 </div>`;
     }).join('');
     return `
-<div class="res-strip"><div><div class="k">Linien</div><div class="v">${tr.lines.length} / ${tr.linesMax}</div></div><div><div class="k">Züge im Depot</div><div class="v">${tr.freeTrains}</div></div><div><div class="k">Waggons</div><div class="v">${tr.freeWagons}</div></div></div>
+<div class="res-strip"><div><div class="k">Linien</div><div class="v">${tr.lines.length} / ${tr.linesMax}</div></div><div><div class="k">Züge frei</div><div class="v">${tr.freeTrains}</div></div><div><div class="k">Wagen frei</div><div class="v">${tr.freeWagons}</div></div></div>
 <div class="acts row-acts"><button class="btn" data-act="newline" ${tr.lines.length >= tr.linesMax ? 'disabled' : ''}>${icon('line', 16)} Neue Linie zeichnen</button><button class="btn ghost" data-act="station">${icon('station', 16)} Station setzen</button></div>
 ${linesHtml || '<p class="lede">Noch keine Linie. Stationen nacheinander antippen – die erste noch einmal: Ring.</p>'}
 ${tr.lines.length ? TIMETABLE_HINT : ''}<div class="sec" style="margin-top:14px"><h3>Ziele der Fahrgäste</h3><div class="chips" style="margin:0"><span class="chip">● Wohnen</span><span class="chip">▲ Gewerbe</span><span class="chip">■ Industrie</span><span class="chip">◆ Büro</span></div><p class="hint">Einzugsgebiet ${String(TRANSIT.catchment).replace(".", ",")} Felder · roter Ring = überfüllt</p></div>`;
