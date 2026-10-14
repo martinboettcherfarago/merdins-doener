@@ -323,6 +323,8 @@ const TERRAIN_COLOR = /* glsl */`
     sandH = sdT.a;
     vec3 sandC = g7lin(vec3(0.86, 0.78, 0.58)) * sdT.rgb * 2.0;
     sandM = smoothstep(0.35, 0.65, mA.g + (nC.r - 0.5) * 0.35);
+    // Sand unter Zonen, Gebäuden und Straßen weitgehend begrünen: in der Stadt wirkt er sonst wie Matsch oder Baustelle
+    sandM *= 1.0 - 0.75 * urban;
     bank = smoothstep(-0.004, -0.04, wp.y);
     float lowBank = smoothstep(-0.07, -0.125, wp.y + (nC.r - 0.5) * 0.04);
     vec3 mud = mix(g7lin(vec3(0.5, 0.44, 0.33)), g7lin(vec3(0.56, 0.54, 0.4)), smoothstep(0.35, 0.65, nC.r)) * (0.85 + 0.3 * gh);
