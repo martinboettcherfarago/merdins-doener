@@ -808,9 +808,9 @@ export class Game extends Emitter {
   static fromSave(raw) {
     let data = raw;
     if (typeof data === 'string') {
-      try { data = JSON.parse(data); } catch (e) { throw new SaveError('Das ist kein gültiger Stadtpuls-Spielstand (beschädigt oder unvollständig).'); }
+      try { data = JSON.parse(data); } catch (e) { throw new SaveError('Das ist kein gültiger Cityscapes-Spielstand (beschädigt oder unvollständig).'); }
     }
-    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new SaveError('Das ist kein gültiger Stadtpuls-Spielstand (beschädigt oder unvollständig).');
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new SaveError('Das ist kein gültiger Cityscapes-Spielstand (beschädigt oder unvollständig).');
     if (typeof data.road !== 'string' || typeof data.zone !== 'string' || !Array.isArray(data.buildings)) throw new SaveError('Der Spielstand ist unvollständig oder beschädigt.');
     const v = int(data.v, 1);
     const o = data.opts && typeof data.opts === 'object' && !Array.isArray(data.opts) ? data.opts : {};
@@ -825,7 +825,7 @@ export class Game extends Emitter {
     const g = new Game({ ...opts, name });
     const notes = (g.loadNotes = []);
     if (v > VERSION) notes.push('Der Spielstand stammt aus einer neueren Version – nicht alles wird übernommen.');
-    if (v < 2) notes.push('Spielstand aus Stadtpuls 1 übernommen – Wetter, Bezirke, Wirtschaft und Verkehr starten frisch.');
+    if (v < 2) notes.push('Spielstand aus einer älteren Version übernommen – Wetter, Bezirke, Wirtschaft und Verkehr starten frisch.');
     const N = g.N, W = g.W, H = g.H;
     const grid = (b64, label, required) => {
       let arr = null;

@@ -2,7 +2,7 @@
   "name": "stadtpuls",
   "version": "1.0.0",
   "private": true,
-  "description": "Stadtpuls – 3D-Städtebau- und Verkehrsspiel im Browser",
+  "description": "Cityscapes – 3D-Städtebau- und Verkehrsspiel im Browser",
   "type": "module",
   "scripts": {
     "build": "node build.mjs",

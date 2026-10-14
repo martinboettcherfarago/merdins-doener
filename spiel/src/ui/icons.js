@@ -171,7 +171,7 @@ export function badge(name, size = 32) {
   return `<svg class="bdg bdg-${name}" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true">${B[name] || B.star}</svg>`;
 }
 
-// Logo: Pulslinie, die in eine Bahnlinie übergeht
-export function logo(size = 34, color = '#ffffff') {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M5 22h7l3-9 5 16 4-11 2 4h9" stroke="${color}" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="35" cy="22" r="3.2" fill="#ffb020"/></svg>`;
+// Logo: Skyline mit Abendsonne über einer U-Bahn-Linie mit zwei Stationen (Fenster als Aussparungen)
+export function logo(size = 34, color = '#ffffff', rail = '#ffb020', cls = '') {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="21.3" cy="11.2" r="4.6" fill="${rail}"/><path fill="${color}" fill-rule="evenodd" d="M6 30V19h5v11zM12 30V11.5l2.5-2V6h1v3.5l2.5 2V30zM19 30V16h4.5v14zM24.5 30V8.5L28 6l3.5 2.5V30zM32.5 30V18H35v12zM13.5 14h3v2h-3zM13.5 18.5h3v2h-3zM13.5 23h3v2h-3zM26 11.5h4v2h-4zM26 16h4v2h-4zM26 20.5h4v2h-4zM7.5 21.5h2v2h-2zM20.5 19h1.5v2h-1.5z"/><path${cls ? ` class="${cls}"` : ''} d="M4.5 34h31" stroke="${rail}" stroke-width="2.6" stroke-linecap="round"/><circle cx="12" cy="34" r="2.1" fill="${color}" stroke="${rail}" stroke-width="1.4"/><circle cx="27" cy="34" r="2.1" fill="${color}" stroke="${rail}" stroke-width="1.4"/></svg>`;
 }

@@ -448,7 +448,7 @@ function drawSignAtlas(cityName) {
     x.fillStyle = '#f2c200'; x.fillRect(px + 5, py + 5, w - 10, h - 10);
     x.strokeStyle = '#111'; x.lineWidth = 4; x.strokeRect(px + 12, py + 12, w - 24, h - 24);
     x.fillStyle = '#111'; x.font = `bold 52px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillText(cityName || 'Stadtpuls', px + w / 2, py + 54, w - 50);
+    x.fillText(cityName || 'Cityscapes', px + w / 2, py + 54, w - 50);
     x.font = `500 24px ${FONT}`; x.fillText('Kreisfreie Stadt', px + w / 2, py + 96);
     reg('ortstafel', px, py, w, h);
   }

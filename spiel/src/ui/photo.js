@@ -245,7 +245,7 @@ ${dofOk ? `<div class="pu-row"><label>${icon('target', 14)} Schärfe</label><inp
     ctx.textAlign = 'right';
     ctx.fillStyle = 'rgba(255,255,255,0.78)';
     ctx.shadowColor = 'rgba(0,0,0,0.45)'; ctx.shadowBlur = 6 * s;
-    ctx.fillText(`${ui.g.name} · ${ui.g.dateText()} · Stadtpuls`, w - 18 * s, h - (o.cine ? Math.max(0, (h - w / 2.39) / 2) : 0) - 16 * s);
+    ctx.fillText(`${ui.g.name} · ${ui.g.dateText()} · Cityscapes`, w - 18 * s, h - (o.cine ? Math.max(0, (h - w / 2.39) / 2) : 0) - 16 * s);
     if (this.fx) { const fl = this.fx.querySelector('.pf-flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go'); }
     ui.app.audio.play('photo');
     let url = '';

@@ -2,6 +2,7 @@
 // Beim Start übernimmt bootSequence(): Materialien/Texturen werden in Häppchen erzeugt (echter Fortschritt),
 // danach die Beispielstadt des Menüs. Beim Gründen/Laden einer Stadt zeigt showLoader() den Bildschirm erneut.
 import { MATERIAL_NAMES, getMaterial } from '../render/matlib.js';
+import { logo } from './icons.js';
 import { getAtlasMaterial } from '../render/atlas.js';
 import * as protos from '../render/protos.js';
 
@@ -39,7 +40,7 @@ export function loaderEl() {
   el = document.createElement('div');
   el.id = 'loader';
   el.className = 'loader';
-  el.innerHTML = `<div class="ld-sky"><i></i><i></i><i></i></div><div class="ld-card"><div class="ld-brand"><svg width="54" height="54" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path class="ld-pulse" d="M5 22h7l3-9 5 16 4-11 2 4h9" stroke="#f6f2ea" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="35" cy="22" r="3" fill="#e8543f"/></svg><b>Stadtpuls</b></div><div class="ld-title" id="ld-title"></div><div class="ld-line"><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span></div><div class="ld-bar"><i id="ld-fill"></i><span class="ld-shine"></span></div><div class="ld-step" id="ld-step"></div><div class="ld-tip" id="ld-tip"></div></div>`;
+  el.innerHTML = `<div class="ld-sky"><i></i><i></i><i></i></div><div class="ld-card"><div class="ld-brand">${logo(54, '#ffffff', '#ffb020', 'ld-pulse')}<b>Cityscapes</b></div><div class="ld-title" id="ld-title"></div><div class="ld-line"><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span><span class="ld-st"></span></div><div class="ld-bar"><i id="ld-fill"></i><span class="ld-shine"></span></div><div class="ld-step" id="ld-step"></div><div class="ld-tip" id="ld-tip"></div></div>`;
   document.getElementById('app').appendChild(el);
   return el;
 }

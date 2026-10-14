@@ -70,7 +70,7 @@ export class Menu {
     this.root.innerHTML = `
 <div class="menu${this.previewing ? ' previewing' : ''}${this._introDone ? '' : ' intro'}">
   <div class="side">
-    <div class="brand">${logo(58)}<div><h1>Stadtpuls</h1><div class="tag">Städtebau im Takt der U-Bahn</div></div></div>
+    <div class="brand">${logo(58)}<div><h1>Cityscapes</h1><div class="tag">Städtebau im Takt der U-Bahn</div></div></div>
     ${auto ? `<div class="card continue"><div class="cc-line"></div><div class="cc-row"><div class="grow"><div class="eyebrow">Weiterspielen</div><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue" data-tip="Fortsetzen">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}" data-tip="Platz ${k} laden">Laden</button></div>`).join('')}</div>` : ''}</div>` : ''}
     ${modes ? `<div class="mtabs" role="tablist"><button role="tab" class="${tab === 'free' ? 'on' : ''}" data-act="mtab" data-v="free" data-tip="Freies Spiel">${icon('city', 16, 2.1)}<span>Freies Spiel</span></button><button role="tab" class="${tab === 'modes' ? 'on' : ''}" data-act="mtab" data-v="modes" data-tip="Herausforderungen" data-tip-desc="Szenarien und Metro-Modus.">${icon('trophy', 16, 2.1)}<span>Herausforderungen</span></button></div>` : ''}
     ${tab === 'free' ? `<div class="card newcity${this.formOpen ? '' : ' closed'}">
@@ -186,7 +186,7 @@ export class Menu {
     const app = this.app;
     const snap = gfxSnapshot(app.settings);
     const ctx = { app, inGame: false, tab: 'grafik', snap, onTips: (v) => setTipsEnabled(v) };
-    const body = () => `<div class="modal settings-modal"><div class="ks-head"><div><div class="eyebrow">Stadtpuls</div><h2>Einstellungen</h2></div><button class="close" data-act="ok" aria-label="Schließen">${icon('close', 18)}</button></div><div class="panelish">${settingsHTML(ctx)}</div></div>`;
+    const body = () => `<div class="modal settings-modal"><div class="ks-head"><div><div class="eyebrow">Cityscapes</div><h2>Einstellungen</h2></div><button class="close" data-act="ok" aria-label="Schließen">${icon('close', 18)}</button></div><div class="panelish">${settingsHTML(ctx)}</div></div>`;
     const wrap = this.openModal(body(), (e, close) => {
       if (e.target.classList.contains('backdrop')) { finish(); close(); return; }
       const b = e.target.closest('[data-act]');

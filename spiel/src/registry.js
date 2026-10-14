@@ -54,7 +54,7 @@ const warned = new Set();
 export function warnOnce(where, e) {
   if (warned.has(where)) return;
   warned.add(where);
-  console.warn(`Stadtpuls: Fehler in ${where} – das Spiel läuft weiter.`, e);
+  console.warn(`Cityscapes: Fehler in ${where} – das Spiel läuft weiter.`, e);
 }
 export function on(ev, fn) { (bus[ev] ||= []).push(fn); return () => { bus[ev] = bus[ev].filter((f) => f !== fn); }; }
 export function emit(ev, ...a) {

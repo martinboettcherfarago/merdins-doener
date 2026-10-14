@@ -64,7 +64,7 @@ registerIcon({
 // sonst gehen nach mehreren Wechseln Menü ↔ Spiel ältere Kontexte verloren).
 function releaseEngine(e) {
   if (!e) return;
-  try { e.dispose(); } catch (err) { console.warn('Stadtpuls: Ansicht nicht sauber abgebaut', err); }
+  try { e.dispose(); } catch (err) { console.warn('Cityscapes: Ansicht nicht sauber abgebaut', err); }
   try { if (e.renderer && e.renderer.forceContextLoss) e.renderer.forceContextLoss(); } catch (err) { /* egal */ }
 }
 
@@ -212,7 +212,7 @@ const app = {
     try {
       g = Game.fromSave(data);
     } catch (e) {
-      if (!(e instanceof SaveError)) console.warn('Stadtpuls: Spielstand nicht ladbar', e);
+      if (!(e instanceof SaveError)) console.warn('Cityscapes: Spielstand nicht ladbar', e);
       hideLoader();
       alertBox(e instanceof SaveError ? e.message : 'Der Spielstand konnte nicht geladen werden – er ist beschädigt oder stammt aus einer unbekannten Version.');
       return false;
@@ -300,7 +300,7 @@ function boot(hotData) {
   const params = new URLSearchParams(location.search);
   if (params.has('gallery')) { document.getElementById('menu').hidden = true; runGallery(params); return; }
   if (!webglOk()) {
-    document.getElementById('menu').innerHTML = '<div class="loading">Dein Browser unterstützt kein WebGL – Stadtpuls braucht 3D-Grafik.</div>';
+    document.getElementById('menu').innerHTML = '<div class="loading">Dein Browser unterstützt kein WebGL – Cityscapes braucht 3D-Grafik.</div>';
     return;
   }
   window.__stadtpuls = app; // Debug- und Prüfzugriff (app.mode, app.game, app.engine)
@@ -310,7 +310,7 @@ function boot(hotData) {
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', unlock);
   if (hotData && hotData.save) {
-    try { app.startGame(Game.fromSave(hotData.save)); } catch (e) { console.warn('Stadtpuls: Stand nach Aktualisierung nicht ladbar', e); app.showMenu(); }
+    try { app.startGame(Game.fromSave(hotData.save)); } catch (e) { console.warn('Cityscapes: Stand nach Aktualisierung nicht ladbar', e); app.showMenu(); }
   } else app.showMenu();
   requestAnimationFrame((t) => { app.last = t; app.frame(t); });
 }

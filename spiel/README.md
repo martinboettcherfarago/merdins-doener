@@ -1,10 +1,12 @@
-# Stadtpuls
+# Cityscapes
+
+*(früher „Stadtpuls")*
 
 Ein 3D-Städtebau- und Verkehrsspiel aus der Gottperspektive, das komplett im Browser läuft.
 
 Du baust Straßen, weist Wohn-, Gewerbe-, Industrie- und Bürozonen aus, versorgst die Stadt mit Strom, Wasser, Abwasser, Müllabfuhr, Fernwärme, Polizei, Feuerwehr, Krankenhäusern, Friedhöfen, Kitas, Schulen und Universitäten. Die Stadt verbindest du mit der **Pulsbahn**, einer U-Bahn nach Mini-Metro-Regeln, die im Tunnel unter der Stadt fährt (eigene Untergrund-Ansicht), dazu mit Bus- und Straßenbahnlinien, Fernzügen, Fähren und einem Flughafen. Jede Woche wählst du eine von drei Wochenkarten, und jede Zugankunft spielt einen Ton.
 
-## Was Stadtpuls 2.0 ausmacht
+## Was Cityscapes ausmacht
 
 Version 2.0 hat ein Schwarm aus 17 spezialisierten Agenten gebaut, danach haben 4 QA-Agenten das Gesamtspiel geprüft und poliert. Alles ist prozedural erzeugt, es gibt keine fremden Modelle oder Texturen.
 
