@@ -32,6 +32,14 @@ if (typeof window !== 'undefined') window.__stadtpulsLoader = true;
 // Für Prüfskripte: window.__stadtpulsLoaderApi.show('Titel') usw.
 
 let tipTimer = 0, tipIdx = Math.floor(Math.random() * TIPS.length), hideTimer = 0;
+// Halten: solange jemand den Ladebildschirm hält (z. B. die Ansicht baut Nahdetails vor), wartet hideLoader() damit
+const holds = new Set();
+let hideWanted = null;
+export function holdLoader(key) { holds.add(key); }
+export function releaseLoader(key) {
+  holds.delete(key);
+  if (!holds.size && hideWanted !== null) { const inst = hideWanted; hideWanted = null; hideLoader(inst); }
+}
 const $ = (id) => document.getElementById(id);
 
 export function loaderEl() {
@@ -58,6 +66,7 @@ function rotateTips() {
 export function showLoader(title, step = '') {
   const el = loaderEl();
   clearTimeout(hideTimer);
+  hideWanted = null;
   el.hidden = false;
   el.classList.remove('out', 'boot', 'pre');
   const tt = $('ld-title'); if (tt) tt.textContent = title || '';
@@ -65,7 +74,10 @@ export function showLoader(title, step = '') {
   rotateTips();
 }
 
-export function setLoader(p, step) {
+// force: auch während jemand den Schirm hält (nur der Halter selbst meldet dann Fortschritt; die Oberfläche meldet
+// nach ihrem ersten Bild sonst „Fertig“, während der Aufbau noch läuft)
+export function setLoader(p, step, force = false) {
+  if (holds.size && !force) return;
   const f = $('ld-fill');
   if (f) { f.style.animation = 'none'; f.style.transform = `scaleX(${Math.max(0.02, Math.min(1, p))})`; }
   // Haltestellen der Ladelinie leuchten nach Fortschritt auf, die nächste pulsiert
@@ -78,6 +90,7 @@ export function setLoader(p, step) {
 export function hideLoader(instant = false) {
   const el = $('loader');
   if (!el || el.hidden) return;
+  if (holds.size) { hideWanted = instant; return; }
   setLoader(1);
   clearInterval(tipTimer);
   clearTimeout(hideTimer);

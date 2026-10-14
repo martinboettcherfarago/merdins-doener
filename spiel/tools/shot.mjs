@@ -7,6 +7,7 @@
 //   node tools/shot.mjs --scenario gallery --gallery "res&fp=1x1,2x1" --out /tmp/res.png
 //   node tools/shot.mjs --scenario city --eval tools/my-check.mjs   (export default async (page, h) => {...})
 //   node tools/shot.mjs --scenario winter|rain --out /tmp/w.png       (Stadt mit gesetztem Wetter: Schnee bzw. Regen)
+//   --quality auto|low|medium|high|ultra: Grafikstufe (Standard medium wie vor der Stufe „Automatisch")
 //   --strict: auch Konsolen-Fehler und abgefangene Simulationsfehler (g.errors) lassen das Werkzeug mit Code 1 enden
 //   --timeout <s>: Abbruch nach so vielen Sekunden (Standard 600)
 // Höchstens zwei Browser laufen gleichzeitig (Sperre unter /tmp), damit sich parallele Agenten nicht ausbremsen.
@@ -86,10 +87,11 @@ const logs = [];
 try {
   const page = await browser.newPage({ viewport: { width: W, height: H } });
   // --quality low|medium|high|ultra: setzt die Qualitätsstufe samt Voreinstellung (wie die Oberfläche), vor dem Laden
-  if (args.quality) {
+  // Ohne Angabe: „medium" wie früher als Standard (vergleichbare Bilder); --quality auto prüft die automatische Stufe
+  {
     const PRE = { low: { postfx: false, ao: false, bloom: false, shadows: 'off' }, medium: { postfx: true, ao: false, bloom: true, shadows: 'low' },
-      high: { postfx: true, ao: true, bloom: true, shadows: 'high' }, ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' } };
-    const q = String(args.quality);
+      high: { postfx: true, ao: true, bloom: true, shadows: 'high' }, ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' }, auto: { postfx: true, ao: true, bloom: true, shadows: 'high' } };
+    const q = String(args.quality || 'medium');
     await page.addInitScript(({ q, pre }) => {
       try { const s = JSON.parse(localStorage.getItem('stadtpuls.settings') || '{}'); localStorage.setItem('stadtpuls.settings', JSON.stringify({ ...s, quality: q, ...pre })); } catch (e) { /* egal */ }
     }, { q, pre: PRE[q] || {} });

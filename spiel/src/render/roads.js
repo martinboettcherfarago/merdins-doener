@@ -29,8 +29,55 @@ const CW = 0.018;               // Breite des Bordsteins
 const PAINT_Y = 0.0018;         // Markierungen über der Fahrbahn
 const DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // N O S W (u = x, v = z)
 const CURB_H = { 1: 0.007, 2: 0.014, 3: 0.014, 4: 0.007 };
-const DETAIL_DIST = 44;         // Kleinteile nur unterhalb dieser Kameradistanz
-const TREE_NEAR = 58;           // darüber Bäume in der einfachen Fassung
+// Detailstufen (FLUSS, Runde 4): Kleinteile und Straßenbäume schalten nicht mehr alle zugleich nach dem Kameraabstand
+// um, sondern blenden je Bildpunkt nach seinem Abstand zur Kamera über (Raster-Dithering in einem Band vor dem
+// Radius): nahe Kleinteile bleiben, ferne lösen sich auf; Bäume wechseln dort weich vom feinen ins einfache Modell.
+// Ganz ausgeblendet (Draw Calls gespart) wird erst, wenn auch der nächste sichtbare Bodenpunkt jenseits des Radius liegt –
+// dann ist ohnehin nichts mehr davon zu sehen, das Umschalten bleibt unsichtbar.
+const DETAIL_DIST = 44;         // Radius (Abstand Bildpunkt–Kamera), bis zu dem Kleinteile sichtbar sind
+const TREE_NEAR = 58;           // Radius, ab dem Straßenbäume in der einfachen Fassung erscheinen
+const FADE_BAND = 0.3;          // Breite des Überblendbands als Anteil des Radius
+const RF_FRAG = /* glsl */`
+#ifdef RF_FADE
+{
+  float rfT = smoothstep(uRFade.x - uRFade.y, uRFade.x, length(vViewPosition));
+  float rfN = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  #ifdef RF_FAR
+  if (rfN >= rfT) discard;
+  #else
+  if (rfN < rfT) discard;
+  #endif
+}
+#endif`;
+// Abgeleitetes Material mit Abstandsblende (übernimmt Grundmaterial samt Shader-Erweiterungen)
+function fadeMaterial(base, far, uni) {
+  const m = base.clone();
+  const sync = () => {
+    m.copy(base);
+    m.defines = { ...(base.defines || {}), RF_FADE: '', ...(far ? { RF_FAR: '' } : {}) };
+    m.onBeforeCompile = (shader, renderer) => {
+      if (base.onBeforeCompile) base.onBeforeCompile.call(base, shader, renderer);
+      shader.uniforms.uRFade = uni;
+      shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'uniform vec2 uRFade;\nvoid main() {')
+        .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\n' + RF_FRAG);
+    };
+    m.customProgramCacheKey = () => (base.customProgramCacheKey ? base.customProgramCacheKey() : '') + (far ? '|rfFar' : '|rfNear');
+    m.needsUpdate = true;
+    m.userData.rfVersion = base.version;
+  };
+  sync();
+  m.userData.rfSync = () => { if (m.userData.rfVersion !== base.version) sync(); };
+  return m;
+}
+// Abstand vom Kamerapunkt zum nächsten bzw. fernsten sichtbaren Bodenpunkt (Bildmitte unten/oben)
+function groundSpan(cam, target) {
+  const h = Math.max(0.05, cam.position.y - Math.min(0, target.y));
+  const horiz = Math.hypot(cam.position.x - target.x, cam.position.z - target.z);
+  const down = Math.atan2(cam.position.y - target.y, Math.max(1e-3, horiz));
+  const half = (cam.fov * Math.PI) / 360;
+  const bot = Math.min(Math.PI / 2, down + half), top = down - half * 1.15;
+  return [h / Math.sin(bot), top > 0.01 ? (h / Math.sin(top)) * 1.5 : Infinity];
+}
 const geomW = (t) => (ROAD_GEOM[t] ? ROAD_GEOM[t].width : 0.6);
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -66,6 +113,14 @@ export class RoadView {
     this.drawsSignals = true;
     this.tintOn = false;
     this.detailOn = true;
+    this.treeNearOn = true; this.treeFarOn = true;
+    this.lodEvents = 0; // Zähler für Messwerkzeuge (Ein-/Ausblenden ganzer Meshes)
+    this.fadeU = { detail: { value: new THREE.Vector2(DETAIL_DIST, DETAIL_DIST * FADE_BAND) }, tree: { value: new THREE.Vector2(TREE_NEAR, TREE_NEAR * FADE_BAND) } };
+    this.fadeMats = {
+      detail: fadeMaterial(this.mats.solid, false, this.fadeU.detail),
+      treeNear: fadeMaterial(this.mats.solid, false, this.fadeU.tree),
+      treeFar: fadeMaterial(this.mats.solid, true, this.fadeU.tree),
+    };
     this.night = 0;
     this.first = true;
     this.stopSig = '';
@@ -150,15 +205,7 @@ export class RoadView {
     sigTime.value = g.time / minPerSec(g);
     const fog = this.e.scene.fog;
     if (fog) { this.mats.fog.fogNear.value = fog.near; this.mats.fog.fogFar.value = fog.far; }
-    // Qualitätsstufe: „Niedrig" zeigt Kleinteile und Detailbäume nur in größerer Nähe
-    const qf = ({ low: 0.6, high: 1.15, ultra: 1.3 })[this.e.quality && this.e.quality.name] ?? 1;
-    const dist = this.e.rig.cur.dist / qf;
-    const det = dist < DETAIL_DIST;
-    if (det !== this.detailOn) {
-      this.detailOn = det;
-      for (const ch of this.chunks) if (ch && ch.detail) ch.detail.visible = det;
-    }
-    this.props.setState(det, dist < TREE_NEAR, this.night > 0.04);
+    this.lodFrame();
     this.recheckTimer -= dt;
     if (this.recheckTimer <= 0) {
       this.recheckTimer = 0.5;
@@ -170,6 +217,42 @@ export class RoadView {
       if (this.softDirty) { this.softDirty = false; this.rebuild(); }
     }
     this.signalGlow();
+  }
+
+  // Detailstufen: Radien nach Qualität, Meshes nur zeigen, solange etwas davon im Bild sein kann (mit Hysterese)
+  lodFrame() {
+    // Qualitätsstufe: „Niedrig" zeigt Kleinteile und Detailbäume nur in größerer Nähe
+    const qf = ({ low: 0.6, high: 1.15, ultra: 1.3 })[this.e.quality && this.e.quality.name] ?? 1;
+    const rD = DETAIL_DIST * qf, rT = TREE_NEAR * qf;
+    this.fadeU.detail.value.set(rD, rD * FADE_BAND);
+    this.fadeU.tree.value.set(rT, rT * FADE_BAND);
+    for (const m of Object.values(this.fadeMats)) m.userData.rfSync();
+    const [nearG, farG] = groundSpan(this.e.camera, this.e.rig.target);
+    const hy = (on, v, lim, up) => (up ? (on ? v < lim * 1.04 : v < lim * 0.98) : (on ? v > lim * 0.96 : v > lim * 1.02));
+    const det = hy(this.detailOn, nearG, rD, true);
+    const tn = hy(this.treeNearOn, nearG, rT, true);
+    const tf = hy(this.treeFarOn, farG, rT * (1 - FADE_BAND), false);
+    if (det !== this.detailOn) {
+      this.detailOn = det;
+      this.lodEvents++;
+      for (const ch of this.chunks) if (ch && ch.detail) ch.detail.visible = det;
+    }
+    if (tn !== this.treeNearOn || tf !== this.treeFarOn) { this.treeNearOn = tn; this.treeFarOn = tf; this.lodEvents++; }
+    this.props.setState(det, tn, this.night > 0.04);
+    // Arten mit Abstandsblende: Material tauschen (auch nach Neuaufbau der Meshes) und Sichtbarkeit selbst setzen
+    for (const k of this.props.kinds.values()) {
+      const tree = !!k.farGeo, small = !!(k.def && k.def.detail);
+      if (!tree && !small) continue;
+      for (const it of k.meshes) {
+        if (it.role !== 'solid' && it.role !== 'far') continue;
+        const want = tree ? (it.role === 'far' ? this.fadeMats.treeFar : this.fadeMats.treeNear) : this.fadeMats.detail;
+        if (it.mesh.material !== want) it.mesh.material = want;
+        let v = k.total > 0;
+        if (small) v = v && det;
+        if (tree) v = v && (it.role === 'far' ? tf : tn);
+        it.mesh.visible = v;
+      }
+    }
   }
 
   // Leuchtpunkte der aktiven Ampel-Linsen (für Glanz/Bloom, nachts kräftiger)
@@ -325,7 +408,7 @@ export class RoadView {
       return m;
     };
     if (!L.solid.empty()) { ch.solid = inst(L.solid.toGeometry(), true); }
-    if (!L.detail.empty()) { ch.detail = inst(L.detail.toGeometry(), true); ch.detail.visible = this.detailOn; }
+    if (!L.detail.empty()) { ch.detail = inst(L.detail.toGeometry(), true); ch.detail.material = this.fadeMats.detail; ch.detail.visible = this.detailOn; }
     if (!L.paint.empty()) { ch.paint = new THREE.Mesh(L.paint.toGeometry(), M.paint); ch.paint.receiveShadow = true; ch.paint.renderOrder = 1; }
     if (!L.glow.empty()) { ch.glow = new THREE.Mesh(L.glow.toGeometry(), M.glow); ch.glow.receiveShadow = true; }
     if (!L.light.empty()) { ch.light = new THREE.Mesh(L.light.toGeometry(), M.light); ch.light.renderOrder = 6; ch.light.visible = this.night > 0.04; }

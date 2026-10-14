@@ -487,16 +487,34 @@ if (g7decid && g7leafA < 0.995 && g7cutN > g7leafA) {
 #endif
 `;
 
-function makeVegMaterial(u, variant = 'solid') {
+// Detailstufen-Blende (FLUSS, Runde 4): feines (lod 1) und einfaches Modell (lod 2) überlappen in einem Band um den
+// Radius uLodR um uLodC; je Bildpunkt zeigt ein festes Raster genau eines von beiden (Gegenmengen) – kein Aufpoppen.
+const LOD_VERT = /* glsl */`
+#ifdef G7_LOD
+{ vec2 g7c = (modelMatrix * vec4(g7ip, 1.0)).xz; vG7L = smoothstep(uLodR - uLodB, uLodR, distance(g7c, uLodC)); }
+#endif`;
+const LOD_FRAG = /* glsl */`
+#ifdef G7_LOD
+{
+  float g7n = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  #if G7_LOD == 1
+  if (g7n < vG7L) discard;
+  #else
+  if (g7n >= vG7L) discard;
+  #endif
+}
+#endif`;
+function makeVegMaterial(u, variant = 'solid', lod = 0) {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0, side: variant === 'solid' ? THREE.FrontSide : THREE.DoubleSide });
-  if (variant === 'bare') mat.defines = { G7_BARE: '' };
+  mat.defines = { ...(variant === 'bare' ? { G7_BARE: '' } : {}), ...(lod ? { G7_LOD: lod } : {}) };
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${VERT_PARS}\nvarying vec3 vWN;`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_SWAY}\nvWN = normalize(mat3(modelMatrix) * g7im * objectNormal);`);
+      .replace('#include <common>', `#include <common>\n${VERT_PARS}\nvarying vec3 vWN;\n#ifdef G7_LOD\nuniform vec2 uLodC;\nuniform float uLodR;\nuniform float uLodB;\nflat varying float vG7L;\n#endif`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_SWAY}\nvWN = normalize(mat3(modelMatrix) * g7im * objectNormal);\n${LOD_VERT}`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${FRAG_PARS}\nvarying vec3 vWN;\nfloat g7Hgt = 0.0;\nfloat g7Rough = 0.85;\n${GLSL}`)
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n${LOD_FRAG}`)
+      .replace('#include <common>', `#include <common>\n${FRAG_PARS}\nvarying vec3 vWN;\n#ifdef G7_LOD\nflat varying float vG7L;\n#endif\nfloat g7Hgt = 0.0;\nfloat g7Rough = 0.85;\n${GLSL}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
   ${FRAG_LEAFCUT}
@@ -570,7 +588,7 @@ function makeVegMaterial(u, variant = 'solid') {
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = g7Rough;')
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal = g7bump(-vViewPosition, normal, g7Hgt * 0.7, faceDirection);');
   };
-  mat.customProgramCacheKey = () => 'g7veg-' + variant;
+  mat.customProgramCacheKey = () => 'g7veg-' + variant + (lod ? '-lod' + lod : '');
   return mat;
 }
 
@@ -605,7 +623,16 @@ export class Vegetation {
       tLeaf: { value: leafTexture() }, tRock: { value: tv.tex.rock }, tNoise: { value: tv.tex.noise },
       uLeaf: { value: 1 }, uAutumnK: { value: 0 }, uBlossom: { value: 0 }, uFresh: { value: 0 }, uSnowK: tv.uniforms.uSnowK, uDryK: tv.uniforms.uDry,
     };
-    this.mats = { solid: makeVegMaterial(this.uniforms, 'solid'), bare: makeVegMaterial(this.uniforms, 'bare'), blade: makeVegMaterial(this.uniforms, 'blade') };
+    this.uniforms.uLodC = { value: new THREE.Vector2() };
+    this.uniforms.uLodR = { value: 0 };
+    this.uniforms.uLodB = { value: 1 };
+    // Gras um den Kamerapunkt: eigener Radius (wächst beim Heranzoomen weich auf, statt bei 26 auf einmal zu erscheinen)
+    this.grassU = { ...this.uniforms, uLodR: { value: 0 }, uLodB: { value: 3.5 } };
+    const mk = (u, lod) => ({ solid: makeVegMaterial(u, 'solid', lod), bare: makeVegMaterial(u, 'bare', lod), blade: makeVegMaterial(u, 'blade', lod) });
+    this.mats = mk(this.uniforms, 0);
+    this.lodMats = [mk(this.uniforms, 1), mk(this.uniforms, 2)];
+    this.grassMat = makeVegMaterial(this.grassU, 'blade', 1);
+    this.lodOn = false;
     this.depthMats = { solid: makeVegDepthMaterial(this.uniforms, false), bare: makeVegDepthMaterial(this.uniforms, true) };
     this.bare = false;
     this.sp = {};
@@ -786,7 +813,7 @@ export class Vegetation {
     const cap = Math.ceil(need * 1.15);
     for (let l = 0; l < 2; l++) {
       if (sp.mesh[l]) { this.group.remove(sp.mesh[l]); sp.mesh[l].dispose(); }
-      const m = new THREE.InstancedMesh(sp.geo[l], this.matFor(sp), cap);
+      const m = new THREE.InstancedMesh(sp.geo[l], this.matFor(sp, l), cap);
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       m.setColorAt(0, new THREE.Color(1, 1, 1));
       m.instanceColor.setUsage(THREE.DynamicDrawUsage);
@@ -803,26 +830,45 @@ export class Vegetation {
     sp.cap = cap;
   }
 
-  matFor(sp) { return sp.def.blade ? this.mats.blade : (sp.def.decid && this.bare) ? this.mats.bare : this.mats.solid; }
+  // l: 0 = feines, 1 = einfaches Modell. Mit aktiver Detailstufen-Blende (lodOn) tragen beide die Blende.
+  matFor(sp, l = 0) {
+    if (sp.def.near) return this.grassMat;
+    const set = l === 0 ? this.lodMats[0] : this.lodOn ? this.lodMats[1] : this.mats;
+    return sp.def.blade ? set.blade : (sp.def.decid && this.bare) ? set.bare : set.solid;
+  }
   depthFor(sp) { return (sp.def.decid && this.bare) ? this.depthMats.bare : this.depthMats.solid; }
   setBare(on) {
     if (on === this.bare) return;
     this.bare = on;
     for (const k of SPECIES_KEYS) {
       const sp = this.sp[k];
-      for (const m of sp.mesh) if (m) { m.material = this.matFor(sp); m.customDepthMaterial = this.depthFor(sp); }
+      sp.mesh.forEach((m, l) => { if (m) { m.material = this.matFor(sp, l); m.customDepthMaterial = this.depthFor(sp); } });
     }
   }
 
-  // Detailstufen: nahe Pflanzen bekommen das feine Modell (nur wenn die Kamera nah genug ist)
+  // Detailstufen: nahe Pflanzen bekommen das feine Modell (nur wenn die Kamera nah genug ist). Der Radius folgt dem
+  // Zoom stetig und schrumpft beim Herauszoomen weich auf null (früher bei 48 schlagartig); im Band um den Radius
+  // liegen Pflanzen in beiden Meshes und werden im Shader gegeneinander überblendet. Die Zuordnung auf der CPU wird
+  // nur in groben Schritten erneuert – der Rand (margin) deckt ab, was die Blende dazwischen wandert.
   assignLOD(force) {
     const rig = this.e.rig;
     const tx = rig.target.x, tz = rig.target.z, dist = rig.cur.dist;
-    const R = dist > 48 ? 0 : clamp(dist * 0.7 + 3, 8, 22);
-    const key = [Math.round(tx / Math.max(2, R * 0.25)), Math.round(tz / Math.max(2, R * 0.25)), Math.round(R / 2)].join(':');
+    const R = clamp(dist * 0.7 + 3, 8, 22) * (1 - smoothstep(40, 52, dist));
+    const B = Math.max(2, R * 0.35);
+    const U = this.uniforms;
+    U.uLodC.value.set(tx, tz); U.uLodR.value = R; U.uLodB.value = B;
+    const on = R > 0.5;
+    if (on !== this.lodOn) {
+      this.lodOn = on;
+      for (const k of SPECIES_KEYS) { const sp = this.sp[k]; if (sp.mesh[1] && !sp.def.near) sp.mesh[1].material = this.matFor(sp, 1); }
+    }
+    const q = Math.max(2, R * 0.25);
+    const key = on ? [Math.round(tx / q), Math.round(tz / q), Math.round(R / 2)].join(':') : 'aus';
     if (!force && key === this.lodKey) return;
     this.lodKey = key;
-    const R2 = R * R;
+    const margin = q + 2.5;
+    const rIn = on ? R + margin : 0, rOut = on ? Math.max(0, R - B - margin) : -1;
+    const RI2 = rIn * rIn, RO2 = rOut < 0 ? -1 : rOut * rOut;
     for (const k of SPECIES_KEYS) {
       const sp = this.sp[k];
       if (sp.def.near || !sp.mesh[0]) continue;
@@ -831,11 +877,13 @@ export class Vegetation {
       let nh = 0, nl = 0;
       for (let i = 0; i < sp.n; i++) {
         const dx = sp.xz[i * 2] - tx, dz = sp.xz[i * 2 + 1] - tz;
-        if (dx * dx + dz * dz < R2) {
+        const d2 = dx * dx + dz * dz;
+        if (d2 < RI2) {
           hm.set(sp.mats.subarray(i * 16, i * 16 + 16), nh * 16);
           hc.set(sp.cols.subarray(i * 3, i * 3 + 3), nh * 3);
           nh++;
-        } else {
+        }
+        if (d2 > RO2) {
           lm.set(sp.mats.subarray(i * 16, i * 16 + 16), nl * 16);
           lc.set(sp.cols.subarray(i * 3, i * 3 + 3), nl * 3);
           nl++;
@@ -854,7 +902,11 @@ export class Vegetation {
     const sp = this.sp.gras;
     const dist = rig.cur.dist;
     const low = this.e.quality && this.e.quality.name === 'low';
-    const on = !low && dist < 26;
+    // Grasradius wächst zwischen Abstand 26 und 19 weich auf (Blende im Shader), statt bei 26 auf einmal zu erscheinen
+    const Rg = low ? 0 : 13 * (1 - smoothstep(19, 26, dist));
+    this.grassU.uLodC.value.set(rig.target.x, rig.target.z);
+    this.grassU.uLodR.value = Rg;
+    const on = Rg > 0.3;
     const tx = rig.target.x, tz = rig.target.z;
     const key = on ? `${Math.round(tx / 3)}:${Math.round(tz / 3)}` : 'aus';
     if (!force && key === this.nearKey) return;
@@ -862,7 +914,7 @@ export class Vegetation {
     if (!on) { if (sp.mesh[0]) { sp.mesh[0].count = 0; sp.mesh[0].visible = false; } return; }
     const g = this.g, w = g.world, W = g.W, H = g.H, tv = this.tv;
     const ox = -W / 2, oz = -H / 2;
-    const Rn = 15;
+    const Rn = 16;
     const cx = Math.floor(tx + W / 2), cz = Math.floor(tz + H / 2);
     const per = 7;
     const est = (2 * Rn + 1) * (2 * Rn + 1) * per;
