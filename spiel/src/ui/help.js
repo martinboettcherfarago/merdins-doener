@@ -113,6 +113,7 @@ const TOPICS = [
     'Die Strecken liegen im Tunnel – darüber darfst du so hoch bauen, wie du willst. Oben siehst du nur die Eingänge mit dem blauen „U" und eine feine Linie am Boden.',
     'Beim Linien-Werkzeug schaltet sich die Untergrund-Ansicht ein: Dann siehst du Tunnel, Bahnsteige und Züge. Im Menü „Ansichten" kannst du sie auch selbst einschalten.',
     'Ist ein Bahnhof überfüllt, setze mehr Züge oder Wagen ein.',
+    'Im U-Bahn-Fenster zeigt der Fahrplan jeder Linie, wo die Züge gerade sind. Ziehe einen Zug mit Maus oder Finger an eine andere Stelle. Der Auto-Takt hält die Abstände gleich – dicht hintereinander fahrende Züge lassen die Bahnhöfe volllaufen.',
     'Jede Ankunft spielt einen Ton – deine Stadt macht Musik.',
   ], act: { cat: 'transit' }, actLabel: 'U-Bahn öffnen', lock: (g) => (g.isUnlocked('transit') ? null : `Noch gesperrt: ab ${ms(2)}.`) },
   { id: 'cards', title: 'Meilensteine & Wochenkarten', icon: 'trophy', lead: 'Wächst deine Stadt, gibt es Belohnungen.', points: [

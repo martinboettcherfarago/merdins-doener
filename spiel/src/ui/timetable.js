@@ -4,7 +4,7 @@
 // (requestAnimationFrame), ohne das Fenster neu zu zeichnen.
 // Einbindung: timetableHTML(ui, line) im render, timetableClick(ui, act, el) im click, timetableAfterRender(ui) im afterRender,
 // timetableBusy() hält das Fenster während des Ziehens fest.
-import { LINE_COLORS } from '../sim/transit.js';
+import { LINE_COLORS, cycPos, cycLen, cycToP } from '../sim/transit.js';
 
 const PAD = 16; // Rand links/rechts im Streifen (px), damit Marker an den Endstationen ganz sichtbar bleiben
 const Y_TRACK = 56; // Mitte des Gleises im Streifen (px)
@@ -95,6 +95,35 @@ function geom(strip) {
   return { w, span: Math.max(1, w - 2 * PAD) };
 }
 
+// Taktplätze (Ziehhilfe): wo ein Zug im gleichmäßigen Abstand zum ersten anderen Zug seiner Richtung stünde.
+// Liefert Spurpositionen P; der gezogene Zug zählt mit, zählt aber nicht als Bezug.
+function taktSlots(tr, line, dragId, dir) {
+  const C = cycLen(line);
+  const others = tr.trains.filter((t) => t.line === line.id && t.id !== dragId && (!line.loop || t.dir === dir));
+  if (!others.length || !(C > 0)) return [];
+  const n = others.length + 1, s = C / n, q0 = cycPos(others[0], line);
+  const out = [];
+  for (let k = 1; k < n; k++) out.push(cycToP(line, dir, (q0 + k * s) % C));
+  return out;
+}
+const laneOf = (line, P) => (P <= line.length ? 1 : -1);
+const dOf = (line, P) => (P <= line.length ? P : 2 * line.length - P);
+
+function syncGhosts(strip, line, span) {
+  const D = S.drag;
+  const pool = strip._gh || (strip._gh = []);
+  const slots = D && D.moved && D.lineId === line.id && D.last ? D.slots || [] : [];
+  while (pool.length < slots.length) { const el = document.createElement('div'); el.className = 'tt-g'; strip.appendChild(el); pool.push(el); }
+  pool.forEach((el, k) => {
+    if (k >= slots.length) { if (!el.hidden) el.hidden = true; return; }
+    el.hidden = false;
+    const P = slots[k], up = laneOf(line, P) > 0;
+    const x = PAD + span * Math.max(0, Math.min(1, dOf(line, P) / line.length));
+    el.style.transform = `translate3d(${(x - 15).toFixed(1)}px, ${up ? Y_TRACK - 30 : Y_TRACK + 6}px, 0)`;
+    el.classList.toggle('on', D.last.slot === k);
+  });
+}
+
 function sync(ui) {
   const g = ui.g, tr = g.transit;
   const strips = ui.el.panel.querySelectorAll('.tt-strip[data-tt-line]');
@@ -136,7 +165,7 @@ function sync(ui) {
       if (el._n !== num) { el._n = num; el.lastChild.textContent = num; }
       // Beschriftung (Tooltip, Bildschirmleser) nur bei Änderung
       const where = t.state === 'dwell' ? `hält in ${(tr.stations.get(line.stops[t.cur]) || {}).name || '–'}` : `fährt nach ${(tr.stations.get(line.stops[t.to]) || {}).name || '–'}`;
-      const desc = `${t.pax.length} von ${cap} Plätzen besetzt · ${where}${(t.hold || 0) > 0 ? ' · wartet kurz auf den Takt' : ''}. Ziehen, um den Zug zu verschieben.`;
+      const desc = `${t.pax.length} von ${cap} Plätzen besetzt · ${where}${(t.hold || 0) > 0 ? ' · wartet kurz auf den Takt' : ''}. Ziehen, um den Zug zu verschieben – gestrichelte Plätze zeigen den gleichmäßigen Takt.`;
       if (el._d !== desc) {
         el._d = desc;
         el.dataset.tip = `Zug ${num}`;
@@ -146,6 +175,7 @@ function sync(ui) {
       }
     });
     for (const [id, el] of m) if (!seen.has(id)) { el.remove(); m.delete(id); }
+    syncGhosts(strip, line, span);
   });
   return true;
 }
@@ -192,6 +222,16 @@ function bind(ui, strip) {
       D.strip = st;
       D.moved = true;
       D.last = pointerP(st, line, ev.clientX, ev.clientY);
+      // Taktplätze: nahe dran → genau dorthin (vor dem Einrasten an Stationen)
+      D.slots = taktSlots(ui.g.transit, line, D.tid, D.last.dir);
+      D.last.slot = -1;
+      let best = D.last.snap * 1.3;
+      D.slots.forEach((P, k) => {
+        if (laneOf(line, P) !== D.last.dir) return;
+        const dd = Math.abs(dOf(line, P) - dOf(line, D.last.P));
+        if (dd <= best) { best = dd; D.last.slot = k; }
+      });
+      if (D.last.slot >= 0) { D.last.P = D.slots[D.last.slot]; D.last.snap = 1e-3; }
       ui.g.placeTrain(D.tid, D.last.P, { hold: true, snap: D.last.snap, dir: D.last.dir });
       if (!S.raf) S.raf = requestAnimationFrame(loop);
     };
@@ -317,6 +357,8 @@ function injectStyle() {
 .tt-m.hold { box-shadow: inset 0 0 0 2.5px var(--lc), 0 0 0 1.5px #fff, 0 0 0 4px color-mix(in srgb, var(--cta-2) 70%, transparent); animation: tt-hold 1.1s ease-in-out infinite; }
 @keyframes tt-hold { 50% { box-shadow: inset 0 0 0 2.5px var(--lc), 0 0 0 1.5px #fff, 0 0 0 6px color-mix(in srgb, var(--cta-2) 25%, transparent); } }
 .tt-m.drag { cursor: grabbing; z-index: 5; filter: drop-shadow(0 6px 8px rgba(42, 20, 99, 0.35)); animation: none; }
+.tt-g { position: absolute; left: 0; top: 0; width: 30px; height: 24px; border-radius: 8px; box-sizing: border-box; border: 2px dashed var(--lc); opacity: 0.6; z-index: 2; pointer-events: none; background: color-mix(in srgb, var(--lc) 8%, transparent); }
+.tt-g.on { opacity: 1; border-style: solid; background: color-mix(in srgb, var(--lc) 20%, transparent); }
 .tt-m:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .tt-msg { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--ink-3); line-height: 1.35; flex-wrap: wrap; }
 .tt-msg span { flex: 1 1 180px; min-width: 0; }
