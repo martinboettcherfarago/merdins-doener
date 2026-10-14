@@ -898,7 +898,8 @@ function konzern(b) {
 // =====================================================================================
 // Stufe 5 – Wolkenkratzer (20–40 Geschosse)
 // =====================================================================================
-const towerFloors = (b, base) => Math.round(base * (b.fw * b.fd >= 4 ? 1.25 : b.fw * b.fd >= 2 ? 1.1 : 0.95)) + b.int(0, 3);
+// hf: Höhenfaktor aus der Durchmischung (mix.js) – im dichten Zentrum höher, am Rand niedriger
+const towerFloors = (b, base) => Math.round(base * (b.fw * b.fd >= 4 ? 1.25 : b.fw * b.fd >= 2 ? 1.1 : 0.95) * (b.ctx.hf || 1)) + b.int(0, 3);
 
 // Kronenturm (Art déco): Schaft mit Lisenen, dreistufige Krone mit Lichtbändern, Spitze
 function kronenturm(b) {
@@ -1092,4 +1093,6 @@ export function buildOff(ctx) {
   list[ctx.variant % list.length](b);
   return b.finish();
 }
+// Für weitere Bürobausteine (indoff_off2.js)
+export { SIDES, FH, GLASS, geom, vol, facRibbon, facCurtain, facGrid, facPunch, facPiers, facFins, roofOff, lobby, roofSign, bikes, plaza, roundBlock, antenna, greenery, towerFloors };
 void CAR;

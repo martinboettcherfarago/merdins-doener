@@ -1098,4 +1098,5 @@ export const SURFACE = {
   paint_black: P('paint', { second: 0x6a6a6a }), paint_teal: P('paint', { second: 0x8a8580 }),
   glass_railing: P('paint', { second: 0x8fa4ae, rough: 0.5, normal: 0.2, grime: 0, porous: 0 }),
   ivy: P('leaves', { second: 0x1c321b, scale: 1.4, flags: F_LEAVES, grime: 0, porous: 0.3 }),
+  terracotta: P('cassette', { second: 0x6e3a26, scale: 0.8 }), metal_panel_bronze: P('cassette', { second: 0x3a2a1a }),
 };

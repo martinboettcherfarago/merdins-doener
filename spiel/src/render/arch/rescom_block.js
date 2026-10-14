@@ -486,7 +486,7 @@ function stadthaeuser(ctx, g, P) {
 function platte(ctx, g, P, o = {}) {
   const { rng, level } = ctx;
   const { W, D } = P;
-  const n = o.floors ?? (level >= 5 ? 16 + Math.floor(rng() * 5) : 6 + Math.floor(rng() * 5));
+  const n = Math.max(3, Math.round((o.floors ?? (level >= 5 ? 16 + Math.floor(rng() * 5) : 6 + Math.floor(rng() * 5))) * (ctx.hf || 1)));
   const st = stack(0.9 * M, 2.8 * M, 2.8 * M, n);
   const front = rr(rng, 2.0, 3.0) * M;
   const bw = W - 0.6 * M, bd = Math.min(D - front - 2.4 * M, (D > 1.5 ? 12 : (level >= 5 ? 9.5 : 9.2)) * M);
@@ -701,7 +701,7 @@ function wohnturm(ctx, g, P) {
   const { rng } = ctx;
   const { W, D } = P;
   const small = W < 1.5 && D < 1.5;
-  const n = small ? 11 + Math.floor(rng() * 4) : 14 + Math.floor(rng() * 6);
+  const n = Math.max(3, Math.round((small ? 11 + Math.floor(rng() * 4) : 14 + Math.floor(rng() * 6)) * (ctx.hf || 1)));
   const fh = 2.95 * M;
   const wall = rpick(rng, ['plaster_white', 'concrete_panel', 'brick_white', 'plaster_grey', 'brick_red', 'metal_panel_white']);
   const accent = rpick(rng, ['metal_panel_grey', 'wood_planks', 'brick_dark', 'metal_panel_blue', 'concrete']);
@@ -762,7 +762,7 @@ function towerGround(g, W, D, front, rng) {
 function punkthaus(ctx, g, P, o = {}) {
   const { rng } = ctx;
   const { W, D } = P;
-  const n = o.floors ?? (W < 1.5 && D < 1.5 ? 13 + Math.floor(rng() * 5) : 18 + Math.floor(rng() * 6));
+  const n = Math.max(3, Math.round((o.floors ?? (W < 1.5 && D < 1.5 ? 13 + Math.floor(rng() * 5) : 18 + Math.floor(rng() * 6))) * (ctx.hf || 1)));
   const fh = 2.9 * M;
   const front = 2.0 * M;
   const s = Math.min(W - 1.0 * M, D - front - 1.2 * M, o.size ?? 15 * M);
@@ -807,7 +807,7 @@ function punkthaus(ctx, g, P, o = {}) {
 function scheibe(ctx, g, P) {
   const { rng } = ctx;
   const { W, D } = P;
-  const n = 12 + Math.floor(rng() * 5);
+  const n = Math.max(3, Math.round((12 + Math.floor(rng() * 5)) * (ctx.hf || 1)));
   const fh = 2.85 * M;
   const front = 2.6 * M;
   const bw = W - 0.8 * M, bd = Math.min(D - front - 2.2 * M, 11.5 * M);
@@ -847,7 +847,7 @@ function platteHoch(ctx, g, P) {
 function gruenTurm(ctx, g, P) {
   const { rng } = ctx;
   const { W, D } = P;
-  const n = W < 1.5 && D < 1.5 ? 12 + Math.floor(rng() * 4) : 16 + Math.floor(rng() * 6);
+  const n = Math.max(3, Math.round((W < 1.5 && D < 1.5 ? 12 + Math.floor(rng() * 4) : 16 + Math.floor(rng() * 6)) * (ctx.hf || 1)));
   const fh = 3.1 * M;
   const front = 2.4 * M;
   const s = Math.min(W - 2.4 * M, D - front - 1.6 * M, 14 * M);
@@ -959,7 +959,7 @@ function zwillinge(ctx, g, P) {
     const along = W >= D;
     const half = along ? { W: W / 2, D } : { W, D: D / 2 };
     for (const sg of [-1, 1]) {
-      const n = 16 + Math.floor(rng() * 4) + (sg > 0 ? 4 : 0);
+      const n = Math.max(3, Math.round((16 + Math.floor(rng() * 4) + (sg > 0 ? 4 : 0)) * (ctx.hf || 1)));
       const s2 = Math.min(half.W - 1.8 * M, half.D - 3.0 * M, 11 * M);
       const cx2 = along ? sg * W / 4 : 0, cz2 = along ? D / 2 - 2.2 * M - s2 / 2 : sg * D / 4 + (sg > 0 ? -0.6 * M : 0.6 * M);
       punkthaus(ctx, g, half, { floors: n, cx: cx2, cz: cz2, size: s2, ground: false, crown: sg > 0 ? 'glass_curtain_blue' : 'metal_panel_grey' });
@@ -979,7 +979,7 @@ function zwillinge(ctx, g, P) {
   const along = W >= D;
   for (const sg of [-1, 1]) {
     const tx = along ? sg * (pw / 4) : 0, tz = along ? pcz : pcz + sg * (pd / 4);
-    const n = 18 + Math.floor(rng() * 5) + (sg > 0 ? 3 : 0);
+    const n = Math.max(3, Math.round((18 + Math.floor(rng() * 5) + (sg > 0 ? 3 : 0)) * (ctx.hf || 1)));
     const st = stack(pst.top, 3.0 * M, 2.9 * M, n);
     const wall = rpick(rng, ['plaster_white', 'metal_panel_white', 'concrete_panel']);
     const m = { cx: tx, cz: tz, sx: sz, sz: sz * 0.9, y0: pst.top, y1: st.top, wall };
@@ -1009,4 +1009,4 @@ export function buildResHigh(ctx, g) {
   const fn = list[variant % list.length];
   fn(ctx, g, { W: fw, D: fd });
 }
-export { gruenderzeit, modernMfh, platte, punkthaus, towerGround, backyard };
+export { gruenderzeit, modernMfh, platte, punkthaus, towerGround, backyard, HIGH };

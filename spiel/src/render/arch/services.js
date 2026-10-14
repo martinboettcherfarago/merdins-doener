@@ -12,6 +12,7 @@ import './svc_edu.js';
 import './svc_parks.js';
 import './svc_logistics.js';
 import './svc_safety.js';
+import './svc_extra.js';
 
 const { M, FLOOR } = P;
 export const SVC_CATS = ['power', 'water', 'garbage', 'services', 'education', 'parks', 'industry', 'safety'];

@@ -720,7 +720,7 @@ export class ProtoManager {
   gc(dt, maxIdle = 20) {
     let n = 0;
     this.time += dt;
-    const many = this.protos.size > 450;
+    const many = this.protos.size > 650; // mehr Modellvielfalt (mix.js): Fernmodelle bleiben ohnehin gebunden
     for (const [id, p] of this.protos) {
       const used = p.set.count > 0 || p.batchRefs > 0 || p.anims.some((a) => a.set.count > 0);
       if (used) { p.idle = 0; continue; }
