@@ -618,8 +618,10 @@ export class Engine {
 
   // Shader vorab übersetzen: alles in der Szene sowie die Gebäudematerialien als Instanz- und Bündelvariante und die
   // Blendmaterialien der Straßen und Pflanzen – sonst stockt das erste Bild, in dem eine neue Variante erscheint.
-  precompile() {
+  // full: zusätzlich die ganze Szene (auch ausgeblendete Meshes) – teuer, nur hinter dem Ladebildschirm
+  precompile(full = true) {
     const t0 = performance.now();
+    const done = this._pcMats || (this._pcMats = new WeakSet());
     try {
       const tmp = new THREE.Scene();
       const geo = new THREE.BufferGeometry();
@@ -632,16 +634,35 @@ export class Engine {
         m.castShadow = m.receiveShadow = true;
         tmp.add(m);
       };
-      for (const { mat } of g9Materials()) { add(mat, true); add(mat, false); }
+      for (const { mat } of g9Materials()) if (!done.has(mat)) { done.add(mat); add(mat, true); add(mat, false); }
       const fm = this.roads && this.roads.fadeMats;
       if (fm) for (const m of Object.values(fm)) { add(m, true); add(m, true, true); }
       const veg = this.terrain && this.terrain.veg;
       if (veg && veg.lodMats) { for (const set of veg.lodMats) for (const m of Object.values(set)) add(m, true, true); if (veg.grassMat) add(veg.grassMat, true, true); }
-      this.renderer.compile(tmp, this.camera, this.scene);
-      this.renderer.compile(this.scene, this.camera);
+      const r = this.renderer, before = r.info.programs.length;
+      // Wie beim echten Zeichnen ins HDR-Ziel der Nachbearbeitung übersetzen (Tonwert und Farbraum gehören zum
+      // Programm – sonst entstünden Varianten für den Bildschirm, und beim ersten Bild würde trotzdem übersetzt)
+      const prevRT = r.getRenderTarget();
+      if (this.post) { if (!this.post.sceneRT) this.post.allocate(); r.setRenderTarget(this.post.sceneRT); }
+      else r.setRenderTarget(null);
+      r.compile(tmp, this.camera, this.scene);
+      if (full) r.compile(this.scene, this.camera);
+      r.setRenderTarget(prevRT);
+      this._pcNew = r.info.programs.length - before;
       geo.dispose();
     } catch (e) { console.warn('Cityscapes: Vorübersetzen der Shader fehlgeschlagen', e); }
-    if (this.loadTimes) this.loadTimes.precompile = Math.round(performance.now() - t0);
+    const ms = performance.now() - t0;
+    if (full && this.loadTimes) this.loadTimes.precompile = Math.round(ms);
+    return ms;
+  }
+
+  // Im Spiel: neu hinzugekommene Materialien (neue Gebäudearten, Blendmaterialien) bei ruhender Kamera vorübersetzen,
+  // bevor sie zum ersten Mal ins Bild kommen
+  precompileIdle(now) {
+    if (this.warming || now < (this._pcT || 0)) return;
+    if (!this.cameraCalm()) { this._pcT = now + 500; return; }
+    const ms = this.precompile(false);
+    this._pcT = now + (ms > 25 ? 12000 : 3000);
   }
 
   frame(dt, simDt) {
@@ -657,6 +678,7 @@ export class Engine {
     this.autoFrame(interval, now);
     this.fxFrame(dt);
     this.warmFrame(now);
+    if (this.frameNo > 30 && !this.slow) this.precompileIdle(now);
     this.renderer.info.reset();
     shared.uTime.value = this.time;
     const g = this.game;

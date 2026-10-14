@@ -111,7 +111,7 @@ try {
       high: { postfx: true, ao: true, bloom: true, shadows: 'high' }, ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' }, auto: { postfx: true, ao: true, bloom: true, shadows: 'high' } };
     const q = String(args.quality || 'medium');
     await page.addInitScript(({ q, pre }) => {
-      try { const s = JSON.parse(localStorage.getItem('stadtpuls.settings') || '{}'); localStorage.setItem('stadtpuls.settings', JSON.stringify({ ...s, quality: q, ...pre })); } catch (e) { /* egal */ }
+      try { const s = JSON.parse(localStorage.getItem('stadtpuls.settings') || '{}'); localStorage.setItem('stadtpuls.settings', JSON.stringify({ ...s, quality: q, qualityChosen: true, ...pre })); } catch (e) { /* egal */ }
     }, { q, pre: PRE[q] || {} });
   }
   let consoleErrors = 0;
