@@ -460,7 +460,7 @@ const RING_R = [0.29, 0.35]; // Überfüllungs-Ring um das Symbol
 const PAX_CELL = 0.15;   // Rasterweite der Wartenden
 const PAX_COLS = 6;
 const PAX_MAX = 24;
-const ICON_MIN_PX = 20;  // Mindestgröße des Zielsymbols auf dem Bildschirm
+const ICON_MIN_PX = 17;  // Mindestgröße des Zielsymbols auf dem Bildschirm (klein genug, dass die Übersicht ruhig bleibt)
 const PAX_MIN_PX = 9;    // Mindest-Rasterweite der Wartenden auf dem Bildschirm
 const LABEL_GAP = 3;     // Luft zwischen zwei Schildern (px)
 const _bq = new THREE.Quaternion(), _rx90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);

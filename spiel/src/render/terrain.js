@@ -307,11 +307,11 @@ const TERRAIN_COLOR = /* glsl */`
     vec2 cid = floor(fp);
     vec2 cf = fract(fp);
     vec2 cc = vec2(g7h(cid + 3.7), g7h(cid + 9.1)) * 0.6 + 0.2;
-    float on = step(1.0 - fdens * 0.75, g7h(cid)) * (1.0 - smoothstep(0.09, 0.17 + px * 0.5, length(cf - cc)));
+    float on = step(1.0 - fdens * 0.5, g7h(cid)) * (1.0 - smoothstep(0.09, 0.17 + px * 0.5, length(cf - cc)));
     float k = g7h(cid + 5.3);
     vec3 fc = k < 0.34 ? vec3(0.96, 0.95, 0.9) : k < 0.6 ? vec3(0.98, 0.83, 0.2) : k < 0.78 ? vec3(0.72, 0.48, 0.88) : k < 0.92 ? vec3(0.9, 0.22, 0.18) : vec3(0.42, 0.56, 0.95);
     float near = 1.0 - smoothstep(0.7, 1.5, px);
-    col = mix(col, g7lin(fc), on * near);
+    col = mix(col, g7lin(fc), on * near * 0.85);
     col += g7lin(vec3(0.5, 0.45, 0.3)) * 0.06 * fdens * (1.0 - near);
   }
 
@@ -323,6 +323,8 @@ const TERRAIN_COLOR = /* glsl */`
     sandH = sdT.a;
     vec3 sandC = g7lin(vec3(0.86, 0.78, 0.58)) * sdT.rgb * 2.0;
     sandM = smoothstep(0.35, 0.65, mA.g + (nC.r - 0.5) * 0.35);
+    // Sand unter Zonen, Gebäuden und Straßen weitgehend begrünen: in der Stadt wirkt er sonst wie Matsch oder Baustelle
+    sandM *= 1.0 - 0.75 * urban;
     bank = smoothstep(-0.004, -0.04, wp.y);
     float lowBank = smoothstep(-0.07, -0.125, wp.y + (nC.r - 0.5) * 0.04);
     vec3 mud = mix(g7lin(vec3(0.5, 0.44, 0.33)), g7lin(vec3(0.56, 0.54, 0.4)), smoothstep(0.35, 0.65, nC.r)) * (0.85 + 0.3 * gh);

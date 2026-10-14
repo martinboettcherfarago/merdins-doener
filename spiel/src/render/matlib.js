@@ -27,8 +27,8 @@ export const MATERIAL_DEFS = {
   metal_corrugated: [0x9aa1a6, 0.6, 0.6], metal_corrugated_red: [0x9b4a3e, 0.6, 0.5], metal_corrugated_green: [0x5f7f68, 0.6, 0.5],
   // Dächer
   roof_tiles_red: [0xb4553f, 0.85, 0], roof_tiles_brown: [0x7a4a36, 0.85, 0], roof_tiles_anthracite: [0x45474c, 0.8, 0],
-  roof_slate: [0x4f5560, 0.75, 0], roof_copper: [0x6fa58f, 0.6, 0.3], roof_metal_grey: [0x7d8287, 0.5, 0.6],
-  roof_flat_gravel: [0x8f8c86, 0.95, 0], roof_flat_membrane: [0x5e6166, 0.8, 0], green_roof: [0x6f9a52, 0.95, 0], solar_panel: [0x1f3554, 0.25, 0.4],
+  roof_slate: [0x4f5560, 0.75, 0], roof_copper: [0x7a9f90, 0.6, 0.3], roof_metal_grey: [0x7d8287, 0.5, 0.6],
+  roof_flat_gravel: [0x8f8c86, 0.95, 0], roof_flat_membrane: [0x5e6166, 0.8, 0], green_roof: [0x789a62, 0.95, 0], solar_panel: [0x1f3554, 0.25, 0.4],
   // Glas
   glass_window: [0x2c3e4d, 0.1, 0.6, { glass: true }], glass_shop: [0x3a5566, 0.08, 0.6, { glass: true, shop: true }],
   glass_curtain_blue: [0x41617e, 0.06, 0.8, { glass: true, curtain: true }], glass_curtain_green: [0x3f6a64, 0.06, 0.8, { glass: true, curtain: true }],
@@ -41,8 +41,8 @@ export const MATERIAL_DEFS = {
   awning_red: [0xc9463a, 0.85, 0], awning_blue: [0x2f6fb5, 0.85, 0], awning_green: [0x2f8a52, 0.85, 0], awning_yellow: [0xe0b23a, 0.85, 0], awning_striped: [0xd9584a, 0.85, 0, { striped: true }],
   canvas_white: [0xf0ede4, 0.9, 0],
   // Boden
-  asphalt: [0x4d5158, 0.95, 0], asphalt_dark: [0x3a3d42, 0.95, 0], pavers: [0xb9b2a5, 0.9, 0], sidewalk: [0xcfc9bc, 0.9, 0], curb: [0xbcb7ad, 0.85, 0],
-  grass: [0x7fae5e, 0.95, 0], grass_dry: [0xa8a865, 0.95, 0], dirt: [0x8a6e4e, 0.97, 0], gravel: [0x9c968c, 0.97, 0], sand: [0xe2d3a2, 0.95, 0], rock: [0x8f877c, 0.9, 0],
+  asphalt: [0x4d5158, 0.95, 0], asphalt_dark: [0x3a3d42, 0.95, 0], pavers: [0xb9b2a5, 0.9, 0], sidewalk: [0xc8c3b7, 0.9, 0], curb: [0xbcb7ad, 0.85, 0],
+  grass: [0x7fae5e, 0.95, 0], grass_dry: [0xa8a865, 0.95, 0], dirt: [0x8c7a62, 0.97, 0], gravel: [0x9c968c, 0.97, 0], sand: [0xe2d3a2, 0.95, 0], rock: [0x8f877c, 0.9, 0],
   field_soil: [0x7a5a3d, 0.98, 0], field_crops: [0x8fb24f, 0.95, 0], field_wheat: [0xd8bf63, 0.95, 0], field_rapeseed: [0xe6d23c, 0.95, 0],
   water_pool: [0x3fa3c9, 0.08, 0.2, { water: true }], sports_turf: [0x4f9e4d, 0.9, 0], rubber_track: [0xb5503d, 0.9, 0], court_blue: [0x3a6fa8, 0.85, 0],
   // Pflanzen
@@ -56,7 +56,7 @@ export const MATERIAL_DEFS = {
   lod_windows: [0x2c3e4d, 0.15, 0.5, { lodWindows: true }],
   // Ergänzungen
   plaster_red: [0xc98a7a, 0.9, 0], plaster_yellow: [0xe8d38a, 0.9, 0], tile_white: [0xe9e9e4, 0.4, 0], marble: [0xeeebe4, 0.3, 0.05],
-  glass_skylight: [0x7fa7c2, 0.05, 0.4, { glass: true }], chain_fence: [0x8a9096, 0.6, 0.6], scaffold: [0xc8a96a, 0.8, 0.2], scaffold_net: [0x4f8f6a, 0.9, 0],
+  glass_skylight: [0x7fa7c2, 0.05, 0.4, { glass: true }], chain_fence: [0x8a9096, 0.6, 0.6], scaffold: [0xc8a96a, 0.8, 0.2], scaffold_net: [0x8aa394, 0.9, 0],
   container_red: [0xa8402f, 0.7, 0.3], container_blue: [0x2f5f9a, 0.7, 0.3], container_green: [0x3f7a4a, 0.7, 0.3], container_yellow: [0xd4a32a, 0.7, 0.3],
   tank_white: [0xe6e6e1, 0.5, 0.4], pipe_metal: [0x8c9399, 0.4, 0.8], rust: [0x8a4b2f, 0.9, 0.2], tarmac: [0x55585d, 0.95, 0], runway_marking: [0xf0f0ea, 0.8, 0],
   rail_track: [0x5a4a3c, 0.9, 0.3], ballast: [0x7d776e, 0.97, 0], water_canal: [0x3f8fb0, 0.1, 0.2, { water: true }], hay: [0xd7b866, 0.95, 0], log_wood: [0x8b6a48, 0.9, 0],

@@ -636,7 +636,7 @@ export function texGenFactory() {
         if (e > 0) { patch = 0.35; rim = Math.max(rim, 1 - smooth(0.5, 2.0, e)) * 0.5; }
       }
       const oi = smooth(0.74, 0.93, oil[i]);
-      lum *= (1 - 0.22 * oi) * (1 - 0.6 * crack) * (1 - 0.25 * rim);
+      lum *= (1 - 0.12 * oi) * (1 - 0.4 * crack) * (1 - 0.18 * rim);
       setD(L, i, lum, 0, 0.02);
       L.m[i] = patch;
       L.h[i] = 0.45 * dome + 0.25 * dome2 + 0.2 * grain[i] - 0.5 * crack;
@@ -1072,7 +1072,7 @@ export const SURFACE = {
   pavers: P('pavers', { second: 0x9e9686, flags: F_GROUND | F_PUDDLE, grime: 0 }), sidewalk: P('slabs', { second: 0x8d887e, flags: F_GROUND | F_PUDDLE, grime: 0 }),
   curb: P('granite', { second: 0x6f6c66, grime: 0.6 }),
   grass: P('grass', { second: 0xb3a35c, flags: F_GROUND, grime: 0, porous: 0.5 }), grass_dry: P('grass', { second: 0xc2ad6a, flags: F_GROUND, grime: 0, porous: 0.5 }),
-  dirt: P('dirt', { second: 0x5e4a36, flags: F_GROUND | F_PUDDLE, grime: 0 }), gravel: P('gravel', { second: 0x5e5a52, flags: F_GROUND, grime: 0 }),
+  dirt: P('dirt', { second: 0x6a5c4a, flags: F_GROUND | F_PUDDLE, grime: 0 }), gravel: P('gravel', { second: 0x5e5a52, flags: F_GROUND, grime: 0 }),
   sand: P('sand', { second: 0xb8a77c, flags: F_GROUND, grime: 0 }), rock: P('rock', { second: 0x8f9466, grime: 0 }),
   field_soil: P('rows', { second: 0x5e4630, grime: 0 }), field_crops: P('rows', { second: 0x6e5236, grime: 0 }), field_wheat: P('rows', { second: 0xb79f52, grime: 0 }),
   field_rapeseed: P('rows', { second: 0x7d8a3a, grime: 0 }),

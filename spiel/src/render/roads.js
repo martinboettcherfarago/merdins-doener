@@ -962,7 +962,7 @@ export class RoadView {
           this.arrow(ctx, D, P, end * 0.0, qSign * h * 0.5, end, 'straight');
         }
         // Ölflecken vor der Haltelinie
-        if (D.seed > 0.4) this.pdisc(ctx, D, ...P(sl - end * 0.12, qSign * h * 0.5), 0.03, DARK(0.12), 8, -0.0002);
+        if (D.seed > 0.7) this.pdisc(ctx, D, ...P(sl - end * 0.12, qSign * h * 0.5), 0.03, DARK(0.07), 8, -0.0002);
       }
     }
     // Bushaltestelle: gelbe Zickzacklinie am Bord
@@ -1064,7 +1064,7 @@ export class RoadView {
       }
     }
     // Reifenspuren in der Kreuzung
-    if (D.seed > 0.3) this.pdisc(ctx, D, (D.seed - 0.5) * 0.2, (hash2(D.x, D.y, 5) - 0.5) * 0.2, 0.09, DARK(0.05), 12, -0.0003);
+    if (D.seed > 0.3) this.pdisc(ctx, D, (D.seed - 0.5) * 0.2, (hash2(D.x, D.y, 5) - 0.5) * 0.2, 0.09, DARK(0.03), 12, -0.0003);
   }
 
   // Gassen: Rinne aus dunklem Pflaster am Bord
@@ -1085,7 +1085,7 @@ export class RoadView {
       // Reifenspuren je Fahrspur
       const lanes = D.t === R.STREET ? [0.15] : [D.median + (h - D.median) * 0.25, D.median + (h - D.median) * 0.75];
       for (const sg of [-1, 1]) for (const lc of lanes) {
-        this.pline(ctx, D, Pq(-0.5, sg * lc), Pq(0.5, sg * lc), 0.075, DARK(0.055), -0.0004);
+        this.pline(ctx, D, Pq(-0.5, sg * lc), Pq(0.5, sg * lc), 0.075, DARK(0.035), -0.0004);
       }
       // Gullys am Bord (jedes zweite Feld)
       if (((x + y) & 1) === 0) {
@@ -1103,18 +1103,18 @@ export class RoadView {
         this.pdisc(ctx, D, u, v, 0.024, [0.16, 0.16, 0.17, 0.95], 8);
         this.pdisc(ctx, D, u, v, 0.018, [0.3, 0.3, 0.31, 0.9], 8, 0.0001);
       }
-      // Flicken
-      if (sd > 0.62) {
+      // Flicken (selten und nur leicht dunkler – die Fahrbahn soll ruhig wirken)
+      if (sd > 0.86) {
         const s = (hash2(x, y, 41) - 0.5) * 0.5, q = (hash2(x, y, 42) - 0.5) * h * 1.2;
         const w = 0.05 + hash2(x, y, 43) * 0.1, l = 0.08 + hash2(x, y, 44) * 0.2;
-        this.pquad(ctx, D, Pq(s - l / 2, q - w / 2), Pq(s + l / 2, q - w / 2), Pq(s + l / 2, q + w / 2), Pq(s - l / 2, q + w / 2), DARK(0.13), -0.0006);
+        this.pquad(ctx, D, Pq(s - l / 2, q - w / 2), Pq(s + l / 2, q - w / 2), Pq(s + l / 2, q + w / 2), Pq(s - l / 2, q + w / 2), DARK(0.07), -0.0006);
       }
-      // Risse
-      if (sd > 0.35 && sd < 0.75) {
+      // Risse (vereinzelt, fein)
+      if (sd > 0.5 && sd < 0.62) {
         let u = (hash2(x, y, 51) - 0.5) * 0.6, q = (hash2(x, y, 52) - 0.5) * h * 1.4;
         const pts = [Pq(u, q)];
         for (let k = 0; k < 5; k++) { u += 0.04 + hash2(x, y, 60 + k) * 0.05; q += (hash2(x, y, 70 + k) - 0.5) * 0.05; pts.push(Pq(Math.min(0.48, u), Math.max(-h + 0.02, Math.min(h - 0.02, q)))); }
-        this.ppoly(ctx, D, pts, 0.0035, DARK(0.32), false, -0.0002);
+        this.ppoly(ctx, D, pts, 0.003, DARK(0.2), false, -0.0002);
       }
     } else if (P.kind === 'curve' && sd < 0.5) {
       const { C, e1, e2 } = P;
@@ -1218,7 +1218,7 @@ export class RoadView {
             tree = true;
           }
           // Parkende Autos (Gehwegparken) in Wohn- und Geschäftsstraßen, auf der Seite ohne Laterne
-          if (!hasLamp && !D.raised && (zn === Z.RES || zn === Z.COM) && hash2(x, y, 120 + side) < 0.62 && sideRoom >= 0.16) {
+          if (!hasLamp && !D.raised && (zn === Z.RES || zn === Z.COM) && hash2(x, y, 120 + side) < 0.42 && sideRoom >= 0.16) {
             const s = tree ? -treeS * 0.3 : (hash2(x, y, 121) - 0.5) * 0.3;
             const [u, v] = pos(s, 0.012);
             const dirSign = hash2(x, y, 122) < 0.7 ? side : -side; // meist in Fahrtrichtung
@@ -1237,7 +1237,7 @@ export class RoadView {
           }
           if (sseed > 0.7) { const [u, v] = pos(0.28, 0.2); this.put(ctx, 'planter', ...place(u, v), hash2(x, y, 11 + side) * 6); }
           if (sseed > 0.55 && sseed < 0.68 && (zn === Z.RES || zn === Z.COM)) { const [u, v] = pos(-0.05, 0.22); this.put(ctx, 'bench', ...place(u, v), face); }
-          if ((zn === Z.RES) && !D.raised && hash2(x, y, 130 + side) < 0.35) {
+          if ((zn === Z.RES) && !D.raised && hash2(x, y, 130 + side) < 0.25) {
             const s = (hash2(x, y, 131) - 0.5) * 0.2;
             const [u, v] = pos(s, 0.075);
             const yaw = ax === 0 ? 0 : Math.PI / 2;
