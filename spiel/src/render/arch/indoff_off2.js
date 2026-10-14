@@ -235,7 +235,7 @@ function holzhybrid(b) {
 function rundbau(b) {
   const { W, D, Z } = geom(b);
   b.lot('pavers', 0.1);
-  const band = b.pick(['concrete_panel', 'metal_panel_white', 'plaster_white', 'terracotta']);
+  const band = b.pick(['concrete_panel', 'metal_light', 'metal_panel_grey', 'terracotta']);
   const glass = b.pick(['glass_window', 'glass_curtain_blue', 'glass_curtain_green']);
   const r = Math.min(W - 2.4, D - 4.0) * 0.5, pz = -Z + 1.0 + r, n = 4 + b.int(0, 1);
   const seg = b.d >= 2 ? 20 : b.d === 1 ? 14 : 10;
@@ -243,8 +243,9 @@ function rundbau(b) {
   b.cyl('metal_dark', 0, 0.3, pz, r - 0.2, n * 3.4, { seg, exact: true });
   for (let k = 0; k < n; k++) {
     const y = 0.3 + k * 3.4;
-    b.cyl(band, 0, y, pz, r, 0.85, { seg, exact: true, open: true });
-    b.cyl(glass, 0, y + 0.85, pz, r - 0.12, 2.55, { seg, exact: true, open: true, lit: b.r() });
+    b.cyl(band, 0, y, pz, r, 0.6, { seg, exact: true, open: true });
+    b.cyl(glass, 0, y + 0.6, pz, r - 0.1, 2.8, { seg, exact: true, open: true, lit: b.r() });
+    if (b.d >= 2) { const m = Math.round(seg * 0.75); for (let i = 0; i < m; i++) { const a = (i / m) * PI * 2; b.box('metal_dark', Math.sin(a) * (r - 0.05), y + 0.6, pz + Math.cos(a) * (r - 0.05), 0.08, 2.8, 0.08, a); } }
   }
   const top = 0.3 + n * 3.4;
   b.cyl(band, 0, top, pz, r + 0.1, 0.6, { seg, exact: true });
