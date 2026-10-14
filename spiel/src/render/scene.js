@@ -675,8 +675,16 @@ export class Engine {
           probe.add(m);
         };
         const geo2 = geo.clone();
-        if (base) for (const anim of [false, true]) { pm(base.mat, g9DepthMaterial(anim), true); pm(base.mat, g9DepthMaterial(anim), false); }
-        if (veg && veg.depthMats && veg.lodMats) for (const m of Object.values(veg.depthMats)) { pm(veg.lodMats[0].solid, m, true, true); pm(veg.mats.solid, m, true, true); }
+        // Schattenprogramm hängt auch an der Seite des Farbmaterials (vorn/hinten/beidseitig): je Seite ein Probe-Mesh
+        const bySide = new Map();
+        if (base) for (const { mat } of g9Materials()) if (!bySide.has(mat.side)) bySide.set(mat.side, mat);
+        for (const mat of bySide.values()) for (const anim of [false, true]) { pm(mat, g9DepthMaterial(anim), true); pm(mat, g9DepthMaterial(anim), false); }
+        if (veg && veg.depthMats && veg.lodMats) {
+          for (const k of ['solid', 'bare', 'blade']) {
+            const dm = k === 'bare' ? veg.depthMats.bare : veg.depthMats.solid;
+            pm(veg.mats[k], dm, true, true); pm(veg.lodMats[0][k], dm, true, true); pm(veg.lodMats[1][k], dm, true, true);
+          }
+        }
         if (this.roads && this.roads.fadeDepth) { pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true); pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true, true); }
         this.scene.add(probe);
         this._pcProbe = { group: probe, geo: geo2, frames: 2 };
