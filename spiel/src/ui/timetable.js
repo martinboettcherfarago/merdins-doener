@@ -134,19 +134,25 @@ const meanX = (ms) => ms.reduce((a, m) => a + m.x, 0) / ms.length;
 // Einheiten (einzelne Züge oder Gruppen) mit Mindestabstand STEP um ihre Wunschstellen anordnen (1D, Cluster zentriert)
 function spread(units, lo, hi) {
   const cl = [];
+  // Mitte eines Clusters: Mittel der Wunschstellen, an den Rändern so weit nach innen, dass alle Marker sichtbar bleiben
+  const center = (c) => {
+    const half = ((c.us.length - 1) * STEP) / 2;
+    c.c = meanX(c.us);
+    if (hi - lo > 2 * half) c.c = Math.max(lo + half, Math.min(hi - half, c.c));
+    return c;
+  };
   for (const u of units) {
-    cl.push({ us: [u], c: u.x });
+    cl.push(center({ us: [u] }));
     while (cl.length > 1) {
       const b = cl[cl.length - 1], a = cl[cl.length - 2];
       if (b.c - ((b.us.length - 1) * STEP) / 2 - (a.c + ((a.us.length - 1) * STEP) / 2) >= STEP - 1e-6) break;
       a.us.push(...b.us);
-      a.c = meanX(a.us);
+      center(a);
       cl.pop();
     }
   }
   for (const c of cl) {
     const half = ((c.us.length - 1) * STEP) / 2;
-    if (hi - lo > 2 * half) c.c = Math.max(lo + half, Math.min(hi - half, c.c));
     c.disp = 0;
     c.us.forEach((u, k) => { u.px = c.c - half + k * STEP; c.disp = Math.max(c.disp, Math.abs(u.px - u.x)); });
   }

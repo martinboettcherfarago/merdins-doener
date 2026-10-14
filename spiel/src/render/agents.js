@@ -448,9 +448,23 @@ function smooth(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a)))
 // (Architektur-Baustein 'station': Variante 0 eigener Platz, Variante 1 Abgang auf dem Gehweg) in drei Detailstufen,
 // das Zielsymbol und die wartenden Fahrgäste über dem Eingang sowie der Überfüllungs-Ring (Mini-Metro-Timer).
 // Symbole liegen in der HUD-Szene: immer lesbar, auch hinter Häusern und in der Untergrund-Ansicht.
+// Jede Station trägt ein Schild zur Kamera hin: Zielsymbol, rechts daneben die Wartenden im Raster (Zeilen und Spalten
+// auf dem Bildschirm, nichts liegt übereinander). Aus der Ferne wachsen Schilder bis zu einer Mindestgröße in Pixeln;
+// eine Kollisionsprüfung in Bildschirmkoordinaten blendet dann bei Gedränge erst die Wartenden, dann das Symbol
+// weniger wichtiger Stationen aus (überfüllte und volle Stationen zuerst).
 const SHAPE_COLORS = { 1: 0x2d8a4e, 2: 0x2a73c4, 3: 0xc98a14, 4: 0x7b4fc0 };
 const ICON_Y = 0.6;      // Zielsymbol über der U-Säule
 const ICON_Y_HUB = 0.86; // über dem Dach des Umsteigebahnhofs
+const ICON_R = 0.25;     // halbe Größe des Zielsymbols samt Rand (Welteinheiten bei Maßstab 1)
+const RING_R = [0.29, 0.35]; // Überfüllungs-Ring um das Symbol
+const PAX_CELL = 0.15;   // Rasterweite der Wartenden
+const PAX_COLS = 6;
+const PAX_MAX = 24;
+const ICON_MIN_PX = 20;  // Mindestgröße des Zielsymbols auf dem Bildschirm
+const PAX_MIN_PX = 9;    // Mindest-Rasterweite der Wartenden auf dem Bildschirm
+const LABEL_GAP = 3;     // Luft zwischen zwei Schildern (px)
+const _bq = new THREE.Quaternion(), _rx90 = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+const _cr = new THREE.Vector3(), _cu = new THREE.Vector3(), _cf = new THREE.Vector3(), _pv = new THREE.Vector3(), _sv = new THREE.Vector3(), _dv = new THREE.Vector3();
 
 export class TransitView {
   constructor(engine) {
@@ -481,6 +495,11 @@ export class TransitView {
     }
     this.iconMats = { face: new THREE.MeshBasicMaterial({ color: 0xffffff }), rim: new THREE.MeshBasicMaterial({ color: 0x2e3440 }) };
     this.iconGeos = {};
+    // Zielsymbole: je Form ein InstancedMesh für Fläche und Rand (Plätze werden bei rebuild angelegt)
+    this.iconMesh = {};
+    this.iconCap = 0;
+    this.labels = [];       // je Station: { st, x, z, base }
+    this.shown = new Map(); // Station → 2 (Schild ganz), 1 (nur Symbol) im letzten Bild – gegen Flackern
     // Überfüllungs-Ringe
     this.ringGroup = new THREE.Group();
     this.hud.add(this.ringGroup);
@@ -516,9 +535,9 @@ export class TransitView {
   rebuild() {
     const g = this.g, tr = g.transit;
     this.version = tr.version;
-    for (const o of [...this.iconGroup.children]) this.iconGroup.remove(o);
     const lists = [[], [], []];
     this.iconY.clear();
+    this.labels = [];
     for (const st of tr.stations.values()) {
       const x = st.x + 0.5 - g.W / 2, z = st.y + 0.5 - g.H / 2;
       const hub = this.isHub(st);
@@ -530,19 +549,26 @@ export class TransitView {
         const [v, yaw] = this.entrance(st, onRoad, ls);
         lists[v].push([x, z, yaw]);
       }
-      // Zielsymbol (Mini-Metro-Lesbarkeit)
-      if (st.shape) {
-        const geo = this.iconGeo(st.shape);
-        const icon = new THREE.Mesh(geo.face, this.iconMats.face);
-        icon.position.set(x, base + 0.02, z);
-        icon.userData.station = st.id;
-        const rim = new THREE.Mesh(geo.rim, this.iconMats.rim);
-        rim.position.set(x, base, z);
-        this.iconGroup.add(rim, icon);
+      this.labels.push({ st, x, z, base });
+    }
+    // Zielsymbole (Mini-Metro-Lesbarkeit): Plätze für alle Stationen je Form
+    const need = Math.max(8, tr.stations.size);
+    if (need > this.iconCap) {
+      for (const m of Object.values(this.iconMesh)) { this.iconGroup.remove(m.face, m.rim); m.face.dispose(); m.rim.dispose(); }
+      this.iconMesh = {};
+      this.iconCap = Math.ceil(need * 1.25);
+      for (const k of [1, 2, 3, 4]) {
+        const geo = this.iconGeo(k);
+        const rim = new THREE.InstancedMesh(geo.rim, this.iconMats.rim, this.iconCap);
+        const face = new THREE.InstancedMesh(geo.face, this.iconMats.face, this.iconCap);
+        for (const m of [rim, face]) { m.frustumCulled = false; m.count = 0; }
+        face.renderOrder = 1;
+        this.iconGroup.add(rim, face);
+        this.iconMesh[k] = { face, rim };
       }
     }
     this.placeArch(lists);
-    for (const r of this.rings.values()) { this.ringGroup.remove(r); r.geometry.dispose(); }
+    for (const r of this.rings.values()) { this.ringGroup.remove(r); r.geometry.dispose(); r.material.dispose(); }
     this.rings.clear();
   }
 
@@ -655,58 +681,136 @@ export class TransitView {
     const g = this.g, tr = g.transit;
     if (tr.version !== this.version) this.rebuild();
     this.updateArchLods(false);
-    // Wartende Fahrgäste über den Eingängen
-    const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
-    for (const st of tr.stations.values()) {
-      const x = st.x + 0.5 - g.W / 2, z = st.y + 0.5 - g.H / 2;
-      const base = this.iconY.get(st.id) ?? ICON_Y;
-      const show = Math.min(st.waiting.length, 24);
-      for (let kk = 0; kk < show; kk++) {
-        const p = st.waiting[kk];
-        const m = this.paxMesh[p.shape];
-        if (!m) continue;
-        const i = counts[p.shape]++;
-        if (i >= 1200) continue;
-        const col = kk % 6, row = Math.floor(kk / 6);
-        this.p.set(x - 0.32 + col * 0.13, base + 0.11 + row * 0.07, z - 0.05);
-        this.m4.makeTranslation(this.p.x, this.p.y, this.p.z);
-        m.setMatrixAt(i, this.m4);
-      }
-      // Ring
-      let ring = this.rings.get(st.id);
-      if (st.over > 0.02) {
-        const segs = 48;
-        const prog = Math.min(1, st.over);
-        if (!ring) {
-          ring = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.72, segs, 1, Math.PI / 2, -Math.PI * 2 * prog), new THREE.MeshBasicMaterial({ color: 0xe8543f, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
-          ring.rotation.x = -Math.PI / 2;
-          ring.userData.prog = prog;
-          this.ringGroup.add(ring);
-          this.rings.set(st.id, ring);
-        }
-        if (Math.abs(ring.userData.prog - prog) > 0.01) {
-          ring.geometry.dispose();
-          ring.geometry = new THREE.RingGeometry(0.62, 0.72, segs, 1, Math.PI / 2, -Math.PI * 2 * prog);
-          ring.userData.prog = prog;
-        }
-        ring.position.set(x, base + 0.03, z);
-        ring.material.opacity = 0.6 + 0.4 * Math.sin(time * 6) ** 2;
-      } else if (ring) {
-        this.ringGroup.remove(ring);
-        ring.geometry.dispose();
-        this.rings.delete(st.id);
-      }
-    }
-    for (const k of [1, 2, 3, 4]) {
-      this.paxMesh[k].count = Math.min(counts[k], 1200);
-      this.paxMesh[k].instanceMatrix.needsUpdate = true;
-    }
+    this.layoutLabels(time);
     // Leuchtende U-Schilder und Eingänge bei Nacht
     const gl = this.lampGlow;
     gl.begin();
     const nl = Math.max(0, Math.min(1, (night - 0.15) / 0.5));
     if (nl > 0.01) for (const q of this.archLights) gl.add(q[0], q[1], q[2], q[3] * 0.9, q[4], q[5], q[6], 0.75 * nl);
     gl.end(this.e.renderer);
+  }
+
+  // Stationsschilder zur Kamera ausrichten, nach Bildschirmgröße skalieren und Überlappungen vermeiden
+  layoutLabels(time) {
+    const e = this.e, cam = e.camera, el = e.renderer && e.renderer.domElement;
+    const Wpx = (el && el.clientWidth) || 1280, Hpx = (el && el.clientHeight) || 720;
+    cam.updateMatrixWorld();
+    _bq.copy(cam.quaternion).multiply(_rx90);
+    _cr.set(1, 0, 0).applyQuaternion(cam.quaternion);
+    _cu.set(0, 1, 0).applyQuaternion(cam.quaternion);
+    _cf.set(0, 0, -1).applyQuaternion(cam.quaternion);
+    const fpx = Hpx / 2 / Math.tan(((cam.fov || 42) * Math.PI) / 360);
+    // Reihenfolge: überfüllt, dann viele Wartende; im letzten Bild gezeigte Schilder bleiben bevorzugt (kein Flackern)
+    const L = this.labels;
+    for (const q of L) {
+      const st = q.st;
+      q.p = (st.over > 0.02 ? 1e4 + st.over * 1e3 : 0) + Math.min(PAX_MAX, st.waiting.length) * 10 + (this.shown.get(st.id) || 0) * 25 - st.id * 1e-4;
+    }
+    L.sort((p, q) => q.p - p.p);
+    const boxes = [];
+    const free = (x0, y0, x1, y1) => {
+      for (let i = 0; i < boxes.length; i += 4) if (x0 < boxes[i + 2] + LABEL_GAP && x1 > boxes[i] - LABEL_GAP && y0 < boxes[i + 3] + LABEL_GAP && y1 > boxes[i + 1] - LABEL_GAP) return false;
+      return true;
+    };
+    const counts = { 1: 0, 2: 0, 3: 0, 4: 0 }, ic = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    const m4 = this.m4, one = _sv;
+    const seenRing = new Set();
+    for (const q of L) {
+      const st = q.st;
+      const wx = q.x, wy = q.base, wz = q.z;
+      this.shown.delete(st.id);
+      const depth = _dv.set(wx, wy, wz).sub(cam.position).dot(_cf);
+      if (depth < 0.5) continue;
+      const ppu = fpx / depth;
+      _pv.set(wx, wy, wz).project(cam);
+      const cx = (_pv.x * 0.5 + 0.5) * Wpx, cy = (-_pv.y * 0.5 + 0.5) * Hpx;
+      const over = st.over > 0.02;
+      const si = Math.max(1, ICON_MIN_PX / (2 * ICON_R * ppu)), sp = Math.max(1, PAX_MIN_PX / (PAX_CELL * ppu));
+      const rr = (over ? RING_R[1] : ICON_R) * si * ppu; // halbe Symbolgröße (mit Ring) in px
+      const n = Math.min(st.waiting.length, PAX_MAX);
+      const rowsMax = ppu * PAX_CELL > 12 ? 4 : 2;
+      const shownN = Math.min(n, rowsMax * PAX_COLS);
+      const rows = Math.ceil(shownN / PAX_COLS);
+      const cell = PAX_CELL * sp * ppu;           // Rasterweite in px
+      const gx = rr + cell * 0.25;                // Abstand des Rasters von der Symbolmitte
+      const gw = Math.min(shownN, PAX_COLS) * cell, hh = Math.max(rr, (rows * cell) / 2);
+      // ganz außerhalb des Bildes: nichts zeichnen
+      if (cx + gx + gw < 0 || cx - rr > Wpx || cy + hh < 0 || cy - hh > Hpx) continue;
+      const hasIcon = !!st.shape;
+      let mode = 0;
+      if (shownN && free(cx - rr, cy - hh, cx + gx + gw, cy + hh)) { mode = 2; boxes.push(cx - rr, cy - hh, cx + gx + gw, cy + hh); }
+      else if ((hasIcon || over) && free(cx - rr, cy - rr, cx + rr, cy + rr)) { mode = 1; boxes.push(cx - rr, cy - rr, cx + rr, cy + rr); }
+      if (!mode) continue;
+      this.shown.set(st.id, mode);
+      // Zielsymbol
+      if (hasIcon) {
+        const im = this.iconMesh[st.shape];
+        const i = ic[st.shape]++;
+        if (im && i < this.iconCap) {
+          one.set(si, si, si);
+          _pv.set(wx, wy, wz);
+          m4.compose(_pv, _bq, one);
+          im.rim.setMatrixAt(i, m4);
+          im.face.setMatrixAt(i, m4);
+        }
+      }
+      // Wartende im Raster rechts neben dem Symbol (Zeilen von oben nach unten, mittig zum Symbol)
+      if (mode === 2) {
+        const wcell = PAX_CELL * sp, wgx = gx / ppu;
+        one.set(sp * 0.85, sp * 0.85, sp * 0.85);
+        for (let kk = 0; kk < shownN; kk++) {
+          const p = st.waiting[kk];
+          const mm = this.paxMesh[p.shape];
+          if (!mm) continue;
+          const i = counts[p.shape]++;
+          if (i >= 1200) continue;
+          const col = kk % PAX_COLS, row = Math.floor(kk / PAX_COLS);
+          const ox = wgx + (col + 0.5) * wcell, oy = ((rows - 1) / 2 - row) * wcell;
+          _pv.set(wx + _cr.x * ox + _cu.x * oy, wy + _cr.y * ox + _cu.y * oy, wz + _cr.z * ox + _cu.z * oy);
+          m4.compose(_pv, _bq, one);
+          mm.setMatrixAt(i, m4);
+        }
+      }
+      // Ring (Überfüllung) zur Kamera gedreht um das Symbol
+      if (over) {
+        seenRing.add(st.id);
+        const prog = Math.min(1, st.over);
+        let ring = this.rings.get(st.id);
+        if (!ring) {
+          ring = new THREE.Mesh(new THREE.RingGeometry(RING_R[0], RING_R[1], 48, 1, Math.PI / 2, -Math.PI * 2 * prog), new THREE.MeshBasicMaterial({ color: 0xe8543f, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }));
+          ring.userData.prog = prog;
+          this.ringGroup.add(ring);
+          this.rings.set(st.id, ring);
+        }
+        if (Math.abs(ring.userData.prog - prog) > 0.01) {
+          ring.geometry.dispose();
+          ring.geometry = new THREE.RingGeometry(RING_R[0], RING_R[1], 48, 1, Math.PI / 2, -Math.PI * 2 * prog);
+          ring.userData.prog = prog;
+        }
+        ring.position.set(wx, wy, wz);
+        ring.quaternion.copy(cam.quaternion);
+        ring.scale.setScalar(si);
+        ring.visible = true;
+        ring.material.opacity = 0.6 + 0.4 * Math.sin(time * 6) ** 2;
+      }
+    }
+    // Ringe ohne Überfüllung entfernen, gerade nicht gezeigte ausblenden
+    for (const [id, ring] of this.rings) {
+      if (seenRing.has(id)) continue;
+      const st = this.g.transit.stations.get(id);
+      if (st && st.over > 0.02) { ring.visible = false; continue; }
+      this.ringGroup.remove(ring);
+      ring.geometry.dispose();
+      ring.material.dispose();
+      this.rings.delete(id);
+    }
+    for (const k of [1, 2, 3, 4]) {
+      this.paxMesh[k].count = Math.min(counts[k], 1200);
+      this.paxMesh[k].instanceMatrix.needsUpdate = true;
+      const im = this.iconMesh[k];
+      if (!im) continue;
+      for (const m of [im.face, im.rim]) { m.count = Math.min(ic[k], this.iconCap); m.instanceMatrix.needsUpdate = true; }
+    }
   }
 
   stats() {
