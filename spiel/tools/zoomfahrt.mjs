@@ -21,11 +21,15 @@ export default async function zoomfahrt(page, h) {
   await page.evaluate(({ emu, nol, nochk }) => { window.ZF_EMU = emu; window.ZF_NOLOADER = nol; if (nochk) window.STADTPULS_SHADERCHECK = false; }, { emu: process.env.ZF_EMU !== '0', nol: process.env.ZF_NOLOADER === '1', nochk: process.env.ZF_NOCHECK === '1' });
   if (process.env.ZF_SAVE) {
     const txt = readFileSync(process.env.ZF_SAVE, 'utf8');
-    // wie im Spiel: Ladebildschirm zeigen, dann laden; gemessen bis spielbereit (Ladebildschirm hält nicht mehr)
+    // wie im Spiel: Ladebildschirm zeigen, dann laden; gemessen bis spielbereit (Ladebildschirm hält nicht mehr).
+    // Erst warten, bis der Start-Ladebildschirm (bootSequence) wirklich weg ist – sonst blendet er unseren aus.
+    await page.waitForFunction(() => { const el = document.getElementById('loader'); return window.__stadtpuls.mode === 'menu' && (!el || el.hidden); }, null, { timeout: 120000 }).catch(() => {});
     res.load = await page.evaluate((t) => new Promise((resolve) => {
       const api = window.__stadtpulsLoaderApi;
       if (api && !window.ZF_NOLOADER) api.show('Spielstand wird geladen');
       requestAnimationFrame(() => setTimeout(() => {
+        const el = document.getElementById('loader');
+        const loaderOn = !!el && !el.hidden && !el.classList.contains('out');
         const t0 = performance.now();
         window.__stadtpuls.loadData(t, { quiet: true });
         const en = window.__stadtpuls.engine;
@@ -34,7 +38,7 @@ export default async function zoomfahrt(page, h) {
         const wait = () => {
           const now = performance.now(); maxGap = Math.max(maxGap, now - last); last = now; frames++;
           if (en.warming && now - t0 < 60000) { requestAnimationFrame(wait); return; }
-          resolve({ syncMs, readyMs: Math.round(now - t0), framesWhileLoading: frames, maxGapWhileLoading: Math.round(maxGap), parts: en && en.loadTimes ? en.loadTimes : null });
+          resolve({ loaderOn, syncMs, readyMs: Math.round(now - t0), framesWhileLoading: frames, maxGapWhileLoading: Math.round(maxGap), parts: en && en.loadTimes ? en.loadTimes : null });
         };
         requestAnimationFrame(wait);
       }, 0));
