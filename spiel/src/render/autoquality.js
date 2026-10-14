@@ -173,10 +173,14 @@ export class AutoGovernor {
     return true;
   }
 
-  // Soll in diesem Bild gemessen werden (gl.finish)? Etwa alle 1,2 s, nicht in den ersten Sekunden.
-  wantProbe(now) {
+  // Soll in diesem Bild gemessen werden (gl.finish)? Ein Messbild kostet etwa ein Bild Überlappung von CPU und GPU,
+  // daher: jede Sekunde nur, solange etwas zu entscheiden ist (langsam, nach einem Wechsel), sonst alle 4 s; bevorzugt
+  // bei ruhender Kamera (ein ausgelassenes Bild fällt dann nicht auf).
+  wantProbe(now, calm = true) {
     if (this.fixed || now - (this.startT || now) < 2000) return false;
-    if (now - this.probeT < 1000) return false;
+    const busy = this.lastMean > 20.5 || (this.last && !this.last.checked) || now - (this.settleUntil || 0) < 8000;
+    const every = busy ? 1000 : 4000;
+    if (now - this.probeT < (calm ? every : every * 3)) return false;
     this.probeT = now;
     return true;
   }

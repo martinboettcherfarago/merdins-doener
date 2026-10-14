@@ -4,7 +4,10 @@
 // aus dem Baukasten, siehe unten) dargestellt:
 //  • Detailstufen: 2 = nah, 1 = mittel (instanziert pro Prototyp), 0 = fern (statisch gebündelt pro
 //    Kartenabschnitt, siehe protos.js/Batcher). Die Stufen werden alle 0,3 s nach Kameraabstand neu verteilt
-//    (mit Hysterese und Obergrenzen); teure Prototypen werden mit Zeitbudget nachgebaut.
+//    (mit Hysterese und Obergrenzen). Wechsel blenden über 0,4 s per Raster-Dithering über (FLUSS, Runde 4), höchstens
+//    ~8 beginnen je Bild. Fehlende Prototypen kommen in eine Bauliste (Zeitbudget je Bild, nächste zuerst, teure nur
+//    bei ruhender Kamera); vorausschauend gebaut wird für das Kameraziel und einen Ring knapp jenseits der Schwellen.
+//    Beim Laden hinter dem Ladebildschirm: Fernstufe in Zeitscheiben (warmBuild), dann Nahstufen am Ziel (warm).
 //  • Baustellen: Gebäude wächst Geschoss für Geschoss (Schnitthöhe im Shader) mit Betondecke, Gerüst mit
 //    Netzen (bei Hochhäusern als Klettergerüst), Bauzaun mit Tor, Baucontainer, Material, Baukran mit
 //    schwenkendem Ausleger und Staub.
@@ -1432,7 +1435,7 @@ export class BuildingView {
     this.need = new Map(); // Bauliste fehlender Prototypen (Kennung → { rec, d, pri })
     this.ratio = [1, 2.5, 4]; // Bauzeit Detail d / Detail 0, gleitend gemessen (Schätzung fürs Zeitbudget)
     this.camIdle = 0; // Sekunden, seit sich die Kamera nicht mehr nennenswert bewegt
-    this.ev = { switches: 0, builds: 0, buildMs: 0, maxBuildMs: 0 }; // Zähler für Messwerkzeuge
+    this.ev = { switches: 0, builds: 0, buildMs: 0, maxBuildMs: 0, maxTickMs: 0 }; // Zähler für Messwerkzeuge
     this.lightsDirty = true;
     this.rng = mulberry32(4711);
     // Durchmischung: Modellwahl nach Lage (Nachbarn verschieden), Höhenstaffelung nach Bebauungsdichte
@@ -2261,7 +2264,7 @@ export class BuildingView {
     const budget = gap > 300 ? 250 : clamp(gap * 0.25, 3, 10);
     // Takt alle 0,3 s – sofort, wenn die Kamera seit dem letzten Takt weit gesprungen ist
     this.lodT -= dt;
-    if (this.lodT <= 0 || this._lastCam.distanceToSquared(cam) > 9) { this.lodT = LOD_TICK; this._lastCam.copy(cam); this._lodTick(); }
+    if (this.lodT <= 0 || this._lastCam.distanceToSquared(cam) > 9) { this.lodT = LOD_TICK; this._lastCam.copy(cam); const tk = performance.now(); this._lodTick(); const tm = performance.now() - tk; if (tm > this.ev.maxTickMs) this.ev.maxTickMs = tm; }
     // Übergänge zeitlich verteilen (nächste zuerst): ~8 je Bild bei 60 Bildern/s
     const maxStarts = gap > 300 ? Infinity : Math.max(3, Math.round(dt * 480));
     const used = this._work(budget, maxStarts);

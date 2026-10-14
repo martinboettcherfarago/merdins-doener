@@ -574,7 +574,7 @@ export class Engine {
   // Laufende Regelung der Stufe „Automatisch": Bildabstand messen, Stufe nachführen
   autoFrame(intervalMs, now) {
     if (!this.gov || this.rawSettings.quality !== 'auto') return;
-    let skip = this.throttled || this.warming || this.slow || (typeof document !== 'undefined' && document.hidden) || this.photoActive;
+    let skip = this.throttled || this.warming || (this.slow && !this.forceGovern) || (typeof document !== 'undefined' && document.hidden) || this.photoActive;
     if (this._probeSkip > 0) { this._probeSkip--; skip = true; }
     const changed = this.gov.sample(intervalMs, this.busyMs || 0, { now, calm: this.cameraCalm(), skip });
     if (changed) { this.applyQuality(); this.settingsKey = this.qualityKey(); }
@@ -709,7 +709,7 @@ export class Engine {
     // Während des Aufbaus hinter dem Ladebildschirm nicht zeichnen (Zeit gehört dem Aufbau; der Schirm deckt alles ab)
     if (this.warming && this.buildings.initial) return;
     // Messbild der Regelung „Automatisch" (etwa jede Sekunde): auf die GPU warten, dann Zeichnen + GPU-Zeit messen
-    const probe = this.gov && this.rawSettings.quality === 'auto' && !this.throttled && !this.warming && !this.slow && this.gov.wantProbe(now);
+    const probe = this.gov && this.rawSettings.quality === 'auto' && !this.throttled && !this.warming && (!this.slow || this.forceGovern) && this.gov.wantProbe(now, this.cameraCalm());
     let gl = null, pt0 = 0;
     if (probe) { gl = r.getContext(); try { gl.finish(); } catch (e) { /* egal */ } pt0 = performance.now(); }
     // Untergrund-Ansicht (U-Bahn) als zweiter Durchgang über der Oberwelt, bei Nachbearbeitung noch vor Bloom/Tonwert
