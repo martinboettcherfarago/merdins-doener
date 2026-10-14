@@ -21,13 +21,13 @@ function ensureStyles() {
 .dt-tools button.on { border-color:var(--ink); background:#fff; }
 .dt-tools button:disabled { opacity:.45; }
 .dt-brush { display:flex; align-items:center; gap:4px; margin-bottom:12px; font-size:12.5px; color:var(--ink-2); }
-.dt-brush button { width:28px; height:28px; border-radius:8px; background:var(--paper-2); font-family:var(--f-num); font-weight:700; }
+.dt-brush button { width:28px; height:28px; border-radius:8px; background:var(--paper-2); font-family:var(--f-num); font-weight:650; }
 .dt-brush button.on { background:var(--ink); color:var(--paper); }
 .dt-card { border-radius:12px; background:var(--paper-2); padding:9px 11px; margin-bottom:8px; border:2px solid transparent; }
 .dt-card.sel { border-color:var(--ink); background:#fff; }
 .dt-card .hd { display:flex; align-items:center; gap:10px; }
 .dt-card .sw { width:26px; height:26px; border-radius:8px; flex:none; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55); }
-.dt-card .nm { font-weight:800; font-size:14.5px; }
+.dt-card .nm { font-weight:700; font-size:14.5px; }
 .dt-card .sub { font-size:12px; color:var(--ink-3); }
 .dt-card .acts { display:flex; gap:5px; margin-top:7px; flex-wrap:wrap; }
 .dt-card .pol { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
@@ -40,7 +40,7 @@ function ensureStyles() {
 .dt-ages { display:flex; height:12px; border-radius:5px; overflow:hidden; background:var(--paper-3); margin:4px 0 2px; }
 .dt-ages i { display:block; height:100%; }
 .dt-tax { display:grid; grid-template-columns:1fr 64px; gap:10px; align-items:center; }
-.dt-tax .val { font-family:var(--f-num); font-weight:700; font-size:16px; text-align:right; }
+.dt-tax .val { font-family:var(--f-num); font-weight:650; font-size:16px; text-align:right; }
 .dt-group { font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin:10px 0 0; }
 .dt-note { font-size:12.5px; color:var(--ink-2); line-height:1.45; margin:6px 0 0; }
 .dt-cmp { display:grid; grid-template-columns: minmax(0,1fr) auto auto auto auto; gap:3px 10px; font-size:12.5px; align-items:center; }

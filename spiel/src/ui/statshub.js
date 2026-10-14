@@ -150,7 +150,8 @@ const ico = (name, size, stroke) => (SVG[name] ? `<svg width="${size}" height="$
 const lockNote = (text) => `<div class="sz-lock">${icon('lock', 14, 2.3)}<span>${text}</span></div>`;
 function issueHTML(it) {
   const btn = it.label && (it.adv || it.act) ? `<button class="btn small${it.sev === 'bad' ? '' : ' ghost'}" data-act="sz-fix" data-id="${esc(it.id)}">${esc(it.label)} ${icon('arrowR', 13, 2.6)}</button>` : '';
-  return `<div class="sz-issue ${it.sev}"><span class="sz-ii">${icon(it.sev === 'good' ? 'check' : it.sev === 'info' ? 'info' : 'warn', 13, 2.6)}</span><div class="grow"><b>${esc(it.text)}</b>${it.why ? `<span>${esc(it.why)}</span>` : ''}</div>${btn}</div>`;
+  // Der Grund steht nur im Tooltip – sichtbar bleibt die Sache selbst und der Knopf zur Lösung
+  return `<div class="sz-issue ${it.sev}"${it.why ? ` data-tip="${esc(it.text)}" data-tip-desc="${esc(it.why)}"` : ''}><span class="sz-ii">${icon(it.sev === 'good' ? 'check' : it.sev === 'info' ? 'info' : 'warn', 13, 2.6)}</span><div class="grow"><b>${esc(it.text)}</b></div>${btn}</div>`;
 }
 function bar(v, max, sev) {
   const w = max > 0 ? clamp(v / max, 0, 1) * 100 : v > 0 ? 100 : 0;
@@ -163,9 +164,9 @@ function card(ui, o, ctx) {
   const sev = o.locked ? 'off' : worst([o.bigSev || 'good', ...issues.map((i) => i.sev)]);
   ctx.sev[o.id] = sev;
   const btns = [];
-  if (o.view && hasView(o.view)) btns.push(`<button class="btn small ghost${ui.view === o.view ? ' on' : ''}" data-act="sz-view" data-v="${o.view}" data-tip="Auf Karte zeigen" data-tip-desc="Farbige Karte „${esc(o.title)}" über der Stadt." data-tip-fast="1">${icon('eye', 14, 2.4)} Auf Karte</button>`);
-  if (o.build && !o.locked) btns.push(`<button class="btn small ghost" data-act="sz-build" data-v="${o.build}" data-tip="Bauen" data-tip-desc="Passende Gebäude im Baukatalog." data-tip-fast="1">${icon('plus', 14, 2.6)} Bauen</button>`);
-  if (o.more && ui.panelDef(o.more.panel)) btns.push(`<button class="btn small ghost sz-more" data-act="sz-more" data-p="${o.more.panel}" data-a="${o.more.act || ''}" data-k="${o.more.key || ''}" data-v="${o.more.v || ''}" data-tip="Mehr Details" data-tip-desc="${esc(o.more.desc || 'Ausführliches Fenster zu diesem Thema.')}" data-tip-fast="1">Mehr Details ${icon('arrowR', 13, 2.6)}</button>`);
+  if (o.view && hasView(o.view)) btns.push(`<button class="btn small ghost${ui.view === o.view ? ' on' : ''}" data-act="sz-view" data-v="${o.view}" data-tip="Auf Karte zeigen" data-tip-fast="1">${icon('eye', 14, 2.4)} Karte</button>`);
+  if (o.build && !o.locked) btns.push(`<button class="btn small ghost" data-act="sz-build" data-v="${o.build}" data-tip="Bauen" data-tip-fast="1">${icon('plus', 14, 2.6)} Bauen</button>`);
+  if (o.more && ui.panelDef(o.more.panel)) btns.push(`<button class="btn small ghost sz-more" data-act="sz-more" data-p="${o.more.panel}" data-a="${o.more.act || ''}" data-k="${o.more.key || ''}" data-v="${o.more.v || ''}" data-tip="${esc(o.more.desc || 'Mehr Details')}" data-tip-fast="1">Mehr ${icon('arrowR', 13, 2.6)}</button>`);
   return `<section class="sz-card${o.locked ? ' locked' : ''}" style="--cc:${o.color}" data-card="${o.id}">
 <div class="sz-ch"><span class="sz-ci">${ico(o.icon, 17, 2.3)}</span><div class="grow"><h4>${esc(o.title)}</h4>${o.sub ? `<small>${o.sub}</small>` : ''}</div>${o.big !== undefined && !o.locked ? `<div class="sz-big ${o.bigSev || ''}"><b class="num">${o.big}</b>${o.unit ? `<small>${o.unit}</small>` : ''}</div>` : `<i class="sz-lamp ${sev}"></i>`}</div>
 ${o.locked ? lockNote(o.locked) : o.body || ''}
@@ -211,7 +212,7 @@ function areaVersorgung(ui, ctx) {
       more: { panel: 'citizens', act: 'tab', key: 't', v: 'supply', desc: 'Bevölkerung → Versorgung: Anlagen, Kanalnetz und Gewässer.' },
       big: S.sewageRequired ? (S.sewageCap > 0 ? pct(sr).replace(' %', '') : '–') : '✓', unit: S.sewageRequired ? (S.sewageCap > 0 ? '% genutzt' : 'keine Anlage') : 'Sickergruben reichen', bigSev: !S.sewageRequired ? 'good' : S.sewageCap > 0 ? ampLoad(sr) : 'bad',
       sub: `${plural(D.n.sewage, 'Anlage', 'Anlagen')} · ${fmt(Cz.sewConnected || 0)} Gebäude angeschlossen`,
-      body: (S.sewageRequired || S.sewageCap > 0 ? meterRow('Abwasser / Kapazität', S.sewageDemand, S.sewageCap, 'm³', S.sewageRequired ? ampLoad(sr) : 'good') : '<p class="sz-note">Noch reichen Sickergruben. Sobald größere Häuser (Stufe 3) entstehen, brauchen sie einen Kanalanschluss.</p>')
+      body: (S.sewageRequired || S.sewageCap > 0 ? meterRow('Abwasser / Kapazität', S.sewageDemand, S.sewageCap, 'm³', S.sewageRequired ? ampLoad(sr) : 'good') : '<p class="sz-note">Sickergruben reichen – ab Stufe 3 Kanal nötig.</p>')
         + facts([S.sewageRequired && ['Ohne Anschluss', fmt(S.unsewered), S.unsewered ? 'neg' : ''], S.waterPolMax > 0.05 && ['Gewässer verschmutzt (stärkste Stelle)', pct(S.waterPolMax), S.waterPolMax > 0.3 ? 'neg' : '']]),
       issues: iss,
     }, ctx));
@@ -235,7 +236,7 @@ function areaVersorgung(ui, ctx) {
       locked: !unlocked && !(S.hd > 0 && S.cold > 0) ? `Heizkraftwerke kommen ${g.lockReason('district_heating') ? g.lockReason('district_heating').replace(/^Ab/, 'ab') : 'später'}. Bis dahin heizen die kleinen Häuser selbst.` : '',
       big: S.hd > 0 ? pct(Math.min(1, hr)).replace(' %', '') : '✓', unit: S.hd > 0 ? '% gedeckt' : 'kein Bedarf', bigSev: S.hd > 0 ? (S.cold > 0 ? (hr < 0.7 ? 'bad' : 'warn') : 'good') : 'good',
       sub: `${plural(D.n.heat, 'Heizkraftwerk', 'Heizkraftwerke')} · ${Math.round(S.temp)} °C`,
-      body: S.hd > 0 ? meterRow('Wärme / Bedarf', S.heatSupply, S.heatDemand, '', S.cold ? 'bad' : 'good') + (S.cold ? facts([['Gebäude frieren', fmt(S.cold), 'neg']]) : '') : `<p class="sz-note">Bei ${Math.round(S.temp)} °C braucht niemand Fernwärme. Unter 10 °C steigt der Bedarf – größere Häuser ohne Wärme frieren, die Leute werden krank.</p>`,
+      body: S.hd > 0 ? meterRow('Wärme / Bedarf', S.heatSupply, S.heatDemand, '', S.cold ? 'bad' : 'good') + (S.cold ? facts([['Gebäude frieren', fmt(S.cold), 'neg']]) : '') : `<p class="sz-note">${Math.round(S.temp)} °C – keine Fernwärme nötig (erst unter 10 °C).</p>`,
       issues: S.hd > 0 && S.cold > 0 ? [{ id: 'cold', sev: S.cold > 10 ? 'bad' : 'warn', text: `${plural(S.cold, 'Gebäude friert', 'Gebäude frieren')}.`, why: 'Ein Heizkraftwerk im selben Straßennetz liefert Fernwärme.', label: 'Heizkraftwerk', act: g.isUnlocked('district_heating') ? { cat: 'power', tool: { kind: 'place', key: 'district_heating' } } : { cat: 'power' } }] : [],
     }, ctx));
   }
@@ -283,7 +284,7 @@ function areaDienste(ui, ctx) {
       locked: lockOf('school', 'Schulen kommen'),
       big: pct(S.eduIndex).replace(' %', ''), unit: '% Bildungsindex', bigSev: 'good',
       sub: `${plural(D.n.edu, 'Einrichtung', 'Einrichtungen')} · Akademiker ${pct(S.uniShare)}`,
-      body: `<div class="sz-chain">${chain}</div><p class="sz-note">Belegte Plätze je Stufe der Bildungskette. Über 100 %: überfüllt, weniger Abschlüsse.</p>`,
+      body: `<div class="sz-chain">${chain}</div><p class="sz-note">Belegung je Stufe · über 100 % = überfüllt</p>`,
       issues: iss,
     }, ctx));
   }
@@ -314,7 +315,7 @@ function areaDienste(ui, ctx) {
       more: { panel: 'citizens', act: 'tab', key: 't', v: 'death', desc: 'Bevölkerung → Todesfälle: Bestattungen, Gräber und Leichenwagen.' },
       big: fmt(Math.round(S.bodies)), unit: 'warten', bigSev: S.bodies >= 1 ? 'bad' : 'good',
       sub: unlocked ? `${plural(D.n.death, 'Friedhof oder Krematorium', 'Friedhöfe und Krematorien')}` : 'Das Umland bestattet',
-      body: (S.graves.cap ? meterRow('Gräber belegt', S.graves.used, S.graves.cap, '', S.graveFill > 0.85 ? 'warn' : 'good') : '') + facts([['Sterbefälle heute', fmt(S.deathsToday)], ['Vom Umland abgeholt', `${fmt(S.umland)}${S.umlandCost ? ` · ${fmtMoney(S.umlandCost)}` : ''}`]]) + (!unlocked ? `<p class="sz-note">Friedhöfe kommen ${String(g.lockReason('cemetery') || 'später').replace(/^Ab/, 'ab')}. Bis dahin übernimmt das Umland gegen Gebühr.</p>` : ''),
+      body: (S.graves.cap ? meterRow('Gräber belegt', S.graves.used, S.graves.cap, '', S.graveFill > 0.85 ? 'warn' : 'good') : '') + facts([['Sterbefälle heute', fmt(S.deathsToday)], ['Vom Umland abgeholt', `${fmt(S.umland)}${S.umlandCost ? ` · ${fmtMoney(S.umlandCost)}` : ''}`]]) + (!unlocked ? `<p class="sz-note">Friedhöfe ${String(g.lockReason('cemetery') || 'später').replace(/^Ab/, 'ab')} – bis dahin das Umland.</p>` : ''),
       issues: iss,
     }, ctx));
   }
@@ -382,7 +383,7 @@ function areaMenschen(ui, ctx) {
       id: 'happy', title: 'Glück', icon: 'heart', color: '#f06fae', view: 'happiness',
       big: Math.round(h), unit: '% zufrieden', bigSev: h < 45 ? 'bad' : h < 60 ? 'warn' : 'good',
       sub: `${plural(s.abandoned, 'Gebäude', 'Gebäude')} verlassen`,
-      body: f.length ? `<div class="sz-facs"><div><h5>Macht froh</h5>${pos.map(row).join('') || '<p class="sz-note">–</p>'}</div><div><h5>Stört</h5>${neg.map(row).join('') || '<p class="sz-note">Nichts Nennenswertes.</p>'}</div></div><p class="sz-note">Ø Punkte je Wohnhaus. Ein Klick auf ein Haus zeigt seine eigenen Gründe.</p>` : '<p class="sz-note">Sobald Menschen hier wohnen, stehen hier die Gründe für ihre Stimmung.</p>',
+      body: f.length ? `<div class="sz-facs"><div><h5>Macht froh</h5>${pos.map(row).join('') || '<p class="sz-note">–</p>'}</div><div><h5>Stört</h5>${neg.map(row).join('') || '<p class="sz-note">–</p>'}</div></div><p class="sz-note">Ø Punkte je Wohnhaus</p>` : '<p class="sz-note">Noch niemand da.</p>',
     }, ctx));
   }
   return out.join('');
@@ -412,7 +413,7 @@ function areaGeld(ui, ctx) {
 <h5 class="sz-h5">Ausgaben · ${fmtMoney(b.expense)}</h5>${exp.map(([k, v]) => row(lineLabel(k, EXP_LABEL), v, '#e0434a')).join('') || '<p class="sz-note">Noch keine Ausgaben.</p>'}
 ${facts([['Steuersätze W · G · I · B', `${avgTax.join(' · ')} %`], ['Kredite', g.loans.length ? `${g.loans.length} · ${fmtMoney(loans)}` : 'keine'], I && I.cycle && ['Konjunktur', esc(I.cycle.label)]])}`,
   }, ctx));
-  return out.join('') + (ui.panelDef('economy') ? `<button class="sz-link" data-act="sz-more" data-p="economy" data-a="eco-tab" data-k="k" data-v="overview">${icon('economy', 16, 2.2)}<span><b>Wirtschaft</b><small>Konjunktur, Waren, Handel und Firmen</small></span>${icon('arrowR', 15, 2.4)}</button>` : '');
+  return out.join('') + (ui.panelDef('economy') ? `<button class="sz-link" data-act="sz-more" data-p="economy" data-a="eco-tab" data-k="k" data-v="overview">${icon('economy', 16, 2.2)}<span><b>Wirtschaft</b></span>${icon('arrowR', 15, 2.4)}</button>` : '');
 }
 
 function areaVerkehr(ui, ctx) {
@@ -516,7 +517,7 @@ export function statsAreas(ui, ctx) {
     versorgung: `Strom ${u.powerSupply ? pct(u.powerDemand / u.powerSupply) : '–'} · Wasser ${u.waterSupply ? pct(u.waterDemand / u.waterSupply) : '–'}${S && S.sewageRequired ? ` · Abwasser ${S.sewageCap ? pct(S.sewageDemand / S.sewageCap) : '–'}` : ''}`,
     dienste: S ? `Versorgt ${pct(ctx.D.share.health)} · Bildung ${pct(S.eduIndex)} · Kriminalität ${pct(s.crimeAvg)}` : `Kriminalität ${pct(s.crimeAvg)}`,
     menschen: `${fmt(s.pop)} Einwohner · Glück ${Math.round(s.happiness)} % · ${pct(s.unemployment)} arbeitslos`,
-    geld: g.sandbox ? 'Sandkasten – Geld spielt keine Rolle' : `${signed(b.net)} am Tag · Kasse ${fmtMoney(g.money)}`,
+    geld: g.sandbox ? 'Sandkasten' : `${signed(b.net)} am Tag · Kasse ${fmtMoney(g.money)}`,
     verkehr: `Fluss ${pct(s.trafficFlow ?? 1)} · U-Bahn ${fmt(s.ridersToday || 0)} Fahrgäste`,
     umwelt: `Abgase ${pct(ctx.D.polAvg)} · Lärm ${pct(ctx.D.noiseAvg)}${g.ext.weather ? ` · ${Math.round(g.ext.weather.temp)} °C` : ''}`,
   };
@@ -535,13 +536,13 @@ function areaOverview(ui, ctx) {
   const seen = new Set();
   const chips = fx.filter((e) => (seen.has(e.label) ? false : seen.add(e.label))).map((e) => `<span class="chip">${esc(e.label)} · ${Math.max(1, Math.ceil((e.until - g.time) / 1440))} T.</span>`).join('');
   return `<div class="sz-kpis">
-${kpi('Einwohner', fmt(s.pop), dPop ? `${dPop > 0 ? '+' : '−'}${fmt(Math.abs(dPop))} seit gestern` : 'seit gestern gleich', '', spark(histVals(g, 'pop'), '#4fae67'))}
+${kpi('Einwohner', fmt(s.pop), dPop ? `${dPop > 0 ? '+' : '−'}${fmt(Math.abs(dPop))} seit gestern` : '±0 seit gestern', '', spark(histVals(g, 'pop'), '#4fae67'))}
 ${kpi('Glück', `${Math.round(s.happiness)} %`, s.happiness >= 60 ? 'zufrieden' : s.happiness >= 45 ? 'geht so' : 'unzufrieden', s.happiness < 45 ? 'neg' : '', spark(histVals(g, 'happy'), '#f06fae'))}
 ${kpi('Saldo am Tag', g.sandbox ? '∞' : signed(b.net), g.sandbox ? 'Sandkasten' : `Kasse ${fmtMoney(g.money)}`, !g.sandbox && b.net < 0 ? 'neg' : 'pos', g.sandbox ? '' : spark(histVals(g, 'net'), b.net < 0 ? '#d4433a' : '#2b9a57', true))}
 ${kpi('Arbeitslos', pct(s.unemployment), `${fmt(s.jobs)} Arbeitsplätze`, s.unemployment > 0.14 ? 'neg' : '', spark(histVals(g, 'unemp'), '#3a8ad8'))}
 </div>
 <div class="sec"><h3>Lage der Stadt</h3><div class="sz-lage">${areas.map((a) => `<button class="sz-area ${a.sev}" data-act="sz-tab" data-t="${a.id}" style="--cc:${a.color}"><i class="sz-lamp ${a.sev}"></i><span class="sz-ci">${icon(a.icon, 16, 2.3)}</span><span class="t"><b>${esc(a.name)}${a.n ? ` <em>${a.n}</em>` : ''}</b><small>${esc(a.text)}</small></span>${icon('chevronR', 16, 2.4)}</button>`).join('')}</div>
-<p class="sz-note">Grün: läuft · Gelb: bald handeln · Rot: jetzt handeln. Ein Klick öffnet den Bereich.</p></div>
+</div>
 <div class="sec"><h3>Gebäude</h3><div class="donutrow">${svgDonut(zoneParts, { size: 84, thickness: 12, label: fmt(counts[1] + counts[2] + counts[3] + counts[4]) })}
 <div class="kv grow">${[1, 2, 3, 4].map((z) => `<span><span class="zdot" style="background:${hex(ZONE_INFO[z].color)}"></span> ${ZONE_INFO[z].name}</span><span class="v">${fmt(counts[z])}</span>`).join('')}
 <span>Verlassen</span><span class="v ${s.abandoned ? 'neg' : ''}">${fmt(s.abandoned)}</span></div></div></div>
@@ -579,8 +580,8 @@ export const STATS_PANEL = {
     lastCtx = ctx;
     const sevOf = (id) => (areas.find((a) => a.id === id) || {}).sev || 'off';
     const t = tabById(tab);
-    const nav = `<nav class="sz-nav" role="tablist" aria-label="Bereiche">${STATS_TABS.map((x) => `<button role="tab" aria-selected="${x.id === tab}" class="${x.id === tab ? 'on' : ''}" data-act="sz-tab" data-t="${x.id}" style="--cc:${x.color}" data-tip="${esc(x.name)}" data-tip-desc="${esc(x.desc || 'Alle Bereiche auf einen Blick.')}" data-tip-fast="1">${icon(x.icon, 17, 2.3)}<span>${esc(x.name)}</span>${AREA_FN[x.id] ? `<i class="sz-dot ${sevOf(x.id)}"></i>` : ''}</button>`).join('')}</nav>`;
-    const lead = t.desc && tab !== 'overview' ? `<p class="sz-lead">${esc(t.desc)}</p>` : '';
+    const nav = `<nav class="sz-nav" role="tablist" aria-label="Bereiche">${STATS_TABS.map((x) => `<button role="tab" aria-selected="${x.id === tab}" class="${x.id === tab ? 'on' : ''}" data-act="sz-tab" data-t="${x.id}" style="--cc:${x.color}" data-tip="${esc(x.name)}" data-tip-desc="${esc(x.desc || '')}" data-tip-fast="1">${icon(x.icon, 17, 2.3)}<span>${esc(x.name)}</span>${AREA_FN[x.id] ? `<i class="sz-dot ${sevOf(x.id)}"></i>` : ''}</button>`).join('')}</nav>`;
+    const lead = '';
     return `<div class="sz" data-tab="${tab}">${nav}${lead}${body}</div>`;
   },
   afterRender(ui) {

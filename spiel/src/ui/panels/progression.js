@@ -61,7 +61,7 @@ const CSS = `
 .s5-rank{display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--paper);border-radius:14px;padding:12px 14px;margin-bottom:14px}
 .s5-rank .lvl{font-family:var(--f-display);font-weight:700;font-size:15px;line-height:1.15}
 .s5-rank .sub{font-size:12px;color:#b9c0cf;margin-top:2px}
-.s5-rank .pts{font-family:var(--f-num);font-size:26px;font-weight:700;margin-left:auto;text-align:right;line-height:1}
+.s5-rank .pts{font-family:var(--f-num);font-size:26px;font-weight:650;margin-left:auto;text-align:right;line-height:1}
 .s5-rank .pts small{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#b9c0cf;font-family:var(--f-ui)}
 .s5-rank .bar{height:5px;border-radius:3px;background:rgba(255,255,255,.18);margin-top:7px;overflow:hidden}
 .s5-rank .bar i{display:block;height:100%;background:var(--l-yellow);border-radius:3px}
@@ -72,7 +72,7 @@ const CSS = `
 .s5-ach.done{background:#fff;box-shadow:inset 0 0 0 2px var(--tier)}
 .s5-ach.locked{opacity:.55}
 .s5-ach .nm{font-weight:700;font-size:13.5px;line-height:1.2;display:flex;gap:6px;align-items:baseline}
-.s5-ach .nm .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--tier) 60%,#1d2330);font-weight:800}
+.s5-ach .nm .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--tier) 60%,#1d2330);font-weight:700}
 .s5-ach .ds{font-size:12px;color:var(--ink-2);line-height:1.35;margin-top:2px}
 .s5-ach .pg{display:flex;align-items:center;gap:8px;margin-top:5px;font-family:var(--f-num);font-size:12.5px;font-weight:600;color:var(--ink-3)}
 .s5-ach .pg .meter{flex:1;height:6px}
@@ -85,24 +85,24 @@ const CSS = `
 .s5-goal .ck{width:16px;height:16px;border-radius:50%;border:3px solid var(--ink);background:var(--paper)}
 .s5-goal.done .ck{background:var(--good);border-color:var(--good)}
 .s5-goal .lb{font-weight:600;font-size:13.5px}
-.s5-goal .vl{font-family:var(--f-num);font-weight:700;font-size:14px;text-align:right;white-space:nowrap}
+.s5-goal .vl{font-family:var(--f-num);font-weight:650;font-size:14px;text-align:right;white-space:nowrap}
 .s5-goal .meter{grid-column:2 / 4;height:5px}
 .s5-scen-hd{border-radius:14px;padding:13px 15px;color:#fff;margin-bottom:12px;position:relative;overflow:hidden}
-.s5-scen-hd .ey{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;opacity:.85}
+.s5-scen-hd .ey{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;opacity:.85}
 .s5-scen-hd .nm{font-family:var(--f-display);font-weight:700;font-size:19px;margin:3px 0 2px}
 .s5-scen-hd .kk{font-size:13px;opacity:.9}
-.s5-scen-hd .days{position:absolute;right:14px;top:12px;font-family:var(--f-num);font-weight:700;font-size:28px;line-height:1;text-align:right}
+.s5-scen-hd .days{position:absolute;right:14px;top:12px;font-family:var(--f-num);font-weight:650;font-size:28px;line-height:1;text-align:right}
 .s5-scen-hd .days small{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--f-ui);font-weight:700;opacity:.85}
 .s5-timebar{height:6px;border-radius:3px;background:rgba(255,255,255,.3);margin-top:10px;overflow:hidden}
 .s5-timebar i{display:block;height:100%;background:#fff;border-radius:3px}
 .s5-tip{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--rule)}
 .s5-tip:last-child{border-bottom:0}
-.s5-tip .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px}
+.s5-tip .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:12px}
 .s5-tip .who{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .s5-tip .tt{font-weight:700;font-size:13.5px;margin:1px 0 2px}
 .s5-tip .tx{font-size:12.5px;color:var(--ink-2);line-height:1.4}
 .s5-tip.hot .tt{color:var(--bad)}
-.s5-big{font-family:var(--f-num);font-weight:700;font-size:44px;line-height:1}
+.s5-big{font-family:var(--f-num);font-weight:650;font-size:44px;line-height:1}
 .s5-stars{color:var(--l-yellow);letter-spacing:2px;font-size:18px}
 .s5-stars .off{color:var(--paper-3)}
 /* Hauptmenü */
@@ -121,18 +121,18 @@ const CSS = `
 .s5-prof{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
 .s5-prof div{background:var(--paper-2);border-radius:10px;padding:8px 10px}
 .s5-prof .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
-.s5-prof .v{font-family:var(--f-num);font-size:20px;font-weight:700}
+.s5-prof .v{font-family:var(--f-num);font-size:20px;font-weight:650}
 /* Zielanzeige im Spiel */
 .s5-hud{position:absolute;right:12px;top:calc(76px + var(--safe-t));width:262px;padding:11px 13px 9px;font-size:12.5px;z-index:5;transition:opacity .25s}
 .s5-hud .hd{display:flex;align-items:center;gap:8px;cursor:pointer}
-.s5-hud .hd .ey{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--ink-3)}
+.s5-hud .hd .ey{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--ink-3)}
 .s5-hud .hd .nm{font-family:var(--f-display);font-weight:700;font-size:13px;line-height:1.15}
-.s5-hud .hd .pill{margin-left:auto;font-family:var(--f-num);font-weight:700;font-size:15px;white-space:nowrap}
+.s5-hud .hd .pill{margin-left:auto;font-family:var(--f-num);font-weight:650;font-size:15px;white-space:nowrap}
 .s5-hud .gl{display:grid;grid-template-columns:12px 1fr auto;gap:3px 7px;align-items:center;margin-top:8px}
 .s5-hud .gl .ck{width:11px;height:11px;border-radius:50%;border:2.5px solid var(--ink)}
 .s5-hud .gl .ck.ok{background:var(--good);border-color:var(--good)}
 .s5-hud .gl .lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--ink-2);font-weight:600}
-.s5-hud .gl .vl{font-family:var(--f-num);font-weight:700;font-size:13px;text-align:right}
+.s5-hud .gl .vl{font-family:var(--f-num);font-weight:650;font-size:13px;text-align:right}
 .s5-hud .gl .bar{grid-column:2 / 4;height:3px;border-radius:2px;background:var(--paper-3);overflow:hidden;margin-bottom:2px}
 .s5-hud .gl .bar i{display:block;height:100%;border-radius:2px}
 .s5-hud .tb{height:4px;border-radius:2px;background:var(--paper-3);margin-top:7px;overflow:hidden}
@@ -141,11 +141,11 @@ const CSS = `
 .s5-hud.mini .gl,.s5-hud.mini .tb,.s5-hud.mini .dt{display:none}
 .s5-hud .warn{margin-top:8px;padding:6px 8px;border-radius:9px;background:#f6dcd8;color:#9e2b23;font-weight:700;font-size:12px}
 .s5-hud .metro{display:flex;align-items:flex-end;gap:10px;margin-top:6px}
-.s5-hud .metro .sc{font-family:var(--f-num);font-weight:700;font-size:30px;line-height:.95}
+.s5-hud .metro .sc{font-family:var(--f-num);font-weight:650;font-size:30px;line-height:.95}
 .s5-hud .metro .lb{font-size:11px;color:var(--ink-3);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 /* Erfolgs-Banner */
 .s5-banner{position:absolute;left:66px;top:calc(96px + var(--safe-t));z-index:45;display:flex;gap:12px;align-items:center;padding:10px 16px 10px 10px;border-radius:16px;background:var(--ink);color:var(--paper);box-shadow:var(--shadow);animation:s5in .45s cubic-bezier(.2,1.4,.4,1);max-width:min(420px,calc(100vw - 32px));pointer-events:none}
-.s5-banner .ey{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--tier)}
+.s5-banner .ey{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--tier)}
 .s5-banner .nm{font-family:var(--f-display);font-weight:700;font-size:15px;line-height:1.2}
 .s5-banner .ds{font-size:12px;color:#c4cad6;line-height:1.3;margin-top:1px}
 .s5-banner.out{transition:opacity .5s,transform .5s;opacity:0;transform:translateY(-8px)}
@@ -162,7 +162,7 @@ const CSS = `
 .s5-modal .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
 .s5-modal .facts div{background:var(--paper-2);border-radius:10px;padding:8px 10px}
 .s5-modal .facts .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
-.s5-modal .facts .v{font-family:var(--f-num);font-size:20px;font-weight:700}
+.s5-modal .facts .v{font-family:var(--f-num);font-size:20px;font-weight:650}
 .s5-modal .bigstars{font-size:40px;letter-spacing:6px;text-align:center;color:var(--l-yellow);margin:4px 0}
 .s5-modal .bigstars .off{color:var(--paper-3)}
 @media (max-width:760px){

@@ -63,7 +63,7 @@ function netMap(g) {
   for (const l of T.lines) {
     const st = TPS.stopById(g, l.stops[0]);
     if (!st) continue;
-    svg += `<g transform="translate(${(+sx(st.x) - 7).toFixed(1)},${(+sy(st.y) - 16).toFixed(1)})"><rect width="14" height="11" rx="${l.mode === 'tram' ? 2 : 5.5}" fill="${hex(TPS.lineColor(l))}"/><text x="7" y="8.6" font-size="8.5" font-weight="700" fill="#fff" text-anchor="middle" font-family="Stadtpuls Rund, Fredoka, sans-serif">${l.mode === 'tram' ? 'T' : ''}${l.num}</text></g>`;
+    svg += `<g transform="translate(${(+sx(st.x) - 7).toFixed(1)},${(+sy(st.y) - 16).toFixed(1)})"><rect width="14" height="11" rx="${l.mode === 'tram' ? 2 : 5.5}" fill="${hex(TPS.lineColor(l))}"/><text x="7" y="8.6" font-size="8.5" font-weight="700" fill="#fff" text-anchor="middle" font-family="Stadtpuls Rund, Outfit, sans-serif">${l.mode === 'tram' ? 'T' : ''}${l.num}</text></g>`;
   }
   return `<div class="sec"><h3>Netzplan</h3><svg viewBox="-8 -18 ${W + 16} ${H + 26}" style="width:100%;height:auto;display:block;background:var(--paper-2);border-radius:10px">${svg}</svg>${muted('Kreise: Haltestellen (groß = Umstieg) · Quadrate: U-Bahn-Stationen · rot umrandet: überfüllt · gestrichelt: unterbrochen')}</div>`;
 }

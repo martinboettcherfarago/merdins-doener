@@ -33,7 +33,7 @@ const STYLE = `
   background: var(--grain-soft, none), var(--glass-bg, var(--pb-card)); -webkit-backdrop-filter: var(--glass-blur, none); backdrop-filter: var(--glass-blur, none);
   color: var(--pb-ink); border-radius: 24px;
   box-shadow: var(--inner-hi, inset 0 1px 0 #fff), var(--shadow, 0 12px 30px -8px rgba(76, 38, 160, 0.42)), 0 18px 36px -14px rgba(52, 19, 122, 0.4);
-  font-family: var(--f-ui, 'Nunito', system-ui, sans-serif); font-weight: 700; touch-action: manipulation;
+  font-family: var(--f-ui, system-ui, sans-serif); font-weight: 700; touch-action: manipulation;
   -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
   transition: opacity 0.12s ease; will-change: transform;
 }

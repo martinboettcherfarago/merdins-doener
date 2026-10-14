@@ -59,12 +59,12 @@ export function toolbarCategories() {
 // --- Hauptgruppen der Werkzeugleiste (Runde 3): wenige beschriftete Gruppen, die Kategorien sind Reiter im Katalog.
 // Unbekannte Kategorien anderer Module landen über ihre Linie in einer Gruppe oder in „Weitere".
 export const GROUPS = [
-  { id: 'roads', name: 'Straßen', icon: 'roads', color: '#5d6470', cats: ['roads'], key: 'G', desc: 'Straßen ziehen. Jedes Haus braucht einen Anschluss.' },
-  { id: 'zones', name: 'Zonen', icon: 'zones', color: '#4fae67', cats: ['zones', 'districts'], key: 'Z', desc: 'Flächen für Wohnen, Gewerbe, Industrie und Büros ausweisen.' },
-  { id: 'versorgung', name: 'Versorgung', icon: 'power', color: '#e9a514', cats: ['power', 'water', 'garbage'], desc: 'Strom, Wasser, Abwasser und Müllabfuhr.' },
-  { id: 'dienste', name: 'Dienste', icon: 'services', color: '#e8543f', cats: ['services', 'education', 'safety'], desc: 'Gesundheit, Bildung, Polizei und Feuerwehr.' },
-  { id: 'freizeit', name: 'Freizeit', icon: 'parks', color: '#22a866', cats: ['parks', 'landmarks'], desc: 'Parks, Plätze und Wahrzeichen machen die Leute glücklich.' },
-  { id: 'verkehr', name: 'Verkehr', icon: 'ubahn', color: '#2f8fe0', cats: ['transit', 'transport', 'industry'], desc: 'U-Bahn, Bus, Straßenbahn und Güterlogistik.' },
+  { id: 'roads', name: 'Straßen', icon: 'roads', color: '#5d6470', cats: ['roads'], key: 'G', desc: 'Jedes Haus braucht eine Straße.' },
+  { id: 'zones', name: 'Zonen', icon: 'zones', color: '#4fae67', cats: ['zones', 'districts'], key: 'Z', desc: 'Wohnen, Gewerbe, Industrie, Büro.' },
+  { id: 'versorgung', name: 'Versorgung', icon: 'power', color: '#e9a514', cats: ['power', 'water', 'garbage'], desc: 'Strom, Wasser, Müll.' },
+  { id: 'dienste', name: 'Dienste', icon: 'services', color: '#e8543f', cats: ['services', 'education', 'safety'], desc: 'Gesundheit, Bildung, Sicherheit.' },
+  { id: 'freizeit', name: 'Freizeit', icon: 'parks', color: '#22a866', cats: ['parks', 'landmarks'], desc: 'Parks und Wahrzeichen.' },
+  { id: 'verkehr', name: 'Verkehr', icon: 'ubahn', color: '#2f8fe0', cats: ['transit', 'transport', 'industry'], desc: 'U-Bahn, Bus, Tram, Güter.' },
 ];
 const LINE_GROUP = { bau: 'zones', versorgung: 'versorgung', dienste: 'dienste', freizeit: 'freizeit', verkehr: 'verkehr' };
 // Anzeigenamen der Reiter (kurz und verständlich)
@@ -129,28 +129,31 @@ export const VIEW_META = {
   snowcov: { group: 'umwelt' },
 };
 export const VIEW_TEXT = {
-  power: 'Grün: versorgt. Rot: kein Strom. Strom fließt durch die Leitungen unter den Straßen – jedes zusammenhängende Straßennetz ist ein eigenes Stromnetz.',
-  water: 'Blau: versorgt. Rot: kein Wasser. Pumpwerke brauchen Strom und müssen am Ufer stehen.',
-  garbage: 'Wie gut die Müllabfuhr die Gegend erreicht. Jede Anlage hat eine begrenzte Kapazität.',
-  health: 'Abdeckung durch Arztpraxen und Krankenhäuser.',
-  police: 'Abdeckung durch Polizeiwachen.',
-  fire: 'Abdeckung durch die Feuerwehr. Ohne Feuerwehr brennen Gebäude ab.',
-  edu: 'Bildungsniveau, das hier erreichbar ist. Hohe Stufen brauchen gebildete Bewohner.',
-  landValue: 'Bodenwert lässt Gebäude wachsen: Parks, Wasser, Dienste und die U-Bahn heben ihn, Lärm und Abgase senken ihn.',
-  pollution: 'Abgase von Industrie, Kraftwerken und Verkehr. Senkt Glück und Bodenwert.',
-  noise: 'Lärm von Straßen, Industrie und Stadien.',
-  crime: 'Kriminalität steigt mit Arbeitslosigkeit und Unzufriedenheit.',
-  happiness: 'Grün: glücklich. Rot: unglücklich. Klicke ein Gebäude an, um die Gründe zu sehen.',
-  traffic: 'Grün: freie Fahrt. Rot: Stau. Alleen haben die doppelte Kapazität, die U-Bahn nimmt Autos von der Straße.',
-  transit: 'Einzugsgebiet der U-Bahn-Stationen mit Zugverkehr.',
-  resources: 'Industrie spezialisiert sich: Acker → Bauernhof, Wald → Forstbetrieb, Erz → Bergwerk, Öl → Ölförderung.',
+  power: 'Jedes Straßennetz ist ein eigenes Stromnetz.',
+  water: 'Pumpwerke brauchen Strom und Ufer.',
+  garbage: 'Reichweite der Müllabfuhr.',
+  health: 'Reichweite von Arzt und Krankenhaus.',
+  police: 'Reichweite der Polizei.',
+  fire: 'Reichweite der Feuerwehr.',
+  edu: 'Erreichbare Bildung.',
+  landValue: 'Parks und U-Bahn heben ihn, Lärm senkt ihn.',
+  pollution: 'Senkt Glück und Bodenwert.',
+  noise: 'Straßen, Industrie, Stadien.',
+  crime: 'Steigt mit Arbeitslosigkeit.',
+  happiness: 'Klick auf ein Haus zeigt die Gründe.',
+  traffic: 'Alleen und U-Bahn helfen.',
+  transit: 'Einzugsgebiet der Stationen.',
+  resources: 'Acker → Hof · Wald → Forst · Erz → Bergwerk · Öl → Förderung',
 };
 
+// Erklärtexte anderer Module: höchstens der erste Satz (Tooltip und Legende bleiben kurz)
+const COLOR_LEAD = /^(Grün|Rot|Blau|Grau|Gelb|Orange|Violett|Lila|Dunkel\w*|Hell\w*)\b[^:]{0,12}:/;
+const firstSentence = (t) => { const all = String(t || '').match(/[^.!?]+[.!?]?/g) || []; const s = all.map((x) => x.trim()).filter(Boolean); const pick = s.find((x) => !COLOR_LEAD.test(x)) || s[0] || ''; return pick.replace(/[.]$/, ''); };
 export function viewList() {
   const order = VIEW_GROUPS.map((g) => g.id);
   return allOverlays().map((o, k) => {
     const m = VIEW_META[o.id] || {};
-    return { ...o, k, name: VIEW_NAME[o.id] || o.name, icon: o.icon || m.icon || 'layers', group: o.id === 'none' ? '' : m.group || o.group || 'mehr', text: o.text || VIEW_TEXT[o.id] || '' };
+    return { ...o, k, name: VIEW_NAME[o.id] || o.name, icon: o.icon || m.icon || 'layers', group: o.id === 'none' ? '' : m.group || o.group || 'mehr', text: VIEW_TEXT[o.id] || firstSentence(o.text) };
   }).sort((a, b) => (a.id === 'none' ? -1 : b.id === 'none' ? 1 : order.indexOf(a.group) - order.indexOf(b.group) || a.k - b.k));
 }
 
@@ -168,17 +171,17 @@ export const PANEL_GROUPS = [
 const ms = (n) => (g) => g.sandbox || g.milestone >= n;
 export const PANEL_META = {
   // Statistik-Zentrale zuerst: alle Zahlen nach Themen (im Stadt-Menü als eigene Kopfzeile, siehe ui.popStatsHero)
-  stats: { group: 'verwaltung', order: 1, color: '#5b2fb3', key: 'F3', desc: 'Alle Zahlen der Stadt nach Themen' },
-  budget: { group: 'verwaltung', order: 10, color: '#c98a0c', key: 'F2', desc: 'Einnahmen, Ausgaben und Steuern' },
-  economy: { group: 'verwaltung', order: 12, color: '#c98a0c', desc: 'Konjunktur, Handel und Firmen', when: ms(1) },
-  policies: { group: 'verwaltung', order: 16, color: '#5d6470', key: 'F4', desc: 'Regeln für die ganze Stadt', when: (g) => g.isUnlocked('policies') },
-  citizens: { group: 'menschen', order: 20, color: '#4fae67', desc: 'Wer hier wohnt und was die Leute brauchen', when: (g) => g.sandbox || g.milestone >= 1 || g.stats.pop >= 150 },
+  stats: { group: 'verwaltung', order: 1, color: '#5b2fb3', key: 'F3', desc: 'Alle Zahlen' },
+  budget: { group: 'verwaltung', order: 10, color: '#c98a0c', key: 'F2', desc: 'Steuern und Kosten' },
+  economy: { group: 'verwaltung', order: 12, color: '#c98a0c', desc: 'Handel und Firmen', when: ms(1) },
+  policies: { group: 'verwaltung', order: 16, color: '#5d6470', key: 'F4', desc: 'Regeln für die Stadt', when: (g) => g.isUnlocked('policies') },
+  citizens: { group: 'menschen', order: 20, color: '#4fae67', desc: 'Wer hier wohnt', when: (g) => g.sandbox || g.milestone >= 1 || g.stats.pop >= 150 },
   districts: { group: 'menschen', order: 22, color: '#8f5ad8', desc: 'Stadtteile mit eigenen Regeln', when: ms(2) },
-  transit: { group: 'verkehr', order: 30, color: '#e8543f', desc: 'U-Bahn-Linien, Züge und Takt', when: (g) => g.isUnlocked('transit') || g.transit.lines.length > 0 },
-  transport: { group: 'verkehr', order: 32, color: '#10a9a3', desc: 'Bus, Straßenbahn und Verkehrsfluss', when: ms(1) },
-  weather: { group: 'umwelt', order: 40, color: '#38a3d1', desc: 'Vorhersage, Warnungen und Vorsorge', when: ms(1) },
-  progression: { group: 'fortschritt', order: 50, color: '#e9a514', desc: 'Ziele, Meilensteine und Aufträge' },
-  news: { group: 'fortschritt', order: 60, color: '#1d2330', desc: 'Was die Leute in der Stadt erzählen' },
+  transit: { group: 'verkehr', order: 30, color: '#e8543f', desc: 'Linien und Züge', when: (g) => g.isUnlocked('transit') || g.transit.lines.length > 0 },
+  transport: { group: 'verkehr', order: 32, color: '#10a9a3', desc: 'Bus und Tram', when: ms(1) },
+  weather: { group: 'umwelt', order: 40, color: '#38a3d1', desc: 'Vorhersage und Vorsorge', when: ms(1) },
+  progression: { group: 'fortschritt', order: 50, color: '#e9a514', desc: 'Ziele und Meilensteine' },
+  news: { group: 'fortschritt', order: 60, color: '#1d2330', desc: 'Was die Leute erzählen' },
 };
 export function panelMeta(p) {
   const m = PANEL_META[p.id] || {};
