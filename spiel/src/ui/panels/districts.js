@@ -31,7 +31,7 @@ function ensureStyles() {
 .dt-card .sub { font-size:12px; color:var(--ink-3); }
 .dt-card .acts { display:flex; gap:5px; margin-top:7px; flex-wrap:wrap; }
 .dt-card .pol { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
-.dt-card .pol span { font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; background:rgba(0,0,0,.06); color:var(--ink-2); }
+.dt-card .pol span { font-size:11px; font-weight:700; padding:2px 7px; border-radius:999px; background:rgba(0,0,0,.06); color:var(--ink-2); }
 .dt-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:8px 0 12px; }
 .dt-grid div { background:var(--paper-2); border-radius:9px; padding:6px 8px; }
 .dt-grid .k { font-size:11px; color:var(--ink-3); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -41,11 +41,11 @@ function ensureStyles() {
 .dt-ages i { display:block; height:100%; }
 .dt-tax { display:grid; grid-template-columns:1fr 64px; gap:10px; align-items:center; }
 .dt-tax .val { font-family:var(--f-num); font-weight:650; font-size:16px; text-align:right; }
-.dt-group { font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin:10px 0 0; }
+.dt-group { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin:10px 0 0; }
 .dt-note { font-size:12.5px; color:var(--ink-2); line-height:1.45; margin:6px 0 0; }
 .dt-cmp { display:grid; grid-template-columns: minmax(0,1fr) auto auto auto auto; gap:3px 10px; font-size:12.5px; align-items:center; }
 .dt-cmp span { font-family:var(--f-num); font-weight:600; text-align:right; }
-.dt-cmp span.h { font-family:var(--f-ui); font-size:10.5px; color:var(--ink-3); font-weight:700; text-align:right; }
+.dt-cmp span.h { font-family:var(--f-ui); font-size:11px; color:var(--ink-3); font-weight:700; text-align:right; }
 .dt-cmp span.h:first-child { text-align:left; }
 .dt-cmp span.n { font-family:var(--f-ui); text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:6px; }
 .dt-cmp span.n i { width:9px; height:9px; border-radius:50%; flex:none; }
@@ -109,7 +109,7 @@ function card(ui, d) {
   const pols = d.policies.map((pid) => DISTRICT_POLICIES.find((p) => p.id === pid)).filter(Boolean);
   return `<div class="dt-card ${sel ? 'sel' : ''}">
   <div class="hd"><button class="sw" style="background:${css(d.color)}" data-act="color" data-id="${d.id}" title="Farbe wechseln"></button>
-    <div style="flex:1;min-width:0"><div class="nm">${esc(d.name)}${active ? ' <span style="font-size:10.5px;color:var(--ink-3);font-weight:700">· AKTIV</span>' : ''}</div>
+    <div style="flex:1;min-width:0"><div class="nm">${esc(d.name)}${active ? ' <span style="font-size:11px;color:var(--ink-3);font-weight:700">· AKTIV</span>' : ''}</div>
     <div class="sub">${fmt(s.residents || 0)} Einw. · ${fmt(s.jobs || 0)} Jobs · Glück ${Math.round(s.happiness || 0)} % · ${fmt(s.tiles || 0)} Felder</div></div></div>
   ${(() => { const w = []; if (s.dead) w.push(`${fmt(s.dead)} Verstorbene warten`); if (s.unsewered) w.push(`${fmt(s.unsewered)} ohne Kanal`); if (s.abandoned) w.push(`${fmt(s.abandoned)} verlassen`); if ((s.sickShare || 0) > 0.1) w.push(`${pct(s.sickShare)} krank`); if ((s.crime || 0) > 0.4) w.push('hohe Kriminalität'); return w.length ? `<div class="pol">${w.map((x) => `<span style="background:#f6dcd8;color:#9e2b23">${x}</span>`).join('')}</div>` : ''; })()}
   ${pols.length || d.tax ? `<div class="pol">${d.tax ? `<span>Steuern ${d.tax > 0 ? '+' : '−'}${Math.abs(d.tax)} %</span>` : ''}${pols.map((p) => `<span>${esc(p.name)}</span>`).join('')}</div>` : ''}

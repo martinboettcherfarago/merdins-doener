@@ -38,7 +38,7 @@ EVENTS.push(
   },
   {
     id: 'wx_salt', title: 'Streusalz wird knapp', minPop: 300, cond: (g) => season(g) === 'winter' && W(g).snowCover > 0.3 && has(g, 'snow_depot'),
-    text: 'Der Winterdienst meldet: Die Salzvorräte reichen nur noch zwei Tage. Nachkaufen ist teuer – Splitt ist billig, aber rutschig.',
+    text: 'Das Streusalz reicht noch zwei Tage. Salz ist teuer, Splitt billig, aber rutschig.',
     options: [
       { label: 'Salz nachkaufen', hint: () => '−4.000 €', apply: (g) => { g.money -= 4000; } },
       { label: 'Splitt streuen', hint: () => 'Glück −3 für 4 Tage (glatte Gehwege)', apply: (g) => g.addEffect('happy', -3, 4, 'Glatte Gehwege') },
@@ -86,7 +86,7 @@ EVENTS.push(
   },
   {
     id: 'wx_ac', title: 'Klimaanlagen-Boom', minPop: 1500, cond: (g) => season(g) === 'summer' && W(g).coolNeed > 0.3,
-    text: 'Die Baumärkte sind leergekauft, überall brummen Klimageräte. Ein Förderprogramm für Dämmung und Begrünung würde helfen.',
+    text: 'Hitze: Klimageräte brummen überall. Ein Förderprogramm für Dämmung und Begrünung?',
     options: [
       { label: 'Fördern', hint: () => '−6.000 €, Hitze-Unmut halbiert für 25 Tage', apply: (g) => { g.money -= 6000; g.addEffect('heatShield', 1, 25, 'Dämmung & Dachgärten'); } },
       { label: 'Nicht eingreifen', hint: () => 'Strombilanz −8 % für 5 Tage', apply: (g) => g.addEffect('powerMul', -0.08, 5, 'Klimaanlagen-Boom') },

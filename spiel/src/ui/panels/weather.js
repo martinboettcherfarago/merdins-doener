@@ -35,7 +35,7 @@ function injectCss() {
 .wx-now .ic{filter:drop-shadow(0 2px 6px rgba(0,0,0,.25))}
 .wx-det{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0 0}
 .wx-det div{background:var(--paper-2);border-radius:10px;padding:6px 8px;min-width:0}
-.wx-det .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.wx-det .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .wx-det .v{font-family:var(--f-num);font-size:16px;font-weight:600;white-space:nowrap}
 .wx-year{position:relative;height:10px;border-radius:5px;display:flex;margin:6px 0 4px}
 .wx-year i{flex:1}.wx-year i:first-child{border-radius:5px 0 0 5px}.wx-year i:last-child{border-radius:0 5px 5px 0}
@@ -48,7 +48,7 @@ function injectCss() {
 .wx-fc .d .lo{color:var(--ink-3);font-family:var(--f-num);font-size:13px}
 .wx-fc .d .pr{height:3px;background:var(--paper-3);border-radius:2px;margin:4px 6px 0;overflow:hidden}.wx-fc .d .pr i{display:block;height:100%;background:#2f8fe0}
 .wx-fc .d.haz{box-shadow:inset 0 0 0 2px var(--bad)}
-.wx-fc .d .hz{position:absolute;top:3px;right:4px;width:14px;height:14px;border-radius:50%;background:var(--bad);color:#fff;font-size:10px;font-weight:700;line-height:14px}
+.wx-fc .d .hz{position:absolute;top:3px;right:4px;width:14px;height:14px;border-radius:50%;background:var(--bad);color:#fff;font-size:11px;font-weight:700;line-height:14px}
 .wx-fc .d.unk{opacity:.42}
 .wx-card{border-radius:12px;background:var(--paper-2);padding:10px 12px;margin:0 0 8px;border-left:5px solid #999}
 .wx-card .hd{display:flex;gap:8px;align-items:center}

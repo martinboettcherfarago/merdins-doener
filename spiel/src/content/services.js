@@ -52,7 +52,7 @@ EVENTS.push(
   },
   {
     id: 'cz_cemetery', title: 'Der Friedhof wird knapp', minPop: 600, cond: (g) => (czStats(g).graveFill || 0) > 0.8,
-    text: 'Die Friedhofsverwaltung meldet: Bald gibt es keine freien Gräber mehr. Die Kirchengemeinde schlägt eine Erweiterung vor.',
+    text: 'Bald keine freien Gräber mehr. Die Kirchengemeinde schlägt eine Erweiterung vor.',
     options: [
       { label: 'Friedhof erweitern', hint: () => '−6.000 €, +800 Gräber auf jedem Friedhof', apply: (g) => { g.money -= 6000; for (const b of g.buildings.values()) if (b.key === 'cemetery') { b.cz ||= {}; b.cz.extraGraves = (b.cz.extraGraves || 0) + 800; } } },
       { label: 'Urnenwand statt Gräber', hint: () => 'Glück −2 für 5 Tage, 400 Gräber werden frei', apply: (g) => { g.addEffect('happy', -2, 5, 'Urnenwand-Streit'); for (const b of g.buildings.values()) if (b.key === 'cemetery' && b.cz) b.cz.used = Math.max(0, (b.cz.used || 0) - 400); } },

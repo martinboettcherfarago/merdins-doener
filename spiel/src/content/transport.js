@@ -44,7 +44,7 @@ ev({
 });
 ev({
   id: 'tp_ticket', title: 'Das Land bietet ein Monatsticket', minPop: 900, cond: (g) => hasLines(g),
-  text: 'Für 49 Euro im Monat sollen alle Busse und Bahnen fahren. Die Stadt muss die Ausfälle beim Fahrgeld zum Teil selbst tragen.',
+  text: 'Alle Busse und Bahnen für 49 Euro im Monat – die Stadt trägt einen Teil der Ausfälle.',
   options: [
     { label: 'Mitmachen', hint: () => '14 Tage: Fahrgäste +40 %, Glück +3, dafür −2.500 €', apply: (g) => { g.money -= 2500; g.addEffect('busRidership', 0.4, 14, 'Monatsticket'); g.addEffect('happy', 3, 14, 'Monatsticket'); } },
     { label: 'Ablehnen', hint: () => 'Glück −2 für 5 Tage', apply: (g) => g.addEffect('happy', -2, 5, 'Kein Monatsticket') },
@@ -52,7 +52,7 @@ ev({
 });
 ev({
   id: 'tp_carfree', title: 'Autofreier Sonntag', minPop: 700,
-  text: 'Eine Bürgerinitiative möchte die Hauptstraßen einen Tag lang für Fahrräder, Spielstraßen und Flohmärkte öffnen.',
+  text: 'Einen Tag lang Hauptstraßen für Fahrräder, Spiel und Flohmarkt?',
   options: [
     { label: 'Unterstützen', hint: () => 'Glück +5 für 3 Tage, Gewerbenachfrage −10, Fahrgäste +25 %', apply: (g) => { g.addEffect('happy', 5, 3, 'Autofreier Sonntag'); g.addEffect('comDemand', -10, 3, 'Autofreier Sonntag'); g.addEffect('busRidership', 0.25, 3, 'Autofreier Sonntag'); } },
     { label: 'Absagen', hint: () => 'Glück −2 für 3 Tage', apply: (g) => g.addEffect('happy', -2, 3, 'Absage') },
@@ -60,7 +60,7 @@ ev({
 });
 ev({
   id: 'tp_airshow', title: 'Flugtage am Flughafen', minPop: 4000, cond: (g) => g.hasBuilt('airport'),
-  text: 'Kunstflieger und Oldtimer-Maschinen – ein Spektakel, das Besucher von weit her anlockt. Die Nachbarschaft fürchtet den Lärm.',
+  text: 'Flugschau: lockt Besucher von weit her, die Nachbarn fürchten den Lärm.',
   options: [
     { label: 'Genehmigen', hint: () => 'Touristen +250 für 4 Tage, Glück −2', apply: (g) => { g.addEffect('tourismAdd', 250, 4, 'Flugtage'); g.addEffect('happy', -2, 4, 'Fluglärm'); } },
     { label: 'Ablehnen', hint: () => 'Nichts passiert.', apply: () => {} },

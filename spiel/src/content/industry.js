@@ -92,7 +92,7 @@ EVENTS.push(
   {
     id: 'ind_order', title: 'Großauftrag aus Übersee', minPop: 600,
     cond: (g) => (tot(g).exportT || 0) > 60,
-    text: 'Ein Handelskonzern will zehn Tage lang deutlich mehr Konsumgüter abnehmen. Die Fabriken müssten Sonderschichten fahren.',
+    text: 'Ein Handelskonzern will zehn Tage lang mehr Konsumgüter – Sonderschichten nötig.',
     options: [
       { label: 'Annehmen', hint: () => 'Weltmarkt-Nachfrage nach Konsumgütern +70 % für 10 Tage, Industrie-Glück −3', apply: (g) => { g.addEffect('ecoMarket:goods', 0.7, 10, 'Großauftrag'); g.addEffect('ecoHappy', -3, 10, 'Sonderschichten'); } },
       { label: 'Ablehnen', hint: () => 'Nichts passiert.', apply: () => {} },
@@ -110,7 +110,7 @@ EVENTS.push(
   {
     id: 'ind_oil', title: 'Ölkrise am Weltmarkt', minPop: 500,
     cond: (g) => produces(g, 'oil') || produces(g, 'plastics'),
-    text: 'Ein Förderstopp im Ausland lässt den Ölpreis explodieren. Gut für die eigene Ölförderung – schlecht für alle, die tanken müssen.',
+    text: 'Der Ölpreis explodiert: gut für die eigene Förderung, schlecht fürs Tanken.',
     options: [
       { label: 'Spritpreise subventionieren', hint: (g) => `−${fmtMoney(2000 + g.stats.pop)}, Öl- und Kunststoffpreise +55 % für 9 Tage`, apply: (g) => { g.money -= 2000 + g.stats.pop; shockGood(g, 'oil', 0.55, 9); shockGood(g, 'plastics', 0.4, 9); } },
       { label: 'Markt laufen lassen', hint: () => 'Öl- und Kunststoffpreise +55 % für 9 Tage, Glück −3 für 6 Tage', apply: (g) => { shockGood(g, 'oil', 0.55, 9); shockGood(g, 'plastics', 0.4, 9); g.addEffect('happy', -3, 6, 'Spritpreise'); } },
@@ -145,7 +145,7 @@ EVENTS.push(
   {
     id: 'ind_stimulus', title: 'Konjunkturprogramm des Landes', minPop: 600,
     cond: (g) => ind(g) && ind(g).cycle.value < -0.25,
-    text: 'Die Wirtschaft schwächelt. Das Land legt ein Konjunkturprogramm auf – Städte müssen sich mit einem Eigenanteil beteiligen.',
+    text: 'Die Wirtschaft schwächelt. Konjunkturprogramm des Landes – mit Eigenanteil.',
     options: [
       { label: 'Mitmachen', hint: (g) => `−${fmtMoney(3000 + g.stats.pop * 1.5)}, die Konjunktur zieht spürbar an`, apply: (g) => { g.money -= 3000 + g.stats.pop * 1.5; if (ind(g)) ind(g).cycle.shock += 0.45; } },
       { label: 'Sparen', hint: () => 'Nichts passiert – die Flaute dauert an.', apply: () => {} },

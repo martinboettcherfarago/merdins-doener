@@ -42,10 +42,10 @@ function injectStyle() {
 .eco-cycle .sub{font-size:11.5px;color:var(--ink-3);margin-left:auto;text-align:right;line-height:1.3}
 .eco-cycle .trk{position:relative;height:8px;border-radius:4px;margin:9px 0 4px;background:linear-gradient(90deg,#e5483c,#f2b01e 32%,#d6cdbd 50%,#9fd27a 68%,#22a866)}
 .eco-cycle .trk i{position:absolute;top:-4px;width:5px;height:16px;border-radius:3px;background:var(--ink);transform:translateX(-2.5px);box-shadow:0 0 0 2px var(--paper)}
-.eco-cycle .ends{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.eco-cycle .ends{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;font-weight:700}
 .eco-kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
 .eco-kpi>div{background:var(--paper-2);border-radius:10px;padding:7px 9px;min-width:0}
-.eco-kpi .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eco-kpi .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eco-kpi .v{font-family:var(--f-num);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .eco-kpi .d{font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eco-bar{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--paper-3)}
@@ -63,9 +63,9 @@ function injectStyle() {
 .eco-good.off{opacity:.55}
 .eco-good .hd{display:flex;align-items:center;gap:8px;font-size:13.5px}
 .eco-good .hd b{font-weight:700;white-space:nowrap}
-.eco-good .tier{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.eco-good .tier{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .eco-good .px{margin-left:auto;font-family:var(--f-num);font-weight:600;white-space:nowrap;font-size:14px}
-.eco-good .tag{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.eco-good .tag{font-size:11px;font-weight:700;padding:1px 6px;border-radius:999px;white-space:nowrap}
 .eco-good .nums{display:flex;gap:4px 10px;font-size:11.5px;color:var(--ink-3);margin:5px 0 6px;flex-wrap:wrap}
 .eco-good .nums b{color:var(--ink-2);font-family:var(--f-num);font-weight:600;font-size:12.5px}
 .eco-price{display:grid;grid-template-columns:44px 1fr 40px;gap:8px;align-items:center;font-size:12px;color:var(--ink-2)}
@@ -92,7 +92,7 @@ function injectStyle() {
 .eco-budget .info{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--ink-3);margin-top:2px;line-height:1.35}
 .eco-budget .info b{color:var(--ink-2);font-weight:600}
 .eco-tax{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,70px);gap:6px;align-items:center;font-size:12.5px}
-.eco-tax .h{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700;text-align:center;line-height:1.2}
+.eco-tax .h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700;text-align:center;line-height:1.2}
 .eco-tax .z{display:flex;align-items:center;gap:6px;font-weight:700;white-space:nowrap;overflow:hidden}
 .eco-tax .c{display:flex;align-items:center;justify-content:center;gap:2px;background:var(--paper-2);border-radius:8px;padding:3px 2px}
 .eco-tax .c .n{font-family:var(--f-num);font-weight:700;min-width:30px;text-align:center}
@@ -103,7 +103,7 @@ function injectStyle() {
 .eco-sankey{width:100%;height:200px;display:block}
 .eco-spark{width:70px;height:22px;display:block;flex:none}
 .eco-insp{margin:10px 0 6px;padding:9px 10px;background:var(--paper-2);border-radius:10px}
-.eco-insp h3{margin:0 0 6px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.eco-insp h3{margin:0 0 6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .eco-insp .kv{font-size:12.5px}
 .eco-insp .kv .v{font-size:13.5px}
 .eco-insp p{margin:6px 0 0;font-size:12px;color:var(--ink-2);line-height:1.4}

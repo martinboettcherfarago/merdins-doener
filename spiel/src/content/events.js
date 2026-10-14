@@ -54,7 +54,7 @@ export const FOLLOWUPS = {
 const NEW_EVENTS = [
   {
     id: 'pixel', title: 'Katze Pixel entlaufen', minPop: 80, cond: (g) => !P(g)?.counters?.pixel,
-    text: 'Lena aus der Lindenstraße vermisst ihre graue Katze Pixel. Halb Stadtfunk sucht schon mit – und alle schauen auf dich.',
+    text: 'Lena vermisst ihre graue Katze Pixel. Halb Stadtfunk sucht mit – alle schauen auf dich.',
     options: [
       { label: 'Suchtrupp losschicken', hint: () => '−500 €, gute Chancen, Pixel bald zu finden', apply: (g) => { money(g, -500); later(g, 2 + Math.floor(g.rng() * 3), chance(g, 0.75) ? 'pixelFound' : 'pixelLost'); } },
       { label: 'Plakate drucken', hint: () => '−100 €, vielleicht taucht sie auf', apply: (g) => { money(g, -100); later(g, 3 + Math.floor(g.rng() * 4), chance(g, 0.45) ? 'pixelFound' : 'pixelLost'); } },
@@ -63,7 +63,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'ufo', title: 'Lichter am Himmel', minPop: 400,
-    text: 'Dutzende Bürger melden seltsame Lichter über dem Stadtrand. Die Zeitung titelt „Besuch aus dem All?". Ein Professor will messen, ein Wirt will feiern.',
+    text: 'Seltsame Lichter über dem Stadtrand! Ein Professor will messen, ein Wirt will feiern.',
     options: [
       { label: 'Wissenschaftlich untersuchen', hint: (g) => `−${fmtMoney(sc(g, 1500))}, Bildung wächst 7 Tage lang 15 % schneller`, apply: (g) => { money(g, -sc(g, 1500)); g.mods.edu *= 1.15; later(g, 7, 'eduBack', { f: 1.15 }); later(g, 3, 'ufoReveal'); } },
       { label: 'UFO-Festival ausrufen', hint: (g) => `−${fmtMoney(sc(g, 3000))}, +180 Touristen für 5 Tage`, apply: (g) => { money(g, -sc(g, 3000)); g.addEffect('tourismAdd', 180, 5, 'UFO-Festival'); later(g, 5, 'ufoReveal'); } },
@@ -88,7 +88,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'hollywood', title: 'Hollywood ruft', minPop: 1500,
-    text: 'Ein Filmstudio will einen Actionfilm in deiner Innenstadt drehen. Drei Tage Absperrungen, Explosionen (nur gespielt) und ein Star im Hotel.',
+    text: 'Ein Filmstudio will in der Innenstadt drehen: drei Tage Absperrungen und ein Star im Hotel.',
     options: [
       { label: 'Drehgenehmigung erteilen', hint: (g) => `+${fmtMoney(sc(g, 8000))}, Glück −2 für 3 Tage, später Touristen`, apply: (g) => { money(g, sc(g, 8000)); g.addEffect('happy', -2, 3, 'Filmdreh-Sperrungen'); later(g, 12, 'hollywoodPremiere'); } },
       { label: 'Ablehnen', hint: () => 'Ruhe in der Stadt', apply: () => {} },
@@ -138,7 +138,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'techfair', title: 'Technikmesse', minPop: 3000, cond: (g) => g.isUnlocked('zone4'),
-    text: 'Die Region sucht einen Ort für die große Technikmesse. Dein Stadtmarketing hat sich ungefragt beworben – und gewonnen.',
+    text: 'Dein Stadtmarketing hat sich ungefragt für die Technikmesse beworben – und gewonnen.',
     options: [
       { label: 'Ausrichten', hint: (g) => `−${fmtMoney(sc(g, 9000))}, Büronachfrage +40 für 10 Tage, +150 Touristen für 4 Tage`, apply: (g) => { money(g, -sc(g, 9000)); g.addEffect('offDemand', 40, 10, 'Technikmesse'); g.addEffect('tourismAdd', 150, 4, 'Technikmesse'); } },
       { label: 'Absagen', hint: () => 'Nichts passiert', apply: () => {} },
@@ -162,7 +162,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'foodtruck', title: 'Mêrdîns Foodtruck', minPop: 250, cond: (g) => !g.hasBuilt('doener') && !g.landmarkVouchers.has('doener'),
-    text: 'Ein Foodtruck mit gelbem „M" parkt seit Tagen am Marktplatz. Die Schlange reicht bis zur Kirche: Chili-Cheese-Döner mit eigener Soße.',
+    text: 'Ein Foodtruck mit gelbem „M" am Marktplatz – die Schlange für Chili-Cheese-Döner reicht bis zur Kirche.',
     options: [
       { label: 'Festen Standplatz genehmigen', hint: () => 'Glück +3, Gewerbe +15 für 5 Tage – vielleicht bleibt Mêrdîn für immer', apply: (g) => { g.addEffect('happy', 3, 5, 'Mêrdîns Foodtruck'); g.addEffect('comDemand', 15, 5, 'Mêrdîns Foodtruck'); if (chance(g, 0.6)) later(g, 4, 'doenerStays'); } },
       { label: 'Ordnungsamt schicken', hint: () => 'Glück −2 für 4 Tage', apply: (g) => g.addEffect('happy', -2, 4, 'Kein Döner mehr') },
@@ -170,7 +170,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'coworking', title: 'Coworking-Space', minPop: 1500, cond: (g) => g.isUnlocked('zone4'),
-    text: 'In der alten Post wollen Gründerinnen einen Coworking-Space eröffnen. Sie fragen nach einem Zuschuss für schnelles Internet.',
+    text: 'Gründerinnen wollen in der alten Post einen Coworking-Space – mit Zuschuss für schnelles Internet.',
     options: [
       { label: 'Zuschuss geben', hint: (g) => `−${fmtMoney(sc(g, 4000))}, Büronachfrage +30 für 8 Tage, mit Glück ein Erfolg`, apply: (g) => { money(g, -sc(g, 4000)); g.addEffect('offDemand', 30, 8, 'Coworking'); if (chance(g, 0.4)) later(g, 14, 'startupExit'); } },
       { label: 'Der Markt regelt das', hint: () => 'Büronachfrage +8 für 4 Tage', apply: (g) => g.addEffect('offDemand', 8, 4, 'Coworking') },
@@ -178,7 +178,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'seniors', title: 'Seniorenrat', minPop: 1200,
-    text: 'Der Seniorenrat fordert mehr Bänke, Ärzte in Laufnähe und langsamere Ampeln. Sie haben 300 Stricksocken als Druckmittel.',
+    text: 'Der Seniorenrat fordert mehr Bänke und Ärzte in Laufnähe – Druckmittel: 300 Stricksocken.',
     options: [
       { label: 'Bänke und Hausbesuche', hint: (g) => `−${fmtMoney(sc(g, 4500))}, Glück +4 für 10 Tage, Gesundheit +20 %`, apply: (g) => { money(g, -sc(g, 4500)); g.addEffect('happy', 4, 10, 'Seniorenfreundlich'); g.addEffect('healthCov', 0.2, 10, 'Hausbesuche'); } },
       { label: 'Vertrösten', hint: () => 'Glück −3 für 7 Tage', apply: (g) => g.addEffect('happy', -3, 7, 'Enttäuschte Senioren') },
@@ -210,7 +210,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'meteors', title: 'Sternschnuppennacht', minPop: 500,
-    text: 'Heute Nacht erreicht der Meteorstrom seinen Höhepunkt. Sternfreunde bitten darum, die Straßenlaternen für zwei Stunden auszuschalten.',
+    text: 'Meteorstrom heute Nacht! Sternfreunde bitten: Laternen zwei Stunden aus.',
     options: [
       { label: 'Licht aus!', hint: () => 'Glück +4 und Gewerbesteuer −20 % für 2 Tage', apply: (g) => { g.addEffect('happy', 4, 2, 'Sternschnuppen'); g.addEffect('comTax', -0.2, 2, 'Dunkle Nacht'); } },
       { label: 'Sicherheit geht vor', hint: () => 'Nichts passiert', apply: () => {} },
@@ -243,7 +243,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'streetart', title: 'Streetart-Künstlerin', minPop: 600,
-    text: 'Über Nacht ist an der Brandmauer am Bahnhof ein riesiges Wandbild aufgetaucht: ein Wal, der über die Dächer schwimmt.',
+    text: 'Über Nacht am Bahnhof aufgetaucht: ein riesiger Wal, der über die Dächer schwimmt.',
     options: [
       { label: 'Wände freigeben', hint: () => 'Bodenwert +3 für 12 Tage, Glück +2', apply: (g) => { g.addEffect('lvAdd', 3, 12, 'Streetart'); g.addEffect('happy', 2, 6, 'Streetart'); if (chance(g, 0.5)) later(g, 7, 'artistFamous'); } },
       { label: 'Übermalen lassen', hint: () => '−800 €', apply: (g) => money(g, -800) },
@@ -283,7 +283,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'testament', title: 'Ein großzügiges Testament', minPop: 500,
-    text: 'Die verstorbene Fabrikantenwitwe Hildegard Sommer hat der Stadt ihr Vermögen vermacht – mit dem Wunsch nach „mehr Grün".',
+    text: 'Hildegard Sommer hat der Stadt ihr Vermögen vermacht – mit dem Wunsch nach „mehr Grün".',
     options: [
       { label: 'Für Parks verwenden', hint: (g) => `+${fmtMoney(sc(g, 5000))}, Parks 5 Tage kostenlos`, apply: (g) => { money(g, sc(g, 5000)); g.addEffect('parkFree', 1, 5, 'Sommer-Stiftung'); } },
       { label: 'In die Stadtkasse', hint: (g) => `+${fmtMoney(sc(g, 8000))}, Glück −1 für 3 Tage`, apply: (g) => { money(g, sc(g, 8000)); g.addEffect('happy', -1, 3, 'Letzter Wille missachtet'); } },
@@ -299,7 +299,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'chess', title: 'Schach-Weltmeisterschaft', minPop: 4000,
-    text: 'Der Weltschachbund sucht einen Austragungsort. Der Bürgermeister der Nachbarstadt hat sich auch beworben – mit Freibier.',
+    text: 'Der Weltschachbund sucht einen Austragungsort. Die Nachbarstadt lockt mit Freibier.',
     options: [
       { label: 'Bewerben', hint: (g) => `−${fmtMoney(sc(g, 14000))}, +380 Touristen für 7 Tage, Glück +3`, apply: (g) => { money(g, -sc(g, 14000)); g.addEffect('tourismAdd', 380, 7, 'Schach-WM'); g.addEffect('happy', 3, 7, 'Schach-WM'); } },
       { label: 'Nicht unser Spiel', hint: () => 'Nichts passiert', apply: () => {} },
@@ -331,7 +331,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'fog', title: 'Dichter Nebel', minPop: 500, cond: (g) => (g.ext.weather?.fog ?? 0) > 0.5 || season(g) === 'autumn',
-    text: 'Seit dem Morgen sieht man keine zehn Meter weit. Autofahrer kriechen, nur die U-Bahn fährt unten im Tunnel pünktlich.',
+    text: 'Dichter Nebel: Autos kriechen, nur die U-Bahn fährt pünktlich.',
     options: [
       { label: 'Pulsbahn verstärken', hint: (g) => `−${fmtMoney(sc(g, 1500))}, U-Bahn-Fahrgäste +30 % für 3 Tage`, apply: (g) => { money(g, -sc(g, 1500)); g.addEffect('ridership', 0.3, 3, 'Nebel-Takt'); } },
       { label: 'Nichts unternehmen', hint: () => 'Glück −1 für 2 Tage', apply: (g) => g.addEffect('happy', -1, 2, 'Nebelfrust') },
@@ -411,7 +411,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'exportdeal', title: 'Großauftrag aus Übersee', minPop: 1500, cond: (g) => g.hasBuilt('cargo_rail') || g.hasBuilt('cargo_harbor'),
-    text: 'Ein Konzern aus Übersee will für ein Jahr alles kaufen, was deine Fabriken liefern können. Das heißt aber: Lkw rund um die Uhr.',
+    text: 'Ein Konzern will ein Jahr lang alles kaufen, was deine Fabriken liefern – Lkw rund um die Uhr.',
     options: [
       { label: 'Annehmen', hint: (g) => `+${fmtMoney(sc(g, 15000))}, Industrie +20, Glück −2 für 7 Tage wegen Lkw-Lärm`, apply: (g) => { money(g, sc(g, 15000)); g.addEffect('happy', -2, 7, 'Lkw-Lärm'); g.addEffect('indDemand', 20, 7, 'Großauftrag'); } },
       { label: 'Ablehnen', hint: () => 'Nichts passiert', apply: () => {} },
@@ -452,7 +452,7 @@ const NEW_EVENTS = [
   },
   {
     id: 'citizenbond', title: 'Bürgeranleihe', minPop: 1500, cond: (g) => g.money < 20000,
-    text: 'Die Sparkasse schlägt eine Bürgeranleihe vor: Bürger leihen der Stadt Geld und bekommen es in drei Wochen mit Zinsen zurück.',
+    text: 'Bürgeranleihe: Bürger leihen der Stadt Geld, in drei Wochen zurück mit Zinsen.',
     options: [
       { label: 'Anleihe ausgeben', hint: (g) => `+${fmtMoney(sc(g, 20000))} jetzt, in 21 Tagen ${fmtMoney(Math.round(sc(g, 20000) * 1.08))} zurück`, apply: (g) => { const a = sc(g, 20000); money(g, a); later(g, 21, 'bondRepay', { amount: Math.round(a * 1.08) }); } },
       { label: 'Lieber nicht', hint: () => 'Nichts passiert', apply: () => {} },

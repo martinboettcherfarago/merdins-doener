@@ -72,7 +72,7 @@ const CSS = `
 .s5-ach.done{background:#fff;box-shadow:inset 0 0 0 2px var(--tier)}
 .s5-ach.locked{opacity:.55}
 .s5-ach .nm{font-weight:700;font-size:13.5px;line-height:1.2;display:flex;gap:6px;align-items:baseline}
-.s5-ach .nm .t{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--tier) 60%,#1d2330);font-weight:700}
+.s5-ach .nm .t{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:color-mix(in srgb,var(--tier) 60%,#1d2330);font-weight:700}
 .s5-ach .ds{font-size:12px;color:var(--ink-2);line-height:1.35;margin-top:2px}
 .s5-ach .pg{display:flex;align-items:center;gap:8px;margin-top:5px;font-family:var(--f-num);font-size:12.5px;font-weight:600;color:var(--ink-3)}
 .s5-ach .pg .meter{flex:1;height:6px}
@@ -88,11 +88,11 @@ const CSS = `
 .s5-goal .vl{font-family:var(--f-num);font-weight:650;font-size:14px;text-align:right;white-space:nowrap}
 .s5-goal .meter{grid-column:2 / 4;height:5px}
 .s5-scen-hd{border-radius:14px;padding:13px 15px;color:#fff;margin-bottom:12px;position:relative;overflow:hidden}
-.s5-scen-hd .ey{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;opacity:.85}
+.s5-scen-hd .ey{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;opacity:.85}
 .s5-scen-hd .nm{font-family:var(--f-display);font-weight:700;font-size:19px;margin:3px 0 2px}
 .s5-scen-hd .kk{font-size:13px;opacity:.9}
 .s5-scen-hd .days{position:absolute;right:14px;top:12px;font-family:var(--f-num);font-weight:650;font-size:28px;line-height:1;text-align:right}
-.s5-scen-hd .days small{display:block;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--f-ui);font-weight:700;opacity:.85}
+.s5-scen-hd .days small{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-family:var(--f-ui);font-weight:700;opacity:.85}
 .s5-timebar{height:6px;border-radius:3px;background:rgba(255,255,255,.3);margin-top:10px;overflow:hidden}
 .s5-timebar i{display:block;height:100%;background:#fff;border-radius:3px}
 .s5-tip{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--rule)}
@@ -120,12 +120,12 @@ const CSS = `
 .s5-detail .acts{margin-top:10px}
 .s5-prof{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
 .s5-prof div{background:var(--paper-2);border-radius:10px;padding:8px 10px}
-.s5-prof .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.s5-prof .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .s5-prof .v{font-family:var(--f-num);font-size:20px;font-weight:650}
 /* Zielanzeige im Spiel */
 .s5-hud{position:absolute;right:12px;top:calc(76px + var(--safe-t));width:262px;padding:11px 13px 9px;font-size:12.5px;z-index:5;transition:opacity .25s}
 .s5-hud .hd{display:flex;align-items:center;gap:8px;cursor:pointer}
-.s5-hud .hd .ey{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--ink-3)}
+.s5-hud .hd .ey{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--ink-3)}
 .s5-hud .hd .nm{font-family:var(--f-display);font-weight:700;font-size:13px;line-height:1.15}
 .s5-hud .hd .pill{margin-left:auto;font-family:var(--f-num);font-weight:650;font-size:15px;white-space:nowrap}
 .s5-hud .gl{display:grid;grid-template-columns:12px 1fr auto;gap:3px 7px;align-items:center;margin-top:8px}
@@ -145,7 +145,7 @@ const CSS = `
 .s5-hud .metro .lb{font-size:11px;color:var(--ink-3);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 /* Erfolgs-Banner */
 .s5-banner{position:absolute;left:66px;top:calc(96px + var(--safe-t));z-index:45;display:flex;gap:12px;align-items:center;padding:10px 16px 10px 10px;border-radius:16px;background:var(--ink);color:var(--paper);box-shadow:var(--shadow);animation:s5in .45s cubic-bezier(.2,1.4,.4,1);max-width:min(420px,calc(100vw - 32px));pointer-events:none}
-.s5-banner .ey{font-size:10px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--tier)}
+.s5-banner .ey{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;color:var(--tier)}
 .s5-banner .nm{font-family:var(--f-display);font-weight:700;font-size:15px;line-height:1.2}
 .s5-banner .ds{font-size:12px;color:#c4cad6;line-height:1.3;margin-top:1px}
 .s5-banner.out{transition:opacity .5s,transform .5s;opacity:0;transform:translateY(-8px)}
@@ -161,7 +161,7 @@ const CSS = `
 .s5-modal .hero p{color:rgba(255,255,255,.92);margin:0}
 .s5-modal .facts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
 .s5-modal .facts div{background:var(--paper-2);border-radius:10px;padding:8px 10px}
-.s5-modal .facts .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.s5-modal .facts .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .s5-modal .facts .v{font-family:var(--f-num);font-size:20px;font-weight:650}
 .s5-modal .bigstars{font-size:40px;letter-spacing:6px;text-align:center;color:var(--l-yellow);margin:4px 0}
 .s5-modal .bigstars .off{color:var(--paper-3)}

@@ -477,7 +477,7 @@ b, strong { font-weight: 700; }
 @keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 .art svg { filter: drop-shadow(0 3px 4px rgba(42, 20, 99, 0.16)); }
 .item .pic svg { width: 32px; height: 32px; }
-.item .tag { position: absolute; top: 4px; left: 4px; font-family: var(--f-display); font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; color: #fff; background: var(--m-amber); padding: 1px 7px; border-radius: var(--r-pill); text-shadow: var(--ts-amber); box-shadow: 0 1px 0 var(--cta-edge); }
+.item .tag { position: absolute; top: 4px; left: 4px; font-family: var(--f-display); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: #fff; background: var(--m-amber); padding: 1px 7px; border-radius: var(--r-pill); text-shadow: var(--ts-amber); box-shadow: 0 1px 0 var(--cta-edge); }
 .item .tag.new { background: linear-gradient(180deg, #43d283, #1f9a52); box-shadow: 0 1px 0 #17733d; text-shadow: 0 1px 0 rgba(0, 60, 30, 0.4); }
 .item .cnt { position: absolute; right: 4px; bottom: 4px; font-size: 11.5px; font-weight: 600; color: var(--accent); background: #fff; padding: 0 6px; border-radius: var(--r-pill); box-shadow: 0 1px 2px rgba(42, 20, 99, 0.18); }
 .item .dem { position: absolute; right: 6px; top: 8px; bottom: 8px; width: 6px; border-radius: 3px; background: rgba(42, 20, 99, 0.1); overflow: hidden; display: flex; align-items: flex-end; box-shadow: inset 0 1px 1px rgba(42, 20, 99, 0.14); }
@@ -692,7 +692,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .sz-ci { width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; flex: none; color: color-mix(in srgb, var(--cc, var(--accent)) 82%, var(--accent-ink)); background: linear-gradient(180deg, color-mix(in srgb, var(--cc, var(--accent)) 10%, #fff), color-mix(in srgb, var(--cc, var(--accent)) 21%, #fff)); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px color-mix(in srgb, var(--cc, var(--accent)) 15%, transparent), 0 1px 0 color-mix(in srgb, var(--cc, var(--accent)) 24%, transparent); }
 .sz-big { flex: none; display: flex; flex-direction: column; align-items: flex-end; text-align: right; line-height: 1; max-width: 46%; }
 .sz-big b { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-weight: 650; font-size: 24px; color: var(--accent-ink); white-space: nowrap; }
-.sz-big small { margin-top: 3px; font-size: 10.5px; font-weight: 700; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sz-big small { margin-top: 3px; font-size: 11px; font-weight: 700; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .sz-big.warn b { color: var(--warn); }
 .sz-big.bad b { color: var(--bad); }
 .sz-mr { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); font-size: 12.5px; font-weight: 700; color: var(--ink-2); }
@@ -749,7 +749,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .sz-step { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px; border-radius: 10px; text-align: center; background: #eef8f1; box-shadow: inset 0 0 0 1px rgba(29, 148, 80, 0.14); }
 .sz-step .n { font-size: 11.5px; font-weight: 700; color: var(--ink-2); }
 .sz-step b { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 650; color: var(--accent-ink); }
-.sz-step small { font-size: 10.5px; font-weight: 700; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.sz-step small { font-size: 11px; font-weight: 700; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .sz-step.warn { background: #fff4dc; box-shadow: inset 0 0 0 1px rgba(196, 116, 0, 0.18); }
 .sz-step.bad { background: #fde6e4; box-shadow: inset 0 0 0 1px rgba(224, 67, 74, 0.2); }
 .sz-step.bad b { color: var(--bad); }
@@ -1390,7 +1390,7 @@ kbd { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-weight
 }
 @media (max-width: 1060px) {
   .demand { display: none; }
-  .lbl { font-size: 10.5px; }
+  .lbl { font-size: 11px; }
   .cat, .capbtn, .dk-menu { width: 52px; }
   .cat .stop, .capbtn .stop, .dk-menu .stop { width: var(--h-m); height: var(--h-m); border-radius: 14px; }
   .tb-sep, .dk-sep { height: var(--h-m); }
@@ -1473,7 +1473,7 @@ kbd { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-weight
   .toolbar .line { flex: 1 1 auto; gap: 0; }
   .dk-menu { flex: 1 1 auto; }
   .cap { display: none; }
-  .dock .lbl { display: block; font-size: 9.5px; max-width: none; overflow: visible; letter-spacing: -0.01em; }
+  .dock .lbl { display: block; font-size: 10.5px; max-width: none; overflow: visible; letter-spacing: -0.01em; }
   /* Begleiter der Einführung (EINSTIEG, schwebt über dem Dock) nicht über Katalog, Inspektor oder Panel legen */
   #hud.tray-open #ob-guide.free, #hud:has(.inspector:not([hidden])) #ob-guide.free, #hud:has(.panel:not([hidden])) #ob-guide.free { display: none !important; }
   .cat, .dk-menu { width: auto; flex: 1 1 auto; gap: 3px; min-width: 44px; }

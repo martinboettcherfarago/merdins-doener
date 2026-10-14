@@ -21,7 +21,7 @@ function ensureStyles() {
 .cz-tabs button.on { background:var(--ink); color:var(--paper); }
 .cz-strip { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-bottom:12px; }
 .cz-strip div { background:var(--paper-2); border-radius:10px; padding:6px 9px; min-width:0; }
-.cz-strip .k { font-size:10.5px; color:var(--ink-3); font-weight:700; line-height:1.15; min-height:2.3em; display:flex; align-items:flex-end; }
+.cz-strip .k { font-size:11px; color:var(--ink-3); font-weight:700; line-height:1.15; min-height:2.3em; display:flex; align-items:flex-end; }
 .cz-strip .v { font-family:var(--f-num); font-size:20px; font-weight:600; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cz-strip .v small { font-size:12px; color:var(--ink-3); font-weight:600; margin-left:2px; }
 .cz-strip .v.neg { color:var(--bad); } .cz-strip .v.pos { color:var(--good); }
@@ -43,7 +43,7 @@ function ensureStyles() {
 .cz-flow .st { flex:1; min-width:0; border-radius:10px; padding:6px 4px; text-align:center; background:var(--paper-2); display:flex; flex-direction:column; gap:1px; }
 .cz-flow .st b { font-family:var(--f-num); font-size:18px; }
 .cz-flow .st span { font-size:11.5px; font-weight:700; }
-.cz-flow .st em { font-style:normal; font-size:10.5px; color:var(--ink-3); }
+.cz-flow .st em { font-style:normal; font-size:11px; color:var(--ink-3); }
 .cz-flow .st.over { background:#f6dcd8; } .cz-flow .st.over em { color:#9e2b23; }
 .cz-flow .st.none { background:var(--paper-3); opacity:.9; }
 .cz-flow .st.none em { color:var(--bad); font-weight:700; }
@@ -59,7 +59,7 @@ function ensureStyles() {
 .cz-fac .v { font-family:var(--f-num); font-weight:600; white-space:nowrap; }
 .cz-mini { display:flex; gap:3px; align-items:flex-end; height:34px; margin:4px 0 2px; }
 .cz-mini i { flex:1; border-radius:3px 3px 0 0; min-height:2px; }
-.cz-mini-l { display:flex; gap:3px; font-size:10.5px; color:var(--ink-3); } .cz-mini-l span { flex:1; text-align:center; }
+.cz-mini-l { display:flex; gap:3px; font-size:11px; color:var(--ink-3); } .cz-mini-l span { flex:1; text-align:center; }
 .cz-ilabel { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin:12px 0 4px; }
 `;
   document.head.appendChild(st);
