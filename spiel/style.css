@@ -1488,7 +1488,8 @@ kbd { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-weight
   .tr-head { padding: var(--s2) var(--s2) var(--s2) 10px; gap: var(--s2); }
   .tr-badge { width: var(--h-s); height: var(--h-s); border-radius: 11px; }
   .tr-sub { display: none; }
-  .tr-search { width: auto; flex: 0 1 140px; min-width: 0; height: var(--h-s); }
+  .tr-t { flex: 0 1 auto; max-width: 55%; }
+  .tr-search { width: auto; flex: 1 1 96px; min-width: 0; height: var(--h-s); }
   .tr-search:focus-within { width: auto; flex-basis: 180px; }
   .tr-head .close { width: var(--h-s); height: var(--h-s); }
   .strip { padding: 6px; gap: 6px; }
