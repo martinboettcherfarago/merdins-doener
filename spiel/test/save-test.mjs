@@ -182,7 +182,7 @@ try { go = hook(Game.fromSave(v1)); } catch (e) { ok(false, `Version 1 lädt (${
 if (go) {
   ok(v1.v === 1 && go.buildings.size === v1.buildings.length, `Version 1 lädt: ${go.buildings.size} Gebäude, ${Math.round(go.stats.pop)} Einw.`);
   ok(go.transit.lines.length === v1.transit.lines.length && go.transit.stations.size === v1.transit.stations.length, `Pulsbahn übernommen (${go.transit.stations.size} Stationen, ${go.transit.lines.length} Linie)`);
-  ok((go.loadNotes || []).some((n) => n.includes('Stadtpuls 1')), 'Hinweis „aus Stadtpuls 1 übernommen“');
+  ok((go.loadNotes || []).some((n) => n.includes('älteren Version')), 'Hinweis „aus einer älteren Version übernommen“');
   const pop0 = go.stats.pop;
   run(go, 3);
   ok(go.errors.length === 0 && go.stats.pop > pop0 * 0.6, `Version 1 läuft 3 Tage (${Math.round(pop0)} → ${Math.round(go.stats.pop)} Einw.)${go.errors.length ? ' – ' + go.errors.map((e) => e.where + ': ' + e.msg).join(' · ') : ''}`);
