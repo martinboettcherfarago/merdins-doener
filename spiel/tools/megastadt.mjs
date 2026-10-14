@@ -23,6 +23,8 @@ const RICH = 1e9;
 g.money = RICH;
 // Takt wie im Spiel mit der Standard-Tageslänge „Lang" (1 Minute je Tag), damit Bahnen und Fahrgäste zusammenpassen
 g.minPerSec = 24;
+// Alle Dienste mit vollem Budget (150 %): mehr Reichweite und Leistung für Müll, Gesundheit, Bildung, Sicherheit usw.
+for (const cat of new Set(Object.values(BUILDINGS).map((d) => d.cat))) if (!['landmarks', 'transit', 'industry'].includes(cat)) g.serviceBudget[cat] = 1.5;
 
 // Ziele, die nie ganz erfüllt sind: Der Bot baut Linien, Züge, Busse, Wahrzeichen, Parks und Bildung aus.
 const trainsPerLine = 6;
@@ -149,6 +151,15 @@ function metroGrid() {
     for (let k = 0; k < 24; k++) if (!g.addWagon(l.id).ok) break;
   }
 }
+// Kläranlagen: so viele, dass keine voll ausgelastet ist – dann bleibt der Rest-Ablauf gering und das Wasser sauber blau
+function bigSewage() {
+  const S = g.ext.citizens && g.ext.citizens.stats;
+  if (!S || !S.sewageDemand || !g.isUnlocked('sewage_plant')) return;
+  const plants = [...g.buildings.values()].filter((b) => b.key === 'sewage_plant').length;
+  if (plants * BUILDINGS.sewage_plant.sewage >= S.sewageDemand * 1.5 || plants >= 24) return;
+  const [cx, cy] = center();
+  if (bot.shorePlace('sewage_plant', cx, cy, { maxDist: 80 })) log(`baut Kläranlage ${plants + 1} (Abwasser ${Math.round(S.sewageDemand)} m³)`);
+}
 // Großkraftwerke, wenn der Bedarf die Reserve übersteigt
 function bigPower() {
   computeUtilities(g);
@@ -216,6 +227,9 @@ for (let d = 1; d <= days; d++) {
   if (d % 6 === 0) placeAnywhere('airport');
   if (d % 10 === 0 && d >= 80) metroGrid();
   for (let k = 0; k < 3 && bot.water(); k++);
+  for (let k = 0; k < 4 && bot.garbage(); k++);
+  bigSewage();
+  if (d % 2 === 0) for (let k = 0; k < 3 && bot.gap('garbage', g.isUnlocked('recycling') ? 'recycling' : 'incinerator', 0.6, { avoid: 3, r: 10 }); k++);
   if (d % 5 === 0 && g.milestone >= 3) landmarks();
   if (d % 7 === 0) trams();
   if (g.money < RICH / 2) g.money = RICH;
@@ -235,6 +249,16 @@ for (let k = 0; k < 120 && !(g.ext.weather && g.ext.weather.season === 'summer' 
 const target = Math.floor(g.time / DAY) * DAY + DAY + 10.5 * 60;
 while (g.time < target) g.update(0.1);
 
+// Ungeklärte Abwasserauslässe der Anfangszeit abreißen (die Kläranlagen übernehmen), dann neu rechnen lassen
+const S0 = g.ext.citizens && g.ext.citizens.stats;
+const outlets = [...g.buildings.values()].filter((b) => b.key === 'sewage_outlet');
+if (outlets.length && S0 && S0.sewageCap - outlets.length * BUILDINGS.sewage_outlet.sewage > S0.sewageDemand * 1.2) {
+  for (const b of outlets) g.bulldoze([b.y * g.W + b.x]);
+  log(`${outlets.length} Abwasserauslässe abgerissen`);
+  for (let k = 0; k < 2; k++) runDay(g);
+  while (g.time % DAY < 10.5 * 60 || g.time % DAY > 10.6 * 60) g.update(0.1);
+}
+
 // Kasse: viel Geld, Einnahmen echt aus Steuern; keine offenen Dialoge
 g.money = 25_000_000;
 g.loans = [];
@@ -245,6 +269,14 @@ const lv = {};
 for (const b of g.buildings.values()) if (b.zone) lv[b.level] = (lv[b.level] || 0) + 1;
 const T = g.transit;
 const data = g.serialize();
+// Züge gleichmäßig über jede Linie verteilen (Umlauf: Hinfahrt, dann Rückfahrt) und Stationen leeren:
+// Beim Laden fährt die U-Bahn im sauberen Takt los
+for (const l of data.transit.lines) {
+  const ts = data.transit.trains.filter((t) => t.line === l.id), n = l.stops.length, C = l.loop ? n : 2 * (n - 1);
+  ts.forEach((t, i) => { const p = Math.round((i * C) / ts.length) % C; if (l.loop || p < n - 1) { t.cur = p; t.dir = 1; } else { t.cur = C - p; t.dir = -1; } t.pax = []; });
+}
+for (const st of data.transit.stations) { st.waiting = []; st.over = 0; st.penaltyUntil = 0; }
+if (Array.isArray(data.news)) data.news = data.news.filter((n) => !/überfüllt/.test(n.text || ''));
 const txt = JSON.stringify(data);
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, txt);

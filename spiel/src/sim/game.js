@@ -902,6 +902,9 @@ export class Game extends Emitter {
     g.transit.applyCoverage();
     computeFields(g);
     computeHappiness(g);
+    // Kennzahlen (ohne Strom/Wasser usw.) erst nach der Versorgungsrechnung zählen – sonst meldet die Stadt nach
+    // dem Laden kurz alle Gebäude als unversorgt
+    aggregate(g);
     let hs = 0, hw = 0;
     for (const [b, occ, happy] of keep) {
       b.occ = occ; b.happy = b.abandoned ? 0 : happy;
