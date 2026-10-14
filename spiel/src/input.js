@@ -4,18 +4,21 @@
 // Sicheres Bauen (TOUCH, Runde 3b): Bei Touch/Stift (Einstellung app.settings.confirmPlace: 'auto' | 'always' | 'never')
 // setzt Antippen nur eine Vorschau (this.pend). Die Vorschau lässt sich ziehen, Straßen/Flächen haben Griffe an beiden
 // Enden, Ziehen auf freier Karte verschiebt die Kamera. Gebaut wird erst über die Leiste (ui/placebar.js) mit ✓.
-// Linien-Werkzeuge: Antippen fügt Stationen hinzu (leichtes Verrutschen zählt als Tippen), „Fertig" schließt ab.
+// U-Bahn-Linien (BAHNPLAN): Werkzeuge {kind:'line'} (neu zeichnen) und {kind:'extend', line} (Linie bearbeiten) nutzen
+// immer – mit Finger und Maus – den Linienentwurf aus input/linedraft.js: Leiste mit ✓/✕/↶/Ring, Griffe an den Enden,
+// gebaut wird erst mit ✓. Busse/Straßenbahnen (input/buslines.js): Antippen fügt Halte hinzu, „Fertig" schließt ab.
 // Registrierte Werkzeuge machen mit über pendKind(input) → 'point' | 'rect' | 'tap' (ohne Angabe 'tap'),
 // pendPreview(input, p) → Leisten-Info, pendApply(input, p) und für Linienentwürfe draft/draftFinish/draftUndo/draftClear.
 import { Vector3 } from 'three';
 import { BUILDINGS, ROADS, ZONE_INFO, TRANSIT, T } from './config.js';
 import { fmtMoney } from './util.js';
-import { LINE_COLORS } from './sim/transit.js';
 import { TOOLS } from './registry.js';
 import { PlaceBar } from './ui/placebar.js';
+import { LineDraft } from './input/linedraft.js';
 
 const SLOP = 10; // px: bis hierhin gilt eine Fingerbewegung als Tippen
 const SLOP_LINE = 18; // Linien: großzügiger, damit Stationen auch mit leichtem Verrutschen sitzen
+const SLOP_GRIP = 6; // Linienende: ab hier beginnt das Ziehen am Griff (darunter zählt es als Tippen auf die Station)
 const HOLD_MS = 500; // Finger so lange ruhig halten: Vorschau entsteht sofort und folgt dem Finger (input.holdMs)
 const HANDLE_R = 36; // Fangradius der Griffe (px)
 const GHOST_R = 46; // Fangradius um die Gebäudevorschau (px)
@@ -34,7 +37,7 @@ export class Input {
     this.drag = null;
     this.hover = null;
     this.rot = 0;
-    this.lineStops = [];
+    this.ld = null; // U-Bahn-Linienentwurf (input/linedraft.js), solange ein Linienwerkzeug aktiv ist
     this.lastMove = null;
     this.pend = null; // Vorschau, die auf Bestätigung wartet: {kind:'point', x, y} | {kind:'rect', sx, sy, ex, ey, single} | {kind:'tap'}
     this.gest = null; // laufende Geste im Bestätigungsmodus
@@ -48,14 +51,14 @@ export class Input {
     this.onUp = (e) => this.pointerUp(e);
     this.onCancel = (e) => this.pointerCancel(e);
     this.onKey = (e) => this.key(e);
-    // Doppelklick beendet die Linie – im Bestätigungsmodus nur über „Fertig"
-    this.onDbl = (e) => { if (this.pend) return; if (this.tool.kind === 'line' || this.tool.kind === 'extend') this.finishLine(); void e; };
+    // Doppelklick: nichts Besonderes mehr (Linien schließt ✓ ab; ein zweiter Tipp nimmt die letzte Station zurück)
+    this.onDbl = (e) => { void e; };
     c.addEventListener('pointerdown', this.onDown);
     c.addEventListener('pointermove', this.onMove);
     c.addEventListener('pointerup', this.onUp);
     c.addEventListener('pointercancel', this.onCancel);
     c.addEventListener('dblclick', this.onDbl);
-    c.addEventListener('pointerleave', () => { this.ui.tooltip(null); });
+    c.addEventListener('pointerleave', () => { this.ui.tooltip(null); if (this.ld) { this.ld.hoverAt(null); this.e.overlay.hideRadius(); } });
     window.addEventListener('keydown', this.onKey);
   }
 
@@ -74,7 +77,9 @@ export class Input {
     this.cancelDrag();
     if (this.tool && TOOLS[this.tool.kind] && TOOLS[this.tool.kind].cancel) TOOLS[this.tool.kind].cancel(this);
     this.tool = tool || { kind: 'select' };
-    this.lineStops = [];
+    this.ld = null;
+    if (this.tool.kind === 'extend' && !this.g.transit.lines.some((l) => l.id === this.tool.line)) this.tool = { kind: 'select' };
+    if (this.tool.kind === 'line' || this.tool.kind === 'extend') this.ld = new LineDraft(this, this.tool.kind === 'extend' ? this.tool.line : null);
     const ov = this.e.overlay;
     ov.hideGhost(); ov.hideRadius(); ov.clearTiles(); ov.showLinePreview(null);
     ov.setZoneStrong(this.tool.kind === 'zone');
@@ -85,9 +90,19 @@ export class Input {
     const k = this.tool.kind;
     const reg = TOOLS[k];
     this.e.canvas.style.cursor = reg && reg.cursor ? reg.cursor : k === 'select' ? '' : k === 'bulldoze' ? 'crosshair' : k === 'place' ? 'copy' : 'crosshair';
+    if (this.ld) { this.pend = { kind: 'line' }; this.refreshPend(); }
     this.ui.toolChanged(this.tool);
     this.ui.tooltip(null);
     if (this.lastMove && this.lastMove.pointerType === 'mouse') this.pointerMove(this.lastMove);
+  }
+
+  // Stationen des Linienentwurfs (Ids; geplante neue Stationen als 0) – Setzen beginnt einen neuen Entwurf ab diesen Stationen
+  get lineStops() { return this.ld ? this.ld.stops.map((r) => (typeof r === 'number' ? r : 0)) : []; }
+  set lineStops(ids) {
+    if (!this.ld) return;
+    this.ld.stops = (ids || []).filter((id) => this.g.transit.stations.has(id));
+    for (const id of this.ld.stops) this.ld.fresh.add(this.ld.key(id));
+    if (this.pend) this.refreshPend();
   }
 
   cancelDrag() {
@@ -98,11 +113,11 @@ export class Input {
   key(e) {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     if (TOOLS[this.tool.kind] && TOOLS[this.tool.kind].key && TOOLS[this.tool.kind].key(this, e)) return;
+    if (this.ld && this.pend && (e.code === 'Backspace' || (e.code === 'KeyZ' && (e.ctrlKey || e.metaKey)))) { e.preventDefault(); this.barAction('undo'); return; }
     if (this.pend && this.pend.kind !== 'tap' && (e.code === 'Enter' || e.code === 'NumpadEnter')) { this.barAction('ok'); return; }
     if (this.pend && e.code === 'Escape') { this.barAction('cancel'); return; }
     if (e.code === 'Escape') {
       if (this.drag) this.cancelDrag();
-      else if ((this.tool.kind === 'line' || this.tool.kind === 'extend') && this.lineStops.length) { this.lineStops = []; this.e.overlay.showLinePreview(null); }
       else if (this.tool.kind !== 'select') this.setTool({ kind: 'select' });
       else if (this.ui.cat) this.ui.closeTray();
       else this.ui.closePanels();
@@ -110,8 +125,6 @@ export class Input {
       this.rot = (this.rot + 1) % 4;
       if (this.pend) this.refreshPend();
       else if (this.lastMove) this.pointerMove(this.lastMove);
-    } else if (e.code === 'Enter' && (this.tool.kind === 'line' || this.tool.kind === 'extend')) {
-      this.finishLine();
     } else if (e.code === 'KeyB' || e.code === 'Delete') {
       this.setTool({ kind: 'bulldoze' });
     }
@@ -149,6 +162,7 @@ export class Input {
   pointerMove(e) {
     if (this.photoActive()) return;
     if (this.gest) { if (e.pointerId === this.gest.id) this.gestMove(e); return; }
+    if (this.ld && e.pointerType === 'mouse') { this.lineHover(e); return; }
     if (this.pend || (e.pointerType !== 'mouse' && this.confirming(e))) {
       // Bestätigungsmodus: Schweben verschiebt die Vorschau nicht (Touch-Finger ohne Geste: zweiter Finger beim Zoomen)
       if (this.pend) this.refreshPend();
@@ -187,9 +201,9 @@ export class Input {
       const rd = this.rightDown;
       this.rightDown = null;
       if (rd && Math.hypot(e.clientX - rd.x, e.clientY - rd.y) < 5) {
-        // Rechtsklick ohne Ziehen: abbrechen / Linie abschließen
-        if (this.pend && this.pend.kind !== 'tap') this.barAction('cancel');
-        else if (this.tool.kind === 'line' || this.tool.kind === 'extend') { if (this.lineStops.length) this.finishLine(); else this.setTool({ kind: 'select' }); }
+        // Rechtsklick ohne Ziehen: Linie bauen (wenn möglich), sonst einen Schritt zurück bzw. abbrechen
+        if (this.ld) { const inf = this.ld.info(); this.barAction(inf.ok ? 'ok' : this.ld.hist.length ? 'undo' : 'cancel'); }
+        else if (this.pend && this.pend.kind !== 'tap') this.barAction('cancel');
         else if (this.drag) this.cancelDrag();
         else if (this.tool.kind !== 'select') this.setTool({ kind: 'select' });
       }
@@ -218,7 +232,6 @@ export class Input {
       else { this.pendingPlace = { x: t.x, y: t.y }; this.hover = t; this.mouse = { x: e.clientX, y: e.clientY - 40 }; this.updateHover(); this.ui.tooltip(null); this.ui.toast('Nochmal tippen zum Bauen'); }
     }
     else if (k === 'place') this.placeAt(t);
-    else if (k === 'line' || k === 'extend') this.lineClick(t);
   }
 
   // ---------- Vorschau
@@ -315,25 +328,6 @@ export class Input {
     } else if (k === 'place') {
       const r = this.previewPlace(t.x, t.y);
       this.ui.tooltip(r.tip, this.mouse, r.tipOk);
-    } else if (k === 'line' || k === 'extend') {
-      const pts = this.linePreviewPoints(t);
-      const col = this.tool.kind === 'extend' ? LINE_COLORS[(g.transit.lines.find((l) => l.id === this.tool.line) || { color: 0 }).color] : LINE_COLORS[this.nextLineColor()];
-      ov.showLinePreview(pts, col);
-      const st = g.transit.stations.get(g.stationAt[t.i]);
-      let txt;
-      if (st) txt = this.lineStops.length && this.lineStops[0] === st.id && this.lineStops.length >= 3 ? `${st.name}: Ring schließen` : `${st.name}${this.lineStops.length ? ' anfahren' : ': Linie beginnen'}`;
-      else {
-        const err = g.transit.canPlaceStation(t.x, t.y);
-        txt = err ? err : `Neue Station hier · ${fmtMoney(g.buildingCost('station'))}`;
-      }
-      if (this.lineStops.length >= 2) txt += ' · Rechtsklick/Enter: fertig';
-      if (this.tool.kind === 'line' && this.lineStops.length >= 1) {
-        const seq = st && !this.lineStops.includes(st.id) ? [...this.lineStops, st.id] : this.lineStops;
-        if (seq.length >= 2) txt += ` · Linie ≈ ${fmtMoney(g.linePlanCost(seq, false))}`;
-      }
-      this.ui.tooltip(txt, this.mouse, true);
-      if (st) ov.select({ x: st.x, y: st.y, w: 1, h: 1, station: true });
-      ov.showRadius(t.x + 0.5 - g.W / 2, t.y + 0.5 - g.H / 2, TRANSIT.catchment, 0x9cf0b0);
     } else {
       // Straße/Zone/Abriss: Feld markieren
       const col = k === 'bulldoze' ? 0xff5a4a : k === 'zone' ? ZONE_INFO[this.tool.zone].color : 0xffffff;
@@ -385,7 +379,7 @@ export class Input {
     if (k === 'select') return null;
     if (k === 'place') return 'point';
     if (k === 'road' || k === 'zone' || k === 'dezone' || k === 'bulldoze') return 'rect';
-    if (k === 'line' || k === 'extend') return 'tap';
+    if (k === 'line' || k === 'extend') return 'line';
     const reg = TOOLS[k];
     if (reg) return reg.pendKind ? reg.pendKind(this) : 'tap';
     return null;
@@ -397,7 +391,7 @@ export class Input {
     const kind = this.pendKind();
     const G = { id: e.pointerId, type: e.pointerType, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, mode: 'tap', kind, t0: performance.now(), off: { x: 0, y: 0 } };
     const hit = this.pendHit(e.clientX, e.clientY);
-    if (hit) { G.mode = hit.mode; G.off = { x: hit.x - e.clientX, y: hit.y - e.clientY }; }
+    if (hit) { G.mode = hit.mode; G.off = { x: hit.x - e.clientX, y: hit.y - e.clientY }; G.end = hit.end; }
     this.gest = G;
     try { this.e.canvas.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
     if (this.e.rig.interrupt) this.e.rig.interrupt();
@@ -425,7 +419,7 @@ export class Input {
     if (G.mode === 'pinch') return;
     if (this.e.rig.pinching || this.touchIds.size >= 2) { G.mode = 'pinch'; this.gestEnd(G); return; }
     if (G.mode === 'tap') {
-      const slop = G.kind === 'tap' ? SLOP_LINE : SLOP;
+      const slop = G.kind === 'tap' || G.kind === 'line' ? SLOP_LINE : SLOP;
       if (Math.hypot(e.clientX - G.x0, e.clientY - G.y0) <= slop) return;
       // Echte Bewegung: Kamera verschieben (auch während eine Vorschau steht) – beim Loslassen passiert nichts
       G.mode = 'pan';
@@ -434,6 +428,15 @@ export class Input {
       return;
     }
     if (G.mode === 'pan') { this.e.rig.panScreen(dx, dy); return; }
+    if (G.mode === 'lend') {
+      // Linienende ziehen (erst ab ein paar Pixeln – sonst ist es ein Tipp auf die Endstation)
+      if (!G.dragged && Math.hypot(e.clientX - G.x0, e.clientY - G.y0) <= SLOP_GRIP) return;
+      if (!G.dragged) { G.dragged = true; this.ld.dragStart(G.end); }
+      this.ld.dragMove(G.x + G.off.x, G.y + G.off.y);
+      this.lineRadius();
+      this.refreshPend();
+      return;
+    }
     this.gestDrag(G);
   }
 
@@ -459,8 +462,10 @@ export class Input {
     const G = this.gest;
     this.gestEnd(G);
     this.gest = null;
-    if (G.mode === 'tap') this.gestTap(G, e);
-    else if (G.mode === 'ghost' || G.mode === 'start' || G.mode === 'end') {
+    if (G.mode === 'tap' || (G.mode === 'lend' && !G.dragged)) this.gestTap(G, e);
+    else if (G.mode === 'lend') {
+      if (this.ld) { this.ld.dragEnd(G.x + G.off.x, G.y + G.off.y); this.e.overlay.hideRadius(); this.refreshPend(); }
+    } else if (G.mode === 'ghost' || G.mode === 'start' || G.mode === 'end') {
       // Griff losgelassen: Vorschau bleibt stehen, die Leiste rückt wieder heran
       if (this.pend) this.refreshPend();
     }
@@ -468,7 +473,12 @@ export class Input {
 
   pointerCancel(e) {
     if (e.pointerType === 'touch') this.touchIds.delete(e.pointerId);
-    if (this.gest && e.pointerId === this.gest.id) { this.gestEnd(this.gest); this.gest = null; if (this.pend) this.refreshPend(); }
+    if (this.gest && e.pointerId === this.gest.id) {
+      const G = this.gest;
+      this.gestEnd(G); this.gest = null;
+      if (G.mode === 'lend' && G.dragged && this.ld && this.ld.drag) { this.ld.drag = null; this.ld.undo(); this.e.overlay.hideRadius(); }
+      if (this.pend) this.refreshPend();
+    }
     if (this.touchPan && e.pointerId === this.touchPan.id) this.touchPan = null;
   }
 
@@ -476,6 +486,17 @@ export class Input {
 
   // Kurzes Tippen (ohne Kamerabewegung): Vorschau setzen bzw. umsetzen, Linien-Station hinzufügen
   gestTap(G, e) {
+    if (G.kind === 'line') {
+      // U-Bahn: Tippen nahe einer Station rastet ein, sonst plant es eine neue Station (input/linedraft.js)
+      if (!this.ld) return;
+      this.mouse = { x: G.x0, y: G.y0 };
+      const r = this.ld.tap(G.x0, G.y0);
+      if (r === 'add' || r === 'new' || r === 'remove' || r === 'ring' || r === 'pop') this.audio.play('click');
+      this.ui.tooltip(null);
+      this.refreshPend();
+      this.ui.renderToolHint && this.ui.renderToolHint();
+      return;
+    }
     const t = this.e.pickTile(G.x0, G.y0);
     if (!t || t.i < 0) return;
     this.mouse = { x: G.x0, y: G.y0 };
@@ -488,11 +509,8 @@ export class Input {
       else this.pend = { kind: 'rect', sx: t.x, sy: t.y, ex: t.x, ey: t.y, single: true };
     } else if (G.kind === 'tap') {
       this.hover = t;
-      if (k === 'line' || k === 'extend') this.lineClick(t);
-      else {
-        const reg = TOOLS[k];
-        if (reg) { if (reg.down) reg.down(this, t, e); if (reg.up) reg.up(this, t, e); if (reg.hover && this.tool.kind === k) reg.hover(this, t); }
-      }
+      const reg = TOOLS[k];
+      if (reg) { if (reg.down) reg.down(this, t, e); if (reg.up) reg.up(this, t, e); if (reg.hover && this.tool.kind === k) reg.hover(this, t); }
       this.ui.tooltip(null);
       if (this.tool.kind !== k) return;
       this.pend = this.draftInfo() ? { kind: 'tap' } : null;
@@ -504,6 +522,12 @@ export class Input {
   pendHit(cx, cy) {
     const p = this.pend;
     if (!p || p.kind === 'tap') return null;
+    if (p.kind === 'line') {
+      if (!this.ld) return null;
+      let best = null, bd = this.lastType === 'mouse' ? 18 : HANDLE_R;
+      for (const h of this.ld.handles()) { const d = Math.hypot(h.x - cx, h.y - cy); if (d < bd || (best && d === bd && h.kind === 'e')) { bd = d; best = h; } }
+      return best ? { mode: 'lend', end: best.kind, x: best.x, y: best.y } : null;
+    }
     const s = this.pendScreen();
     if (!s) return null;
     if (p.kind === 'rect') {
@@ -538,7 +562,7 @@ export class Input {
     const tile = (x, y, hgt = 0) => proj(x + 0.5 - g.W / 2, hgt, y + 0.5 - g.H / 2);
     const G = this.gest;
     const finger = G && G.mode !== 'pan' && G.mode !== 'pinch' ? { x: G.x, y: G.y } : null;
-    const dragging = !!(G && (G.mode === 'ghost' || G.mode === 'start' || G.mode === 'end'));
+    const dragging = !!(G && (G.mode === 'ghost' || G.mode === 'start' || G.mode === 'end' || (G.mode === 'lend' && G.dragged)));
     const boxOf = (pts) => ({ x0: Math.min(...pts.map((q) => q.x)), y0: Math.min(...pts.map((q) => q.y)), x1: Math.max(...pts.map((q) => q.x)), y1: Math.max(...pts.map((q) => q.y)) });
     if (p.kind === 'point') {
       const f = this.pendFoot || { x: p.x, y: p.y, w: 1, h: 1, hgt: 0.6 };
@@ -560,16 +584,24 @@ export class Input {
     }
     // Linienentwurf: Leiste unten mittig – nicht über der Karte, auf der die nächsten Stationen angetippt werden
     const mid = rc.left + rc.width / 2, bot = rc.top + rc.height;
+    if (p.kind === 'line' && this.ld) {
+      const v = this.ld.screen();
+      return { box: { x0: mid, y0: bot, x1: mid, y1: bot }, handles: this.ld.handles(), finger, dock: true, draw: v, pop: v.pop };
+    }
     return { box: { x0: mid, y0: bot, x1: mid, y1: bot }, handles: [], finger, dock: true };
   }
 
   // Jedes Bild, solange die Leiste steht: Rand-Bildlauf beim Ziehen eines Griffs, Gültigkeit gelegentlich auffrischen
   pendTick(dt) {
     const G = this.gest;
-    if (G && (G.mode === 'ghost' || G.mode === 'start' || G.mode === 'end')) {
+    if (G && (G.mode === 'ghost' || G.mode === 'start' || G.mode === 'end' || (G.mode === 'lend' && G.dragged))) {
       const m = 44, W = window.innerWidth, H = window.innerHeight;
       const ex = G.x < m ? 1 : G.x > W - m ? -1 : 0, ey = G.y < m + 30 ? 1 : G.y > H - m ? -1 : 0;
-      if (ex || ey) { const sp = 420 * dt; this.e.rig.panScreen(ex * sp, ey * sp); this.gestDrag(G); }
+      if (ex || ey) {
+        const sp = 420 * dt;
+        this.e.rig.panScreen(ex * sp, ey * sp);
+        if (G.mode === 'lend') { if (this.ld) this.ld.dragMove(G.x + G.off.x, G.y + G.off.y); } else this.gestDrag(G);
+      }
     }
     this._pendAge = (this._pendAge || 0) + dt;
     if (this._pendAge > 0.5 && this.pend && !G) { this._pendAge = 0; this.refreshPend(); }
@@ -577,24 +609,8 @@ export class Input {
 
   // Linienentwurf (U-Bahn bzw. registrierte Linienwerkzeuge)
   draftInfo() {
-    const k = this.tool.kind, g = this.g;
-    if (k === 'line' || k === 'extend') {
-      const n = this.lineStops.length;
-      if (k === 'line' && !n) return null;
-      const at = n ? (g.transit.stations.get(this.lineStops[n - 1]) || null) : null;
-      let atTile = at ? at.y * g.W + at.x : null;
-      if (k === 'extend' && atTile == null) {
-        const line = g.transit.lines.find((l) => l.id === this.tool.line);
-        const end = line && g.transit.stations.get(this.tool.atStart ? line.stops[0] : line.stops[line.stops.length - 1]);
-        if (end) atTile = end.y * g.W + end.x;
-      }
-      if (k === 'extend') return { title: 'Linie verlängern', sub: 'Station antippen · Fertig beendet', ok: true, okLabel: 'Fertig', price: '', undo: false, at: atTile };
-      const cost = n >= 2 ? g.linePlanCost(this.lineStops, false) : 0;
-      return {
-        title: 'U-Bahn-Linie', sub: `${n} ${n === 1 ? 'Station' : 'Stationen'} · ${n < 2 ? 'nächste Station antippen' : 'weitere antippen oder Fertig'}`,
-        ok: n >= 2, reason: n < 2 ? 'Mindestens zwei Stationen antippen' : '', okLabel: 'Fertig', price: n >= 2 && cost > 0 ? '≈ ' + fmtMoney(cost) : '', undo: n >= 1, at: atTile,
-      };
-    }
+    const k = this.tool.kind;
+    if (this.ld) return this.ld.info();
     const reg = TOOLS[k];
     return reg && reg.draft ? reg.draft(this) : null;
   }
@@ -619,6 +635,9 @@ export class Input {
     } else if (p.kind === 'rect') {
       info = this.previewRect(p);
       if (info && p.single) info.sub = `${info.sub ? info.sub + ' · ' : ''}Ziel antippen oder Griff ziehen`;
+    } else if (p.kind === 'line') {
+      if (!this.ld || !this.ld.valid) { this.setTool({ kind: 'select' }); return; }
+      info = this.ld.info();
     } else info = this.draftInfo();
     if (!info) { this.pend = null; this.bar.hide(); return; }
     this.ui.tooltip(null);
@@ -632,10 +651,10 @@ export class Input {
     const k = this.tool.kind, reg = TOOLS[k];
     const s = this.pendScreen();
     if (s) this.mouse = { x: (s.box.x0 + s.box.x1) / 2, y: s.box.y0 };
+    if (p.kind === 'line') { this.lineAction(a); return; }
     if (a === 'rotate') { this.rot = (this.rot + 1) % 4; this.audio.play('click'); this.refreshPend(); return; }
     if (a === 'undo') {
-      if (k === 'line') { this.lineStops.pop(); this.e.overlay.showLinePreview(this.lineStops.length >= 2 ? this.linePreviewPoints(null) : null); }
-      else if (reg && reg.draftUndo) reg.draftUndo(this);
+      if (reg && reg.draftUndo) reg.draftUndo(this);
       this.audio.play('click');
       if (!this.draftInfo()) this.pend = null;
       this.refreshPend();
@@ -644,8 +663,7 @@ export class Input {
     if (a === 'cancel') {
       this.pend = null;
       if (p.kind === 'tap') {
-        if (k === 'line' || k === 'extend') { this.lineStops = []; this.e.overlay.showLinePreview(null); this.e.overlay.hideRadius(); this.e.overlay.select(null); }
-        else if (reg && reg.draftClear) reg.draftClear(this);
+        if (reg && reg.draftClear) reg.draftClear(this);
       } else this.clearPendView();
       this.bar.hide();
       return;
@@ -665,8 +683,7 @@ export class Input {
       return;
     }
     // Linie fertig
-    if (k === 'line' || k === 'extend') this.finishLine();
-    else if (reg && reg.draftFinish) reg.draftFinish(this);
+    if (reg && reg.draftFinish) reg.draftFinish(this);
     if (this.tool.kind === k && this.draftInfo()) this.refreshPend();
     else { this.pend = null; this.bar.hide(); }
   }
@@ -709,36 +726,6 @@ export class Input {
     let c = 0;
     while (used.has(c) && c < 9) c++;
     return c;
-  }
-
-  linePreviewPoints(t) {
-    const g = this.g;
-    const stops = this.lineStops.map((id) => g.transit.stations.get(id)).filter(Boolean);
-    if (this.tool.kind === 'extend' && !stops.length) {
-      const line = g.transit.lines.find((l) => l.id === this.tool.line);
-      if (line) {
-        const end = g.transit.stations.get(this.tool.atStart ? line.stops[0] : line.stops[line.stops.length - 1]);
-        if (end) stops.push(end);
-      }
-    }
-    const pts = [];
-    const push = (x, y) => pts.push([x + 0.5 - g.W / 2, y + 0.5 - g.H / 2]);
-    const seq = stops.map((s) => [s.x, s.y]);
-    if (t && t.i >= 0) seq.push([t.x, t.y]);
-    for (let k = 0; k < seq.length; k++) {
-      const [x, y] = seq[k];
-      if (k > 0) {
-        const [px, py] = seq[k - 1];
-        const dx = x - px, dy = y - py;
-        const d = Math.min(Math.abs(dx), Math.abs(dy));
-        if (d > 0 && Math.abs(dx) !== Math.abs(dy)) {
-          if ((k - 1) % 2 === 0) push(px + Math.sign(dx) * d, py + Math.sign(dy) * d);
-          else push(x - Math.sign(dx) * d, y - Math.sign(dy) * d);
-        }
-      }
-      push(x, y);
-    }
-    return pts;
   }
 
   // ---------- Aktionen
@@ -811,51 +798,40 @@ export class Input {
     else this.ui.inspect({ type: 'tile', i: t.i });
   }
 
-  lineClick(t) {
-    const g = this.g;
-    let st = g.transit.stations.get(g.stationAt[t.i]);
-    if (!st) {
-      const err = g.transit.canPlaceStation(t.x, t.y);
-      if (err) { this.ui.toast(err, 'bad'); this.audio.play('error'); return; }
-      const res = g.placeBuilding('station', t.x, t.y, 0);
-      if (!res.ok) { this.ui.toast(res.msg, 'bad'); this.audio.play('error'); return; }
-      st = res.station;
-      this.ui.floatMoney(-res.cost, this.mouse);
-    }
-    if (this.tool.kind === 'extend') {
-      const line = g.transit.lines.find((l) => l.id === this.tool.line);
-      if (!line) { this.setTool({ kind: 'select' }); return; }
-      const res = g.extendLine(line.id, st.id, this.tool.atStart);
-      if (res.ok) {
-        this.audio.play('line');
-        if (res.cost) this.ui.floatMoney(-res.cost, this.mouse);
-        if (res.closed) this.setTool({ kind: 'select' });
-      } else { this.ui.toast(res.msg || 'Geht nicht.', 'bad'); this.audio.play('error'); }
-      this.updateHover();
-      return;
-    }
-    if (this.lineStops.length >= 3 && st.id === this.lineStops[0]) { this.finishLine(true); return; }
-    if (this.lineStops.includes(st.id)) return;
-    this.lineStops.push(st.id);
-    this.audio.play('click');
-    this.updateHover();
+  // ---------- U-Bahn-Linienentwurf (input/linedraft.js)
+  // Maus ohne gedrückte Taste: Gummiband vom passenden Ende zum Zeiger, Fanghilfe, Einzugsgebiet
+  lineHover(e) {
+    if (!this.ld) return;
+    this.mouse = { x: e.clientX, y: e.clientY };
+    this.ld.hoverAt(e.clientX, e.clientY);
+    this.lineRadius();
+    const onGrip = !!this.pendHit(e.clientX, e.clientY);
+    this.e.canvas.style.cursor = onGrip ? 'grab' : 'crosshair';
+    this.ui.tooltip(null);
   }
-
-  finishLine(loop = false) {
-    const g = this.g;
-    if (this.tool.kind === 'extend') { this.setTool({ kind: 'select' }); return; }
-    if (this.lineStops.length < 2) { this.lineStops = []; this.e.overlay.showLinePreview(null); return; }
-    const res = g.createLine(this.lineStops, loop);
-    if (res.ok) {
-      this.audio.play('line');
-      this.ui.floatMoney(-res.cost, this.mouse);
-      this.ui.toast(`Neue Linie mit ${res.line.stops.length} Stationen eröffnet.`, 'good');
+  lineRadius() {
+    const r = this.ld && this.ld.radiusAt();
+    if (r) this.e.overlay.showRadius(r.x, r.z, r.r, 0x9cf0b0); else this.e.overlay.hideRadius();
+  }
+  lineAction(a) {
+    const ld = this.ld;
+    if (!ld) return;
+    if (a === 'cancel') { this.setTool({ kind: 'select' }); return; }
+    if (a === 'undo') { if (ld.undo()) this.audio.play('click'); this.refreshPend(); this.ui.renderToolHint && this.ui.renderToolHint(); return; }
+    if (a === 'ring') { if (ld.toggleRing()) this.audio.play('click'); this.refreshPend(); return; }
+    if (a.startsWith('pop:')) { if (ld.popAction(a.slice(4))) this.audio.play('click'); this.refreshPend(); this.ui.renderToolHint && this.ui.renderToolHint(); return; }
+    if (a !== 'ok') return;
+    const isNew = !ld.line, name = ld.name();
+    const res = ld.commit();
+    if (!res.ok) { this.audio.play('error'); this.ui.toast(res.msg || 'Geht nicht.', 'bad'); this.refreshPend(); return; }
+    this.audio.play('line');
+    if (res.cost) this.ui.floatMoney(-res.cost, this.mouse);
+    this.setTool({ kind: 'select' });
+    if (isNew) {
+      this.ui.toast(`${name}: ${res.line.stops.length} Stationen`, 'good');
       this.ui.openPanel('transit');
-    } else {
-      this.audio.play('error');
-      this.ui.toast(res.msg, 'bad');
-    }
-    this.lineStops = [];
-    this.e.overlay.showLinePreview(null);
+    } else this.ui.toast(`${name} umgebaut`, 'good');
   }
+  // Für ältere Aufrufer (Hinweisleiste „Fertig"): Entwurf bauen
+  finishLine() { if (this.ld && this.pend) this.barAction('ok'); }
 }

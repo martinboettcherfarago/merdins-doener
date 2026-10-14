@@ -24,7 +24,7 @@ export const TAKT = { close: 0.7, tol: 0.04, holdShare: 0.6, minHold: 1.5, maxHo
 // – Ziele in der Nähe sind wahrscheinlicher (Gewicht 1 / (1 + (Haltestellen / hop)²)): Fahrten bleiben eher im Stadtteil,
 //   statt quer durchs ganze Netz – so tragen große Netze mehr Fahrgäste, ohne dass kleine Netze leer laufen.
 // – Umsteiger stehen schon im Netz: Sie dürfen eine Station bis transferCap × Stationsgröße füllen (Neue nur bis 1,5 ×).
-export const BALANCE = { ref: 24, sat: 700, hop: 3, transferCap: 4, minScale: 0.5, maxScale: 3 };
+export const BALANCE = { ref: 24, sat: 700, hop: 3, transferCap: 6, minScale: 0.5, maxScale: 3 };
 export function transitScale(g) {
   if (g && g.opts && g.opts.scenario === 'metro') return 1;
   const mps = g && g.minPerSec > 0 ? g.minPerSec : BALANCE.ref;

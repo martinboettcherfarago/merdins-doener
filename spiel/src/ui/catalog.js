@@ -97,9 +97,9 @@ export function catalogItems(ui, cat) {
     items.push({ cat, kind: 'dezone', name: 'Zonen entfernen', cost: 'kostenlos', desc: 'Zonen von leeren Feldern entfernen.', color: '#9a9a9a', icon: 'dezone', facts: [['grid', 'Fläche aufziehen']] });
   } else if (cat === 'transit') {
     const locked = g.isUnlocked('transit') ? null : g.lockReason('station');
-    items.push({ cat, kind: 'line', name: 'Linie zeichnen', cost: `ab ${fmtMoney(TRANSIT.lineCost * g.costMul)}`, desc: 'Stationen nacheinander antippen. Enter oder Rechtsklick beendet.', color: '#e8543f', locked, icon: 'line', facts: [['line', `${g.transit.lines.length} / ${g.transit.linesMax} Linien`]] });
+    items.push({ cat, kind: 'line', name: 'Linie zeichnen', cost: `ab ${fmtMoney(TRANSIT.lineCost * g.costMul)}`, desc: 'Stationen antippen, Enden ziehen · ✓ baut.', color: '#e8543f', locked, icon: 'line', facts: [['line', `${g.transit.lines.length} / ${g.transit.linesMax} Linien`]] });
     items.push(placeItem(g, cat, 'station', meta, builtCounts(g)));
-    items.push({ cat, kind: 'panel', panel: 'transit', name: 'Linien verwalten', cost: `${g.transit.lines.length} / ${g.transit.linesMax} Linien`, desc: 'Züge einsetzen, Linien verlängern.', color: '#2f8fe0', locked, icon: 'settings', facts: [] });
+    items.push({ cat, kind: 'panel', panel: 'transit', name: 'Linien verwalten', cost: `${g.transit.lines.length} / ${g.transit.linesMax} Linien`, desc: 'Züge einsetzen, Linien bearbeiten.', color: '#2f8fe0', locked, icon: 'settings', facts: [] });
     for (const [key, d] of Object.entries(BUILDINGS)) if (d.cat === cat && key !== 'station') items.push(placeItem(g, cat, key, meta, builtCounts(g)));
   } else {
     for (const [key, d] of Object.entries(BUILDINGS)) {

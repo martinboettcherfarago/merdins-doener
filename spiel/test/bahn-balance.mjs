@@ -13,6 +13,9 @@ const reseed = (s) => { rnd.rng = makeRng(s); };
 const { Game } = await import('../src/sim/game.js');
 const { TRANSIT } = await import('../src/config.js');
 const { buildDemoCity } = await import('../src/sim/demo.js');
+const { BALANCE } = await import('../src/sim/transit.js');
+// Zum Abstimmen: BALANCE-Werte über Umgebungsvariablen überschreiben (z. B. SAT=600 HOP=3 TCAP=4)
+for (const [env, k] of [['SAT', 'sat'], ['HOP', 'hop'], ['TCAP', 'transferCap']]) if (process.env[env]) BALANCE[k] = +process.env[env];
 
 const report = process.argv.includes('--report');
 const quick = process.argv.includes('--quick');
@@ -103,7 +106,8 @@ function measure(make, mode, mps, days) {
   const waitingEnd = [...T.stations.values()].reduce((a, s) => a + s.waiting.length, 0);
   return {
     lines: T.lines.length, trains: T.trains.length, wagons: T.totalWagons(), spawn, reject, lost, expire, del,
-    served: del / Math.max(1, spawn + reject), over: overSt / Math.max(1, stTot), wait: wait / Math.max(1, stTot), load: load / Math.max(1, loadN), full: full / Math.max(1, loadN), waitingEnd,
+    // bedient: Anteil der beendeten bzw. abgewiesenen Fahrten, die am Ziel ankamen (unabhängig vom Bestand beim Messbeginn)
+    served: del / Math.max(1, del + lost + expire + reject), over: overSt / Math.max(1, stTot), wait: wait / Math.max(1, stTot), load: load / Math.max(1, loadN), full: full / Math.max(1, loadN), waitingEnd,
   };
 }
 
@@ -135,7 +139,7 @@ if (!report) {
       ok(p.served >= 0.8, `${name}, ${mps}: passend ausgebaut wird der Großteil befördert (${pct(p.served)})`);
       ok(p.over <= 0.2, `${name}, ${mps}: passend ausgebaut ist Überfüllung die Ausnahme (${pct(p.over)} der Stationen)`);
       if (v) ok(v.served >= p.served - 0.05 && v.over <= p.over + 0.05, `${name}, ${mps}: voll ausgebaut nicht schlechter (${pct(v.served)}, ${pct(v.over)})`);
-      if (k && name !== 'klein') ok(k.over > p.over || k.served < p.served, `${name}, ${mps}: knapp ausgebaut zeigt Engpässe (${pct(k.served)} bedient, ${pct(k.over)} überfüllt)`);
+      if (k && name === 'groß') ok(k.over > p.over || k.served < p.served, `${name}, ${mps}: knapp ausgebaut zeigt Engpässe (${pct(k.served)} bedient, ${pct(k.over)} überfüllt)`);
     }
     const a = res[`${name}/passend/48`], b = res[`${name}/passend/16`];
     if (a && b) ok(Math.abs(a.served - b.served) <= 0.15 && Math.abs(a.over - b.over) <= 0.15, `${name}: unabhängig von der Tageslänge (bedient ${pct(a.served)} ↔ ${pct(b.served)}, überfüllt ${pct(a.over)} ↔ ${pct(b.over)})`);

@@ -99,7 +99,7 @@ const transit = {
   </div>
   ${meterHTML(load, 1, load > 0.9 ? 'var(--bad)' : col)}
   <div class="acts">
-    ${l.loop ? '' : `<button class="btn small ghost" data-act="extend" data-l="${l.id}" data-start="1">Anfang verlängern</button><button class="btn small ghost" data-act="extend" data-l="${l.id}" data-start="0">Ende verlängern</button>`}
+    <button class="btn small" data-act="extend" data-l="${l.id}" data-tip="Enden ziehen, Stationen antippen">${icon('line', 14)} Bearbeiten</button>
     <button class="btn small ghost danger-t" data-act="delline" data-l="${l.id}">${ui.confirmDel === l.id ? 'Wirklich löschen?' : 'Löschen'}</button>
   </div>
 </div>`;
@@ -107,7 +107,7 @@ const transit = {
     return `
 <div class="res-strip"><div><div class="k">Linien</div><div class="v">${tr.lines.length} / ${tr.linesMax}</div></div><div><div class="k">Züge frei</div><div class="v">${tr.freeTrains}</div></div><div><div class="k">Wagen frei</div><div class="v">${tr.freeWagons}</div></div></div>
 <div class="acts row-acts"><button class="btn" data-act="newline" ${tr.lines.length >= tr.linesMax ? 'disabled' : ''}>${icon('line', 16)} Neue Linie zeichnen</button><button class="btn ghost" data-act="station">${icon('station', 16)} Station setzen</button></div>
-${linesHtml || '<p class="lede">Noch keine Linie. Stationen nacheinander antippen – die erste noch einmal: Ring.</p>'}
+${linesHtml || '<p class="lede">Noch keine Linie. Stationen antippen, ✓ baut.</p>'}
 ${tr.lines.length ? TIMETABLE_HINT : ''}<div class="sec" style="margin-top:14px"><h3>Ziele der Fahrgäste</h3><div class="chips" style="margin:0"><span class="chip">● Wohnen</span><span class="chip">▲ Gewerbe</span><span class="chip">■ Industrie</span><span class="chip">◆ Büro</span></div><p class="hint">Einzugsgebiet ${String(TRANSIT.catchment).replace(".", ",")} Felder · roter Ring = überfüllt</p></div>`;
   },
   click(ui, act, el) {
@@ -122,7 +122,7 @@ ${tr.lines.length ? TIMETABLE_HINT : ''}<div class="sec" style="margin-top:14px"
       case 'train-': res(g.removeTrain(+el.dataset.l)); break;
       case 'wagon+': res(g.addWagon(+el.dataset.l)); break;
       case 'gost': ui.focusTile(+el.dataset.x, +el.dataset.y, 22); return false;
-      case 'extend': ui.app.input.setTool({ kind: 'extend', line: +el.dataset.l, atStart: el.dataset.start === '1' }); ui.closePanels(); return false;
+      case 'extend': ui.app.input.setTool({ kind: 'extend', line: +el.dataset.l }); ui.closePanels(); return false;
       case 'delline': if (ui.confirmDel === +el.dataset.l) { g.removeLine(+el.dataset.l); ui.confirmDel = null; } else { ui.confirmDel = +el.dataset.l; setTimeout(() => { ui.confirmDel = null; }, 4000); } break;
     }
     return true;

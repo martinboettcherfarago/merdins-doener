@@ -545,6 +545,116 @@ export class Game extends Emitter {
     this.afterTransitChange();
     return { ok: true, cost };
   }
+  // Linienentwurf (Linie zeichnen bzw. bearbeiten, input.js): stops sind Stations-Ids oder geplante neue Stationen {x, y}.
+  // planLine rechnet ohne Nebenwirkungen: Kosten (neue Stationen + neue Gleise), Gültigkeit, Änderungen gegenüber der Linie.
+  // Bearbeiten: Gleise kosten nur für neue Abschnitte (Verlängern, Ring schließen); Kürzen und Entfernen sind kostenlos
+  // (ohne Erstattung, wie beim Abriss einer Station).
+  planLine(lineId, stops, loop) {
+    const tr = this.transit;
+    const line = lineId ? tr.lines.find((l) => l.id === lineId) : null;
+    const out = { ok: false, reason: '', cost: 0, stationCost: 0, trackCost: 0, newSt: 0, add: 0, rem: 0, changed: !line, loop: !!loop };
+    if (lineId && !line) { out.reason = 'Linie gibt es nicht mehr'; return out; }
+    const pos = (r) => (typeof r === 'number' ? tr.stations.get(r) : r);
+    const n = stops.length;
+    if (n < 3) out.loop = false;
+    const ids = stops.filter((r) => typeof r === 'number');
+    const tiles = new Set();
+    for (const r of stops) {
+      const p = pos(r);
+      if (!p) { out.reason = 'Station fehlt'; return out; }
+      if (typeof r !== 'number') {
+        const err = tr.canPlaceStation(r.x, r.y);
+        if (err) { out.reason = err; return out; }
+        out.newSt++;
+      }
+      const key = p.y * this.W + p.x;
+      if (tiles.has(key)) { out.reason = 'Station doppelt'; return out; }
+      tiles.add(key);
+    }
+    void ids;
+    const seg = (a, b) => { const A = pos(a), B = pos(b), dx = Math.abs(B.x - A.x), dy = Math.abs(B.y - A.y), d = Math.min(dx, dy); return d * Math.SQRT2 + Math.max(dx, dy) - d; };
+    const segs = [];
+    for (let k = 0; k < n - 1; k++) segs.push([stops[k], stops[k + 1], false]);
+    if (out.loop) segs.push([stops[n - 1], stops[0], true]);
+    let len = 0;
+    if (!line) {
+      for (const [a, b] of segs) len += seg(a, b);
+      out.trackCost = Math.round((TRANSIT.lineCost + len * TRANSIT.trackCostPerTile) * this.costMul);
+      if (tr.lines.length >= tr.linesMax) out.reason = 'Keine freie Linie';
+      else if (!this.isUnlocked('transit')) out.reason = this.lockReason('station') || 'Noch gesperrt';
+    } else {
+      const old = line.stops, on = old.length, oldSet = new Set(old);
+      const adj = new Set();
+      for (let k = 0; k < on - 1; k++) { adj.add(old[k] + '-' + old[k + 1]); adj.add(old[k + 1] + '-' + old[k]); }
+      if (line.loop && on > 2) { adj.add(old[on - 1] + '-' + old[0]); adj.add(old[0] + '-' + old[on - 1]); }
+      for (const [a, b, closing] of segs) {
+        const known = typeof a === 'number' && typeof b === 'number' && oldSet.has(a) && oldSet.has(b);
+        if (known && adj.has(a + '-' + b)) continue; // Abschnitt gibt es schon
+        if (known && !closing) continue; // nach dem Entfernen einer Station zusammengelegt
+        len += seg(a, b);
+      }
+      out.trackCost = Math.round(len * TRANSIT.trackCostPerTile * this.costMul);
+      const nowSet = new Set(stops.filter((r) => typeof r === 'number'));
+      out.add = stops.filter((r) => typeof r !== 'number' || !oldSet.has(r)).length;
+      out.rem = old.filter((id) => !nowSet.has(id)).length;
+      out.changed = out.add > 0 || out.rem > 0 || out.loop !== !!line.loop || old.some((id, k) => stops[k] !== id);
+      if (!out.changed) out.reason = 'Keine Änderung';
+    }
+    out.stationCost = out.newSt * this.buildingCost('station');
+    out.cost = out.stationCost + out.trackCost;
+    if (!out.reason && n < 2) out.reason = 'Mindestens 2 Stationen';
+    if (!out.reason && !this.canAfford(out.cost)) out.reason = 'Nicht genug Geld';
+    out.ok = !out.reason;
+    return out;
+  }
+  // Entwurf bauen: neue Stationen setzen, Linie anlegen bzw. umbauen. removeIds: ausdrücklich entfernte Stationen –
+  // sie werden abgerissen, wenn danach keine Linie mehr hält.
+  buildLinePlan(lineId, stops, loop, removeIds = []) {
+    const plan = this.planLine(lineId, stops, loop);
+    if (!plan.ok) return { ok: false, msg: plan.reason || 'Geht nicht.' };
+    const tr = this.transit;
+    const before = this.money;
+    const placed = [];
+    const ids = [];
+    for (const r of stops) {
+      if (typeof r === 'number') { ids.push(r); continue; }
+      const res = this.placeBuilding('station', r.x, r.y, 0);
+      if (!res.ok) {
+        for (const st of placed) tr.removeStation(st.id);
+        if (!this.sandbox) this.money = before;
+        this.afterTransitChange();
+        return { ok: false, msg: res.msg || 'Station geht hier nicht.' };
+      }
+      placed.push(res.station);
+      ids.push(res.station.id);
+    }
+    if (!lineId) {
+      const res = this.createLine(ids, plan.loop);
+      if (!res.ok) {
+        for (const st of placed) tr.removeStation(st.id);
+        if (!this.sandbox) this.money = before;
+        this.afterTransitChange();
+        return res;
+      }
+      return { ok: true, cost: plan.cost, line: res.line, placed: placed.length };
+    }
+    const line = tr.lines.find((l) => l.id === lineId);
+    // Knickrichtung der verbliebenen Abschnitte beibehalten (siehe transit.rebuildLine: (k + par) % 2)
+    let shift = 0;
+    for (let k = 0; k < ids.length; k++) { const o = line.stops.indexOf(ids[k]); if (o >= 0) { shift = k - o; break; } }
+    line.par = (((line.par || 0) + shift) % 2 + 2) % 2;
+    line.stops = ids;
+    line.loop = plan.loop;
+    tr.rebuildLine(line);
+    tr.changed();
+    this.spend(plan.trackCost);
+    for (const id of removeIds) {
+      if (ids.includes(id) || !tr.stations.has(id)) continue;
+      if (!tr.lines.some((l) => l.stops.includes(id))) tr.removeStation(id);
+    }
+    this.afterTransitChange();
+    return { ok: true, cost: plan.cost, line, placed: placed.length };
+  }
   removeLine(lineId) {
     this.transit.removeLine(lineId);
     this.afterTransitChange();
