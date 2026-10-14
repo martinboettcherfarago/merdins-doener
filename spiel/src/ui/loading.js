@@ -5,6 +5,13 @@ import { MATERIAL_NAMES, getMaterial } from '../render/matlib.js';
 import { getAtlasMaterial } from '../render/atlas.js';
 import * as protos from '../render/protos.js';
 
+// Schriften früh anstoßen: Canvas-Texte (Diagramme, Bezirksnamen, Schilder) sollen gleich die eigenen Schriften nutzen
+try {
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
+    for (const f of ['600 16px "Stadtpuls Rund"', '700 16px "Stadtpuls Rund"', '500 14px "Stadtpuls Text"', '700 14px "Stadtpuls Text"']) document.fonts.load(f).catch(() => {});
+  }
+} catch (e) { /* egal */ }
+
 const TIPS = [
   'Strom und Wasser fließen über Straßen.',
   'Rechte Maustaste verschiebt, Mausrad zoomt.',
