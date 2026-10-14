@@ -9,7 +9,11 @@ import { SIDES, vol, facPunch, facRibbon, facCurtain, roundBlock, antenna } from
 const FHR = 3.0; // Wohngeschoss
 const PLASTER = ['plaster_white', 'plaster_cream', 'plaster_ochre', 'plaster_pink', 'plaster_blue', 'plaster_green', 'plaster_yellow', 'plaster_grey', 'plaster_red'];
 const ACCENT = ['paint_yellow', 'paint_teal', 'terracotta', 'paint_red', 'paint_blue', 'paint_green', 'paint_orange', 'metal_panel_bronze'];
-const nfl = (b, base, rnd = 2) => Math.max(3, Math.round(base * (b.fw * b.fd >= 4 ? 1.2 : b.fw * b.fd >= 2 ? 1.08 : 1) * (b.ctx.hf || 1)) + b.int(0, rnd));
+// Geschosszahl: Türme (Basis ≥ 12) auf kleinen Grundstücken deutlich niedriger, damit sie nicht wie Nadeln wirken
+const nfl = (b, base, rnd = 2) => {
+  const a = b.fw * b.fd, f = base >= 12 ? (a >= 4 ? 1.15 : a >= 2 ? 0.95 : 0.72) : (a >= 4 ? 1.2 : a >= 2 ? 1.08 : 1);
+  return Math.max(3, Math.round(base * f * (b.ctx.hf || 1)) + b.int(0, rnd));
+};
 
 // Kragbalkon an Fassade f (Mitte a, Fußboden y): Platte + Brüstung (Glas, Blech oder Stäbe)
 function balc(b, f, a, y, w, dep, o = {}) {
@@ -91,7 +95,6 @@ function kubusLoggia(ctx) {
   resGround(b, front);
   const v = vol(0, cz, sx, sz, pl, n, FHR);
   facPunch(b, v, { wall, frame: 'window_frame_dark', winW: 1.5, winH: 1.5, spacing: 3.0, sills: 'metal_light', skipGround: false, margin: 1.2, sides: ['back', 'left', 'right'] });
-  b.box(wall, 0, pl, cz, sx, n * FHR, sz);
   const ff = b.faces(0, cz, sx, sz).front;
   const nb = Math.max(2, Math.round(sx / 3.4)), bw = sx / nb;
   for (let k = 0; k < n; k++) for (let i = 0; i < nb; i++) {
@@ -283,11 +286,11 @@ function rundeck(ctx) {
 // Kleiner Wohnturm: zehn bis zwölf Geschosse, Eckbalkone über Eck, Penthouse mit Pergola
 function eckbalkonTurm(ctx) {
   const b = new B(ctx);
-  const front = 2.6, { W, D } = b;
+  const front = 1.6, { W, D } = b;
   const wall = b.pick(['plaster_white', 'concrete_panel', 'brick_white', 'plaster_grey', 'brick_yellow', 'terracotta']);
   const rail = b.pick(['glass_railing', 'metal_light', 'metal_dark', 'paint_white']);
   const n = nfl(b, 10, 2), pl = 0.3;
-  const s = Math.min(W - 3.0, D - front - 3.0, 16), cz = D / 2 - front - s / 2;
+  const s = Math.min(W - 3.0, D - front - 1.6, 16), cz = D / 2 - front - s / 2;
   resGround(b, front);
   b.box('stone_dark', 0, 0, cz, s + 0.1, pl + 3.6, s + 0.1);
   const f0 = b.faces(0, cz, s, s);
@@ -328,11 +331,11 @@ function eckbalkonTurm(ctx) {
 // Stufenturm: Wohnhochhaus mit vier Rücksprüngen, begrünte Dachterrassen mit Bäumchen
 function stufenturm(ctx) {
   const b = new B(ctx);
-  const front = 2.6, { W, D } = b;
+  const front = 2.0, { W, D } = b;
   const wall = b.pick(['plaster_white', 'concrete_panel', 'brick_white', 'terracotta', 'brick_yellow', 'plaster_grey']);
   const acc = b.pick(['wood_planks', 'metal_panel_bronze', 'metal_panel_grey', 'brick_dark']);
   const n = nfl(b, 18, 3), pl = 0.3;
-  const sx0 = Math.min(W - 1.6, 22), sz0 = Math.min(D - front - 2.4, 18), cz = D / 2 - front - sz0 / 2;
+  const sx0 = Math.min(W - 1.0, 22), sz0 = Math.min(D - front - 1.2, 18), cz = D / 2 - front - sz0 / 2;
   resGround(b, front);
   const parts = [0.4, 0.28, 0.2, 0.12];
   let y = pl, sx = sx0, sz = sz0, zc = cz;
@@ -363,10 +366,10 @@ function stufenturm(ctx) {
 // Versatzturm: gestapelte Quader zu je drei Geschossen, abwechselnd seitlich versetzt („Bauklötze")
 function versatzturm(ctx) {
   const b = new B(ctx);
-  const front = 2.6, { W, D } = b;
+  const front = 1.8, { W, D } = b;
   const mats = [b.pick(['plaster_white', 'concrete_panel', 'metal_panel_white']), b.pick(['metal_panel_grey', 'terracotta', 'wood_planks', 'brick_dark', 'metal_panel_bronze'])];
   const n = nfl(b, 21, 3), pl = 0.3;
-  const sx = Math.min(W - 4.0, 13), sz = Math.min(D - front - 4.0, 12), cz = D / 2 - front - sz / 2 - 0.4;
+  const sx = Math.min(W - 2.6, 13), sz = Math.min(D - front - 1.8, 12), cz = D / 2 - front - sz / 2 - 0.5;
   resGround(b, front);
   b.box('stone_dark', 0, 0, cz, sx + 0.1, pl + 4.0, sz + 0.1);
   const f0 = b.faces(0, cz, sx, sz);
@@ -374,7 +377,7 @@ function versatzturm(ctx) {
   entry(b, f0.front, 0, { canopy: 'metal_dark' });
   const blocks = Math.max(3, Math.round((n - 1) / 3));
   let y = pl + 4.0;
-  const mx = Math.min(1.6, (W - sx) / 2 - 0.6), mz = Math.min(1.2, (D - front - sz) / 2 - 0.6);
+  const mx = Math.min(1.6, (W - sx) / 2 - 0.15), mz = Math.max(0, Math.min(1.2, (D - front - sz) / 2 - 0.4));
   for (let i = 0; i < blocks; i++) {
     const ox = (i % 2 ? 1 : -1) * mx * (i % 4 < 2 ? 1 : 0.5), oz = (i % 3 === 1 ? 1 : i % 3 === 2 ? -1 : 0) * mz;
     const v = vol(ox, cz + oz, sx, sz, y, 3, FHR);
@@ -391,43 +394,43 @@ function versatzturm(ctx) {
 // Wellenbalkon-Turm: runder Glasturm, umlaufende weiße Balkonplatten, deren Radius wellenförmig schwingt
 function wellenturm(ctx) {
   const b = new B(ctx);
-  const front = 2.8, { W, D } = b;
+  const front = 1.8, { W, D } = b;
   const glass = b.pick(['glass_window', 'glass_curtain_blue', 'glass_curtain_green']);
   const slab = b.pick(['concrete_panel', 'metal_panel_white', 'plaster_white']);
   const n = nfl(b, 22, 3), pl = 0.3;
-  const r = Math.min(W - 3.4, D - front - 3.4, 15) / 2, cz = D / 2 - front - r - 1.0;
+  const r = Math.min(W - 1.6, D - front - 1.4, 15) / 2, cz = D / 2 - front - r - 0.7;
   const seg = b.d >= 2 ? 16 : b.d === 1 ? 12 : 8;
   resGround(b, front);
-  b.cyl('stone_dark', 0, 0, cz, r + 0.6, pl + 3.8, { seg, exact: true });
-  b.cyl('glass_window', 0, pl + 0.3, cz, r + 0.62, 3.0, { seg, exact: true, open: true, lit: b.r() });
+  b.cyl('stone_dark', 0, 0, cz, r + 0.3, pl + 3.8, { seg, exact: true });
+  b.cyl('glass_window', 0, pl + 0.3, cz, r + 0.32, 3.0, { seg, exact: true, open: true, lit: b.r() });
   const y0 = pl + 3.8, ph = b.r() * 6;
   b.cyl('concrete_dark', 0, y0, cz, r - 0.6, n * FHR, { seg, exact: true });
   if (b.d === 0) b.cyl(glass, 0, y0, cz, r - 0.5, n * FHR, { seg, exact: true, open: true, lit: b.r() });
   for (let k = 0; k < n; k++) {
     const y = y0 + k * FHR;
     if (b.d >= 1) b.cyl(glass, 0, y + 0.2, cz, r - 0.5, FHR - 0.25, { seg, exact: true, open: true, lit: b.r() });
-    const rr = r + 0.35 * Math.sin(k * 0.55 + ph) + 0.35;
+    const rr = r + 0.3 * Math.sin(k * 0.55 + ph) + 0.3;
     if (b.d > 0 || k % 2) b.cyl(slab, 0, y + FHR - 0.22, cz, rr, 0.22, { seg: b.d === 0 ? 6 : seg, exact: true });
     if (b.d >= 2) b.cyl('glass_railing', 0, y + FHR, cz, rr - 0.05, 0.9, { seg, exact: true, open: true });
   }
   const top = y0 + n * FHR;
   b.cyl(slab, 0, top, cz, r + 0.2, 0.5, { seg, exact: true });
   b.cyl('metal_panel_grey', 0, top + 0.5, cz, r * 0.45, 2.6, { seg: 10 });
-  const ff = b.face(0, cz, 2 * r + 1.2, 2 * r + 1.2, 'front');
+  const ff = b.face(0, cz, 2 * r + 0.6, 2 * r + 0.6, 'front');
   b.fbox('metal_dark', ff, 0, 0, 3.0, 3.4, 1.4, -0.3);
   b.fbox('concrete', ff, 0, 3.4, 4.0, 0.25, 2.2, -0.3);
-  b.takeC(0, cz, r + 0.8, 0.3);
+  b.takeC(0, cz, r + 0.6, 0.2);
   yard(b, 3);
 }
 
 // Wohnturm mit Krone: schlanker Schaft mit Lisenen und Loggiareihen, oben zweigeschossiger Glasaufsatz mit Rahmen
 function kronenwohnturm(ctx) {
   const b = new B(ctx);
-  const front = 2.6, { W, D } = b;
+  const front = 2.0, { W, D } = b;
   const wall = b.pick(['brick_white', 'stone_sandstone', 'concrete_panel', 'brick_yellow', 'plaster_white', 'terracotta']);
   const pier = b.pick(['concrete', 'trim_stone', 'metal_light', 'brick_dark']);
   const n = nfl(b, 24, 3), pl = 0.3;
-  const sx = Math.min(W - 2.6, 15), sz = Math.min(D - front - 2.6, 13), cz = D / 2 - front - sz / 2;
+  const sx = Math.min(W - 1.6, 15), sz = Math.min(D - front - 1.4, 13), cz = D / 2 - front - sz / 2;
   resGround(b, front);
   b.box('stone_dark', 0, 0, cz, sx + 0.4, pl + 4.2, sz + 0.4);
   const f0 = b.faces(0, cz, sx + 0.4, sz + 0.4);

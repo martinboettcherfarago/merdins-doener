@@ -172,15 +172,15 @@ function rundbau(b) {
   const { W, D, Z } = geom(b);
   b.lot('pavers', 0.1);
   const band = b.pick(['concrete_panel', 'metal_panel_white', 'plaster_white', 'terracotta']);
-  const glass = b.pick(['glass_window', 'glass_curtain_blue', 'glass_curtain_dark']);
+  const glass = b.pick(['glass_window', 'glass_curtain_blue', 'glass_curtain_green']);
   const r = Math.min(W - 2.4, D - 4.0) * 0.5, pz = -Z + 1.0 + r, n = 4 + b.int(0, 1);
   const seg = b.d >= 2 ? 20 : b.d === 1 ? 14 : 10;
   b.cyl('concrete_dark', 0, 0, pz, r + 0.15, 0.3, { seg, exact: true });
   b.cyl('metal_dark', 0, 0.3, pz, r - 0.2, n * 3.4, { seg, exact: true });
   for (let k = 0; k < n; k++) {
     const y = 0.3 + k * 3.4;
-    b.cyl(band, 0, y, pz, r, 1.2, { seg, exact: true, open: true });
-    b.cyl(glass, 0, y + 1.2, pz, r - 0.12, 2.2, { seg, exact: true, open: true, lit: b.r() });
+    b.cyl(band, 0, y, pz, r, 0.85, { seg, exact: true, open: true });
+    b.cyl(glass, 0, y + 0.85, pz, r - 0.12, 2.55, { seg, exact: true, open: true, lit: b.r() });
   }
   const top = 0.3 + n * 3.4;
   b.cyl(band, 0, top, pz, r + 0.1, 0.6, { seg, exact: true });
@@ -435,7 +435,7 @@ function nadelturm(b) {
   const base = vol(0, pz, psx, psz, 0, 5, 3.8);
   facPiers(b, base, { wall: stone, sp: 1.8, glass: 'glass_window' });
   b.box(cap, 0, base.top, pz, psx + 0.3, 0.5, psz + 0.3);
-  const n = floors(b, 28, 4);
+  const n = floors(b, 24, 4);
   const parts = [[0.78, 0.55], [0.6, 0.27], [0.44, 0.18]];
   let y = base.top + 0.5, last = null;
   for (const [s, f] of parts) {
@@ -468,7 +468,7 @@ function kronenspitze(b) {
   const metal = b.pick(['metal_light', 'metal_light', 'roof_copper']);
   const psx = W - 1.0, psz = D - 2.4, pz = -Z + 0.5 + psz / 2;
   lobby(b, 0, pz, psx, psz, 5.5, { glass: 'glass_window', inset: 0.5, col: stone });
-  const n = floors(b, 30, 4);
+  const n = floors(b, 26, 4);
   const s = Math.min(psx, psz) * 0.8;
   const v = vol(0, pz, s, s, 5.5, n, 3.5);
   facPiers(b, v, { wall: stone, sp: 1.15, glass: 'glass_window', spandrel: 'metal_dark' });
@@ -496,7 +496,7 @@ function splitter(b) {
   const glass = b.pick(['glass_curtain_blue', 'glass_curtain_dark', 'glass_curtain_blue', 'glass_curtain_green']);
   const psx = W - 1.2, psz = D - 2.6, pz = -Z + 0.6 + psz / 2;
   lobby(b, 0, pz, psx, psz, 5.0, { glass, inset: 0.8, col: 'metal_dark' });
-  const n = floors(b, 34, 4), tiers = b.d === 0 ? 6 : 8;
+  const n = floors(b, 28, 4), tiers = 8;
   const s0x = psx * 0.92, s0z = psz * 0.92;
   let y = 5.0, last = null;
   for (let t = 0; t < tiers; t++) {
@@ -530,7 +530,7 @@ function himmelsbruecke(b) {
   const r = Math.min(wide ? psx * 0.23 : psz * 0.23, wide ? psz * 0.46 : psx * 0.46);
   const off = (wide ? psx : psz) / 2 - r - 0.2;
   const P = wide ? [[-off, pz], [off, pz]] : [[0, pz - off], [0, pz + off]];
-  const n = floors(b, 30, 3), seg = 8;
+  const n = floors(b, 26, 3), seg = 8;
   b.box('stone_dark', 0, 0, pz, wide ? psx : r * 2.2, 0.5, wide ? r * 2.2 : psz);
   const levels = 3, lf = [0.62, 0.22, 0.16];
   for (const [x, z] of P) {
@@ -573,7 +573,7 @@ function kristallturm(b) {
   const glass = b.pick(GLASS), frame = b.pick(['metal_dark', 'metal_light']);
   const psx = W - 1.2, psz = D - 2.6, pz = -Z + 0.6 + psz / 2;
   lobby(b, 0, pz, psx, psz, 5.5, { glass, inset: 0.6, col: frame });
-  const n = floors(b, 28, 4);
+  const n = floors(b, 25, 4);
   const s = Math.min(psx, psz) * 0.84;
   const v = vol(0, pz, s, s, 5.5, n);
   facCurtain(b, v, { glass, frame, col: 1.4 });
@@ -610,7 +610,7 @@ function helischeibe(b) {
   const wide = psx >= psz;
   const sx = wide ? psx * 0.94 : psx * 0.72, sz = wide ? psz * 0.62 : psz * 0.94;
   lobby(b, 0, pz, sx, sz, 5.0, { glass: 'glass_window', inset: 0.6, col: frame });
-  const v = vol(0, pz, sx, sz, 5.0, floors(b, 26, 4));
+  const v = vol(0, pz, sx, sz, 5.0, floors(b, 22, 4));
   facGrid(b, v, { frame, glass, bay: 1.5, topH: 1.0 });
   const top = v.top + 1.0;
   b.box('metal_panel_grey', 0, top, pz, sx * 0.85, 2.6, sz * 0.7);
@@ -641,7 +641,7 @@ function stufenpyramide(b) {
   const band = b.pick(['concrete_panel', 'stone_sandstone', 'metal_panel_white', 'terracotta']);
   const glass = b.pick(GLASS);
   const psx = W - 0.8, psz = D - 2.2, pz = -Z + 0.4 + psz / 2;
-  const n = floors(b, 26, 4), tiers = 5;
+  const n = floors(b, 22, 4), tiers = 5;
   let y = 0;
   let last = null;
   for (let t = 0; t < tiers; t++) {

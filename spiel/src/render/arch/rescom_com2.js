@@ -13,7 +13,10 @@ import { NAMES, AWNINGS, NEON } from './rescom_shop.js';
 
 const MM = 0.1;
 const SHOP_NAMES = ['MODE', 'SCHUHE', 'OPTIK', 'BÜCHER', 'ELEKTRO', 'SPIELWAREN', 'FEINKOST', 'BIOLADEN', 'WEIN', 'TEXTIL', 'UHREN', 'BLUMEN', 'DROGERIE', 'BÄCKER', 'CAFÉ'];
-const nfl = (b, base, rnd = 2) => Math.max(2, Math.round(base * (b.fw * b.fd >= 4 ? 1.2 : b.fw * b.fd >= 2 ? 1.08 : 1) * (b.ctx.hf || 1)) + b.int(0, rnd));
+const nfl = (b, base, rnd = 2) => {
+  const a = b.fw * b.fd, f = base >= 12 ? (a >= 4 ? 1.15 : a >= 2 ? 0.95 : 0.72) : (a >= 4 ? 1.2 : a >= 2 ? 1.08 : 1);
+  return Math.max(2, Math.round(base * f * (b.ctx.hf || 1)) + b.int(0, rnd));
+};
 // Geo-Rahmen zu einer B-Fassade (gleiche Lage, Welteinheiten)
 const gfr = (cx, cz, sx, sz, side) => frame(cx * MM, cz * MM, sx * MM, sz * MM, side);
 // Schriftzug (Meter) auf Geo-Fassade
@@ -407,12 +410,12 @@ function kinocenter(ctx, g) {
 // Hotelturm mit Spitze: Glasschaft mit Fensterbändern, oben Leuchtkrone mit Schriftzug, Nadel
 function hotelSpitze(ctx, g) {
   const b = new B(ctx), { W, D } = b;
-  const front = 3.4;
+  const front = 2.4;
   ground(b, front);
   const glass = b.pick(GLASS), band = b.pick(['metal_panel_white', 'stone_sandstone', 'concrete_panel', 'metal_light']);
-  const sx = W - 1.4, sz = Math.min(D - front - 1.0, 14), cz = D / 2 - front - sz / 2;
-  lobby(b, 0, cz, sx, sz, 6.0, { glass: 'glass_shop', inset: 0.8, col: band });
-  const n = nfl(b, 24, 4), s = Math.min(sx, sz) * 0.85;
+  const sx = W - 1.2, sz = Math.min(D - front - 0.8, 14), cz = D / 2 - front - sz / 2;
+  lobby(b, 0, cz, sx, sz, 6.0, { glass: 'glass_shop', inset: 0.6, col: band });
+  const n = nfl(b, 24, 4), s = Math.min(sx, sz) * 0.95;
   const v = vol(0, cz, s, s, 6.0, n, 3.2);
   facRibbon(b, v, { band, glass, winH: 3.2 * 0.6 });
   b.box(band, 0, v.top, cz, s + 0.4, 0.6, s + 0.4);
@@ -424,7 +427,7 @@ function hotelSpitze(ctx, g) {
   b.cyl('metal_light', 0, cr.top + 4.0, cz, 0.12, 9, { seg: 6, exact: true, rTop: 0.04 });
   b.light(0, cr.top + 13.2, cz, 0xff2a20, 0.32);
   const f = b.faces(0, cz, sx, sz);
-  b.fbox('metal_dark', f.front, 0, 5.4, Math.min(11, sx - 2), 0.4, 3.6, 0);
+  b.fbox('metal_dark', f.front, 0, 5.4, Math.min(11, sx - 2), 0.4, front - 0.4, 0);
   if (b.d >= 1) b.flags(-sx * 0.25, D / 2 - 0.8, 3, 0);
   b.take(0, cz, sx, sz, 0.3);
 }
@@ -444,8 +447,8 @@ function mallturm(ctx, g) {
   for (const y of [5.6, 9.4]) for (const s of SIDES) b.fplane(b.d >= 1 ? 'emissive_cool' : 'sign_white', f[s], 0, y, f[s].len - 1.0, 0.25, 0.03);
   label(g, gfr(0, cz, sx, sz, 'front'), b.pick(NAMES.center), 0, 6.4, Math.min(sx - 2, 14), 2.2, { mat: g.neon ? g.neon(b.pick(NEON)) : 'sign_white', maxPx: 0.5 });
   b.box('roof_flat_membrane', 0, 13.0, cz, sx - 0.2, 0.2, sz - 0.2);
-  const side = b.chance(0.5) ? 1 : -1, ts = Math.min(sx * 0.48, sz * 0.7, 12);
-  const tx = side * (sx / 2 - ts / 2 - 0.4), tz = cz - sz / 2 + ts / 2 + 0.4;
+  const small = b.fw * b.fd < 2, side = b.chance(0.5) ? 1 : -1, ts = small ? Math.min(sx, sz) - 1.0 : Math.min(sx * 0.48, sz * 0.7, 12);
+  const tx = small ? 0 : side * (sx / 2 - ts / 2 - 0.4), tz = small ? cz : cz - sz / 2 + ts / 2 + 0.4;
   const v = vol(tx, tz, ts, ts, 13.2, nfl(b, 20, 4));
   facCurtain(b, v, { glass, frame: 'metal_dark' });
   b.box('metal_dark', tx, v.top, tz, ts + 0.2, 1.0, ts + 0.2);
@@ -458,13 +461,13 @@ function mallturm(ctx, g) {
 // Leuchtturm-Geschäftshaus: schlanker Turm mit senkrechten LED-Lamellen, die nachts farbig leuchten
 function ledturm(ctx, g) {
   const b = new B(ctx), { W, D } = b;
-  const front = 3.0;
+  const front = 2.4;
   ground(b, front);
   const glass = b.pick(['glass_curtain_dark', 'glass_curtain_blue', 'glass_curtain_dark']);
   const led = b.pick(['neon_cyan', 'neon_pink', 'emissive_cool', 'neon_yellow']);
-  const sx = W - 1.6, sz = Math.min(D - front - 1.2, 13), cz = D / 2 - front - sz / 2;
+  const sx = W - 1.2, sz = Math.min(D - front - 0.6, 13), cz = D / 2 - front - sz / 2;
   lobby(b, 0, cz, sx, sz, 5.2, { glass: 'glass_shop', inset: 0.6, col: 'metal_dark' });
-  const s = Math.min(sx, sz) * 0.8, n = nfl(b, 26, 4);
+  const s = Math.min(sx, sz) * 0.92, n = nfl(b, 24, 4);
   const v = vol(0, cz, s, s, 5.2, n);
   facCurtain(b, v, { glass, frame: 'metal_dark' });
   const fs = b.faces(0, cz, s, s);
