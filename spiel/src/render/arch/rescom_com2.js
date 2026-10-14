@@ -4,6 +4,7 @@
 // Stufe 1: Eckcafé, Friseur, Wochenmarkt, moderne Ladenzeile · Stufe 2: Eckhaus mit Café, Markthalle, Modehaus
 // Stufe 3–4: Boutiquenhäuser, Kaufhaus (Stein, Uhr, Fahnen), Passage mit Glasdach, Hotel, Kino-Center
 // Stufe 5: Hotelturm mit Spitze, Mall mit Turm, Leuchtturm-Geschäftshaus, gestuftes Kaufhaus-Hochhaus
+import * as THREE from 'three';
 import { B, PI, HP, LOGO } from './indoff_parts.js';
 import { SIDES, FH, GLASS, vol, facRibbon, facCurtain, facGrid, facPunch, facFins, roofOff, lobby, roundBlock, antenna } from './indoff_off.js';
 import { frame } from './rescom_geo.js';
@@ -32,6 +33,12 @@ function shopFront(b, f, a, w, h, o = {}) {
     for (let i = 0; i <= n; i++) b.fbox(o.frame || 'metal_dark', f, a - w / 2 + (i * w) / n, 0, 0.1, h, 0.12, 0);
   }
   if (b.d >= 2 && o.door !== false) b.fplane('door_glass', f, a + (o.doorA ?? 0), 0.02, 1.2, 2.3, 0.13);
+}
+// Flache Tonne (halber Zylinder, Achse z): Breite 2·rx, Scheitelhöhe ry über y
+function barrel(b, mat, x, y, z, rx, ry, len, seg) {
+  const geo = new THREE.CylinderGeometry(1, 1, len, b.seg(seg), 1, true, -HP, PI).rotateX(-HP);
+  geo.scale(rx, ry, 1);
+  return b.g(mat, geo, x, y, z, {});
 }
 // Obstkisten / Auslage
 function crates(b, x, z, n, ry = 0) {
@@ -199,10 +206,17 @@ function markthalle(ctx, g) {
   b.box(wall, 0, 0, cz, sx, h, sz);
   const f = b.faces(0, cz, sx, sz);
   for (const s of SIDES) b.winRow(f[s], -f[s].len / 2 + 1.2, f[s].len / 2 - 1.2, 1.4, 1.6, h - 3.0, { spacing: 3.0, frame: 'metal_dark', arch: wall === 'brick_yellow' ? 'brick_red' : 'brick_yellow', glass: 'glass_window' });
-  // Tonnendach entlang z (Giebelseite mit Halbkreis-Fenster vorne)
-  b.hcyl(roof, 0, h, cz, sx / 2 + 0.2, sz + 0.4, 'z', { seg: b.d >= 1 ? 16 : 8 });
+  // flaches Tonnendach entlang z, Oberlicht im First
+  const rh = Math.min(4.5, sx * 0.22);
+  barrel(b, roof, 0, h, cz, sx / 2 + 0.3, rh, sz + 0.4, b.d >= 1 ? 14 : 8);
   b.box(wall, 0, h - 0.3, cz, sx + 0.3, 0.3, sz + 0.3);
-  if (b.d >= 1) b.hcyl('glass_skylight', 0, h + 0.02, cz, sx / 2 * 0.45, sz * 0.8, 'z', { seg: 10 });
+  if (b.d >= 1) barrel(b, 'glass_skylight', 0, h + rh * 0.86, cz, sx * 0.12, rh * 0.25, sz * 0.8, 8);
+  // Giebelscheiben vorne und hinten (Halbkreis in Wandfarbe mit Fächerfenster)
+  for (const e of [-1, 1]) {
+    const gz = cz + e * (sz / 2 + 0.02);
+    b.g(wall, new THREE.CircleGeometry(1, b.seg(14), 0, PI).scale(sx / 2, rh, 1).rotateY(e > 0 ? 0 : PI), 0, h, gz, {});
+    if (b.d >= 1 && e > 0) b.g('glass_window', new THREE.CircleGeometry(1, b.seg(10), 0, PI).scale(sx * 0.28, rh * 0.62, 1), 0, h, gz + 0.03, { lit: b.r() });
+  }
   // Tor
   b.fbox('stone_dark', f.front, 0, 0, 4.6, 4.4, 0.4, 0);
   b.fplane('glass_shop', f.front, 0, 0.1, 3.6, 3.8, 0.42, b.r());
@@ -296,11 +310,12 @@ function kaufhausKlassik(ctx, g) {
   b.box('roof_copper', 0, top + 0.9, cz, sx - 1.0, 1.6, sz - 1.0);
   // Uhr über dem Eingang
   if (b.d >= 1) {
-    const [ux, uz] = f.front.at(0, 0.12);
-    const geoR = 1.0;
-    b.cyl('paint_white', ux, top - 2.2, uz, geoR, 0.15, { seg: 16 });
-    b.box('trim_dark', ux, top - 1.25, uz + 0.1, 0.08, 0.75, 0.05);
-    b.box('trim_dark', ux + 0.25, top - 1.25, uz + 0.1, 0.5, 0.08, 0.05);
+    // Uhr: Scheibe zur Straße, zwei Zeiger
+    const [ux, uz] = f.front.at(0, 0.1);
+    b.g('trim_dark', new THREE.CylinderGeometry(1.15, 1.15, 0.12, b.seg(16)).rotateX(HP), ux, top - 1.5, uz, {});
+    b.g('paint_white', new THREE.CylinderGeometry(1.0, 1.0, 0.1, b.seg(16)).rotateX(HP), ux, top - 1.5, uz + 0.05, {});
+    b.box('trim_dark', ux - 0.04, top - 1.5, uz + 0.12, 0.08, 0.75, 0.04);
+    b.box('trim_dark', ux, top - 1.54, uz + 0.12, 0.55, 0.08, 0.04);
   }
   label(g, gfr(0, cz, sx, sz, 'front'), b.pick(NAMES.store), 0, 5.2, Math.min(sx - 4, 14), 1.2, { mat: g.neon ? g.neon(b.pick(['sign_white', 'emissive_red', 'neon_cyan'])) : 'sign_white', maxPx: 0.45 });
   if (b.d >= 1) for (let i = -1; i <= 1; i++) { const [fx, fz] = f.front.at(i * sx * 0.3, 0.2); b.box('metal_light', fx, top + 0.9, fz, 0.1, 5, 0.1); b.box(b.pick(['paint_red', 'paint_blue', 'paint_yellow', 'paint_green']), fx + 0.65, top + 4.4, fz, 1.2, 0.8, 0.04); }
@@ -332,8 +347,8 @@ function passage(ctx, g) {
   }
   // Glasdach (Tonne) über der Passage
   const yh = 4.4 + Math.min(n, 3) * 3.4;
-  b.hcyl('glass_skylight', 0, yh, cz, gw / 2, sz, 'z', { seg: b.d >= 1 ? 12 : 6 });
-  if (b.d >= 1) { const nr = Math.round(sz / 3); for (let i = 0; i <= nr; i++) b.hcyl('metal_dark', 0, yh, cz - sz / 2 + (i * sz) / nr, gw / 2 + 0.05, 0.15, 'z', { seg: 12, open: true }); }
+  barrel(b, 'glass_skylight', 0, yh, cz, gw / 2, gw * 0.35, sz, 10);
+  if (b.d >= 1) { const nr = Math.round(sz / 3); for (let i = 0; i <= nr; i++) barrel(b, 'metal_dark', 0, yh, cz - sz / 2 + (i * sz) / nr, gw / 2 + 0.05, gw * 0.35 + 0.05, 0.15, 10); }
   b.ground('pavers', 0, cz, gw, sz, 0.14);
   // Eingangsbogen mit Namen
   b.box(wall, 0, 5.5, D / 2 - front - 0.3, gw + 0.4, 1.4, 0.6);

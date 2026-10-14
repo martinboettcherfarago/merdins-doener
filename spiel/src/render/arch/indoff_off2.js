@@ -277,7 +277,7 @@ function rasterwuerfel(b) {
   const n = floors(b, 6, 2);
   lobby(b, 0, pz, psx, psz, 4.6, { glass: 'glass_window', inset: 1.0, col: frame });
   const v = vol(0, pz, psx, psz, 4.6, n);
-  facGrid(b, v, { frame, glass: b.pick(['glass_curtain_dark', 'glass_window', 'glass_curtain_blue']), bay: 2.0, inset: 0.6, pierW: 0.45, bandH: 0.8, topH: 1.2 });
+  facGrid(b, v, { frame, glass: b.pick(['glass_curtain_blue', 'glass_window', 'glass_curtain_green']), bay: 2.0, inset: 0.6, pierW: 0.45, bandH: 0.8, topH: 1.2 });
   const top = v.top + 1.2;
   b.box('roof_flat_gravel', 0, top, pz, psx - 0.4, 0.1, psz - 0.4);
   if (b.d >= 1) {
@@ -526,10 +526,10 @@ function himmelsbruecke(b) {
   const glass = b.pick(['glass_curtain_blue', 'glass_curtain_dark', 'glass_window', 'glass_curtain_gold']);
   const band = b.pick(['metal_light', 'stone_grey', 'metal_panel_white']);
   const psx = W - 0.8, psz = D - 2.4, pz = -Z + 0.6 + psz / 2;
-  const wide = psx >= psz;
-  const r = Math.min(wide ? psx * 0.23 : psz * 0.23, wide ? psz * 0.46 : psx * 0.46);
-  const off = (wide ? psx : psz) / 2 - r - 0.2;
-  const P = wide ? [[-off, pz], [off, pz]] : [[0, pz - off], [0, pz + off]];
+  const wide = psx >= psz, single = b.fw * b.fd < 2; // auf kleinem Grundstück ein einzelner Ringturm
+  const r = single ? Math.min(psx, psz) * 0.46 : Math.min(wide ? psx * 0.23 : psz * 0.23, wide ? psz * 0.46 : psx * 0.46);
+  const off = single ? 0 : (wide ? psx : psz) / 2 - r - 0.2;
+  const P = single ? [[0, pz]] : wide ? [[-off, pz], [off, pz]] : [[0, pz - off], [0, pz + off]];
   const n = floors(b, 26, 3), seg = 8;
   b.box('stone_dark', 0, 0, pz, wide ? psx : r * 2.2, 0.5, wide ? r * 2.2 : psz);
   const levels = 3, lf = [0.62, 0.22, 0.16];
@@ -551,7 +551,7 @@ function himmelsbruecke(b) {
   }
   // Himmelsbrücke in etwa 40 % Höhe
   const yb = 0.5 + Math.round(n * 0.4) * FH, L = 2 * off - 2 * r * 0.9;
-  if (L > 0.5) {
+  if (!single && L > 0.5) {
     const cx = (P[0][0] + P[1][0]) / 2, cz = (P[0][1] + P[1][1]) / 2;
     const bx = wide ? L : 2.2, bz = wide ? 2.2 : L;
     b.box(band, cx, yb, cz, bx, 0.4, bz);
@@ -560,7 +560,7 @@ function himmelsbruecke(b) {
     if (b.d >= 1) for (const s of [-1, 1]) b.beam(band, wide ? [cx + s * L * 0.15, yb, cz] : [cx, yb, cz + s * L * 0.15], wide ? [cx + s * (off - r * 0.9), yb - 8, cz] : [cx, yb - 8, cz + s * (off - r * 0.9)], 0.35);
   }
   const ff = b.faces(0, pz, psx, psz).front;
-  b.fbox('metal_dark', ff, 0, 0.5, wide ? 6 : 3.4, 4.0, 1.4, wide ? 0 : -psz / 2 + off + r);
+  b.fbox('metal_dark', ff, 0, 0.5, wide ? 6 : 3.4, 4.0, 1.4, single || wide ? -(psz / 2 - r) : -psz / 2 + off + r);
   b.sign(ff, 0, 4.7, Math.min(6, psx * 0.5), 0.7, { logo: b.pick(LOGO) });
   b.take(0, pz, psx, psz, 0.3);
   plaza(b, pz + psz / 2, {});

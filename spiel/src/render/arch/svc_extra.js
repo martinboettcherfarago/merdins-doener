@@ -81,7 +81,7 @@ function clinicModern(ctx) {
   P.door(k, bx - bw / 2 + 1.4 * M, bz + bd / 2, 0, { glass: true, w: 1.6 * M, canopy: 'paint_white' });
   P.cross(k, bx - bw / 2 + 1.4 * M, top + 1.4 * M, bz + bd / 2 + 0.1 * M, 1.4 * M, 'paint_red', 0, { plate: 'paint_white' });
   if (P.D1(k)) { k.box('metal_dark', bx - bw / 2 + 1.4 * M, top, bz + bd / 2 - 0.1 * M, 0.12 * M, 0.6 * M, 0.12 * M); }
-  P.signBox(k, 'PRAXIS', bx + 1.2 * M, FLOOR + 0.2 * M, bz + bd / 2 + 0.05 * M, 0, { px: 0.11 * M, bg: 'paint_green' });
+  P.signBox(k, 'ARZT', bx + 1.2 * M, FLOOR + 0.2 * M, bz + bd / 2 + 0.05 * M, 0, { px: 0.11 * M, bg: 'paint_green' });
   // Rampe und Parkplatz
   P.slab(k, 'concrete', bx + bw / 2 - 1.5 * M, bz + bd / 2 + 0.9 * M, 2.6 * M, 1.6 * M, 0.25 * M);
   P.parking(k, 1.2 * M, 3.4 * M, W - 3.4 * M, 2.4 * M, { rows: 1, fill: 0.5 });
