@@ -14,7 +14,11 @@ const fpF = (b) => (b.fw * b.fd >= 4 ? 1.25 : b.fw * b.fd >= 2 ? 1.1 : 0.95);
 const floors = (b, base, rnd = 3) => Math.max(3, Math.round(base * fpF(b) * (b.ctx.hf || 1)) + b.int(0, rnd));
 // Warnlicht / Leuchtband
 const warn = (b, x, y, z) => b.light(x, y, z, 0xff2a20, 0.32);
-function glowBand(b, mat, x, y, z, sx, sz, h = 0.22) { if (b.d >= 1) b.box(mat, x, y, z, sx + 0.06, h, sz + 0.06); }
+// Leuchtband als umlaufender Rahmen (kein voller Deckel: von oben bleibt das Dach sichtbar und verschneit)
+export function glowBand(b, mat, x, y, z, sx, sz, h = 0.22, t = 0.16) {
+  if (b.d < 1) return;
+  for (const s of [-1, 1]) { b.box(mat, x, y, z + s * (sz / 2 - t / 2 + 0.03), sx + 0.06, h, t); b.box(mat, x + s * (sx / 2 - t / 2 + 0.03), y, z, t, h, sz - 2 * t + 0.06); }
+}
 // Spitze: Kegel + Nadel + Warnlicht
 function spire(b, x, y, z, r, h, mat = 'metal_light') {
   b.cone(mat, x, y, z, r, h * 0.55, { seg: 8 });
@@ -245,7 +249,7 @@ function rundbau(b) {
   const top = 0.3 + n * 3.4;
   b.cyl(band, 0, top, pz, r + 0.1, 0.6, { seg, exact: true });
   b.cyl('metal_panel_grey', 0, top + 0.6, pz, r * 0.45, 2.4, { seg: 10 });
-  if (b.d >= 1) b.cyl('emissive_warm', 0, top + 3.0, pz, r * 0.46, 0.2, { seg: 10 });
+  if (b.d >= 1) b.cyl('emissive_warm', 0, top + 2.6, pz, r * 0.46, 0.25, { seg: 10, open: true });
   const ff = b.face(0, pz, 2 * r, 2 * r, 'front');
   b.fbox('metal_dark', ff, 0, 0, 3.4, 3.2, 1.2, -0.4);
   b.fplane('glass_window', ff, 0, 0.1, 2.6, 2.6, 0.82);

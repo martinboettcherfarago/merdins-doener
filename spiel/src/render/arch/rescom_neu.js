@@ -5,6 +5,7 @@
 // Stufe 5: Stufenturm mit Dachgärten, Versatzturm, Wellenbalkon-Turm, Wohnturm mit Krone
 import { B, PI, HP } from './indoff_parts.js';
 import { SIDES, vol, facPunch, facRibbon, facCurtain, roundBlock, antenna } from './indoff_off.js';
+import { glowBand } from './indoff_off2.js';
 
 const FHR = 3.0; // Wohngeschoss
 const PLASTER = ['plaster_white', 'plaster_cream', 'plaster_ochre', 'plaster_pink', 'plaster_blue', 'plaster_green', 'plaster_yellow', 'plaster_grey', 'plaster_red'];
@@ -453,7 +454,7 @@ function kronenwohnturm(ctx) {
   for (const cx of [-1, 1]) for (const cz2 of [-1, 1]) b.box(pier, cx * (sx / 2 - 0.2), top + 0.5, cz + cz2 * (sz / 2 - 0.2), 0.45, yt - top + 1.6, 0.45);
   for (const cz2 of [-1, 1]) b.box(pier, 0, yt + 1.4, cz + cz2 * (sz / 2 - 0.2), sx, 0.5, 0.45);
   for (const cx of [-1, 1]) b.box(pier, cx * (sx / 2 - 0.2), yt + 1.4, cz, 0.45, 0.5, sz);
-  if (b.d >= 1) b.box('emissive_warm', 0, yt + 1.2, cz, sx - 0.6, 0.15, sz - 0.6);
+  glowBand(b, 'emissive_warm', 0, yt + 1.2, cz, sx - 0.5, sz - 0.5, 0.15);
   b.box('green_roof', 0, yt, cz, sx - 1.0, 0.3, sz - 1.0);
   b.light(0, yt + 1.0, cz, 0xffd79a, 0.7);
   b.take(0, cz, sx + 2.0, sz + 2.0, 0.3);

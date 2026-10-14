@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { B, PI, HP, LOGO } from './indoff_parts.js';
 import { SIDES, FH, GLASS, vol, facRibbon, facCurtain, facGrid, facPunch, facFins, roofOff, lobby, roundBlock, antenna } from './indoff_off.js';
 import { frame } from './rescom_geo.js';
+import { glowBand } from './indoff_off2.js';
 import { signBand, awning } from './rescom_signs.js';
 import { cafeSeating, parasol } from './rescom_site.js';
 import { NAMES, AWNINGS, NEON } from './rescom_shop.js';
@@ -498,7 +499,8 @@ function hotelSpitze(ctx, g) {
   b.box(band, 0, v.top, cz, s + 0.4, 0.6, s + 0.4);
   const cr = vol(0, cz, s * 0.86, s * 0.86, v.top + 0.6, 2, 3.4);
   facCurtain(b, cr, { glass: 'glass_curtain_gold', frame: 'metal_dark' });
-  b.box('emissive_warm', 0, cr.top, cz, s * 0.9, 0.3, s * 0.9);
+  b.box('metal_dark', 0, cr.top, cz, s * 0.9, 0.3, s * 0.9);
+  glowBand(b, 'emissive_warm', 0, cr.top, cz, s * 0.92, s * 0.92, 0.3);
   label(g, gfr(0, cz, s * 0.86, s * 0.86, 'front'), 'HOTEL', 0, cr.y0 + 1.6, s * 0.8, 2.2, { mat: g.neon ? g.neon('sign_white') : 'sign_white', depth: 0.1, maxPx: 0.5 });
   b.cone('metal_light', 0, cr.top + 0.3, cz, s * 0.3, 4, { seg: 8 });
   b.cyl('metal_light', 0, cr.top + 4.0, cz, 0.12, 9, { seg: 6, exact: true, rTop: 0.04 });
@@ -529,7 +531,7 @@ function mallturm(ctx, g) {
   const v = vol(tx, tz, ts, ts, 13.2, nfl(b, 20, 4));
   facCurtain(b, v, { glass, frame: 'metal_dark' });
   b.box('metal_dark', tx, v.top, tz, ts + 0.2, 1.0, ts + 0.2);
-  if (b.d >= 1) b.box(b.pick(['emissive_cool', 'emissive_warm']), tx, v.top + 1.0, tz, ts * 0.7, 0.3, ts * 0.7);
+  glowBand(b, b.pick(['emissive_cool', 'emissive_warm']), tx, v.top + 0.7, tz, ts + 0.24, ts + 0.24, 0.3);
   antenna(b, tx, v.top + 1.0, tz, 8);
   if (b.d >= 1) b.hvac(-side * sx * 0.25, 13.2, cz, 1.4);
   b.take(0, cz, sx, sz, 0.3);
