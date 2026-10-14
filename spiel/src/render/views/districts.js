@@ -120,6 +120,11 @@ class DistrictView {
     this.fill.frustumCulled = false;
     this.fill.visible = false;
     this.group.add(this.fill, this.border);
+    // Namensschilder in der obersten Schicht (nach der Nachbearbeitung, wie Symbole): über U-Bahn-Stationen,
+    // Problem-Symbolen und dem Leuchten der Autolichter
+    this.labelGroup = new THREE.Group();
+    this.labelGroup.name = 'Bezirksnamen';
+    (engine.hud || engine.scene).add(this.labelGroup);
     this.labels = new Map(); // id → { sprite, canvas, ctx, tex, text }
     this.version = -1;
     this.labelTimer = 0;
@@ -197,9 +202,9 @@ class DistrictView {
         tex.anisotropy = 4;
         const sm = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false, fog: false });
         const sprite = new THREE.Sprite(sm);
-        sprite.renderOrder = 30;
+        sprite.renderOrder = 1000;
         sprite.center.set(0.5, 0);
-        this.group.add(sprite);
+        this.labelGroup.add(sprite);
         L = { sprite, canvas, ctx: canvas.getContext('2d'), tex, text: '' };
         this.labels.set(d.id, L);
       }
@@ -211,7 +216,7 @@ class DistrictView {
     }
     for (const [id, L] of this.labels) {
       if (seen.has(id)) continue;
-      this.group.remove(L.sprite);
+      this.labelGroup.remove(L.sprite);
       L.tex.dispose(); L.sprite.material.dispose();
       this.labels.delete(id);
     }
@@ -287,6 +292,7 @@ class DistrictView {
     this.border.geometry.dispose(); this.fill.geometry.dispose();
     this.borderMat.dispose(); this.fillMat.dispose();
     this.e.scene.remove(this.group);
+    if (this.labelGroup.parent) this.labelGroup.parent.remove(this.labelGroup);
   }
 }
 registerView(DistrictView);
