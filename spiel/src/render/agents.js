@@ -482,7 +482,7 @@ export class TransitView {
     // Fahrgast-Symbole
     const shapes = {
       1: new THREE.CylinderGeometry(0.07, 0.07, 0.03, 14),
-      2: new THREE.CylinderGeometry(0.085, 0.085, 0.03, 3),
+      2: new THREE.CylinderGeometry(0.085, 0.085, 0.03, 3).rotateY(Math.PI), // Spitze nach oben (Schild zur Kamera)
       3: new THREE.BoxGeometry(0.12, 0.03, 0.12),
       4: (() => { const g = new THREE.BoxGeometry(0.11, 0.03, 0.11); g.rotateY(Math.PI / 4); return g; })(),
     };
@@ -521,6 +521,7 @@ export class TransitView {
     if (!this.iconGeos[shape]) {
       const geo = shape === 1 ? new THREE.CylinderGeometry(0.16, 0.16, 0.05, 20) : shape === 2 ? new THREE.CylinderGeometry(0.2, 0.2, 0.05, 3) : new THREE.BoxGeometry(0.26, 0.05, 0.26);
       if (shape === 4) geo.rotateY(Math.PI / 4);
+      if (shape === 2) geo.rotateY(Math.PI); // Spitze nach oben
       this.iconGeos[shape] = { face: geo, rim: geo.clone().scale(1.25, 0.8, 1.25) };
     }
     return this.iconGeos[shape];
@@ -727,7 +728,8 @@ export class TransitView {
       const over = st.over > 0.02;
       const si = Math.max(1, ICON_MIN_PX / (2 * ICON_R * ppu)), sp = Math.max(1, PAX_MIN_PX / (PAX_CELL * ppu));
       const rr = (over ? RING_R[1] : ICON_R) * si * ppu; // halbe Symbolgröße (mit Ring) in px
-      const n = Math.min(st.waiting.length, PAX_MAX);
+      // Wartende nur, solange das Raster nicht mehr als gut vierfach vergrößert werden müsste (Übersicht: nur Symbole)
+      const n = ppu * PAX_CELL >= 2 ? Math.min(st.waiting.length, PAX_MAX) : 0;
       const rowsMax = ppu * PAX_CELL > 12 ? 4 : 2;
       const shownN = Math.min(n, rowsMax * PAX_COLS);
       const rows = Math.ceil(shownN / PAX_COLS);

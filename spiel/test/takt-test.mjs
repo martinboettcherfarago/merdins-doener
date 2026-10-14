@@ -222,15 +222,15 @@ console.log('=== Fahrplan: Marker dicht folgender Züge');
 {
   const { layoutLane } = await import('../src/ui/timetable.js');
   const lay = (xs) => layoutLane(xs.map((x, i) => ({ x, i })), 16, 316);
-  const noOverlap = (us) => us.every((u, k) => k === 0 || u.px - us[k - 1].px >= 32.9);
+  const noOverlap = (us) => us.every((u, k) => k === 0 || u.px - us[k - 1].px >= 34.9);
   const all = (us) => us.reduce((a, u) => a + u.members.length, 0);
   const tries = [[50, 50], [50, 52, 54, 100, 180, 200, 205], [16, 16, 16], [300, 310, 316], [20, 50, 80, 110, 140, 170, 200, 230, 260, 290]];
   let rnd2 = makeRng(7);
   for (let k = 0; k < 40; k++) tries.push(Array.from({ length: 2 + Math.floor(rnd2() * 12) }, () => 16 + rnd2() * 300));
   ok(tries.every((xs) => { const us = lay(xs); return noOverlap(us) && all(us) === xs.length; }), `${tries.length} Anordnungen: Marker halten Mindestabstand, kein Zug geht verloren`);
-  ok(tries.every((xs) => lay(xs).every((u) => u.members.length > 1 || Math.abs(u.px - u.x) <= 17.01)), 'einzelne Marker stehen höchstens 17 px neben ihrer echten Stelle');
+  ok(tries.every((xs) => lay(xs).every((u) => u.members.length > 1 || Math.abs(u.px - u.x) <= 18.01)), 'einzelne Marker stehen höchstens 18 px neben ihrer echten Stelle');
   const a = lay([50, 50]), b = lay([100, 120]);
-  ok(a.length === 1 && a[0].members.length === 2 && b.length === 2 && Math.abs(b[1].px - b[0].px - 33) < 0.01, 'deckungsgleiche Züge werden gebündelt, nahe Züge weichen aus');
+  ok(a.length === 1 && a[0].members.length === 2 && b.length === 2 && Math.abs(b[1].px - b[0].px - 35) < 0.01, 'deckungsgleiche Züge werden gebündelt, nahe Züge weichen aus');
 }
 
 console.log(`\n${count - fails}/${count} Prüfungen bestanden${fails ? ` – ${fails} FEHLER` : ''} · ${((Date.now() - t0) / 1000).toFixed(1)} s`);

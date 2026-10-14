@@ -126,8 +126,8 @@ function syncGhosts(strip, line, span) {
 
 // ---------- Anordnung der Marker einer Spur (ohne Überlappung)
 const MW = 30;   // Markerbreite (px)
-const STEP = 33; // Mindestabstand zweier Marker (Mitte zu Mitte)
-const DMAX = 17; // so weit darf ein Marker höchstens neben seiner echten Stelle stehen
+const STEP = 35; // Mindestabstand zweier Marker (Mitte zu Mitte), Pfeil bleibt sichtbar
+const DMAX = 18; // so weit darf ein Marker höchstens neben seiner echten Stelle stehen
 const NEAR = 12; // noch dichter folgende Züge werden gleich zu einer Gruppe gebündelt
 const meanX = (ms) => ms.reduce((a, m) => a + m.x, 0) / ms.length;
 
@@ -477,6 +477,7 @@ function injectStyle() {
 .tt-g { position: absolute; left: 0; top: 0; width: 30px; height: 24px; border-radius: 8px; box-sizing: border-box; border: 2px dashed var(--lc); opacity: 0.6; z-index: 2; pointer-events: none; background: color-mix(in srgb, var(--lc) 8%, transparent); }
 .tt-g.on { opacity: 1; border-style: solid; background: color-mix(in srgb, var(--lc) 20%, transparent); }
 .tt-m:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.tt-m[hidden], .tt-g[hidden] { display: none; }
 .tt-msg { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--ink-3); line-height: 1.35; flex-wrap: wrap; }
 .tt-msg span { flex: 1 1 180px; min-width: 0; }
 .tt-msg.warn span { color: #a35a00; font-weight: 700; }
