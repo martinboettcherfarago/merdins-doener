@@ -550,7 +550,7 @@ export class TransitView {
         const [v, yaw] = this.entrance(st, onRoad, ls);
         lists[v].push([x, z, yaw]);
       }
-      this.labels.push({ st, x, z, base });
+      this.labels.push({ st, x, z, base, dirs: this.lineDirs(st) });
     }
     // Zielsymbole (Mini-Metro-Lesbarkeit): Plätze für alle Stationen je Form
     const need = Math.max(8, tr.stations.size);
@@ -588,6 +588,24 @@ export class TransitView {
     }
     for (const [dx, dy, yaw] of dirs) if (rd(st.x + dx, st.y + dy)) return [0, yaw];
     return [0, this.stationYaw(st, ls)];
+  }
+
+  // Verlauf jeder Linie an der Station (Richtung am Bahnsteig), damit das Schild neben Tunnel und Zug ausweicht
+  lineDirs(st) {
+    const out = [];
+    const sx = st.x + 0.5, sy = st.y + 0.5;
+    for (const line of this.g.transit.lines) {
+      if (!line.stops.includes(st.id) || !line.pts) continue;
+      const pts = line.pts;
+      for (let i = 0; i < pts.length; i++) {
+        if (Math.abs(pts[i][0] - sx) > 1e-6 || Math.abs(pts[i][1] - sy) > 1e-6) continue;
+        const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        if (l > 1e-6) out.push({ line, dx: (b[0] - a[0]) / l, dz: (b[1] - a[1]) / l });
+        break;
+      }
+    }
+    return out;
   }
 
   // Richtung der ersten Linie an der Station
@@ -691,6 +709,26 @@ export class TransitView {
     gl.end(this.e.renderer);
   }
 
+  // Gleise der Station auf dem Bildschirm: je Linie [px, py, vx, vy] (Punkt und Einheitsrichtung). In der
+  // Untergrund-Ansicht liegt das Gleis in Tunneltiefe, sonst die Bodenspur am Gelände.
+  screenLines(q, cam, Wpx, Hpx) {
+    const ug = this.e.underground, under = ug && ug.kv > 0.5;
+    const out = this._sl || (this._sl = []);
+    out.length = 0;
+    for (const d of q.dirs) {
+      const y = under ? ug.depthOf(d.line) : 0.04;
+      _pv.set(q.x, y, q.z).project(cam);
+      const ax = (_pv.x * 0.5 + 0.5) * Wpx, ay = (-_pv.y * 0.5 + 0.5) * Hpx;
+      _pv.set(q.x + d.dx, y, q.z + d.dz).project(cam);
+      let vx = (_pv.x * 0.5 + 0.5) * Wpx - ax, vy = (-_pv.y * 0.5 + 0.5) * Hpx - ay;
+      const l = Math.hypot(vx, vy);
+      if (l < 1e-3) continue;
+      vx /= l; vy /= l;
+      out.push([ax, ay, vx, vy]);
+    }
+    return out;
+  }
+
   // Stationsschilder zur Kamera ausrichten, nach Bildschirmgröße skalieren und Überlappungen vermeiden
   layoutLabels(time) {
     const e = this.e, cam = e.camera, el = e.renderer && e.renderer.domElement;
@@ -734,14 +772,36 @@ export class TransitView {
       const shownN = Math.min(n, rowsMax * PAX_COLS);
       const rows = Math.ceil(shownN / PAX_COLS);
       const cell = PAX_CELL * sp * ppu;           // Rasterweite in px
-      const gx = rr + cell * 0.25;                // Abstand des Rasters von der Symbolmitte
-      const gw = Math.min(shownN, PAX_COLS) * cell, hh = Math.max(rr, (rows * cell) / 2);
+      const gap = cell * 0.25;                    // Luft zwischen Symbol und Raster
+      const gw = Math.min(shownN, PAX_COLS) * cell, gh = rows * cell;
       // ganz außerhalb des Bildes: nichts zeichnen
-      if (cx + gx + gw < 0 || cx - rr > Wpx || cy + hh < 0 || cy - hh > Hpx) continue;
+      const reach = rr + gap + Math.max(gw, gh);
+      if (cx + reach < 0 || cx - reach > Wpx || cy + reach < 0 || cy - reach > Hpx) continue;
       const hasIcon = !!st.shape;
-      let mode = 0;
-      if (shownN && free(cx - rr, cy - hh, cx + gx + gw, cy + hh)) { mode = 2; boxes.push(cx - rr, cy - hh, cx + gx + gw, cy + hh); }
-      else if ((hasIcon || over) && free(cx - rr, cy - rr, cx + rr, cy + rr)) { mode = 1; boxes.push(cx - rr, cy - rr, cx + rr, cy + rr); }
+      let mode = 0, gl = 0, gt = 0, side = -1; // gl/gt: linke obere Ecke des Rasters relativ zur Symbolmitte (px)
+      if (shownN) {
+        // Seiten rechts, links, oben, unten: frei von anderen Schildern und möglichst weit weg vom eigenen Gleis
+        // (Tunnel mit Zug in der Untergrund-Ansicht, Bodenspur oben), damit kein Symbol über einem Wagen liegt
+        const lines = this.screenLines(q, cam, Wpx, Hpx);
+        let best = -Infinity;
+        for (let c = 0; c < 4; c++) {
+          const l = c === 0 ? rr + gap : c === 1 ? -rr - gap - gw : -gw / 2;
+          const t = c < 2 ? -gh / 2 : c === 2 ? -rr - gap - gh : rr + gap;
+          const x0 = cx + Math.min(-rr, l), y0 = cy + Math.min(-rr, t), x1 = cx + Math.max(rr, l + gw), y1 = cy + Math.max(rr, t + gh);
+          if (!free(x0, y0, x1, y1)) continue;
+          let clear = 1e4;
+          for (const [px, py, vx, vy] of lines) {
+            const mx = cx + l + gw / 2 - px, my = cy + t + gh / 2 - py;
+            clear = Math.min(clear, Math.abs(mx * vy - my * vx) - (Math.abs(vy) * gw + Math.abs(vx) * gh) / 2);
+          }
+          // genug Abstand: Reihenfolge rechts, links, oben, unten; die zuletzt gewählte Seite bleibt bevorzugt (kein Springen)
+          const score = Math.min(clear, cell * 2) - c * 0.5 + (q.side === c ? cell * 0.5 : 0);
+          if (score > best) { best = score; mode = 2; gl = l; gt = t; side = c; }
+        }
+        q.side = side;
+        if (mode === 2) boxes.push(cx + Math.min(-rr, gl), cy + Math.min(-rr, gt), cx + Math.max(rr, gl + gw), cy + Math.max(rr, gt + gh));
+      }
+      if (!mode && (hasIcon || over) && free(cx - rr, cy - rr, cx + rr, cy + rr)) { mode = 1; boxes.push(cx - rr, cy - rr, cx + rr, cy + rr); }
       if (!mode) continue;
       this.shown.set(st.id, mode);
       // Zielsymbol
@@ -756,9 +816,9 @@ export class TransitView {
           im.face.setMatrixAt(i, m4);
         }
       }
-      // Wartende im Raster rechts neben dem Symbol (Zeilen von oben nach unten, mittig zum Symbol)
+      // Wartende im Raster neben dem Symbol (Zeilen von oben nach unten)
       if (mode === 2) {
-        const wcell = PAX_CELL * sp, wgx = gx / ppu;
+        const wcell = PAX_CELL * sp, wgx = gl / ppu, wgy = -gt / ppu;
         one.set(sp * 0.85, sp * 0.85, sp * 0.85);
         for (let kk = 0; kk < shownN; kk++) {
           const p = st.waiting[kk];
@@ -767,7 +827,7 @@ export class TransitView {
           const i = counts[p.shape]++;
           if (i >= 1200) continue;
           const col = kk % PAX_COLS, row = Math.floor(kk / PAX_COLS);
-          const ox = wgx + (col + 0.5) * wcell, oy = ((rows - 1) / 2 - row) * wcell;
+          const ox = wgx + (col + 0.5) * wcell, oy = wgy - (row + 0.5) * wcell;
           _pv.set(wx + _cr.x * ox + _cu.x * oy, wy + _cr.y * ox + _cu.y * oy, wz + _cr.z * ox + _cu.z * oy);
           m4.compose(_pv, _bq, one);
           mm.setMatrixAt(i, m4);
