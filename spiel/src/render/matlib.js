@@ -69,6 +69,8 @@ export const MATERIAL_DEFS = {
   water_sewage: [0x5f6a3e, 0.2, 0.1, { water: true }], glass_frosted: [0xb7c6cc, 0.45, 0.05, { glass: true }],
   // Wünsche G3 (Q1): Glasbrüstung (mattes, bläuliches Glas ohne Nachtlicht, undurchsichtig im Atlas), Efeu für Brandwände
   glass_railing: [0xb9cdd6, 0.2, 0.3], ivy: [0x3d6b3a, 0.95, 0],
+  // Ergänzungen MODELLE: Terrakotta-Paneele und Bronze-/Cortenblech für Büro- und Wohnfassaden
+  terracotta: [0xb5704f, 0.85, 0], metal_panel_bronze: [0x7d5f42, 0.45, 0.65],
 };
 
 const cache = new Map();

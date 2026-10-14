@@ -20,6 +20,8 @@ import { mulberry32 } from '../util.js';
 import { shared, makeGlowTexture, makePointsMaterial, PointBuffer } from './materials.js';
 import { ProtoManager, Batcher, InstSet, prepareModel, states, SLOT_HIDDEN } from './protos.js';
 import { ARCH, buildArch, archKeyFor, frontFootprint } from './arch/all.js';
+import { archCount } from './arch/index.js';
+import { MixGrid, encodeVariant, setVariantResolver } from './arch/mix.js';
 import { getMaterial } from './matlib.js';
 import { Kit, M, FLOOR, pick, range } from './arch/kit.js';
 
@@ -1423,6 +1425,14 @@ export class BuildingView {
     this.lodT = 0; this.gcT = 3; this.siteT = 0; this.lightT = 0;
     this.lightsDirty = true;
     this.rng = mulberry32(4711);
+    // Durchmischung: Modellwahl nach Lage (Nachbarn verschieden), Höhenstaffelung nach Bebauungsdichte
+    this.mix = new MixGrid(g.W, g.H, ((g.opts && g.opts.seed) || 1) * 31 + 7);
+    this.bySim = new Map(); // Sim-Variante → Datensatz (Porträts zeigen dasselbe Modell)
+    this.dens = null; this.densT = -1;
+    setVariantResolver((key, level, variant) => {
+      const rec = this.bySim.get(variant);
+      return rec && rec.key === key && rec.level === level ? rec.variant : undefined;
+    });
     this._m = new THREE.Matrix4(); this._m2 = new THREE.Matrix4(); this._m3 = new THREE.Matrix4();
     this._q = new THREE.Quaternion(); this._v = new THREE.Vector3(); this._s = new THREE.Vector3();
     this.zeroM = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -1460,9 +1470,11 @@ export class BuildingView {
     const def = BUILDINGS[b.key];
     const [fw, fd] = frontFootprint(b, def && def.size);
     const [ox, oz] = this._origin(b);
+    const key = archKeyFor(b), level = b.level || 1;
+    const mixed = !!(b.zone && ARCH[key] && ARCH[key].mix);
     const rec = {
-      id: b.id, b, key: archKeyFor(b), level: b.level || 1, variant: b.variant || 0, fw, fd, k: (b.rot || 0) & 3,
-      bx: b.x, by: b.y, ox, oz, extra: { zone: b.zone, spec: b.spec },
+      id: b.id, b, key, level, variant: mixed ? this._mixVariant(b, key, level, fw, fd) : b.variant || 0, sv: b.variant || 0, fw, fd, k: (b.rot || 0) & 3,
+      bx: b.x, by: b.y, ox, oz, extra: mixed ? { zone: b.zone, spec: b.spec, mixed: true } : { zone: b.zone, spec: b.spec },
       slot: states.alloc(), m4: new THREE.Matrix4(),
       p0: null, height: this._estimate(b), radius: Math.max(b.w, b.h) * 0.75,
       finished: false, shown: -1, inst: null, inBatch: false,
@@ -1476,13 +1488,48 @@ export class BuildingView {
     rec.m4.compose(this._v.set(ox, 0, oz), this._q, this._s.set(1, 1, 1));
     return rec;
   }
+  // Anzeige-Variante eines Zonengebäudes (arch/mix.js): Modell nach Lage, Höhenklasse nach Dichte ringsum
+  _mixVariant(b, key, level, fw, fd) {
+    const n = archCount(key, level, fw, fd);
+    const salt = { 1: 0, 2: 3, 3: 5, 4: 7 }[b.zone] || 0;
+    const idx = this.mix.pick(n, b.x, b.y, salt + level);
+    let hc = 0;
+    if (level >= 4) {
+      const t = this._density(b) * 0.75 + (this.mix.noise(b.x, b.y) - 0.5) * 0.5;
+      const hi = level >= 5 ? 0.42 : 0.5, lo = level >= 5 ? 0.12 : 0.16;
+      hc = t > hi ? 1 : t < lo ? 2 : 0;
+    }
+    return encodeVariant(idx, hc);
+  }
+  // Anteil dicht bebauter Felder (Stufe ≥ 4) im Umkreis von 5 Feldern; Raster wird höchstens alle 4 s erneuert
+  _density(b) {
+    const g = this.g, W = g.W, H = g.H;
+    const now = performance.now();
+    if (!this.dens || now - this.densT > 4000) {
+      const occ = new Float32Array(W * H);
+      for (const o of g.buildings.values()) {
+        if (!o.zone || (o.level || 1) < 3) continue;
+        const v = (o.level || 1) >= 5 ? 1.25 : (o.level || 1) >= 4 ? 1 : 0.35;
+        for (let y = o.y; y < o.y + o.h; y++) for (let x = o.x; x < o.x + o.w; x++) if (x >= 0 && y >= 0 && x < W && y < H) occ[y * W + x] = v;
+      }
+      // Summen-Tabelle für schnelle Rechteck-Summen
+      const S = new Float32Array((W + 1) * (H + 1));
+      for (let y = 0; y < H; y++) { let row = 0; for (let x = 0; x < W; x++) { row += occ[y * W + x]; S[(y + 1) * (W + 1) + x + 1] = S[y * (W + 1) + x + 1] + row; } }
+      this.dens = S; this.densT = now;
+    }
+    const S = this.dens, r = 5;
+    const cx = b.x + (b.w >> 1), cy = b.y + (b.h >> 1);
+    const x0 = Math.max(0, cx - r), y0 = Math.max(0, cy - r), x1 = Math.min(W, cx + r + 1), y1 = Math.min(H, cy + r + 1);
+    const sum = S[y1 * (W + 1) + x1] - S[y0 * (W + 1) + x1] - S[y1 * (W + 1) + x0] + S[y0 * (W + 1) + x0];
+    return sum / Math.max(1, (x1 - x0) * (y1 - y0));
+  }
   _estimate(b) {
     if (b.zone) return [0, 0.6, 0.9, 1.3, 2.4, 5][b.level] || 1;
     return 1.0;
   }
   _changed(rec) {
     const b = rec.b;
-    return (b.level || 1) !== rec.level || ((b.rot || 0) & 3) !== rec.k || b.x !== rec.bx || b.y !== rec.by || (b.variant || 0) !== rec.variant || archKeyFor(b) !== rec.key;
+    return (b.level || 1) !== rec.level || ((b.rot || 0) & 3) !== rec.k || b.x !== rec.bx || b.y !== rec.by || (b.variant || 0) !== rec.sv || archKeyFor(b) !== rec.key;
   }
 
   add(b) {
@@ -1491,6 +1538,7 @@ export class BuildingView {
     const rec = this._newRec(b);
     if (old) rec.st = { ...old.st };
     this.recs.set(b.id, rec);
+    if (rec.extra.mixed) this.bySim.set(rec.sv, rec);
     this.queue.add(rec);
   }
 
@@ -1530,6 +1578,7 @@ export class BuildingView {
     if (rec.inBatch) { this.batch.remove(rec.id); this.protoMgr.unretain(rec.p0); rec.inBatch = false; }
     if (rec.slot > SLOT_HIDDEN) { states.release(rec.slot); rec.slot = SLOT_HIDDEN; }
     if (this.recs.get(rec.id) === rec) { this.emitters.delete(rec.id); this.constructing.delete(rec.id); }
+    if (this.bySim.get(rec.sv) === rec) this.bySim.delete(rec.sv);
     rec.dead = true;
     this.lightsDirty = true;
   }
@@ -2024,6 +2073,7 @@ export class BuildingView {
   }
 
   dispose() {
+    setVariantResolver(null);
     this.e.scene.remove(this.root);
     this.batch.dispose();
     this.sites.dispose();

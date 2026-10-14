@@ -1009,4 +1009,4 @@ export function buildResHigh(ctx, g) {
   const fn = list[variant % list.length];
   fn(ctx, g, { W: fw, D: fd });
 }
-export { gruenderzeit, modernMfh, platte, punkthaus, towerGround, backyard };
+export { gruenderzeit, modernMfh, platte, punkthaus, towerGround, backyard, HIGH };

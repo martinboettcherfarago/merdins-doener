@@ -16,6 +16,7 @@ import { house, winStyle, PAL } from './rescom_house.js';
 import { stack, rows, entranceOp, gruenderzeit, punkthaus, towerGround, firewallOps, firewallDecor, firewallKind } from './rescom_block.js';
 import { signBand, awning, bladeSign, logoDisc, display, pylon, flags, text, textWidth } from './rescom_signs.js';
 import { NAMES, AWNINGS, NEON, shopDecor, curtain, glassBox, fuelCanopy, greenhouse, cartShelter, roofSign } from './rescom_shop.js';
+import { COM_NEW } from './rescom_com2.js';
 
 const winT = (o) => ({ kind: 'win', ...o });
 const name = (rng, k) => rpick(rng, NAMES[k]);
@@ -969,8 +970,16 @@ const COM = {
   5: { '*': [einkaufsturm, hotelturm, werbeturm, kuppelmall, glasturm, (c, g, P) => einkaufsturm(c, g, P, { floors: 24 + Math.floor(c.rng() * 6) })] },
 };
 
+// Ergänzungen (rescom_com2.js) an die Listen anhängen
+for (const l of [1, 2, 3, 4, 5]) for (const fp of Object.keys(COM_NEW[l])) COM[l][fp].push(...COM_NEW[l][fp]);
+function comCount(level, fw, fd) {
+  const lv = COM[Math.min(5, Math.max(1, level))];
+  return (lv[`${fw}x${fd}`] || lv['*'] || lv['1x1']).length;
+}
+
 registerArch('com', {
-  variants: 6,
+  mix: true,
+  count: comCount,
   build(ctx) {
     const { kit, level, fw, fd, variant } = ctx;
     const g = new Geo(kit);

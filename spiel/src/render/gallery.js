@@ -1,6 +1,6 @@
 // Galerie für Architektur-Bausteine: index.html?gallery=res&fp=1x1,2x1&night=0
 // Zeigt alle Stufen (Zeilen) × Varianten (Spalten) eines Schlüssels – zum Prüfen per Screenshot.
-// Weitere Parameter: levels=1,2  variants=4  detail=0|1|2  zoom=1.5  yaw  pitch  ty=<Blickhöhe>  t=<Animationszeit>
+// Weitere Parameter: levels=1,2  variants=4  v0=0  detail=0|1|2  zoom=1.5  yaw  pitch  ty=<Blickhöhe>  t=<Animationszeit>
 // Animierte Teile (res.anim) drehen mit, Glas/Metall spiegeln eine Himmels-Umgebungskarte (wie im Spiel).
 import * as THREE from 'three';
 import { ARCH, buildArch } from './arch/all.js';
@@ -16,6 +16,7 @@ export function runGallery(params) {
   const night = +(params.get('night') || 0);
   const levels = (params.get('levels') || '1,2,3,4,5').split(',').map(Number);
   const variants = +(params.get('variants') || 4);
+  const v0 = +(params.get('v0') || 0); // erste gezeigte Variante (z. B. v0=6 für die neueren Modelle)
   let keys;
   if (ARCH[filter]) keys = [filter];
   else if (filter.includes(',')) keys = filter.split(',');
@@ -49,7 +50,7 @@ export function runGallery(params) {
   let buildMs = 0;
   for (const key of keys) fps.forEach((fp, fpi) => {
     const lv = singleLevel ? [1] : levels;
-    lv.forEach((level, li) => { for (let v = 0; v < (singleLevel ? 1 : variants); v++) {
+    lv.forEach((level, li) => { for (let v = v0; v < v0 + (singleLevel ? 1 : variants); v++) {
       const base = BUILDINGS[key] && BUILDINGS[key].size;
       const [fw, fd] = base ? base : fp;
       const tb = performance.now();
@@ -66,7 +67,7 @@ export function runGallery(params) {
   const cell = maxW + 1.2;
   let tris = 0;
   items.forEach((it, i) => {
-    const col = singleLevel ? i % cols : it.fpi * variants + it.v;
+    const col = singleLevel ? i % cols : it.fpi * variants + it.v - v0;
     const row = singleLevel ? Math.floor(i / cols) : it.li;
     const x = col * cell, z = row * cell;
     const pad = new THREE.Mesh(new THREE.BoxGeometry(it.fw + 0.4, 0.02, it.fd + 0.4), getMaterial('sidewalk'));
