@@ -42,10 +42,10 @@ function injectStyle() {
 .eco-cycle .sub{font-size:11.5px;color:var(--ink-3);margin-left:auto;text-align:right;line-height:1.3}
 .eco-cycle .trk{position:relative;height:8px;border-radius:4px;margin:9px 0 4px;background:linear-gradient(90deg,#e5483c,#f2b01e 32%,#d6cdbd 50%,#9fd27a 68%,#22a866)}
 .eco-cycle .trk i{position:absolute;top:-4px;width:5px;height:16px;border-radius:3px;background:var(--ink);transform:translateX(-2.5px);box-shadow:0 0 0 2px var(--paper)}
-.eco-cycle .ends{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.eco-cycle .ends{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;font-weight:700}
 .eco-kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:8px}
 .eco-kpi>div{background:var(--paper-2);border-radius:10px;padding:7px 9px;min-width:0}
-.eco-kpi .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eco-kpi .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eco-kpi .v{font-family:var(--f-num);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .eco-kpi .d{font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eco-bar{display:flex;height:9px;border-radius:5px;overflow:hidden;background:var(--paper-3)}
@@ -63,9 +63,9 @@ function injectStyle() {
 .eco-good.off{opacity:.55}
 .eco-good .hd{display:flex;align-items:center;gap:8px;font-size:13.5px}
 .eco-good .hd b{font-weight:700;white-space:nowrap}
-.eco-good .tier{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.eco-good .tier{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .eco-good .px{margin-left:auto;font-family:var(--f-num);font-weight:600;white-space:nowrap;font-size:14px}
-.eco-good .tag{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:999px;white-space:nowrap}
+.eco-good .tag{font-size:11px;font-weight:700;padding:1px 6px;border-radius:999px;white-space:nowrap}
 .eco-good .nums{display:flex;gap:4px 10px;font-size:11.5px;color:var(--ink-3);margin:5px 0 6px;flex-wrap:wrap}
 .eco-good .nums b{color:var(--ink-2);font-family:var(--f-num);font-weight:600;font-size:12.5px}
 .eco-price{display:grid;grid-template-columns:44px 1fr 40px;gap:8px;align-items:center;font-size:12px;color:var(--ink-2)}
@@ -92,7 +92,7 @@ function injectStyle() {
 .eco-budget .info{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--ink-3);margin-top:2px;line-height:1.35}
 .eco-budget .info b{color:var(--ink-2);font-weight:600}
 .eco-tax{display:grid;grid-template-columns:minmax(0,1fr) repeat(3,70px);gap:6px;align-items:center;font-size:12.5px}
-.eco-tax .h{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700;text-align:center;line-height:1.2}
+.eco-tax .h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700;text-align:center;line-height:1.2}
 .eco-tax .z{display:flex;align-items:center;gap:6px;font-weight:700;white-space:nowrap;overflow:hidden}
 .eco-tax .c{display:flex;align-items:center;justify-content:center;gap:2px;background:var(--paper-2);border-radius:8px;padding:3px 2px}
 .eco-tax .c .n{font-family:var(--f-num);font-weight:700;min-width:30px;text-align:center}
@@ -103,7 +103,7 @@ function injectStyle() {
 .eco-sankey{width:100%;height:200px;display:block}
 .eco-spark{width:70px;height:22px;display:block;flex:none}
 .eco-insp{margin:10px 0 6px;padding:9px 10px;background:var(--paper-2);border-radius:10px}
-.eco-insp h3{margin:0 0 6px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.eco-insp h3{margin:0 0 6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .eco-insp .kv{font-size:12.5px}
 .eco-insp .kv .v{font-size:13.5px}
 .eco-insp p{margin:6px 0 0;font-size:12px;color:var(--ink-2);line-height:1.4}
@@ -128,33 +128,33 @@ function hints(g, S) {
   const bad = (text) => out.push(['bad', text]);
   const info = (text) => out.push(['info', text]);
   const good = (text) => out.push(['good', text]);
-  if (t.shortCom > 0.08) bad(`Den Läden fehlen ${P(t.shortCom)} ihrer Waren. Mehr Industrie ausweisen, eine Lagerhalle nahe der Läden bauen oder die Frachtkapazität erhöhen.`);
-  else if (t.importCom > 0.3) info(`${P(t.importCom)} der Ware in den Läden ist teure Importware. Eigene Fabriken${g.isUnlocked('food_factory') ? ' und eine Lebensmittelfabrik' : ''} machen das Gewerbe glücklicher.`);
+  if (t.shortCom > 0.08) bad(`Den Läden fehlen ${P(t.shortCom)} der Waren – mehr Industrie oder eine Lagerhalle.`);
+  else if (t.importCom > 0.3) info(`${P(t.importCom)} der Ladenware ist teurer Import – eigene Fabriken helfen.`);
   const wanted = [];
   for (const k of GOOD_KEYS) {
     const f = S.flow[k];
-    if (f.prod > 5 && f.unsold > f.prod * 0.08) bad(`${GOODS[k].name}: ${T(f.unsold)} am Tag finden keinen Abnehmer. Exportpreis senken (jetzt ${P(S.prices[k])}), eine Lagerhalle bauen oder ${f.exp + f.unsold > marketDemand(g, k) ? 'neue Märkte über Bahn oder Hafen erschließen' : 'mehr Frachtkapazität schaffen'}.`);
+    if (f.prod > 5 && f.unsold > f.prod * 0.08) bad(`${GOODS[k].name}: ${T(f.unsold)} am Tag unverkauft – Preis senken (${P(S.prices[k])}), Lager oder ${f.exp + f.unsold > marketDemand(g, k) ? 'Bahn/Hafen' : 'mehr Fracht'}.`);
     else if (f.exp > 10 && f.unsold < 1 && S.prices[k] < 1.5 && marketDemand(g, k) > f.exp * 1.6) wanted.push(GOODS[k].name);
   }
-  if (wanted.length) good(`Der Weltmarkt reißt sich um ${wanted.length > 1 ? wanted.slice(0, -1).join(', ') + ' und ' + wanted[wanted.length - 1] : wanted[0]}. Ein höherer Exportpreis (Reiter „Waren & Preise") bringt mehr Geld pro Tonne.`);
-  if (t.freightUse > 0.9 && t.freightCap > 0) bad(`Die Fracht ist zu ${P(t.freightUse)} ausgelastet.${g.hasBuilt('cargo_rail') ? '' : g.isUnlocked('cargo_rail') ? ' Ein Güterbahnhof bringt 900 t am Tag.' : ''}${!g.hasBuilt('cargo_harbor') && g.isUnlocked('cargo_harbor') ? ' Ein Frachthafen am Wasser bringt 2.000 t.' : ''}`);
+  if (wanted.length) good(`Gefragt: ${wanted.length > 1 ? wanted.slice(0, -1).join(', ') + ' und ' + wanted[wanted.length - 1] : wanted[0]} – Exportpreis erhöhen.`);
+  if (t.freightUse > 0.9 && t.freightCap > 0) bad(`Fracht zu ${P(t.freightUse)} ausgelastet.${g.hasBuilt('cargo_rail') ? '' : g.isUnlocked('cargo_rail') ? ' Güterbahnhof: +900 t/Tag.' : ''}${!g.hasBuilt('cargo_harbor') && g.isUnlocked('cargo_harbor') ? ' Frachthafen: +2.000 t/Tag.' : ''}`);
   for (const b of g.buildings.values()) {
     if (b.zone || !BUILDINGS[b.key]?.output || b.construct < 1) continue;
     const r = S.rec.get(b.id);
     if (!r) continue;
     const d = BUILDINGS[b.key];
-    if (r.cap > 0 && r.util < 0.3) bad(`${d.name} steht fast still: kaum ${GOODS[d.input].name}. ${SPEC_HOWTO[d.process]} – dort entstehen ${SPEC_PLURAL[d.process]}${S.buyRaw ? '' : ' –, oder den Zukauf erlauben'}.`);
-    else if (r.profit < -10) info(`${d.name} arbeitet mit Verlust (${money(r.profit)}/Tag)${r.impShare > 0.3 ? `: ${P(r.impShare)} der Rohstoffe werden teuer zugekauft. Eigene ${SPEC_PLURAL[d.process]} machen es rentabel` : ''}.`);
+    if (r.cap > 0 && r.util < 0.3) bad(`${d.name} steht fast still: kaum ${GOODS[d.input].name}. ${SPEC_HOWTO[d.process]}${S.buyRaw ? '' : ' oder Zukauf erlauben'}.`);
+    else if (r.profit < -10) info(`${d.name}: Verlust ${money(r.profit)}/Tag${r.impShare > 0.3 ? ` – ${P(r.impShare)} Rohstoffe zugekauft` : ''}.`);
   }
   const rawProd = RAW_KEYS.reduce((a, k) => a + S.flow[k].prod, 0);
   for (const k of RAW_KEYS) {
     const key = PROC_KEYS.find((p) => BUILDINGS[p].input === k);
-    if (S.flow[k].prod > 60 && !g.hasBuilt(key) && g.isUnlocked(key)) { info(`Deine Betriebe liefern ${T(S.flow[k].prod)} ${GOODS[k].name} am Tag. ${BUILDINGS[key].name} macht daraus ${GOODS[BUILDINGS[key].output].name} – ein Vielfaches wert.`); break; }
+    if (S.flow[k].prod > 60 && !g.hasBuilt(key) && g.isUnlocked(key)) { info(`${T(S.flow[k].prod)} ${GOODS[k].name} am Tag → ${BUILDINGS[key].name} macht ${GOODS[BUILDINGS[key].output].name} daraus.`); break; }
   }
-  if (S.cycle.value < -0.35 && t.stockCap > 0) info('Rezession: Lagerhallen auf „Füllen" stellen und die Ware im nächsten Aufschwung teurer verkaufen.');
-  if (S.cycle.value > 0.45 && t.stock > 50) good('Boom! Ein guter Moment, um Lagerhallen auf „Leeren" zu stellen.');
-  if (!g.hasBuilt('warehouse') && g.isUnlocked('warehouse') && g.stats.pop > 600 && (rawProd > 50 || t.shortCom > 0.03)) info('Eine Lagerhalle puffert Schwankungen und beliefert Läden in ihrer Nähe zuerst.');
-  if (!out.length) good('Alles im Lot: Die Läden sind versorgt und die Industrie verkauft ihre Ware.');
+  if (S.cycle.value < -0.35 && t.stockCap > 0) info('Rezession: Lager auf „Füllen" stellen.');
+  if (S.cycle.value > 0.45 && t.stock > 50) good('Boom! Lager auf „Leeren" stellen.');
+  if (!g.hasBuilt('warehouse') && g.isUnlocked('warehouse') && g.stats.pop > 600 && (rawProd > 50 || t.shortCom > 0.03)) info('Eine Lagerhalle puffert Schwankungen.');
+  if (!out.length) good('Alles im Lot.');
   const rank = { bad: 0, info: 1, good: 2 };
   return out.sort((a, c) => rank[a[0]] - rank[c[0]]).slice(0, 5);
 }
@@ -314,7 +314,7 @@ ${meter(r.in || 0, d.throughput, '#e8892c', false)}
 <div class="eco-note">Heute: ${T(t.importT || 0)} Import${t.rawImportT > 0.5 ? ` (davon ${T(t.rawImportT)} Rohstoffe)` : ''} · ${T(t.exportT || 0)} Export · Exportpreis-Bonus +${((t.routeBonus || 0) * 100).toFixed(0)} % · Reichweite ${(t.reach || 1).toFixed(1).replace('.', ',')}×</div></div>
 <div class="sec"><h3>Lagerhallen</h3>${whs.join('') || `<p style="color:var(--ink-3);margin:0;font-size:12.5px">${g.isUnlocked('warehouse') ? 'Noch keine Lagerhalle gebaut.' : `Lagerhallen ab „${MILESTONES[BUILDINGS.warehouse.unlock].name}".`}</p>`}
 <div class="eco-note" style="margin-top:4px"><b>Ausgleich:</b> nimmt Überschüsse, hält bei niedrigen Preisen zurück, verkauft bei hohen und beliefert Läden. <b>Füllen:</b> lagert ein, gibt nichts ab. <b>Leeren:</b> verkauft den Bestand zuerst.</div></div>
-<div class="sec"><h3>Verarbeitung</h3>${procs.join('') || `<p style="color:var(--ink-3);margin:0;font-size:12.5px">${g.isUnlocked('food_factory') ? 'Noch kein Verarbeitungsbetrieb. Lebensmittelfabrik, Sägewerk, Stahlwerk und Raffinerie machen aus Rohstoffen wertvolle Waren.' : `Verarbeitung ab „${MILESTONES[BUILDINGS.food_factory.unlock].name}".`}</p>`}</div>
+<div class="sec"><h3>Verarbeitung</h3>${procs.join('') || `<p style="color:var(--ink-3);margin:0;font-size:12.5px">${g.isUnlocked('food_factory') ? 'Noch kein Verarbeitungsbetrieb.' : `Verarbeitung ab „${MILESTONES[BUILDINGS.food_factory.unlock].name}".`}</p>`}</div>
 ${others.length ? `<div class="sec"><h3>Umschlag & Markthallen</h3>${others.join('')}</div>` : ''}
 <div class="sec"><h3>Arbeitsplätze</h3><div class="kv" style="font-size:12.5px"><span>in städtischen Betrieben</span><span class="v">${fmt(S.jobs || 0)}</span><span>besetzt</span><span class="v">${P(t.staff ?? 1)}</span><span>Leistung durch Budget Logistik</span><span class="v">${P(t.logEff || 1)}</span></div></div>`;
 }
@@ -379,10 +379,10 @@ function drawSankey(canvas, L) {
     ['fac', 'shop', v('facShop')], ['fac', 'exp', v('facExp')], ['fac', 'whT', v('facWh')], ['fac', 'left', v('facLeft')],
     ['imp', 'shop', v('impShop')], ['whS', 'shop', v('whShop')], ['whS', 'exp', v('whExp')],
   ].filter((l) => l[2] > 0.5);
-  ctx.font = '600 11px "Stadtpuls Text", Nunito, sans-serif';
+  ctx.font = '600 11px "Stadtpuls Text", Figtree, sans-serif';
   if (!links.length) {
     ctx.fillStyle = '#7a8294';
-    ctx.fillText('Noch keine Warenströme – weise Industrie und Gewerbe aus.', 6, h / 2);
+    ctx.fillText('Noch keine Warenströme.', 6, h / 2);
     return;
   }
   for (const n of Object.values(nodes)) { n.in = 0; n.out = 0; }
@@ -431,14 +431,14 @@ function drawSankey(canvas, L) {
     ctx.lineJoin = 'round';
     ctx.lineWidth = 3.5;
     ctx.strokeStyle = 'rgba(246,242,234,0.92)';
-    ctx.font = '700 11px "Stadtpuls Text", Nunito, sans-serif';
+    ctx.font = '700 11px "Stadtpuls Text", Figtree, sans-serif';
     const label = n.name, val = `${fmt(n.v)} t`;
     const two = n.h >= 22;
     ctx.strokeText(label, tx, two ? ty - 2 : ty + 4);
     ctx.fillStyle = '#1d2330';
     ctx.fillText(label, tx, two ? ty - 2 : ty + 4);
     if (two) {
-      ctx.font = '600 10.5px "Stadtpuls Rund", Fredoka, sans-serif';
+      ctx.font = '600 10.5px "Stadtpuls Rund", Outfit, sans-serif';
       ctx.strokeText(val, tx, ty + 10);
       ctx.fillStyle = '#4a5263';
       ctx.fillText(val, tx, ty + 10);
@@ -456,8 +456,8 @@ function drawMulti(canvas, series, opts = {}) {
   const ink = '#7a8294';
   const padL = 44, padR = 8, padT = 16, padB = 18;
   const n = Math.max(...series.map((s) => s.values.length));
-  ctx.font = '600 11px "Stadtpuls Rund", Fredoka, sans-serif';
-  if (n < 1) { ctx.fillStyle = ink; ctx.fillText('Noch keine Daten – der Verlauf erscheint nach dem ersten Spieltag.', 8, h / 2); return; }
+  ctx.font = '600 11px "Stadtpuls Rund", Outfit, sans-serif';
+  if (n < 1) { ctx.fillStyle = ink; ctx.fillText('Daten ab dem ersten Spieltag.', 8, h / 2); return; }
   let max = 1;
   for (const s of series) for (const v of s.values) max = Math.max(max, v);
   const X = (i) => padL + (n === 1 ? 0 : (i / (n - 1)) * (w - padL - padR));
@@ -593,7 +593,7 @@ registerPanel({
 // ---------------------------------------------------------------- Infoansicht „Waren"
 registerOverlay({
   id: 'goods', name: 'Waren', icon: SVG_CRATES,
-  text: 'Läden: grün versorgt, rot Warenmangel. Industrie: grün verkauft, rot bleibt liegen. Violett: Lagerhallen nach Füllstand, blau: Güterumschlag.',
+  text: 'Grün: läuft · Rot: Mangel bzw. bleibt liegen · Violett: Lager · Blau: Umschlag',
   legend: [['#45c46b', 'versorgt · verkauft'], ['#e5483c', 'Mangel · Stau'], ['#8f5ad8', 'Lager'], ['#2f8fe0', 'Umschlag']],
   building: (g, b) => goodsColor(g, b),
 });
@@ -676,7 +676,7 @@ INSPECTORS.push((ui, sel) => {
       ['Versorgt', P(r.supply ?? 1), (r.supply ?? 1) < 0.85 ? 'neg' : ''],
       ['Ware aus der Region', P(r.local || 0)],
       ['Importware (teurer)', P(r.imp || 0)],
-    ]) + ((r.supply ?? 1) < 0.85 ? `<p>Liegt ${Math.round(r.dist || 0)} Felder von der nächsten Bezugsquelle entfernt und wird zuletzt beliefert. Eine Lagerhalle in der Nähe hilft.${r.shortDays >= 3 ? ` Seit ${r.shortDays} Tagen knapp – das Geschäft droht zu schrumpfen.` : ''}</p>` : ''));
+    ]) + ((r.supply ?? 1) < 0.85 ? `<p>Liegt ${Math.round(r.dist || 0)} Felder von der nächsten Bezugsquelle entfernt und wird zuletzt beliefert. Eine Lagerhalle in der Nähe hilft.${r.shortDays >= 3 ? ` Seit ${r.shortDays} Tagen knapp.` : ''}</p>` : ''));
   }
   if (r.kind === 'proc') {
     const d = BUILDINGS[b.key];

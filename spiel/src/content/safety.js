@@ -13,12 +13,12 @@ registerServiceType('disaster');
 registerServiceType('snow');
 
 Object.assign(BUILDINGS, {
-  disaster_center: { name: 'Katastrophenschutz', cat: 'safety', size: [2, 2], cost: 16000, upkeep: 110, unlock: 3, response: 1, power_use: 10, service: { type: 'disaster', radius: 22, capacity: 40000 }, desc: 'Rettet Verschüttete und repariert nach Katastrophen bis zu dreimal schneller. Wirkt 22 Felder weit. Braucht: Strom.' },
-  shelter: { name: 'Notunterkunft', cat: 'safety', size: [2, 1], cost: 6000, upkeep: 30, unlock: 3, shelterCap: 800, power_use: 4, water_use: 4, desc: 'Schützt bis zu 800 Menschen bei Sturm und Flut und nimmt Obdachlose auf. Braucht: Strom und Wasser.' },
-  warning_siren: { name: 'Warnsirene', cat: 'safety', size: [1, 1], cost: 900, upkeep: 4, unlock: 2, warnRadius: 12, desc: 'Warnt alle im Umkreis von 12 Feldern vor Unwettern. So gibt es viel weniger Verletzte.' },
-  weather_station: { name: 'Wetterstation', cat: 'safety', size: [1, 1], cost: 2500, upkeep: 12, unlock: 2, forecast: 1, desc: 'Sagt das Wetter 5 Tage voraus und warnt früh vor Sturm, Flut und Waldbrand. Mit zwei Stationen: 7 Tage.' },
-  snow_depot: { name: 'Winterdienst', cat: 'safety', size: [1, 1], cost: 3000, upkeep: 26, unlock: 2, snowPlows: 6, service: { type: 'snow', radius: 18, capacity: 30000 }, desc: 'Räumfahrzeuge halten im Winter die Straßen im Umkreis frei.' },
-  flood_barrier: { name: 'Hochwasserschutz', cat: 'safety', size: [1, 1], cost: 2000, upkeep: 6, unlock: 2, needsWater: true, floodProtect: 6, desc: 'Ein Deich, der das Ufer im Umkreis von 6 Feldern vor Hochwasser schützt. Braucht: Platz am Ufer.' },
+  disaster_center: { name: 'Katastrophenschutz', cat: 'safety', size: [2, 2], cost: 16000, upkeep: 110, unlock: 3, response: 1, power_use: 10, service: { type: 'disaster', radius: 22, capacity: 40000 }, desc: 'Rettet und repariert nach Katastrophen ×3 schneller.' },
+  shelter: { name: 'Notunterkunft', cat: 'safety', size: [2, 1], cost: 6000, upkeep: 30, unlock: 3, shelterCap: 800, power_use: 4, water_use: 4, desc: 'Schützt 800 Menschen bei Sturm und Flut.' },
+  warning_siren: { name: 'Warnsirene', cat: 'safety', size: [1, 1], cost: 900, upkeep: 4, unlock: 2, warnRadius: 12, desc: 'Warnt im Umkreis vor Unwettern.' },
+  weather_station: { name: 'Wetterstation', cat: 'safety', size: [1, 1], cost: 2500, upkeep: 12, unlock: 2, forecast: 1, desc: 'Wetter 5 Tage im Voraus (zwei Stationen: 7).' },
+  snow_depot: { name: 'Winterdienst', cat: 'safety', size: [1, 1], cost: 3000, upkeep: 26, unlock: 2, snowPlows: 6, service: { type: 'snow', radius: 18, capacity: 30000 }, desc: 'Hält im Winter die Straßen frei.' },
+  flood_barrier: { name: 'Hochwasserschutz', cat: 'safety', size: [1, 1], cost: 2000, upkeep: 6, unlock: 2, needsWater: true, floodProtect: 6, desc: 'Deich: schützt das Ufer vor Hochwasser.' },
 });
 
 // ---------- Helfer für Bedingungen
@@ -38,7 +38,7 @@ EVENTS.push(
   },
   {
     id: 'wx_salt', title: 'Streusalz wird knapp', minPop: 300, cond: (g) => season(g) === 'winter' && W(g).snowCover > 0.3 && has(g, 'snow_depot'),
-    text: 'Der Winterdienst meldet: Die Salzvorräte reichen nur noch zwei Tage. Nachkaufen ist teuer – Splitt ist billig, aber rutschig.',
+    text: 'Das Streusalz reicht noch zwei Tage. Salz ist teuer, Splitt billig, aber rutschig.',
     options: [
       { label: 'Salz nachkaufen', hint: () => '−4.000 €', apply: (g) => { g.money -= 4000; } },
       { label: 'Splitt streuen', hint: () => 'Glück −3 für 4 Tage (glatte Gehwege)', apply: (g) => g.addEffect('happy', -3, 4, 'Glatte Gehwege') },
@@ -86,7 +86,7 @@ EVENTS.push(
   },
   {
     id: 'wx_ac', title: 'Klimaanlagen-Boom', minPop: 1500, cond: (g) => season(g) === 'summer' && W(g).coolNeed > 0.3,
-    text: 'Die Baumärkte sind leergekauft, überall brummen Klimageräte. Ein Förderprogramm für Dämmung und Begrünung würde helfen.',
+    text: 'Hitze: Klimageräte brummen überall. Ein Förderprogramm für Dämmung und Begrünung?',
     options: [
       { label: 'Fördern', hint: () => '−6.000 €, Hitze-Unmut halbiert für 25 Tage', apply: (g) => { g.money -= 6000; g.addEffect('heatShield', 1, 25, 'Dämmung & Dachgärten'); } },
       { label: 'Nicht eingreifen', hint: () => 'Strombilanz −8 % für 5 Tage', apply: (g) => g.addEffect('powerMul', -0.08, 5, 'Klimaanlagen-Boom') },

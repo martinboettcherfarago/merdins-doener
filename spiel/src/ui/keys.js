@@ -5,7 +5,7 @@ export const KEYMAP = [
     [['Rechte Maus'], 'Karte verschieben'],
     [['Mittlere Maus', 'Alt + Links'], 'Drehen und neigen'],
     [['Mausrad'], 'Zoomen (zum Zeiger)'],
-    [['W', 'A', 'S', 'D'], 'Kamera bewegen (auch Pfeiltasten)'],
+    [['W', 'A', 'S', 'D'], 'Kamera bewegen'],
     [['Q', 'E'], 'Kamera drehen'],
     [['Bild ↑', 'Bild ↓'], 'Kamera neigen'],
     [['+', '−'], 'Zoomen'],
@@ -34,7 +34,7 @@ export const KEYMAP = [
     [['I'], 'Problem-Symbole ein/aus'],
     [['M'], 'Ton an/aus'],
     [['?'], 'Diese Übersicht'],
-    [['F1'], 'Hilfe: So funktioniert es'],
+    [['F1'], 'Hilfe'],
     [['Strg + S'], 'Schnellspeichern'],
   ] },
 ];

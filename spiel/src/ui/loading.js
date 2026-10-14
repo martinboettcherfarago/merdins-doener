@@ -5,19 +5,25 @@ import { MATERIAL_NAMES, getMaterial } from '../render/matlib.js';
 import { getAtlasMaterial } from '../render/atlas.js';
 import * as protos from '../render/protos.js';
 
+// Schriften früh anstoßen: Canvas-Texte (Diagramme, Bezirksnamen, Schilder) sollen gleich die eigenen Schriften nutzen
+try {
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
+    for (const f of ['600 16px "Stadtpuls Rund"', '700 16px "Stadtpuls Rund"', '500 14px "Stadtpuls Text"', '700 14px "Stadtpuls Text"']) document.fonts.load(f).catch(() => {});
+  }
+} catch (e) { /* egal */ }
+
 const TIPS = [
-  'Strom und Wasser fließen durch das Straßennetz – getrennte Netze brauchen eigene Versorgung.',
-  'Rechte Maustaste ziehen verschiebt die Karte, das Mausrad zoomt zum Zeiger.',
-  'Mit P öffnest du den Fotomodus: freie Kamera, Tageszeit, Filter.',
-  'Die Nachfrage-Balken W G I B zeigen, was deine Stadt gerade braucht.',
-  'Industrie mit etwas Abstand zum Wohnen – Abgase senken Glück und Bodenwert.',
-  'Die U-Bahn spielt bei jeder Ankunft einen Ton. Mehrere Linien ergeben Musik.',
-  'Mit F durchsuchst du den ganzen Baukatalog.',
-  'Parks, Wasser und Dienste heben den Bodenwert – so wachsen höhere Gebäude.',
-  'Die Minikarte unten links: klicken, um dorthin zu springen.',
-  'Fragezeichen oder F1 zeigt alle Tastenkürzel.',
-  'Die Ratgeberin oben rechts weiß, wo es gerade hakt.',
-  'Wochenkarten gibt es ab 150 Einwohnern – jeden Montag eine von drei.',
+  'Strom und Wasser fließen über Straßen.',
+  'Rechte Maustaste verschiebt, Mausrad zoomt.',
+  'P: Fotomodus.',
+  'Die Balken W G I B zeigen, was gefragt ist.',
+  'Industrie mit Abstand zum Wohnen.',
+  'Jede U-Bahn-Ankunft spielt einen Ton.',
+  'F: Baukatalog durchsuchen.',
+  'Parks heben den Bodenwert.',
+  '? zeigt alle Tasten.',
+  'Stadt-Check oben rechts: was gerade hakt.',
+  'Ab 150 Einwohnern: jede Woche eine Karte.',
 ];
 
 // Übernahme kennzeichnen (das Notfall-Skript in index.html blendet sonst nach einiger Zeit aus)

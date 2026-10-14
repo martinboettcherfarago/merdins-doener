@@ -54,14 +54,14 @@ export const ECON = {
 
 // ---------------------------------------------------------------- Gebäude
 Object.assign(BUILDINGS, {
-  warehouse: { name: 'Lagerhalle', cat: 'industry', size: [2, 2], cost: 6000, upkeep: 40, unlock: 3, storage: 400, jobs: 20, power_use: 6, noise: 0.5, desc: 'Lagert bis zu 400 t Waren und beliefert Läden in der Nähe zuerst. Braucht: Strom.' },
-  food_factory: { name: 'Lebensmittelfabrik', cat: 'industry', size: [2, 2], cost: 12000, upkeep: 90, unlock: 3, process: 'farm', input: 'crops', output: 'food', throughput: 200, yield: 0.6, jobs: 60, power_use: 18, water_use: 14, pollution: 0.6, desc: 'Macht aus Ernte Lebensmittel für die Läden – dreimal so viel wert. Braucht: Ernte von Bauernhöfen und Strom.' },
-  sawmill: { name: 'Sägewerk', cat: 'industry', size: [2, 2], cost: 10000, upkeep: 75, unlock: 3, process: 'forest', input: 'wood', output: 'timber', throughput: 180, yield: 0.6, jobs: 50, power_use: 14, noise: 1, pollution: 0.5, desc: 'Macht aus Holz Bretter. Damit arbeiten Fabriken 40 % besser. Braucht: Holz vom Forst und Strom.' },
-  steelworks: { name: 'Stahlwerk', cat: 'industry', size: [3, 2], cost: 24000, upkeep: 170, unlock: 4, process: 'mine', input: 'ore', output: 'steel', throughput: 320, yield: 0.55, jobs: 120, power_use: 40, water_use: 20, pollution: 3, noise: 1.2, desc: 'Macht aus Erz wertvollen Stahl. Viele Jobs, viel Rauch. Braucht: Erz aus Bergwerken und Strom.' },
-  refinery: { name: 'Raffinerie', cat: 'industry', size: [3, 2], cost: 26000, upkeep: 180, unlock: 4, process: 'oil', input: 'oil', output: 'plastics', throughput: 340, yield: 0.55, jobs: 110, power_use: 30, water_use: 24, pollution: 3.5, noise: 1, desc: 'Macht aus Rohöl Kunststoff – das wertvollste Exportgut. Braucht: Öl und Strom.' },
-  cargo_rail: { name: 'Güterbahnhof', cat: 'industry', size: [3, 2], cost: 20000, upkeep: 120, unlock: 3, cargo: 900, priceBonus: 0.06, reach: 0.6, jobs: 40, power_use: 10, noise: 1.3, desc: 'Bringt bis zu 900 t Waren am Tag per Zug weg. Entlastet die Autobahn, bessere Preise. Braucht: Strom.' },
-  cargo_harbor: { name: 'Frachthafen', cat: 'industry', size: [3, 3], cost: 36000, upkeep: 200, unlock: 4, cargo: 2000, priceBonus: 0.12, reach: 1.2, jobs: 80, needsWater: true, power_use: 16, noise: 1.4, desc: 'Containerhafen: 2.000 t Waren am Tag in die Welt, beste Preise. Braucht: Platz am Ufer und Strom.' },
-  market_hall: { name: 'Markthalle', cat: 'industry', size: [2, 1], cost: 5000, upkeep: 30, unlock: 3, comBoost: 8, lvRadius: 6, goodsDemand: 40, jobs: 15, tourism: 20, desc: 'Verkauft Ernte und Lebensmittel aus der Region. Lockt Besucher an und hilft den Läden ringsum.' },
+  warehouse: { name: 'Lagerhalle', cat: 'industry', size: [2, 2], cost: 6000, upkeep: 40, unlock: 3, storage: 400, jobs: 20, power_use: 6, noise: 0.5, desc: 'Lagert 400 t Waren, beliefert Läden in der Nähe.' },
+  food_factory: { name: 'Lebensmittelfabrik', cat: 'industry', size: [2, 2], cost: 12000, upkeep: 90, unlock: 3, process: 'farm', input: 'crops', output: 'food', throughput: 200, yield: 0.6, jobs: 60, power_use: 18, water_use: 14, pollution: 0.6, desc: 'Ernte → Lebensmittel (×3 Wert).' },
+  sawmill: { name: 'Sägewerk', cat: 'industry', size: [2, 2], cost: 10000, upkeep: 75, unlock: 3, process: 'forest', input: 'wood', output: 'timber', throughput: 180, yield: 0.6, jobs: 50, power_use: 14, noise: 1, pollution: 0.5, desc: 'Holz → Bretter: Fabriken +40 %.' },
+  steelworks: { name: 'Stahlwerk', cat: 'industry', size: [3, 2], cost: 24000, upkeep: 170, unlock: 4, process: 'mine', input: 'ore', output: 'steel', throughput: 320, yield: 0.55, jobs: 120, power_use: 40, water_use: 20, pollution: 3, noise: 1.2, desc: 'Erz → Stahl. Viele Jobs, viel Rauch.' },
+  refinery: { name: 'Raffinerie', cat: 'industry', size: [3, 2], cost: 26000, upkeep: 180, unlock: 4, process: 'oil', input: 'oil', output: 'plastics', throughput: 340, yield: 0.55, jobs: 110, power_use: 30, water_use: 24, pollution: 3.5, noise: 1, desc: 'Öl → Kunststoff, bestes Exportgut.' },
+  cargo_rail: { name: 'Güterbahnhof', cat: 'industry', size: [3, 2], cost: 20000, upkeep: 120, unlock: 3, cargo: 900, priceBonus: 0.06, reach: 0.6, jobs: 40, power_use: 10, noise: 1.3, desc: '900 t Waren am Tag per Zug. Entlastet die Autobahn.' },
+  cargo_harbor: { name: 'Frachthafen', cat: 'industry', size: [3, 3], cost: 36000, upkeep: 200, unlock: 4, cargo: 2000, priceBonus: 0.12, reach: 1.2, jobs: 80, needsWater: true, power_use: 16, noise: 1.4, desc: '2.000 t Waren am Tag, beste Preise – nur am Ufer.' },
+  market_hall: { name: 'Markthalle', cat: 'industry', size: [2, 1], cost: 5000, upkeep: 30, unlock: 3, comBoost: 8, lvRadius: 6, goodsDemand: 40, jobs: 15, tourism: 20, desc: 'Verkauft Ernte aus der Region, hilft den Läden.' },
 });
 
 // ---------------------------------------------------------------- Hilfen für Karten und Ereignisse
@@ -92,7 +92,7 @@ EVENTS.push(
   {
     id: 'ind_order', title: 'Großauftrag aus Übersee', minPop: 600,
     cond: (g) => (tot(g).exportT || 0) > 60,
-    text: 'Ein Handelskonzern will zehn Tage lang deutlich mehr Konsumgüter abnehmen. Die Fabriken müssten Sonderschichten fahren.',
+    text: 'Ein Handelskonzern will zehn Tage lang mehr Konsumgüter – Sonderschichten nötig.',
     options: [
       { label: 'Annehmen', hint: () => 'Weltmarkt-Nachfrage nach Konsumgütern +70 % für 10 Tage, Industrie-Glück −3', apply: (g) => { g.addEffect('ecoMarket:goods', 0.7, 10, 'Großauftrag'); g.addEffect('ecoHappy', -3, 10, 'Sonderschichten'); } },
       { label: 'Ablehnen', hint: () => 'Nichts passiert.', apply: () => {} },
@@ -110,7 +110,7 @@ EVENTS.push(
   {
     id: 'ind_oil', title: 'Ölkrise am Weltmarkt', minPop: 500,
     cond: (g) => produces(g, 'oil') || produces(g, 'plastics'),
-    text: 'Ein Förderstopp im Ausland lässt den Ölpreis explodieren. Gut für die eigene Ölförderung – schlecht für alle, die tanken müssen.',
+    text: 'Der Ölpreis explodiert: gut für die eigene Förderung, schlecht fürs Tanken.',
     options: [
       { label: 'Spritpreise subventionieren', hint: (g) => `−${fmtMoney(2000 + g.stats.pop)}, Öl- und Kunststoffpreise +55 % für 9 Tage`, apply: (g) => { g.money -= 2000 + g.stats.pop; shockGood(g, 'oil', 0.55, 9); shockGood(g, 'plastics', 0.4, 9); } },
       { label: 'Markt laufen lassen', hint: () => 'Öl- und Kunststoffpreise +55 % für 9 Tage, Glück −3 für 6 Tage', apply: (g) => { shockGood(g, 'oil', 0.55, 9); shockGood(g, 'plastics', 0.4, 9); g.addEffect('happy', -3, 6, 'Spritpreise'); } },
@@ -145,7 +145,7 @@ EVENTS.push(
   {
     id: 'ind_stimulus', title: 'Konjunkturprogramm des Landes', minPop: 600,
     cond: (g) => ind(g) && ind(g).cycle.value < -0.25,
-    text: 'Die Wirtschaft schwächelt. Das Land legt ein Konjunkturprogramm auf – Städte müssen sich mit einem Eigenanteil beteiligen.',
+    text: 'Die Wirtschaft schwächelt. Konjunkturprogramm des Landes – mit Eigenanteil.',
     options: [
       { label: 'Mitmachen', hint: (g) => `−${fmtMoney(3000 + g.stats.pop * 1.5)}, die Konjunktur zieht spürbar an`, apply: (g) => { g.money -= 3000 + g.stats.pop * 1.5; if (ind(g)) ind(g).cycle.shock += 0.45; } },
       { label: 'Sparen', hint: () => 'Nichts passiert – die Flaute dauert an.', apply: () => {} },

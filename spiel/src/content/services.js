@@ -9,16 +9,16 @@ import { fmtMoney } from '../util.js';
 registerServiceType('deathcare');
 
 Object.assign(BUILDINGS, {
-  kindergarten: { name: 'Kita', cat: 'education', size: [1, 1], cost: 1800, upkeep: 22, unlock: 1, service: { type: 'edu', radius: 6, capacity: 900, eduMax: 0.25 }, seats: 140, resBoost: 4, parkRadius: 5, power_use: 2, water_use: 2, desc: 'Betreuung für kleine Kinder. Familien ziehen gern in die Nähe, und die Kinder lernen später leichter.' },
-  highschool: { name: 'Gymnasium', cat: 'education', size: [2, 2], cost: 11000, upkeep: 120, unlock: 3, service: { type: 'edu', radius: 14, capacity: 5000, eduMax: 0.8 }, seats: 520, power_use: 10, water_use: 8, desc: 'Abitur für Jugendliche. Ohne Abitur kein Studium – und ohne Studium keine Büros. Braucht: Strom und Wasser.' },
-  research: { name: 'Forschungszentrum', cat: 'education', size: [2, 2], cost: 30000, upkeep: 220, unlock: 5, offBoost: 25, eduCity: 0.06, lv: 10, lvRadius: 8, power_use: 30, water_use: 10, desc: 'Zieht Büros und Hightech-Firmen an. Bildung wächst in der ganzen Stadt schneller. Braucht: Strom und Wasser.' },
-  elderly_care: { name: 'Seniorenheim', cat: 'services', size: [2, 1], cost: 6000, upkeep: 60, unlock: 3, seniorCare: 300, careRadius: 12, happy: 3, lvRadius: 6, power_use: 6, water_use: 6, desc: 'Pflege für bis zu 300 ältere Menschen im Umkreis: Sie leben länger und zufriedener. Braucht: Strom und Wasser.' },
-  cemetery: { name: 'Friedhof', cat: 'services', size: [2, 2], cost: 4000, upkeep: 30, unlock: 2, service: { type: 'deathcare', radius: 14, capacity: 6000 }, graves: 2400, hearses: 5, lv: -4, lvRadius: 4, desc: 'Leichenwagen holen Verstorbene ab. Platz für 2.400 Gräber, die nach 25 Jahren wieder frei werden.' },
-  crematorium: { name: 'Krematorium', cat: 'services', size: [1, 1], cost: 8000, upkeep: 70, unlock: 3, service: { type: 'deathcare', radius: 18, capacity: 12000 }, hearses: 12, needsPower: true, pollution: 0.4, power_use: 12, desc: 'Bestattungen auf kleiner Fläche, ganz ohne Gräber. Braucht: Strom.' },
-  sewage_plant: { name: 'Kläranlage', cat: 'water', size: [2, 2], cost: 9000, upkeep: 80, unlock: 2, sewage: 1800, needsPower: true, residual: 0.12, needsWater: true, power_use: 14, pollution: 0.6, lv: -10, lvRadius: 5, desc: 'Reinigt Abwasser fast vollständig. Die Kanäle liegen unter den Straßen. Braucht: Platz am Ufer und Strom.' },
-  sewage_outlet: { name: 'Abwasserauslass', cat: 'water', size: [1, 1], cost: 1200, upkeep: 8, unlock: 0, sewage: 500, residual: 1, needsWater: true, waterPollution: 1, lv: -14, lvRadius: 6, desc: 'Billig: leitet Abwasser ungereinigt ins Wasser. Weit weg vom Pumpwerk bauen (gut 20 Felder flussabwärts). Braucht: Platz am Ufer.' },
-  district_heating: { name: 'Heizkraftwerk', cat: 'power', size: [2, 2], cost: 15000, upkeep: 120, unlock: 2, heat: 2400, power: 300, pollution: 1.5, water_use: 16, desc: 'Heizt im Winter die Häuser (Fernwärme) und macht etwas Strom. Größere Häuser ohne Wärme frieren, die Leute werden krank. Braucht: Wasser.' },
-  prison: { name: 'Gefängnis', cat: 'services', size: [3, 2], cost: 20000, upkeep: 150, unlock: 4, crimeCity: 0.12, inmates: 600, lv: -12, lvRadius: 6, power_use: 16, water_use: 12, desc: 'Platz für 600 Häftlinge. Senkt die Kriminalität in der ganzen Stadt. Braucht: Strom und Wasser.' },
+  kindergarten: { name: 'Kita', cat: 'education', size: [1, 1], cost: 1800, upkeep: 22, unlock: 1, service: { type: 'edu', radius: 6, capacity: 900, eduMax: 0.25 }, seats: 140, resBoost: 4, parkRadius: 5, power_use: 2, water_use: 2, desc: 'Kinderbetreuung: Familien ziehen gern her.' },
+  highschool: { name: 'Gymnasium', cat: 'education', size: [2, 2], cost: 11000, upkeep: 120, unlock: 3, service: { type: 'edu', radius: 14, capacity: 5000, eduMax: 0.8 }, seats: 520, power_use: 10, water_use: 8, desc: 'Abitur – nötig für Studium und Büros.' },
+  research: { name: 'Forschungszentrum', cat: 'education', size: [2, 2], cost: 30000, upkeep: 220, unlock: 5, offBoost: 25, eduCity: 0.06, lv: 10, lvRadius: 8, power_use: 30, water_use: 10, desc: 'Lockt Büros an, Bildung wächst schneller.' },
+  elderly_care: { name: 'Seniorenheim', cat: 'services', size: [2, 1], cost: 6000, upkeep: 60, unlock: 3, seniorCare: 300, careRadius: 12, happy: 3, lvRadius: 6, power_use: 6, water_use: 6, desc: 'Pflege für 300 Ältere: länger und zufriedener leben.' },
+  cemetery: { name: 'Friedhof', cat: 'services', size: [2, 2], cost: 4000, upkeep: 30, unlock: 2, service: { type: 'deathcare', radius: 14, capacity: 6000 }, graves: 2400, hearses: 5, lv: -4, lvRadius: 4, desc: 'Platz für 2.400 Gräber.' },
+  crematorium: { name: 'Krematorium', cat: 'services', size: [1, 1], cost: 8000, upkeep: 70, unlock: 3, service: { type: 'deathcare', radius: 18, capacity: 12000 }, hearses: 12, needsPower: true, pollution: 0.4, power_use: 12, desc: 'Bestattungen ohne Gräber.' },
+  sewage_plant: { name: 'Kläranlage', cat: 'water', size: [2, 2], cost: 9000, upkeep: 80, unlock: 2, sewage: 1800, needsPower: true, residual: 0.12, needsWater: true, power_use: 14, pollution: 0.6, lv: -10, lvRadius: 5, desc: 'Reinigt Abwasser fast ganz – nur am Ufer.' },
+  sewage_outlet: { name: 'Abwasserauslass', cat: 'water', size: [1, 1], cost: 1200, upkeep: 8, unlock: 0, sewage: 500, residual: 1, needsWater: true, waterPollution: 1, lv: -14, lvRadius: 6, desc: 'Billig, aber ungereinigt. Am Ufer, weit weg vom Pumpwerk.' },
+  district_heating: { name: 'Heizkraftwerk', cat: 'power', size: [2, 2], cost: 15000, upkeep: 120, unlock: 2, heat: 2400, power: 300, pollution: 1.5, water_use: 16, desc: 'Fernwärme im Winter, etwas Strom. Ohne Wärme frieren größere Häuser.' },
+  prison: { name: 'Gefängnis', cat: 'services', size: [3, 2], cost: 20000, upkeep: 150, unlock: 4, crimeCity: 0.12, inmates: 600, lv: -12, lvRadius: 6, power_use: 16, water_use: 12, desc: 'Platz für 600 Häftlinge: weniger Kriminalität.' },
 });
 
 // --- Stadtweite Verordnungen (erscheinen im Panel „Verordnungen")
@@ -52,7 +52,7 @@ EVENTS.push(
   },
   {
     id: 'cz_cemetery', title: 'Der Friedhof wird knapp', minPop: 600, cond: (g) => (czStats(g).graveFill || 0) > 0.8,
-    text: 'Die Friedhofsverwaltung meldet: Bald gibt es keine freien Gräber mehr. Die Kirchengemeinde schlägt eine Erweiterung vor.',
+    text: 'Bald keine freien Gräber mehr. Die Kirchengemeinde schlägt eine Erweiterung vor.',
     options: [
       { label: 'Friedhof erweitern', hint: () => '−6.000 €, +800 Gräber auf jedem Friedhof', apply: (g) => { g.money -= 6000; for (const b of g.buildings.values()) if (b.key === 'cemetery') { b.cz ||= {}; b.cz.extraGraves = (b.cz.extraGraves || 0) + 800; } } },
       { label: 'Urnenwand statt Gräber', hint: () => 'Glück −2 für 5 Tage, 400 Gräber werden frei', apply: (g) => { g.addEffect('happy', -2, 5, 'Urnenwand-Streit'); for (const b of g.buildings.values()) if (b.key === 'cemetery' && b.cz) b.cz.used = Math.max(0, (b.cz.used || 0) - 400); } },

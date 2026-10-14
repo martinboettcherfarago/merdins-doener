@@ -35,7 +35,7 @@ function injectCss() {
 .wx-now .ic{filter:drop-shadow(0 2px 6px rgba(0,0,0,.25))}
 .wx-det{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:10px 0 0}
 .wx-det div{background:var(--paper-2);border-radius:10px;padding:6px 8px;min-width:0}
-.wx-det .k{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.wx-det .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
 .wx-det .v{font-family:var(--f-num);font-size:16px;font-weight:600;white-space:nowrap}
 .wx-year{position:relative;height:10px;border-radius:5px;display:flex;margin:6px 0 4px}
 .wx-year i{flex:1}.wx-year i:first-child{border-radius:5px 0 0 5px}.wx-year i:last-child{border-radius:0 5px 5px 0}
@@ -48,7 +48,7 @@ function injectCss() {
 .wx-fc .d .lo{color:var(--ink-3);font-family:var(--f-num);font-size:13px}
 .wx-fc .d .pr{height:3px;background:var(--paper-3);border-radius:2px;margin:4px 6px 0;overflow:hidden}.wx-fc .d .pr i{display:block;height:100%;background:#2f8fe0}
 .wx-fc .d.haz{box-shadow:inset 0 0 0 2px var(--bad)}
-.wx-fc .d .hz{position:absolute;top:3px;right:4px;width:14px;height:14px;border-radius:50%;background:var(--bad);color:#fff;font-size:10px;font-weight:800;line-height:14px}
+.wx-fc .d .hz{position:absolute;top:3px;right:4px;width:14px;height:14px;border-radius:50%;background:var(--bad);color:#fff;font-size:11px;font-weight:700;line-height:14px}
 .wx-fc .d.unk{opacity:.42}
 .wx-card{border-radius:12px;background:var(--paper-2);padding:10px 12px;margin:0 0 8px;border-left:5px solid #999}
 .wx-card .hd{display:flex;gap:8px;align-items:center}
@@ -59,7 +59,7 @@ function injectCss() {
 .wx-stats{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12.5px;margin-top:6px;color:var(--ink-2)}.wx-stats b{font-family:var(--f-num);font-size:14px;color:var(--ink)}
 .wx-check{display:grid;grid-template-columns:20px 1fr auto;gap:2px 8px;align-items:start;padding:7px 0;border-bottom:1px solid var(--rule)}
 .wx-check:last-child{border-bottom:0}
-.wx-check .i{font-weight:800;font-size:14px;line-height:1.3}.wx-check .i.ok{color:var(--good)}.wx-check .i.no{color:var(--bad)}.wx-check .i.mid{color:var(--warn)}
+.wx-check .i{font-weight:700;font-size:14px;line-height:1.3}.wx-check .i.ok{color:var(--good)}.wx-check .i.no{color:var(--bad)}.wx-check .i.mid{color:var(--warn)}
 .wx-check .t{font-weight:700;font-size:13.5px}.wx-check .s{grid-column:2/4;font-size:12px;color:var(--ink-3);line-height:1.35}
 .wx-check .v{font-family:var(--f-num);font-weight:600;font-size:14px;white-space:nowrap}
 .wx-lvl{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:700;color:#fff}
@@ -160,7 +160,7 @@ function renderWeather(ui) {
   html += `<div class="sec" style="margin-top:14px"><h3>Jahreszeiten</h3>
   <div class="wx-year">${SEASONS.map((s) => `<i style="background:${SEASON_INFO[s].color}"></i>`).join('')}<b style="left:${(cal.yearT * 100).toFixed(1)}%"></b></div>
   <div class="wx-yl">${SEASONS.map((s) => `<span>${SEASON_INFO[s].name}</span>`).join('')}</div>
-  <p class="wx-note">Ein Jahr hat vier Jahreszeiten zu je ${SEASON_DAYS} Tagen. ${seasonHint(w.season)}</p></div>`;
+  <p class="wx-note">${seasonHint(w.season)}</p></div>`;
   // Vorhersage
   const fcDays = forecastDays(g);
   const st = g.ext.disasters;
@@ -177,7 +177,7 @@ function renderWeather(ui) {
     const blur = i >= 3 ? '~' : '';
     return `<div class="d${hz ? ' haz' : ''}" title="${esc(KINDS[f.kind]?.name || f.kind)}${hz ? ' – Warnung: ' + esc(hz.name) : ''}">${hz ? '<span class="hz">!</span>' : ''}<div class="n">${name}</div>${wxIcon(f.kind, 30)}<div class="hi">${blur}${deg(f.tMax)}</div><div class="lo">${deg(f.tMin)}</div><div class="pr"><i style="width:${Math.round(f.precip * 100)}%"></i></div></div>`;
   }).join('')}</div>
-  ${stationCount(g) ? '' : `<p class="wx-note">Ohne Wetterstation gibt es nur den Wetterbericht für heute und morgen – und Unwetter kündigen sich erst kurz vorher an. Eine <b>Wetterstation</b> (Schutz) sagt fünf Tage voraus, zwei sagen sieben.</p>`}</div>`;
+  ${stationCount(g) ? '' : `<p class="wx-note">Mehr Tage mit einer <b>Wetterstation</b> (Schutz).</p>`}</div>`;
   // Wirkung
   const rows = [];
   const row = (k, v, cls = '', sub = '') => rows.push(`<div class="row"><span class="grow">${k}${sub ? `<br><span style="font-size:12px;color:var(--ink-3)">${sub}</span>` : ''}</span><span class="val ${cls}">${v}</span></div>`);
@@ -199,7 +199,7 @@ function renderWeather(ui) {
   if (farms) row('Bauernhöfe', { spring: 'Aussaat', summer: 'Wachstum +10 %', autumn: 'Ernte +25 %', winter: 'Winterruhe −40 %' }[w.season], w.season === 'winter' ? 'neg' : w.season === 'autumn' ? 'pos' : '', 'Saisonale Arbeitsplätze auf den Höfen');
   if (imp.frostBuild) row('Baustellen', '−35 %', 'neg', 'Frost und Schnee verlangsamen den Bau.');
   if (w.season === 'summer' || w.temp > 22) row('Freibäder', w.temp > 19 ? 'geöffnet' : 'zu kalt', '', g.hasBuilt('swimming_pool') || g.hasBuilt('beach') ? 'Badestellen kühlen und machen glücklich.' : 'Ein Freibad macht Hitzetage erträglich.');
-  html += `<div class="sec"><h3>Wirkung auf die Stadt</h3>${rows.join('') || '<p class="wx-note">Das Wetter hat gerade keinen spürbaren Einfluss.</p>'}</div>`;
+  html += `<div class="sec"><h3>Wirkung auf die Stadt</h3>${rows.join('') || '<p class="wx-note">Gerade kein Einfluss.</p>'}</div>`;
   if (g.sandbox) {
     const kinds = ['clear', 'fair', 'cloudy', 'rain', 'showers', 'thunder', 'storm', 'fog', 'snow', 'heat', 'frost'];
     html += `<div class="sec"><h3>Sandkasten: Wetter wählen</h3><div class="wx-grid">${kinds.map((k2) => `<button class="btn small ghost" data-act="wx-set" data-k="${k2}" title="${esc(KINDS[k2].name)}">${wxIcon(k2, 20)} ${esc(KINDS[k2].name)}</button>`).join('')}</div>
@@ -209,10 +209,10 @@ function renderWeather(ui) {
 }
 function seasonHint(s) {
   return {
-    spring: 'Im Frühling ziehen Menschen gern um, Schauer und erste Gewitter kommen. Achtung: Schneeschmelze kann Hochwasser bringen.',
-    summer: 'Sommer heißt Hitze, Touristen, hoher Wasserverbrauch und Gewitter mit Blitzeinschlägen. Trockene Wochen bringen Waldbrandgefahr.',
-    autumn: 'Im Herbst wird geerntet, morgens liegt Nebel – und Herbststürme fegen über das Land.',
-    winter: 'Im Winter steigt der Heizbedarf, die Sonne liefert wenig Solarstrom, Schnee legt Straßen lahm. Weihnachtsmärkte locken Besucher.',
+    spring: 'Umzüge, Schauer · Schneeschmelze: Hochwasser',
+    summer: 'Hitze, Touristen, Gewitter · Waldbrandgefahr',
+    autumn: 'Ernte, Nebel, Herbststürme',
+    winter: 'Heizbedarf, wenig Solarstrom, Schnee',
   }[s];
 }
 
@@ -304,7 +304,7 @@ ${opts.some((k) => !a.prep[k]) ? `<div class="acts">${opts.filter((k) => !a.prep
     for (const op of st.ops) {
       if (act.some((a) => a.id === op.id) || (!op.trapped && !op.injured)) continue;
       html += `<div class="wx-card" style="border-color:#2f8fe0"><div class="ttl">Rettungseinsatz nach ${esc(DISASTERS[op.type]?.name || op.type)}</div><div class="wx-stats">Verschüttet <b>${op.trapped}</b> · gerettet <b>${op.rescued}</b> · Verletzte in Behandlung <b>${op.injured}</b></div>
-${g.hasBuilt('disaster_center') ? '' : '<p class="wx-note">Ein Katastrophenschutz in der Nähe rettet Verschüttete viel schneller.</p>'}</div>`;
+${g.hasBuilt('disaster_center') ? '' : '<p class="wx-note">Katastrophenschutz rettet schneller.</p>'}</div>`;
     }
     html += '</div>';
   }
@@ -321,7 +321,7 @@ ${reps.length ? `<div class="wx-bar"><i style="width:${Math.round(prog * 100)}%;
 <div class="row"><span class="grow">Betroffene Bewohner<br><span style="font-size:12px;color:var(--ink-3)">davon in Notunterkünften: ${fmt(st.sheltered)} von ${fmt(st.shelterCap)} Plätzen</span></span><span class="val ${st.displaced > st.shelterCap ? 'neg' : ''}">${fmt(st.displaced)}</span></div>
 ${st.ruins.map((r, i) => `<div class="row"><span class="grow">Zerstört: <b>${esc(r.name)}</b><br><span style="font-size:12px;color:var(--ink-3)">Feld ${r.x}, ${r.y} · Tag ${r.day} · ${esc(DISASTERS[r.cause]?.name || (r.cause === 'fire' ? 'Brand' : ''))}</span></span><button class="btn small" data-act="wx-rebuild" data-i="${i}">Aufbauen · ${fmtMoney(rebuildCost(g, r))}</button></div>`).join('')}
 ${st.ruins.length > 1 ? `<button class="btn small ghost" data-act="wx-rebuild-all">Alle wiederaufbauen</button>` : ''}
-<div class="toggle"><button class="switch${st.autoRebuild ? ' on' : ''}" data-act="wx-auto" aria-label="Automatischer Wiederaufbau"></button><div class="grow"><div class="t">Automatischer Wiederaufbau</div><div class="s">${g.hasBuilt('disaster_center') ? 'Der Katastrophenschutz baut zerstörte Dienstgebäude wieder auf, sobald die Trümmer weg sind (Eigenanteil 35 %).' : 'Die Versicherung baut zerstörte Dienstgebäude nach zwei Tagen wieder auf (Eigenanteil 50 %). Mit Katastrophenschutz geht es schneller und billiger.'}</div></div></div></div>`;
+<div class="toggle"><button class="switch${st.autoRebuild ? ' on' : ''}" data-act="wx-auto" aria-label="Automatischer Wiederaufbau"></button><div class="grow"><div class="t">Automatischer Wiederaufbau</div><div class="s">${g.hasBuilt('disaster_center') ? 'Durch den Katastrophenschutz · Eigenanteil 35 %' : 'Nach zwei Tagen · Eigenanteil 50 %'}</div></div></div></div>`;
   }
   // Schutz-Bewertung
   const score = protectionScore(g);
@@ -332,27 +332,28 @@ ${st.ruins.length > 1 ? `<button class="btn small ghost" data-act="wx-rebuild-al
   const snowCov = residentsCovered(g, (i) => (g.cov.snow ? g.cov.snow[i] : 0) > 0.2);
   const [prone, prot] = floodProneCount(g);
   const need = Math.round(g.stats.pop * 0.12);
-  const check = (ok, t, v, s) => `<div class="wx-check"><span class="i ${ok === true ? 'ok' : ok === 'mid' ? 'mid' : 'no'}">${ok === true ? '✓' : ok === 'mid' ? '◐' : '✗'}</span><span class="t">${t}</span><span class="v">${v}</span><span class="s">${s}</span></div>`;
+  // Erklärung nur als Tooltip – sichtbar bleiben Ampel, Name und Wert
+  const check = (ok, t, v, s) => `<div class="wx-check" data-tip="${esc(t)}" data-tip-desc="${esc(s)}"><span class="i ${ok === true ? 'ok' : ok === 'mid' ? 'mid' : 'no'}">${ok === true ? '✓' : ok === 'mid' ? '◐' : '✗'}</span><span class="t">${t}</span><span class="v">${v}</span></div>`;
   html += `<div class="sec"><h3>Katastrophenschutz</h3>
-<div class="wx-score"><div class="big">${Math.round(score * 100)}</div><div class="grow"><div style="font-weight:700">${score > 0.7 ? 'Gut vorbereitet' : score > 0.4 ? 'Teilweise vorbereitet' : 'Kaum vorbereitet'}</div><div class="wx-bar" style="margin-top:4px"><i style="width:${Math.round(score * 100)}%;background:${score > 0.7 ? 'var(--good)' : score > 0.4 ? 'var(--warn)' : 'var(--bad)'}"></i></div><div class="wx-note" style="margin-top:4px">Gute Vorsorge mindert Schäden, Verletzte und die Sorgen der Bürger – und bringt mehr Katastrophenhilfe vom Land.</div></div></div>
-${check(nSt > 0, 'Wetterstation', nSt ? `${nSt} · ${forecastDays(g)} Tage` : 'keine', nSt ? 'Unwetter, Fluten und Waldbrandgefahr werden Tage im Voraus gemeldet – Zeit für Sandsäcke und Evakuierung.' : 'Ohne Station kommen Warnungen erst kurz vorher.')}
-${check(sirenCov > 0.8 ? true : sirenCov > 0.3 ? 'mid' : false, 'Warnsirenen', `${nSi} · ${Math.round(sirenCov * 100)} %`, 'Anteil der Bewohner in Hörweite. Gewarnte Menschen bringen sich in Sicherheit – viel weniger Verletzte und Verschüttete.')}
-${check(st.shelterCap >= need && need > 0 ? true : st.shelterCap > 0 ? 'mid' : false, 'Notunterkünfte', `${fmt(st.shelterCap)} / ${fmt(need)} Plätze`, 'Empfohlen: Plätze für 12 % der Einwohner. Obdachlose ohne Platz ziehen weg und drücken auf die Stimmung.')}
-${check(dcCov > 0.8 ? true : dcCov > 0.3 ? 'mid' : false, 'Katastrophenschutz', `${Math.round(dcCov * 100)} %`, 'Rettet Verschüttete, räumt Trümmer und repariert bis zu dreimal schneller. Ab „Stadt".')}
-${check(prone === 0 ? true : prot > 0 ? 'mid' : false, 'Hochwasserschutz', prone ? `${prone} ungeschützt` : prot ? `${prot} geschützt` : 'kein Ufer', 'Deiche am Ufer schützen alle Felder im Umkreis von 6 Feldern vor Überflutung.')}
-${check(snowCov > 0.8 ? true : snowCov > 0.3 ? 'mid' : false, 'Winterdienst', `${Math.round(snowCov * 100)} %`, 'Räumfahrzeuge halten im Winter die Straßen frei – sonst ärgern sich alle über Glätte.')}
+<div class="wx-score"><div class="big">${Math.round(score * 100)}</div><div class="grow"><div style="font-weight:700">${score > 0.7 ? 'Gut vorbereitet' : score > 0.4 ? 'Teilweise vorbereitet' : 'Kaum vorbereitet'}</div><div class="wx-bar" style="margin-top:4px"><i style="width:${Math.round(score * 100)}%;background:${score > 0.7 ? 'var(--good)' : score > 0.4 ? 'var(--warn)' : 'var(--bad)'}"></i></div></div></div>
+${check(nSt > 0, 'Wetterstation', nSt ? `${nSt} · ${forecastDays(g)} Tage` : 'keine', nSt ? 'Warnt Tage im Voraus.' : 'Ohne Station: Warnung erst kurz vorher.')}
+${check(sirenCov > 0.8 ? true : sirenCov > 0.3 ? 'mid' : false, 'Warnsirenen', `${nSi} · ${Math.round(sirenCov * 100)} %`, 'Bewohner in Hörweite: weniger Verletzte.')}
+${check(st.shelterCap >= need && need > 0 ? true : st.shelterCap > 0 ? 'mid' : false, 'Notunterkünfte', `${fmt(st.shelterCap)} / ${fmt(need)} Plätze`, 'Empfohlen: Plätze für 12 % der Einwohner.')}
+${check(dcCov > 0.8 ? true : dcCov > 0.3 ? 'mid' : false, 'Katastrophenschutz', `${Math.round(dcCov * 100)} %`, 'Rettet und repariert ×3 schneller.')}
+${check(prone === 0 ? true : prot > 0 ? 'mid' : false, 'Hochwasserschutz', prone ? `${prone} ungeschützt` : prot ? `${prot} geschützt` : 'kein Ufer', 'Deiche schützen 6 Felder weit.')}
+${check(snowCov > 0.8 ? true : snowCov > 0.3 ? 'mid' : false, 'Winterdienst', `${Math.round(snowCov * 100)} %`, 'Hält im Winter die Straßen frei.')}
 </div>`;
   // Risiken
   html += `<div class="sec"><h3>Risiken jetzt</h3>${risks(g).map(([t, v, why]) => `<div class="row"><span class="grow"><b>${esc(DISASTERS[t].name)}</b><br><span style="font-size:12px;color:var(--ink-3)">${esc(why)}</span></span>${lvl(v)}</div>`).join('')}</div>`;
   // Chronik
   const hist = st.history.slice(-8).reverse();
   html += `<div class="sec"><h3>Chronik</h3>${hist.length ? `<div class="wx-hist">${hist.map((h) => `<span class="d">Tag ${h.day}</span><span><b>${esc(h.name)}</b>${h.aftershock ? ' (Nachbeben)' : ''} · ${h.destroyed} zerstört, ${h.damaged} beschädigt${h.burned ? `, ${h.burned} Waldfelder verbrannt` : ''}${h.rescued ? `, ${h.rescued} gerettet` : ''}${h.lost ? `, ${h.lost} vermisst` : ''} · ${fmtMoney(h.cost)}${h.warned ? '' : ' · ohne Vorwarnung'}</span>`).join('')}</div>
-<p class="wx-note">Insgesamt: ${fmt(st.totals.destroyed)} Gebäude zerstört, ${fmt(st.totals.damaged)} beschädigt, ${fmt(st.totals.rescued)} Menschen gerettet${st.totals.aid ? `, ${fmtMoney(st.totals.aid)} Katastrophenhilfe erhalten` : ''}.</p>` : '<p class="wx-note">Bisher ist nichts Schlimmes passiert.</p>'}</div>`;
+<p class="wx-note">Insgesamt: ${fmt(st.totals.destroyed)} Gebäude zerstört, ${fmt(st.totals.damaged)} beschädigt, ${fmt(st.totals.rescued)} Menschen gerettet${st.totals.aid ? `, ${fmtMoney(st.totals.aid)} Katastrophenhilfe erhalten` : ''}.</p>` : '<p class="wx-note">Bisher nichts passiert.</p>'}</div>`;
   // Einstellungen
   html += `<div class="sec"><h3>Einstellung: Katastrophen</h3><div class="seg">${FREQS.map((f) => `<button data-act="wx-freq" data-v="${f.id}" class="${st.freq === f.id ? 'on' : ''}">${f.name}</button>`).join('')}</div>
-<p class="wx-note">${st.freq === 'off' ? 'Keine zufälligen Katastrophen. Wetter und Jahreszeiten laufen weiter, Blitze richten keinen Schaden an.' : 'Zufällige Katastrophen frühestens ab Tag 30 und 800 Einwohnern. Größere Unglücke erst in größeren Städten.'}</p></div>`;
+<p class="wx-note">${st.freq === 'off' ? 'Keine zufälligen Katastrophen.' : 'Frühestens ab Tag 30 und 800 Einwohnern.'}</p></div>`;
   if (g.sandbox) {
-    html += `<div class="sec"><h3>Sandkasten: Katastrophe auslösen</h3><div class="wx-grid">${Object.keys(DISASTERS).map((t) => `<button class="btn small ghost" data-act="wx-trigger" data-t="${t}" style="border-left:4px solid ${DISASTERS[t].color}">${esc(DISASTERS[t].name)}</button>`).join('')}</div><p class="wx-note">Trifft die Mitte des Bildschirms (Hochwasser: das nächste Ufer, Orkan: die ganze Stadt).</p></div>`;
+    html += `<div class="sec"><h3>Sandkasten: Katastrophe auslösen</h3><div class="wx-grid">${Object.keys(DISASTERS).map((t) => `<button class="btn small ghost" data-act="wx-trigger" data-t="${t}" style="border-left:4px solid ${DISASTERS[t].color}">${esc(DISASTERS[t].name)}</button>`).join('')}</div><p class="wx-note">Trifft die Bildschirmmitte.</p></div>`;
   }
   return html;
 }
@@ -457,7 +458,7 @@ const ovIcon = (path) => `<svg width="19" height="19" viewBox="0 0 24 24" fill="
 registerOverlay({
   id: 'floodrisk', name: 'Hochwassergefahr', bad: true,
   icon: ovIcon('<path d="M3 16c2 0 2-1.5 4.5-1.5S10 16 12 16s2-1.5 4.5-1.5S19 16 21 16M3 20c2 0 2-1.5 4.5-1.5S10 20 12 20s2-1.5 4.5-1.5S19 20 21 20"/><path d="M12 3v8M9 8l3 3 3-3"/>'),
-  text: 'Rot: Ufer, die bei Hochwasser überflutet werden können. Ein Hochwasserschutz sichert den Umkreis von 6 Feldern.',
+  text: 'Hochwasserschutz sichert 6 Felder.',
   field(g) {
     const f = new Float32Array(g.N);
     const P = protectedTiles(g);
@@ -472,7 +473,7 @@ registerOverlay({
 registerOverlay({
   id: 'safety', name: 'Katastrophenschutz',
   icon: ovIcon('<path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6l-8-3Z"/><path d="M12 8v5M12 16h.01"/>'),
-  text: 'Wie gut jedes Feld geschützt ist: Sirenen warnen, der Katastrophenschutz rettet und repariert.',
+  text: 'Sirenen warnen, Katastrophenschutz rettet.',
   field(g) {
     const f = new Float32Array(g.N);
     const cd = g.cov.disaster;
@@ -493,7 +494,7 @@ MENU_SECTIONS.push({
   render(menu) {
     const o = menu.opts;
     const v = o.disasters || (o.difficulty === 'sandbox' ? 'off' : o.difficulty === 'relaxed' ? 'rare' : 'normal');
-    return `<div class="field"><label>Katastrophen</label><div class="seg">${FREQS.map((f) => `<button data-act="wx-mfreq" data-v="${f.id}" class="${v === f.id ? 'on' : ''}">${f.name}</button>`).join('')}</div><div class="seg-hint">${v === 'off' ? 'Nur Wetter und Jahreszeiten – keine Unglücke.' : 'Hochwasser, Stürme, Tornados, Erdbeben, Blitze, Waldbrände und Meteoriten – mit Vorwarnung und Wiederaufbau. Jederzeit im Panel „Wetter" änderbar.'}</div></div>`;
+    return `<div class="field"><label>Katastrophen</label><div class="seg">${FREQS.map((f) => `<button data-act="wx-mfreq" data-v="${f.id}" class="${v === f.id ? 'on' : ''}">${f.name}</button>`).join('')}</div><div class="seg-hint">${v === 'off' ? 'Nur Wetter, keine Unglücke.' : 'Mit Vorwarnung und Wiederaufbau.'}</div></div>`;
   },
   click(menu, act, el) {
     if (act !== 'wx-mfreq') return false;

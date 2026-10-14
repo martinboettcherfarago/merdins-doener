@@ -17,7 +17,7 @@ const C = { res: '#4fae67', com: '#3a8ad8', ind: '#dba22e', off: '#9466d2', road
 const svg = (body) => `<svg class="hp-svg" viewBox="0 0 240 120" role="img" aria-hidden="true">${body}</svg>`;
 const house = (x, y, col, s = 1) => `<g transform="translate(${x} ${y}) scale(${s})"><path d="M0 0h18v-12l-9-8-9 8z" fill="${col}" stroke="${C.ink}" stroke-width="1.6" stroke-linejoin="round"/><rect x="6" y="-7" width="6" height="7" fill="#fff" opacity=".85"/></g>`;
 const road = (x1, y1, x2, y2, w = 10) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${C.road}" stroke-width="${w}" stroke-linecap="round"/><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#fff" stroke-width="1.4" stroke-dasharray="5 5"/>`;
-const label = (x, y, t, col = C.ink, anchor = 'middle') => `<text x="${x}" y="${y}" font-size="10" font-weight="700" fill="${col}" text-anchor="${anchor}" font-family="system-ui, sans-serif">${t}</text>`;
+const label = (x, y, t, col = C.ink, anchor = 'middle') => `<text x="${x}" y="${y}" font-size="10" font-weight="700" fill="${col}" text-anchor="${anchor}" font-family="Stadtpuls Text, system-ui, sans-serif">${t}</text>`;
 const bolt = (x, y, s = 1) => `<path transform="translate(${x} ${y}) scale(${s})" d="M6 0 0 9h5l-2 7 7-10H5z" fill="${C.power}" stroke="${C.ink}" stroke-width="1" stroke-linejoin="round"/>`;
 const drop = (x, y, s = 1) => `<path transform="translate(${x} ${y}) scale(${s})" d="M5 0C8 4 10 6.5 10 9a5 5 0 0 1-10 0c0-2.5 2-5 5-9z" fill="${C.water}" stroke="${C.ink}" stroke-width="1"/>`;
 
@@ -41,98 +41,89 @@ const SKETCH = {
 // ------------------------------------------------------------------ Themen
 // act: Knopf „Zeigen" (ui.runAction) · lock(g): Hinweis, wenn noch gesperrt
 const TOPICS = [
-  { id: 'start', title: 'Erste Schritte', icon: 'star', lead: 'So bekommst du deine Stadt zum Laufen.', points: [
-    'Baue eine Straße vom Ende der Autobahn ins Land.',
-    'Weise daneben Wohngebiet aus. Die Leute bauen ihre Häuser selbst.',
-    'Baue ein Kraftwerk und einen Wasserturm an die Straße.',
-    'Lass die Zeit laufen. Dann kommen Gewerbe und Industrie für Jobs dazu, später eine Deponie.',
-    'Der Begleiter links unten zeigt dir immer das nächste Ziel.',
+  { id: 'start', title: 'Erste Schritte', icon: 'star', lead: 'Fünf Schritte, dann lebt die Stadt.', points: [
+    'Straße vom Ende der Autobahn ins Land.',
+    'Wohngebiet daneben – Häuser bauen die Leute selbst.',
+    'Kraftwerk und Wasserturm an die Straße.',
+    'Zeit laufen lassen, dann Gewerbe, Industrie und Deponie.',
+    'Links unten steht immer dein nächstes Ziel.',
   ], tour: true },
-  { id: 'roads', title: 'Straßen', icon: 'roads', lead: 'Alles in der Stadt braucht einen Straßenanschluss.', points: [
-    'Die Autobahn im Westen verbindet dich mit dem Umland. Von dort kommen neue Bürger und Waren.',
-    'Gasse: billig und ruhig. Straße: der Standard. Allee: viel Platz für Autos (ab ' + ms(2) + ').',
-    'Strom, Wasser, Müllwagen und Feuerwehr nutzen die Straßen.',
-    `Brücken kosten etwa ${BRIDGE_FACTOR}-mal so viel. Abriss gibt kein Geld zurück.`,
-  ], act: { cat: 'roads' }, actLabel: 'Straßen öffnen' },
-  { id: 'zones', title: 'Zonen', icon: 'zones', lead: 'Du baust keine Häuser selbst: Du zeigst, wo gebaut werden darf.', points: [
-    'Wohnen (grün): Hier wohnen die Bürger.',
-    'Gewerbe (blau): Läden und Cafés. Sie brauchen Kundschaft und Waren.',
-    'Industrie (gelb): Fabriken mit vielen Jobs, aber Abgasen. Halte Abstand zu Wohnhäusern.',
-    `Büros (lila, ab ${ms(2)}): saubere Jobs für gebildete Leute.`,
-    'Gebäude werden mit der Zeit größer, wenn Versorgung, Bildung und Glück stimmen.',
-    'Bodenwert heißt: so wertvoll ist ein Grundstück. Parks, Ruhe und Wahrzeichen heben ihn, Lärm und Abgase senken ihn.',
-  ], act: { cat: 'zones' }, actLabel: 'Zonen öffnen' },
-  { id: 'demand', title: 'Nachfrage', icon: 'stats', lead: 'Die Balken oben zeigen, was deine Stadt gerade braucht.', points: [
-    'W = Wohnen, G = Gewerbe, I = Industrie, B = Büro.',
-    'Ein hoher Balken heißt: gefragt. Weise davon mehr aus.',
-    'Ein blasser Balken nach unten heißt: zu viel. Dann bleiben Flächen leer.',
-    'Alles hängt zusammen: Neue Bürger brauchen Jobs, Firmen brauchen Arbeitskräfte und Kunden.',
+  { id: 'roads', title: 'Straßen', icon: 'roads', lead: 'Alles braucht einen Straßenanschluss.', points: [
+    'Über die Autobahn kommen Bürger und Waren.',
+    'Gasse: billig, leise · Straße: Standard · Allee: viel Platz (ab ' + ms(2) + ').',
+    'Strom, Wasser und Müllwagen nutzen die Straßen.',
+    `Brücken kosten ×${BRIDGE_FACTOR}. Abriss gibt kein Geld zurück.`,
+  ], act: { cat: 'roads' }, actLabel: 'Straßen' },
+  { id: 'zones', title: 'Zonen', icon: 'zones', lead: 'Du zeigst, wo gebaut wird – die Leute bauen selbst.', points: [
+    'Wohnen (grün) · Gewerbe (blau) · Industrie (gelb, mit Abstand zu Häusern).',
+    `Büros (lila, ab ${ms(2)}): saubere Jobs für Gebildete.`,
+    'Mit Versorgung, Bildung und Glück wachsen Häuser.',
+    'Bodenwert: Parks und Ruhe heben ihn, Lärm und Abgase senken ihn.',
+  ], act: { cat: 'zones' }, actLabel: 'Zonen' },
+  { id: 'demand', title: 'Nachfrage', icon: 'stats', lead: 'Die Balken oben zeigen, was fehlt.', points: [
+    'W Wohnen · G Gewerbe · I Industrie · B Büro.',
+    'Hoher Balken: gefragt. Blasser Balken: zu viel.',
+    'Bürger brauchen Jobs, Firmen brauchen Leute und Kunden.',
   ] },
-  { id: 'power', title: 'Strom', icon: 'power', lead: 'Ohne Strom zieht niemand ein und kein Betrieb arbeitet.', points: [
-    'Baue ein Kraftwerk direkt an eine Straße. Der Strom fließt über die Straßen.',
-    'Ein Straßennetz ohne Verbindung braucht ein eigenes Kraftwerk.',
-    'Kohle ist billig, aber schmutzig. Wind ist sauber, liefert aber wenig. Bessere Kraftwerke kommen mit den Meilensteinen.',
-    'Die Infoansicht „Strom" zeigt in Rot, wo er fehlt.',
-  ], act: { view: 'power' }, actLabel: 'Stromnetz zeigen' },
-  { id: 'water', title: 'Wasser & Abwasser', icon: 'water', lead: 'Häuser brauchen sauberes Wasser – und größere Häuser einen Kanal.', points: [
-    'Ein Wasserturm passt überall hin. Ein Pumpwerk liefert mehr, muss aber am Ufer stehen.',
-    'Auch Wasser fließt über die Straßen. Pumpwerke brauchen Strom.',
-    'Ab etwa 300 Einwohnern brauchen größere Häuser Abwasser: Baue einen Abwasserauslass am Ufer.',
-    'Setze den Auslass flussabwärts und weit weg vom Pumpwerk. Sonst wird das Trinkwasser schmutzig.',
-    `Ab ${ms(2)} reinigt eine Kläranlage das Abwasser.`,
-  ], act: { view: 'water' }, actLabel: 'Wassernetz zeigen' },
+  { id: 'power', title: 'Strom', icon: 'power', lead: 'Ohne Strom zieht niemand ein.', points: [
+    'Kraftwerk an eine Straße – Strom fließt über Straßen.',
+    'Getrenntes Straßennetz = eigenes Kraftwerk.',
+    'Kohle: billig, schmutzig · Wind: sauber, schwach.',
+    'Infoansicht „Strom": Rot heißt, er fehlt.',
+  ], act: { view: 'power' }, actLabel: 'Stromnetz' },
+  { id: 'water', title: 'Wasser & Abwasser', icon: 'water', lead: 'Häuser brauchen Wasser, größere auch Abwasser.', points: [
+    'Wasserturm: überall · Pumpwerk: mehr, nur am Ufer, braucht Strom.',
+    'Ab ca. 300 Einwohnern: Abwasserauslass am Ufer.',
+    'Auslass flussabwärts, weit weg vom Pumpwerk.',
+    `Ab ${ms(2)}: Kläranlage.`,
+  ], act: { view: 'water' }, actLabel: 'Wassernetz' },
   { id: 'garbage', title: 'Müll', icon: 'garbage', lead: 'Wo Menschen leben, fällt Müll an.', points: [
-    'Eine Deponie schickt Müllwagen in ihren Umkreis.',
-    'Ist sie voll oder zu weit weg, stapelt sich der Müll. Das macht unglücklich und krank.',
-    'Deponien riechen: Baue sie etwas abseits der Häuser.',
-    'Später helfen Müllverbrennung (macht Strom) und Recyclinghof.',
-  ], act: { view: 'garbage' }, actLabel: 'Müllabfuhr zeigen' },
-  { id: 'services', title: 'Dienste & Bildung', icon: 'services', lead: `Ab ${ms(1)} kümmern sich Dienste um deine Bürger.`, points: [
-    'Feuerwehr löscht Brände. Polizei senkt die Kriminalität. Arztpraxen halten gesund.',
-    'Schulen bilden die Bürger. Gebildete Bürger bauen größere Häuser und arbeiten in Büros.',
-    'Jeder Dienst wirkt im Umkreis. Beim Bauen siehst du den Kreis.',
-    'Die Infoansichten zeigen, wo ein Dienst fehlt. Dienste brauchen Strom und Wasser.',
-  ], act: { cat: 'services' }, actLabel: 'Dienste öffnen' },
-  { id: 'happiness', title: 'Glück', icon: 'people', lead: 'Glückliche Bürger bleiben, zahlen Steuern und bauen größer.', points: [
-    'Gut: Strom, Wasser, Arbeit, Dienste in der Nähe, Parks und kurze Wege.',
-    'Schlecht: Lärm, Abgase, Müll, Kriminalität, Stau und hohe Steuern.',
-    'Klicke ein Wohnhaus an: Dort steht, was die Leute freut oder stört.',
-    'Sehr unglückliche Bürger ziehen weg. Dann stehen Häuser leer.',
-  ], act: { view: 'happiness' }, actLabel: 'Glück zeigen' },
-  { id: 'money', title: 'Geld & Steuern', icon: 'budget', lead: 'Die Stadt lebt von Steuern und zahlt den Unterhalt.', points: [
-    'Einnahmen: Steuern von Bürgern und Firmen, später auch Fahrkarten und Touristen.',
-    'Ausgaben: Jedes Gebäude und jede Straße kostet jeden Tag Unterhalt.',
-    'Unter der Kasse steht das Plus oder Minus pro Tag.',
-    'Höhere Steuern bringen mehr Geld, machen aber unglücklicher. Kleine Schritte!',
-    `Kredite gibt es ab ${ms(2)}. Bei jedem Meilenstein gibt es eine Belohnung.`,
-  ], act: { panel: 'budget' }, actLabel: 'Haushalt öffnen' },
-  { id: 'ubahn', title: 'U-Bahn', icon: 'transit', lead: 'Die Pulsbahn ist die U-Bahn deiner Stadt. Sie fährt im Tunnel unter der Erde.', points: [
-    'Zeichne eine Linie: Klicke oder tippe nacheinander die Orte der Bahnhöfe an. Enter, Rechtsklick oder „Fertig" beendet die Linie.',
-    'Setze Bahnhöfe nah an Wohnviertel und Arbeitsplätze. Jeder Bahnhof sammelt Fahrgäste im Umkreis.',
-    'Weniger Autos heißt weniger Stau und weniger Lärm.',
-    'Die Strecken liegen im Tunnel – darüber darfst du so hoch bauen, wie du willst. Oben siehst du nur die Eingänge mit dem blauen „U" und eine feine Linie am Boden.',
-    'Beim Linien-Werkzeug schaltet sich die Untergrund-Ansicht ein: Dann siehst du Tunnel, Bahnsteige und Züge. Im Menü „Ansichten" kannst du sie auch selbst einschalten.',
-    'Ist ein Bahnhof überfüllt, setze mehr Züge oder Wagen ein.',
-    'Im U-Bahn-Fenster zeigt der Fahrplan jeder Linie, wo die Züge gerade sind. Ziehe einen Zug mit Maus oder Finger an eine andere Stelle. Der Auto-Takt hält die Abstände gleich – dicht hintereinander fahrende Züge lassen die Bahnhöfe volllaufen.',
-    'Jede Ankunft spielt einen Ton – deine Stadt macht Musik.',
-  ], act: { cat: 'transit' }, actLabel: 'U-Bahn öffnen', lock: (g) => (g.isUnlocked('transit') ? null : `Noch gesperrt: ab ${ms(2)}.`) },
-  { id: 'cards', title: 'Meilensteine & Wochenkarten', icon: 'trophy', lead: 'Wächst deine Stadt, gibt es Belohnungen.', points: [
-    `Meilensteine: ${MILESTONES.slice(1, 5).map((m) => `${m.name} (${fmt(m.pop)})`).join(', ')} und mehr. Jeder bringt Geld und neue Gebäude.`,
-    `Ab ${ms(1)} wählst du jede Woche eine von drei Wochenkarten: ein Bonus, ein Auftrag oder ein Gutschein für ein Wahrzeichen.`,
-    'Aufträge der Stadträte bringen Geld, wenn du sie rechtzeitig erfüllst.',
-    'Erfolge sammelst du nebenbei. Du findest sie im Fenster „Fortschritt".',
-  ], act: { panel: 'progression' }, actLabel: 'Fortschritt zeigen' },
-  { id: 'disasters', title: 'Wetter & Katastrophen', icon: 'weather', lead: 'Das Wetter wechselt mit den Jahreszeiten.', points: [
-    'Im Winter heizen die Leute mehr und Schnee bremst den Verkehr.',
-    'Gewitter, Stürme und Hochwasser kommen vor. Große Städte erleben auch Erdbeben.',
-    'Vorsorge hilft: Feuerwachen, Wetterstation, Warnsirenen und Hochwasserschutz.',
-    'Katastrophen lassen sich im Fenster „Wetter" abschwächen oder abschalten.',
-  ], act: { panel: 'weather' }, actLabel: 'Wetter öffnen' },
-  { id: 'controls', title: 'Bedienung', icon: 'keyboard', lead: 'Kamera und Werkzeuge.', points: [
-    'Linke Maustaste: bauen, ziehen, auswählen. Klick auf ein Gebäude zeigt seine Infos.',
-    'Rechte Maustaste: Karte verschieben. Mausrad: zoomen. Mittlere Maustaste: drehen.',
-    'Auf Handy und Tablet: Ein Finger verschiebt die Karte, zwei Finger drehen und zoomen. Zum Bauen tippst du auf die Karte (bei Straßen und Zonen ziehst du dann den Griff), prüfst die Vorschau und bestätigst mit ✓ Bauen.',
-    'Esc bricht ein Werkzeug ab. Leertaste pausiert. 1, 2, 3 ändern das Tempo.',
+    'Deponie: Müllwagen fahren im Umkreis.',
+    'Voll oder zu weit weg: Müll stapelt sich.',
+    'Deponien riechen – abseits bauen.',
+    'Später: Müllverbrennung (Strom) und Recycling.',
+  ], act: { view: 'garbage' }, actLabel: 'Müllabfuhr' },
+  { id: 'services', title: 'Dienste & Bildung', icon: 'services', lead: `Ab ${ms(1)}.`, points: [
+    'Feuerwehr · Polizei · Arzt · Schule.',
+    'Jeder Dienst wirkt im Kreis, den du beim Bauen siehst.',
+    'Bildung: größere Häuser und Büro-Jobs.',
+    'Dienste brauchen Strom und Wasser.',
+  ], act: { cat: 'services' }, actLabel: 'Dienste' },
+  { id: 'happiness', title: 'Glück', icon: 'people', lead: 'Glückliche Bürger bleiben und zahlen mehr.', points: [
+    'Plus: Versorgung, Arbeit, Dienste, Parks, kurze Wege.',
+    'Minus: Lärm, Abgase, Müll, Kriminalität, Stau, Steuern.',
+    'Klick auf ein Wohnhaus zeigt die Gründe.',
+  ], act: { view: 'happiness' }, actLabel: 'Glück' },
+  { id: 'money', title: 'Geld & Steuern', icon: 'budget', lead: 'Steuern rein, Unterhalt raus.', points: [
+    'Einnahmen: Steuern, später Fahrkarten und Touristen.',
+    'Jedes Gebäude und jede Straße kostet täglich.',
+    'Unter der Kasse: Plus oder Minus pro Tag.',
+    'Steuern in kleinen Schritten ändern – hohe machen unglücklich.',
+    `Kredite ab ${ms(2)}.`,
+  ], act: { panel: 'budget' }, actLabel: 'Haushalt' },
+  { id: 'ubahn', title: 'U-Bahn', icon: 'transit', lead: 'Die Pulsbahn fährt im Tunnel.', points: [
+    'Linie zeichnen: Bahnhöfe nacheinander antippen, Enter oder „Fertig".',
+    'Bahnhöfe nah an Wohnen und Arbeit – weniger Autos, weniger Stau.',
+    'Darüber darfst du beliebig hoch bauen.',
+    'Überfüllt? Mehr Züge oder Wagen.',
+    'Fahrplan: Züge ziehen, Auto-Takt hält Abstände gleich.',
+    'Jede Ankunft spielt einen Ton.',
+  ], act: { cat: 'transit' }, actLabel: 'U-Bahn', lock: (g) => (g.isUnlocked('transit') ? null : `Ab ${ms(2)}.`) },
+  { id: 'cards', title: 'Meilensteine & Karten', icon: 'trophy', lead: 'Wachstum bringt Belohnungen.', points: [
+    `${MILESTONES.slice(1, 5).map((m) => `${m.name} ${fmt(m.pop)}`).join(' · ')} …: Geld und neue Gebäude.`,
+    `Ab ${ms(1)}: jede Woche eine von drei Karten.`,
+    'Aufträge bringen Geld, wenn du sie rechtzeitig erfüllst.',
+  ], act: { panel: 'progression' }, actLabel: 'Fortschritt' },
+  { id: 'disasters', title: 'Wetter & Katastrophen', icon: 'weather', lead: 'Das Wetter folgt den Jahreszeiten.', points: [
+    'Winter: mehr Heizen, Schnee bremst.',
+    'Gewitter, Sturm, Hochwasser, später Erdbeben.',
+    'Vorsorge: Feuerwache, Wetterstation, Sirene, Deich.',
+    'Im Fenster „Wetter" abschwächen oder abschalten.',
+  ], act: { panel: 'weather' }, actLabel: 'Wetter' },
+  { id: 'controls', title: 'Bedienung', icon: 'keyboard', lead: 'Maus, Finger, Tasten.', points: [
+    'Links: bauen, wählen · Rechts: verschieben · Rad: zoomen · Mitte: drehen.',
+    'Touch: 1 Finger verschiebt, 2 Finger drehen/zoomen, ✓ Bauen bestätigt.',
+    'Esc: abbrechen · Leertaste: Pause · 1–3: Tempo.',
   ], keys: true },
 ];
 
@@ -208,9 +199,9 @@ function injectStyle() {
 function topicHTML(t, g) {
   const lock = t.lock && g ? t.lock(g) : null;
   const acts = [];
-  if (t.tour) acts.push(`<button class="hp-btn" data-hp="tour">${ic('play', 15, 2.4)} Einführung starten</button>`);
+  if (t.tour) acts.push(`<button class="hp-btn" data-hp="tour">${ic('play', 15, 2.4)} Einführung</button>`);
   if (t.act && !lock) acts.push(`<button class="hp-btn${t.tour ? ' ghost' : ''}" data-hp="act">${esc(t.actLabel || 'Zeigen')} ${ic('arrowR', 15, 2.4)}</button>`);
-  if (t.keys) acts.push(`<button class="hp-btn ghost" data-hp="keys">${ic('keyboard', 15)} Alle Tastenkürzel</button>`);
+  if (t.keys) acts.push(`<button class="hp-btn ghost" data-hp="keys">${ic('keyboard', 15)} Tasten</button>`);
   return `<h3>${esc(t.title)}</h3><p class="lead">${esc(t.lead)}</p>${lock ? `<div class="hp-lock">${ic('lock', 15, 2.4)}${esc(lock)}</div>` : ''}${SKETCH[t.id] || ''}<ul>${t.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>${acts.length ? `<div class="hp-acts">${acts.join('')}</div>` : ''}`;
 }
 

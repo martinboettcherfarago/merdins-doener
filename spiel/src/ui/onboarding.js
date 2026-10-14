@@ -70,7 +70,7 @@ function clippedInScroller(el) {
 // info: true → Schritt mit Knopf statt Aufgabe
 const verb = (c) => (c.touch ? 'Tippe' : 'Klicke');
 // Touch (Handy, Tablet): Bauen erst nach Bestätigung, ein Finger verschiebt die Karte
-const CONFIRM = 'Prüfe die Vorschau, dann tippe auf ✓ Bauen.';
+const CONFIRM = 'Dann ✓ Bauen.';
 const placing = (c, cat) => c.tool.kind === 'place' && BUILDINGS[c.tool.key] && BUILDINGS[c.tool.key].cat === cat;
 // Hauptgruppe der Werkzeugleiste zu einer Kategorie (neue Oberfläche: Straßen, Zonen, Versorgung …)
 const GROUP_FALLBACK = { roads: 'roads', zones: 'zones', power: 'versorgung', water: 'versorgung', garbage: 'versorgung' };
@@ -93,50 +93,50 @@ function pickHint(c, o) {
 const STEPS = [
   {
     id: 'welcome', info: true, title: (c) => `Willkommen in ${c.g.name}!`,
-    hint: () => ({ text: 'Hier baust du deine eigene Stadt. In acht kurzen Schritten zeige ich dir das Wichtigste – das dauert nur ein paar Minuten.' }),
-    btn: 'Los geht\'s', alt: 'Ohne Einführung spielen',
+    hint: () => ({ text: 'Acht kurze Schritte zur eigenen Stadt.' }),
+    btn: 'Los geht\'s', alt: 'Ohne Einführung',
   },
   {
     id: 'road', title: 'Straße bauen', build: (c) => c.tool.kind === 'road',
     done: (c) => c.n.roads >= 4,
     hint: (c) => {
-      if (c.tool.kind === 'road') return { target: [], map: c.n.roads ? null : 'highway', text: c.touch ? `${c.n.roads ? 'Gut! Bau die Straße noch ein Stück weiter ins Land.' : 'Tippe ans Ende der Autobahn (Kreis) und ziehe den Griff ein Stück ins Land.'} ${CONFIRM} Mit einem Finger verschiebst du die Karte.` : c.n.roads ? 'Gut! Zieh die Straße noch ein Stück weiter ins Land.' : 'Halte die linke Maustaste gedrückt und ziehe vom Ende der Autobahn (roter Kreis) eine Straße ins Land.' };
-      return menuHint(c, { cat: 'roads', catName: 'Straßen', items: ['street'], itemText: 'Wähle „Straße".', why: 'Alles in der Stadt braucht eine Straße.' });
+      if (c.tool.kind === 'road') return { target: [], map: c.n.roads ? null : 'highway', text: c.touch ? `${c.n.roads ? 'Gut! Noch ein Stück weiter.' : 'Tippe aufs Autobahn-Ende (Kreis), zieh den Griff ins Land.'} ${CONFIRM}` : c.n.roads ? 'Gut! Noch ein Stück weiter.' : 'Vom Autobahn-Ende (roter Kreis) ins Land ziehen.' };
+      return menuHint(c, { cat: 'roads', catName: 'Straßen', items: ['street'], itemText: 'Wähle „Straße".', why: 'Alles braucht eine Straße.' });
     },
   },
   {
     id: 'res', title: 'Wohngebiet ausweisen', build: (c) => c.tool.kind === 'zone' && c.tool.zone === Z.RES,
     done: (c) => c.n.zone[Z.RES] >= 6,
     hint: (c) => {
-      if (c.tool.kind === 'zone' && c.tool.zone === Z.RES) return { target: [], text: c.touch ? `Tippe direkt neben die Straße und ziehe den Griff, bis die Fläche passt. ${CONFIRM} Häuser entstehen nur an Straßen.` : 'Ziehe direkt neben der Straße eine Fläche auf. Dort bauen Familien ihre Häuser – Häuser entstehen nur an Straßen.' };
-      return menuHint(c, { cat: 'zones', catName: 'Zonen', items: ['res'], itemText: 'Wähle „Wohnen" (grün).', why: 'Jetzt brauchst du Platz für Häuser.' });
+      if (c.tool.kind === 'zone' && c.tool.zone === Z.RES) return { target: [], text: c.touch ? `Neben der Straße tippen, Griff ziehen. ${CONFIRM}` : 'Direkt neben der Straße eine Fläche aufziehen.' };
+      return menuHint(c, { cat: 'zones', catName: 'Zonen', items: ['res'], itemText: 'Wähle „Wohnen" (grün).', why: 'Platz für Häuser.' });
     },
   },
   {
     id: 'power', title: 'Strom liefern', build: (c) => placing(c, 'power'),
     done: (c) => c.g.countBuilt('power') > 0,
     hint: (c) => pickHint(c, { cat: 'power', catName: 'Strom', items: ['wind', 'coal'], why: 'Ohne Strom zieht niemand ein.',
-      itemText: 'Wähle das Windrad: günstig und sauber – für den Anfang reicht es. Das Kohlekraftwerk liefert mehr, macht aber Abgase.',
-      placeText: (c) => (c.tool.key === 'coal' ? 'Setze das Kraftwerk an eine Straße, etwas weg von den Häusern – es macht Abgase.' : 'Setze das Windrad an eine Straße.') + ' Der Strom fließt über die Straßen zu allen Häusern.',
-      placeTouch: 'Tippe auf einen Platz an einer Straße, etwas weg von den Häusern. Der Strom fließt über die Straßen.' }),
+      itemText: 'Windrad: günstig und sauber. Kohle: mehr Strom, aber Abgase.',
+      placeText: (c) => (c.tool.key === 'coal' ? 'An eine Straße, weg von den Häusern.' : 'An eine Straße setzen.') + ' Strom fließt über Straßen.',
+      placeTouch: 'Platz an einer Straße antippen.' }),
   },
   {
     id: 'water', title: 'Wasser liefern', build: (c) => placing(c, 'water'),
     done: (c) => ['watertower', 'pump', 'waterworks'].some((k) => c.g.hasBuilt(k)),
     hint: (c) => pickHint(c, { cat: 'water', catName: 'Wasser', items: ['watertower'], why: 'Auch Wasser muss sein.',
-      itemText: 'Wähle den Wasserturm. Er passt überall hin.',
-      placeText: 'Setze den Wasserturm an eine Straße. Wasser fließt ebenfalls über die Straßen.',
-      placeTouch: 'Tippe auf einen Platz an einer Straße.' }),
+      itemText: 'Wähle den Wasserturm.',
+      placeText: 'An eine Straße setzen.',
+      placeTouch: 'Platz an einer Straße antippen.' }),
   },
   {
     id: 'time', title: 'Zeit laufen lassen',
     done: (c) => c.g.stats.pop >= 20,
     hint: (c) => {
       const s = c.g.stats;
-      if (s.unpowered > 0 && c.g.countBuilt('power') > 0) return { target: ['speed'], text: 'Einige Häuser haben keinen Strom. Das Kraftwerk muss über Straßen mit ihnen verbunden sein.' };
-      if (s.unwatered > 0) return { target: ['speed'], text: 'Einige Häuser haben kein Wasser. Der Wasserturm muss an derselben Straße stehen und braucht Strom.' };
-      if (c.g.speed === 0) return { target: ['speed'], text: `Das Spiel ist pausiert. ${verb(c)} auf ▶, damit die Zeit weiterläuft.` };
-      return { target: ['speed'], text: s.pop > 0 ? `Die ersten Familien ziehen ein! Mit diesen Knöpfen läuft die Zeit schneller. (${fmt(s.pop)} von 20 Einwohnern)` : 'Die ersten Häuser werden gebaut. Mit diesen Knöpfen läuft die Zeit schneller.' };
+      if (s.unpowered > 0 && c.g.countBuilt('power') > 0) return { target: ['speed'], text: 'Häuser ohne Strom: Kraftwerk per Straße verbinden.' };
+      if (s.unwatered > 0) return { target: ['speed'], text: 'Häuser ohne Wasser: Wasserturm an dieselbe Straße.' };
+      if (c.g.speed === 0) return { target: ['speed'], text: `Pausiert – ${verb(c)} auf ▶.` };
+      return { target: ['speed'], text: s.pop > 0 ? `Die ersten Familien ziehen ein! ${fmt(s.pop)} / 20` : 'Hier läuft die Zeit schneller.' };
     },
   },
   {
@@ -145,30 +145,30 @@ const STEPS = [
     hint: (c) => {
       const needCom = c.n.zone[Z.COM] < 4, z = needCom ? Z.COM : Z.IND;
       const name = needCom ? 'Gewerbe' : 'Industrie', key = needCom ? 'com' : 'ind';
-      if (c.tool.kind === 'zone' && c.tool.zone === z) return { target: ['demand'], text: (needCom ? `${c.touch ? 'Tippe an eine Straße und ziehe den Griff für eine Gewerbefläche.' : 'Ziehe Gewerbe an eine Straße.'} Die Balken oben zeigen, was gefragt ist: W Wohnen, G Gewerbe, I Industrie.` : `${c.touch ? 'Tippe an eine Straße und ziehe den Griff für eine Industriefläche' : 'Ziehe Industrie an eine Straße'} – mit etwas Abstand zu den Häusern, denn Fabriken machen Abgase.`) + (c.touch ? ' ' + CONFIRM : '') };
-      return menuHint(c, { cat: 'zones', catName: 'Zonen', items: [key], itemText: `Wähle „${name}" (${needCom ? 'blau' : 'gelb'}).`, why: 'Deine Bürger brauchen Arbeit und Läden.' });
+      if (c.tool.kind === 'zone' && c.tool.zone === z) return { target: ['demand'], text: (needCom ? 'Gewerbe an eine Straße. Oben siehst du, was gefragt ist.' : 'Industrie an eine Straße – mit Abstand zu Häusern.') + (c.touch ? ' ' + CONFIRM : '') };
+      return menuHint(c, { cat: 'zones', catName: 'Zonen', items: [key], itemText: `Wähle „${name}" (${needCom ? 'blau' : 'gelb'}).`, why: 'Bürger brauchen Arbeit.' });
     },
   },
   {
     id: 'garbage', title: 'Müll abholen', build: (c) => placing(c, 'garbage'),
     done: (c) => c.g.countBuilt('garbage') > 0,
     hint: (c) => pickHint(c, { cat: 'garbage', catName: 'Müll', items: ['landfill'], why: 'Wo Menschen wohnen, fällt Müll an.',
-      itemText: 'Wähle die Deponie. Ihre Müllwagen holen den Müll ab.',
-      placeText: 'Setze die Deponie an eine Straße, etwas abseits der Häuser – sie riecht.',
-      placeTouch: 'Tippe auf einen Platz an einer Straße, etwas abseits der Häuser.' }),
+      itemText: 'Wähle die Deponie.',
+      placeText: 'An eine Straße, abseits der Häuser.',
+      placeTouch: 'Platz an einer Straße antippen, abseits der Häuser.' }),
   },
   {
     id: 'happy', info: true, title: 'Glück verstehen',
     done: (c) => c.viewAge > 9,
     hint: (c) => (c.view === 'happiness'
-      ? { target: [], text: 'Grün heißt glücklich, rot unglücklich. Klicke ein Wohnhaus an: Dort stehen die Gründe. Strom, Wasser, Arbeit, Parks und Ruhe machen froh.' }
-      : { target: ['stat-happy'], text: `Hier siehst du, wie glücklich deine Bürger sind. Glückliche Bürger bleiben und zahlen Steuern. ${verb(c)} darauf.` }),
+      ? { target: [], text: 'Grün = glücklich, rot = unglücklich. Ein Klick auf ein Haus zeigt die Gründe.' }
+      : { target: ['stat-happy'], text: `Glückliche Bürger bleiben und zahlen. ${verb(c)} hier.` }),
     btn: 'Verstanden',
   },
   {
     id: 'finish', info: true, title: 'Gut gemacht!',
-    hint: (c) => ({ target: ['guide', 'help'], text: `Deine Stadt lebt. Ab jetzt steht ${c.touch ? 'unten' : 'links unten'} immer dein nächstes Ziel. Und unter „?" erklärt dir die Hilfe alles in Ruhe. Nächster Meilenstein: „${MILESTONES[1].name}" mit ${fmt(MILESTONES[1].pop)} Einwohnern.` }),
-    btn: 'Los, weiterbauen!',
+    hint: (c) => ({ target: ['guide', 'help'], text: `${c.touch ? 'Unten' : 'Links unten'} steht dein nächstes Ziel, unter „?" die Hilfe. Nächstes Ziel: ${MILESTONES[1].name} (${fmt(MILESTONES[1].pop)} Einwohner).` }),
+    btn: 'Weiterbauen',
   },
 ];
 const TASKS = STEPS.filter((s) => !s.info || s.id === 'happy').length;
@@ -203,7 +203,7 @@ const CSS = `
 .ob-card .ob-btn:active { transform: translateY(2px); box-shadow: var(--p-amber, 0 1px 0 var(--cta-edge, #d96a00)); }
 .ob-card .ob-link { font: 700 13px/1 var(--f-ui, system-ui); padding: 6px 2px; border: 0; background: none; color: var(--accent-ink, #4b3aa8); cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent, #6c4fe0) 40%, transparent); text-underline-offset: 3px; }
 .ob-card .ob-link:hover { color: var(--accent, #6c4fe0); text-decoration-color: currentColor; }
-.ob-card .ob-done { display: flex; align-items: center; gap: 8px; color: var(--good, #23864b); font-weight: 800; font-size: 15px; }
+.ob-card .ob-done { display: flex; align-items: center; gap: 8px; color: var(--good, #23864b); font-weight: 700; font-size: 15px; }
 .ob-card .ob-arrow { position: absolute; width: 14px; height: 14px; background: #fdfaf5; box-shadow: 1px 1px 0 rgba(52, 19, 122, .08); transform: rotate(45deg); border-radius: 0 0 3px 0; }
 .ob-card .ob-arrow[data-side=bottom] { transform: rotate(225deg); background: #fffefb; }
 .ob-card .ob-arrow[data-side=right] { transform: rotate(135deg); }
@@ -306,7 +306,7 @@ export class Onboarding {
     s.tutorialDone = true; s.tourStep = 0;
     this.saveSettings();
     if (this.layer) this.layer.hidden = true;
-    if (!finished) { try { this.ui.toast('Einführung beendet. Du kannst sie jederzeit in der Hilfe („?") neu starten.', '', { icon: 'help' }); } catch (e) { /* egal */ } }
+    if (!finished) { try { this.ui.toast('Einführung beendet – neu starten unter „?".', '', { icon: 'help' }); } catch (e) { /* egal */ } }
     this.guideT = 0;
     try { this.ui.advisor.compute(); } catch (e) { /* egal */ }
     this.syncUi();
@@ -408,7 +408,7 @@ export class Onboarding {
     const title = typeof st.title === 'function' ? st.title(c) : st.title;
     const taskNo = STEPS.slice(0, this.idx + 1).filter((s) => !s.info || s.id === 'happy').length;
     const isWelcome = st.id === 'welcome', isFinish = st.id === 'finish';
-    const top = isWelcome ? 'Einführung' : isFinish ? 'Geschafft' : `Schritt ${taskNo} von ${TASKS}`;
+    const top = isWelcome ? 'Einführung' : isFinish ? 'Geschafft' : `Schritt ${taskNo}/${TASKS}`;
     const progress = isWelcome ? 0 : isFinish ? 1 : (taskNo - 1) / TASKS;
     const body = this.flash > performance.now()
       ? `<div class="ob-done">${ic('check', 18, 2.6)} Erledigt!</div>`
@@ -416,7 +416,7 @@ export class Onboarding {
     const acts = [];
     if (st.btn && this.flash <= performance.now()) acts.push(`<button class="ob-btn" data-ob="next">${esc(st.btn)} ${ic('arrowR', 15, 2.4)}</button>`);
     if (st.alt) acts.push(`<button class="ob-link" data-ob="alt">${esc(st.alt)}</button>`);
-    else if (!st.info && this.flash <= performance.now() && c.stepAge > 25) acts.push('<button class="ob-link" data-ob="skip">Schritt überspringen</button>');
+    else if (!st.info && this.flash <= performance.now() && c.stepAge > 25) acts.push('<button class="ob-link" data-ob="skip">Überspringen</button>');
     const html = `<div class="ob-top"><span>${esc(top)}</span><span class="grow"></span>${isFinish ? '' : `<button class="ob-x" data-ob="close" aria-label="Einführung beenden" title="Einführung beenden">${ic('close', 15, 2.4)}</button>`}</div>
 <div class="ob-bar"><i style="width:${Math.round(progress * 100)}%"></i></div>${body}${acts.length ? `<div class="ob-acts">${acts.join('')}</div>` : ''}<span class="ob-arrow" hidden></span>`;
     if (html !== this._html) {

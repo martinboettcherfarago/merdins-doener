@@ -13,10 +13,10 @@ const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const ZONE_DESC = {
-  1: 'Hier ziehen Menschen ein. Braucht Strom, Wasser und Jobs in der Nähe.',
-  2: 'Läden und Kaufhäuser. Leben von Kundschaft und Waren.',
-  3: 'Fabriken schaffen Jobs, machen aber Abgase. Auf Acker, Wald, Erz oder Öl entstehen Bauernhöfe, Forstbetriebe, Bergwerke und Ölfelder.',
-  4: 'Saubere Büros für gebildete Arbeitskräfte.',
+  1: 'Hier ziehen Menschen ein.',
+  2: 'Läden: brauchen Kundschaft und Waren.',
+  3: 'Jobs, aber Abgase.',
+  4: 'Saubere Jobs für Gebildete.',
 };
 const ZONE_THUMB = { 1: ['res', 2, 2], 2: ['com', 2, 1], 3: ['ind', 2, 3], 4: ['off', 3, 0] };
 
@@ -94,12 +94,12 @@ export function catalogItems(ui, cat) {
       items.push({ cat, kind: 'zone', zone: z, name: ZONE_INFO[z].name, cost: `${fmtMoney(2 * g.costMul)} / Feld`, desc: ZONE_INFO[z].desc || ZONE_DESC[z], color: hex(ZONE_INFO[z].color), locked,
         facts: [['stats', `Nachfrage ${dem > 0 ? '+' : ''}${dem}`], ['grid', 'Fläche aufziehen']], demand: dem });
     }
-    items.push({ cat, kind: 'dezone', name: 'Zonen entfernen', cost: 'kostenlos', desc: 'Entfernt Zonen von unbebauten Feldern.', color: '#9a9a9a', icon: 'dezone', facts: [['grid', 'Fläche aufziehen']] });
+    items.push({ cat, kind: 'dezone', name: 'Zonen entfernen', cost: 'kostenlos', desc: 'Zonen von leeren Feldern entfernen.', color: '#9a9a9a', icon: 'dezone', facts: [['grid', 'Fläche aufziehen']] });
   } else if (cat === 'transit') {
     const locked = g.isUnlocked('transit') ? null : g.lockReason('station');
-    items.push({ cat, kind: 'line', name: 'Linie zeichnen', cost: `ab ${fmtMoney(TRANSIT.lineCost * g.costMul)}`, desc: 'Stationen nacheinander anklicken – leere Felder bekommen automatisch eine Station. Rechtsklick oder Enter beendet.', color: '#e8543f', locked, icon: 'line', facts: [['line', `${g.transit.lines.length} / ${g.transit.linesMax} Linien`]] });
+    items.push({ cat, kind: 'line', name: 'Linie zeichnen', cost: `ab ${fmtMoney(TRANSIT.lineCost * g.costMul)}`, desc: 'Stationen nacheinander antippen. Enter oder Rechtsklick beendet.', color: '#e8543f', locked, icon: 'line', facts: [['line', `${g.transit.lines.length} / ${g.transit.linesMax} Linien`]] });
     items.push(placeItem(g, cat, 'station', meta, builtCounts(g)));
-    items.push({ cat, kind: 'panel', panel: 'transit', name: 'Linien verwalten', cost: `${g.transit.lines.length} / ${g.transit.linesMax} Linien`, desc: 'Züge und Waggons einsetzen, Linien verlängern.', color: '#2f8fe0', locked, icon: 'settings', facts: [] });
+    items.push({ cat, kind: 'panel', panel: 'transit', name: 'Linien verwalten', cost: `${g.transit.lines.length} / ${g.transit.linesMax} Linien`, desc: 'Züge einsetzen, Linien verlängern.', color: '#2f8fe0', locked, icon: 'settings', facts: [] });
     for (const [key, d] of Object.entries(BUILDINGS)) if (d.cat === cat && key !== 'station') items.push(placeItem(g, cat, key, meta, builtCounts(g)));
   } else {
     for (const [key, d] of Object.entries(BUILDINGS)) {
@@ -139,6 +139,8 @@ function placeItem(g, cat, key, meta, counts) {
   if (d.lv > 0) facts.push(['coin', `Bodenwert +${d.lv}`]);
   if (d.upkeep) facts.push(['budget', `${fmtMoney(d.upkeep * g.upkeepMul())} / Tag`]);
   facts.push(['grid', `${d.size[0]} × ${d.size[1]} Felder`]);
+  const needs = [d.power_use && 'Strom', d.water_use && 'Wasser'].filter(Boolean);
+  if (needs.length) facts.push(['info', `braucht ${needs.join(' + ')}`]);
   if (d.needsWater) facts.push(['water', 'am Ufer']);
   if (d.onRoad) facts.push(['roads', 'auch über Straßen']);
   const unlockMs = d.landmark ? d.unlock + 1 : d.unlock;
@@ -236,24 +238,24 @@ export function cardHTML(it, i, active, showCat = false, open = false) {
     : `<span class="buy${free ? ' free' : ''}">${esc(it.cost || 'Bauen')}</span>`;
   const sub = it.locked && !it.built ? `<span class="f lockline">${icon('lock', 12, 2.6)}${esc(it.locked)}</span>`
     : it.facts && it.facts.length ? `<span class="f">${factsHTML(it.facts, it.kind === 'panel' ? 1 : 2)}</span>` : '';
-  const xtra = open ? `<span class="xtra"><span class="x-desc">${esc(it.desc || '')}</span>${it.facts && it.facts.length > 2 ? `<span class="x-facts">${factsHTML(it.facts.slice(2))}</span>` : ''}${it.unique && !it.locked ? `<span class="x-note">${icon('star', 13, 2.4)}Einmalig in der Stadt${it.tag ? ' · Gutschein: halber Preis' : ''}</span>` : ''}<span class="dt-help" data-act="trayhelp" data-tip="Was ist das?" data-tip-desc="Erklärt in einfachen Sätzen, wozu das gut ist." data-tip-fast="1">${icon('help', 14, 2.4)}Was ist das?</span></span>` : '';
+  const xtra = open ? `<span class="xtra"><span class="x-desc">${esc(it.desc || '')}</span>${it.facts && it.facts.length > 2 ? `<span class="x-facts">${factsHTML(it.facts.slice(2))}</span>` : ''}${it.unique && !it.locked ? `<span class="x-note">${icon('star', 13, 2.4)}Einmalig${it.tag ? ' · Gutschein −50 %' : ''}</span>` : ''}<span class="dt-help" data-act="trayhelp" data-tip="Hilfe zum Thema" data-tip-fast="1">${icon('help', 14, 2.4)}Was ist das?</span></span>` : '';
   return `<button class="${cls.join(' ')}" role="listitem" data-i="${i}" data-tour="item-${esc(tourKey(it))}" data-kind="${it.kind}" data-type="${it.type || ''}" data-zone="${it.zone || ''}" data-bkey="${esc(it.key || '')}" data-panel="${esc(it.panel || '')}" ${it.locked ? 'data-locked="1"' : ''} style="--c:${it.color || cm.color}" aria-label="${esc(it.name)}${it.cost ? ', ' + esc(it.cost) : ''}">
   <span class="pic">${pic(it)}${it.tag ? `<span class="tag">${esc(it.tag)}</span>` : it.fresh ? '<span class="tag new">Neu</span>' : ''}${it.count ? `<span class="cnt num" title="In der Stadt">${it.count}×</span>` : ''}${typeof it.demand === 'number' ? `<span class="dem"><i style="height:${Math.max(4, Math.min(100, Math.abs(it.demand)))}%;${it.demand < 0 ? 'opacity:.4' : ''}"></i></span>` : ''}</span>
-  <span class="meta">${showCat ? `<span class="ct" style="color:${cm.color}">${esc(catLabel(it.cat))}</span>` : ''}<span class="n">${esc(it.name)}</span>${sub}<span class="more" data-more="1" role="button" aria-expanded="${open}">${open ? 'Weniger' : 'Mehr Infos'}</span></span>
+  <span class="meta">${showCat ? `<span class="ct" style="color:${cm.color}">${esc(catLabel(it.cat))}</span>` : ''}<span class="n">${esc(it.name)}</span>${sub}<span class="more" data-more="1" role="button" aria-expanded="${open}">${open ? 'Weniger' : 'Infos'}</span></span>
   ${buy}${xtra}
 </button>`;
 }
 
 export function detailHTML(it) {
-  if (!it) return '<div class="empty">Fahre über einen Eintrag, um Details zu sehen.</div>';
+  if (!it) return '<div class="empty">Eintrag wählen</div>';
   const cm = catMeta(it.cat);
   return `<div class="dt-head"><span class="dt-line" style="background:${it.color || cm.color}"></span><span class="dt-cat">${esc(catLabel(it.cat))}</span></div>
 <div class="dt-name">${esc(it.name)}</div>
 <div class="dt-cost num">${esc(it.cost)}</div>
 <p class="dt-desc">${esc(it.desc || '')}</p>
 <div class="dt-facts">${factsHTML(it.facts)}</div>
-${it.locked ? `<div class="dt-lock">${icon(it.built ? 'check' : 'lock', 14, 2.4)}<span>${esc(it.locked)}</span></div>` : it.unique ? `<div class="dt-note">${icon('star', 14, 2.2)}<span>Einmalig in der Stadt${it.tag ? ' · Gutschein: halber Preis' : ''}</span></div>` : ''}
-<button class="dt-help" data-act="trayhelp" data-tip="Was ist das?" data-tip-desc="Erklärt in einfachen Sätzen, wozu das gut ist." data-tip-fast="1">${icon('help', 14, 2.2)}<span>Was ist das?</span></button>`;
+${it.locked ? `<div class="dt-lock">${icon(it.built ? 'check' : 'lock', 14, 2.4)}<span>${esc(it.locked)}</span></div>` : it.unique ? `<div class="dt-note">${icon('star', 14, 2.2)}<span>Einmalig${it.tag ? ' · Gutschein −50 %' : ''}</span></div>` : ''}
+<button class="dt-help" data-act="trayhelp" data-tip="Hilfe zum Thema" data-tip-fast="1">${icon('help', 14, 2.2)}<span>Was ist das?</span></button>`;
 }
 
 // Bilder nachträglich einsetzen, sobald sie fertig sind

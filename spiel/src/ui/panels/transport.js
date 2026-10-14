@@ -63,7 +63,7 @@ function netMap(g) {
   for (const l of T.lines) {
     const st = TPS.stopById(g, l.stops[0]);
     if (!st) continue;
-    svg += `<g transform="translate(${(+sx(st.x) - 7).toFixed(1)},${(+sy(st.y) - 16).toFixed(1)})"><rect width="14" height="11" rx="${l.mode === 'tram' ? 2 : 5.5}" fill="${hex(TPS.lineColor(l))}"/><text x="7" y="8.6" font-size="8.5" font-weight="700" fill="#fff" text-anchor="middle" font-family="Stadtpuls Rund, Fredoka, sans-serif">${l.mode === 'tram' ? 'T' : ''}${l.num}</text></g>`;
+    svg += `<g transform="translate(${(+sx(st.x) - 7).toFixed(1)},${(+sy(st.y) - 16).toFixed(1)})"><rect width="14" height="11" rx="${l.mode === 'tram' ? 2 : 5.5}" fill="${hex(TPS.lineColor(l))}"/><text x="7" y="8.6" font-size="8.5" font-weight="700" fill="#fff" text-anchor="middle" font-family="Stadtpuls Rund, Outfit, sans-serif">${l.mode === 'tram' ? 'T' : ''}${l.num}</text></g>`;
   }
   return `<div class="sec"><h3>Netzplan</h3><svg viewBox="-8 -18 ${W + 16} ${H + 26}" style="width:100%;height:auto;display:block;background:var(--paper-2);border-radius:10px">${svg}</svg>${muted('Kreise: Haltestellen (groß = Umstieg) · Quadrate: U-Bahn-Stationen · rot umrandet: überfüllt · gestrichelt: unterbrochen')}</div>`;
 }
@@ -110,21 +110,21 @@ function advice(g) {
   const tips = [];
   if (!T) return tips;
   const busOk = TPS.modeUnlocked(g, 'bus');
-  if (busOk && !g.hasBuilt('bus_depot') && g.stats.pop > 250) tips.push(['Baue ein Busdepot an einer Straße – danach kannst du Buslinien zeichnen.', 'good']);
-  if (g.hasBuilt('bus_depot') && !T.lines.some((l) => l.mode === 'bus')) tips.push(['Das Busdepot steht leer: Zeichne eine Buslinie von einem Wohngebiet zu Arbeitsplätzen.', 'warn']);
+  if (busOk && !g.hasBuilt('bus_depot') && g.stats.pop > 250) tips.push(['Erst ein Busdepot, dann Buslinien.', 'good']);
+  if (g.hasBuilt('bus_depot') && !T.lines.some((l) => l.mode === 'bus')) tips.push(['Busdepot leer – zeichne eine Buslinie.', 'warn']);
   for (const l of T.lines) {
     if (l.broken) tips.push([`${TPS.lineLabel(l)} ist unterbrochen: ${l.broken}. Straße reparieren oder Haltestellen ändern.`, 'bad']);
     else if (l.load > 1.05) tips.push([`${TPS.lineLabel(l)} ist überfüllt (${pct(l.load)}). Mehr oder größere Fahrzeuge einsetzen.`, 'bad']);
-    else if (l.takt > 22 && l.riders > 5) tips.push([`${TPS.lineLabel(l)} fährt nur alle ${Math.round(l.takt)} Minuten – ein weiteres Fahrzeug macht sie attraktiver.`, 'warn']);
-    else if (l.riders < 8 && g.day() - (l.created || 0) > 3) tips.push([`${TPS.lineLabel(l)} hat kaum Fahrgäste. Verbinde Wohnen mit Arbeit, Läden oder einer U-Bahn-Station.`, 'warn']);
+    else if (l.takt > 22 && l.riders > 5) tips.push([`${TPS.lineLabel(l)}: nur alle ${Math.round(l.takt)} Min. – mehr Fahrzeuge.`, 'warn']);
+    else if (l.riders < 8 && g.day() - (l.created || 0) > 3) tips.push([`${TPS.lineLabel(l)}: kaum Fahrgäste.`, 'warn']);
   }
   const u = unserved(g);
   if (T.lines.length && u.pop > g.stats.pop * 0.25) tips.push([`${fmt(u.pop)} Menschen wohnen ohne Haltestelle in der Nähe (${String(TPS.TP.stopRadius).replace('.', ',')} Felder).`, 'warn']);
   const recent = T.accidentLog.filter((a) => g.day() - a.day <= 2);
-  if (recent.length >= 2) tips.push([`${recent.length} Unfälle in den letzten Tagen. Ampeln an belebten Kreuzungen verhindern die meisten.`, 'bad']);
+  if (recent.length >= 2) tips.push([`${recent.length} Unfälle – Ampeln helfen.`, 'bad']);
   if ((g.stats.trafficFlow || 1) < 0.8) tips.push(['Viel Stau: Busspuren, Straßenbahnen, Parkhäuser und Alleen entlasten die Straßen.', 'warn']);
-  if (T.stops.some((s) => s.feeder) && T.day && T.day.feeder > 5) tips.push([`Gut: ${fmt(T.day.feeder)} Fahrgäste sind gestern zwischen Bus und U-Bahn umgestiegen.`, 'good']);
-  if (!tips.length && T.lines.length) tips.push(['Der Verkehr läuft. Wachsende Viertel brauchen bald neue Linien.', 'good']);
+  if (T.stops.some((s) => s.feeder) && T.day && T.day.feeder > 5) tips.push([`${fmt(T.day.feeder)} Umstiege Bus ↔ U-Bahn gestern.`, 'good']);
+  if (!tips.length && T.lines.length) tips.push(['Der Verkehr läuft.', 'good']);
   return tips.slice(0, 5);
 }
 
@@ -305,8 +305,8 @@ registerPanel({
     switch (act) {
       case 'tab': S.tab = el.dataset.k; break;
       case 'chart': S.chart = el.dataset.k; break;
-      case 'newbus': input.setTool({ kind: 'buslines', type: 'bus' }); ui.closePanels(); ui.toast('Haltestellen nacheinander an Straßen anklicken. Letzte Haltestelle erneut anklicken, Enter oder Rechtsklick: fertig.'); break;
-      case 'newtram': input.setTool({ kind: 'buslines', type: 'tram' }); ui.closePanels(); ui.toast('Haltestellen an Straßen oder Alleen anklicken – die Gleise folgen der Straße.'); break;
+      case 'newbus': input.setTool({ kind: 'buslines', type: 'bus' }); ui.closePanels(); ui.toast('Haltestellen antippen · Enter: fertig'); break;
+      case 'newtram': input.setTool({ kind: 'buslines', type: 'tram' }); ui.closePanels(); ui.toast('Haltestellen an Straßen antippen'); break;
       case 'stoptool': input.setTool({ kind: 'buslines', type: 'stop' }); ui.closePanels(); break;
       case 'signaltool': input.setTool({ kind: 'buslines', type: 'signal' }); ui.closePanels(); break;
       case 'trafficview': ui.setView('traffic'); break;
@@ -315,7 +315,7 @@ registerPanel({
       case 'vtype': res(TPS.setVehicleType(g, L, el.dataset.v)); break;
       case 'color': TPS.cycleLineColor(g, L); break;
       case 'toggle': if (S.open.has(L)) S.open.delete(L); else S.open.add(L); break;
-      case 'extend': input.setTool({ kind: 'buslines', type: 'extend', line: L, atStart: el.dataset.start === '1' }); ui.closePanels(); ui.toast('Neue Haltestellen anklicken. Enter oder Rechtsklick: fertig.'); break;
+      case 'extend': input.setTool({ kind: 'buslines', type: 'extend', line: L, atStart: el.dataset.start === '1' }); ui.closePanels(); ui.toast('Haltestellen antippen · Enter: fertig'); break;
       case 'showline': {
         const l = TPS.lineById(g, L);
         if (l && l.path.length) { const t = l.path[Math.floor(l.path.length / 2)]; focus(ui, t % g.W, (t / g.W) | 0, Math.max(18, Math.min(60, l.len * 0.9))); emit('transport:focusLine', l.id); }
@@ -410,7 +410,7 @@ INSPECTORS.push((ui, sel) => {
         if (A) parts.push(`<div class="kv" style="margin-top:8px"><span>Flüge heute / gestern</span><span class="v">${A.today} / ${A.yesterday ?? '–'}</span><span>Maschinen am Boden</span><span class="v">${A.flights.length}</span></div>`);
       } else if (k === 'ferry_pier') {
         const f = T.ferries.find((x) => x.a === b.id || x.b === b.id);
-        parts.push(`<p style="font-size:12.5px;color:var(--ink-2);margin:8px 0 0">${f ? `Fährlinie über ${f.len.toFixed(0)} Felder · gestern ${fmt(f.riders || 0)} Fahrgäste` : 'Noch keine Fährlinie: Ein zweiter Anleger am selben Gewässer verbindet sich automatisch.'}</p>`);
+        parts.push(`<p style="font-size:12.5px;color:var(--ink-2);margin:8px 0 0">${f ? `Fährlinie über ${f.len.toFixed(0)} Felder · gestern ${fmt(f.riders || 0)} Fahrgäste` : 'Noch keine Fährlinie – zweiter Anleger nötig.'}</p>`);
       } else if (k === 'taxi_depot') {
         parts.push(`<p style="font-size:12.5px;color:var(--ink-2);margin:8px 0 0">${T.taxis.filter((t) => t.depot === b.id && t.path).length} Taxis unterwegs · gestern ${fmt((T.day && T.day.taxi) || 0)} Fahrten in der Stadt</p>`);
       } else if (k === 'parking') {

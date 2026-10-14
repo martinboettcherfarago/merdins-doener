@@ -21,7 +21,7 @@ function ensureStyles() {
 .cz-tabs button.on { background:var(--ink); color:var(--paper); }
 .cz-strip { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-bottom:12px; }
 .cz-strip div { background:var(--paper-2); border-radius:10px; padding:6px 9px; min-width:0; }
-.cz-strip .k { font-size:10.5px; color:var(--ink-3); font-weight:700; line-height:1.15; min-height:2.3em; display:flex; align-items:flex-end; }
+.cz-strip .k { font-size:11px; color:var(--ink-3); font-weight:700; line-height:1.15; min-height:2.3em; display:flex; align-items:flex-end; }
 .cz-strip .v { font-family:var(--f-num); font-size:20px; font-weight:600; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .cz-strip .v small { font-size:12px; color:var(--ink-3); font-weight:600; margin-left:2px; }
 .cz-strip .v.neg { color:var(--bad); } .cz-strip .v.pos { color:var(--good); }
@@ -43,12 +43,12 @@ function ensureStyles() {
 .cz-flow .st { flex:1; min-width:0; border-radius:10px; padding:6px 4px; text-align:center; background:var(--paper-2); display:flex; flex-direction:column; gap:1px; }
 .cz-flow .st b { font-family:var(--f-num); font-size:18px; }
 .cz-flow .st span { font-size:11.5px; font-weight:700; }
-.cz-flow .st em { font-style:normal; font-size:10.5px; color:var(--ink-3); }
+.cz-flow .st em { font-style:normal; font-size:11px; color:var(--ink-3); }
 .cz-flow .st.over { background:#f6dcd8; } .cz-flow .st.over em { color:#9e2b23; }
 .cz-flow .st.none { background:var(--paper-3); opacity:.9; }
 .cz-flow .st.none em { color:var(--bad); font-weight:700; }
 .cz-flow .st.ok { background:#e6e0f3; }
-.cz-flow .ar { align-self:center; color:var(--ink-3); font-weight:800; font-size:18px; }
+.cz-flow .ar { align-self:center; color:var(--ink-3); font-weight:700; font-size:18px; }
 .cz-note { font-size:12.5px; color:var(--ink-2); line-height:1.45; margin:6px 0 0; }
 .cz-note b { color:var(--ink); }
 .cz-warn { background:#f6dcd8; color:#7e2219; border-radius:10px; padding:8px 10px; font-size:12.5px; line-height:1.4; margin:0 0 10px; }
@@ -59,7 +59,7 @@ function ensureStyles() {
 .cz-fac .v { font-family:var(--f-num); font-weight:600; white-space:nowrap; }
 .cz-mini { display:flex; gap:3px; align-items:flex-end; height:34px; margin:4px 0 2px; }
 .cz-mini i { flex:1; border-radius:3px 3px 0 0; min-height:2px; }
-.cz-mini-l { display:flex; gap:3px; font-size:10.5px; color:var(--ink-3); } .cz-mini-l span { flex:1; text-align:center; }
+.cz-mini-l { display:flex; gap:3px; font-size:11px; color:var(--ink-3); } .cz-mini-l span { flex:1; text-align:center; }
 .cz-ilabel { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin:12px 0 4px; }
 `;
   document.head.appendChild(st);
@@ -86,14 +86,14 @@ function overview(ui) {
   const tot = S.groups.reduce((a, b) => a + b, 0) || 1;
   const grp = AGE_GROUPS.map((gr, k) => `<span class="sw" style="background:${gr.color}"></span><span>${gr.name} <span style="color:var(--ink-3)">${gr.range}</span></span><span class="n">${fmt(S.groups[k])}</span><span class="p">${pct(S.groups[k] / tot)}</span>`).join('');
   const lr = S.laborRatio || 1;
-  const laborTxt = lr < 0.92 ? '<b>Fachkräftemangel:</b> Es gibt weniger Menschen im Erwerbsalter als gedacht. Firmen wachsen langsamer, die Stadt sucht Zuzug.' : lr > 1.08 ? 'Viele Menschen im Erwerbsalter – Firmen finden leicht Personal.' : 'Die Altersstruktur passt zum Arbeitsmarkt.';
+  const laborTxt = lr < 0.92 ? '<b>Fachkräftemangel</b> – Firmen wachsen langsamer.' : lr > 1.08 ? 'Viele Erwerbstätige – Firmen finden leicht Personal.' : 'Altersstruktur passt zum Arbeitsmarkt.';
   const nat = S.birthsToday - S.deathsToday;
   return `
 ${strip([['Einwohner', fmt(g.stats.pop)], ['Ø Alter', S.avgAge.toFixed(0), '', ' J.'], ['Lebens­erwartung', S.lifeExp.toFixed(0), '', ' J.']])}
 ${strip([['Geburten heute', fmt(S.birthsToday), 'pos'], ['Sterbefälle heute', fmt(S.deathsToday), S.deathsToday > S.birthsToday ? 'neg' : ''], ['Zuzug − Wegzug', `${S.moveIn - S.moveOut >= 0 ? '+' : '−'}${fmt(Math.abs(S.moveIn - S.moveOut))}`, S.moveIn >= S.moveOut ? 'pos' : 'neg']])}
 <div class="sec"><h3>Alterspyramide</h3><canvas class="cz-canvas" id="cz-pyr" style="height:250px"></canvas></div>
 <div class="sec"><h3>Altersgruppen</h3><div class="cz-grp">${grp}</div>
-<p class="cz-note">Natürliche Entwicklung heute: <b>${nat >= 0 ? '+' : '−'}${fmt(Math.abs(nat))}</b>. Ein Spieltag entspricht einem halben Lebensjahr.</p></div>
+<p class="cz-note">Geburten − Sterbefälle heute: <b>${nat >= 0 ? '+' : '−'}${fmt(Math.abs(nat))}</b></p></div>
 <div class="sec"><h3>Geburten und Sterbefälle</h3><canvas class="cz-canvas" id="cz-hist" style="height:120px"></canvas>
 <div class="cz-legend" style="margin-top:6px"><span class="sw" style="background:#22a866"></span><span>Geburten pro Tag</span><span></span><span class="sw" style="background:#5d6470"></span><span>Sterbefälle pro Tag</span><span></span></div></div>
 <div class="sec"><h3>Arbeitsmarkt</h3><div class="kv"><span>Erwerbspersonen (20–64)</span><span class="v">${fmt(S.workforce)}</span><span>Verhältnis zur Annahme der Stadtplanung</span><span class="v ${lr < 0.92 ? 'neg' : ''}">${Math.round(lr * 100)} %</span></div><p class="cz-note">${laborTxt}</p></div>`;
@@ -123,7 +123,7 @@ function education(ui) {
   return `
 ${strip([['Bildungsindex', pct(idx)], ['Abschlüsse heute', fmt(S.graduates[1] + S.graduates[2] + S.graduates[3])], ['Akademiker', pct(S.uniShare)]])}
 <div class="sec"><h3>Bildungsstand der Erwachsenen</h3><div class="cz-stack">${stack}</div><div class="cz-legend">${leg}</div>
-<p class="cz-note">Wohngebäude brauchen für Stufe 4 einen Bildungsindex von 25 %, für Stufe 5 von 45 %. Büros siedeln sich an, wo viele Gebildete leben.</p></div>
+<p class="cz-note">Stufe 4: Bildung 25 % · Stufe 5: 45 %</p></div>
 <div class="sec"><h3>Bildungskette</h3><div class="cz-flow">${['kita', 'school', 'gym', 'uni'].map((id, k) => {
     const st2 = S.stage[id] || { pupils: 0, seats: 0 };
     const fill = st2.seats > 0 ? st2.pupils / st2.seats : st2.pupils > 0 ? 9 : 0;
@@ -131,9 +131,9 @@ ${strip([['Bildungsindex', pct(idx)], ['Abschlüsse heute', fmt(S.graduates[1] +
     const nm = ['Kita', 'Schule', 'Gymnasium', 'Uni'][k];
     return `${k ? '<span class="ar">›</span>' : ''}<div class="st ${cls}"><b>${fmt(st2.pupils)}</b><span>${nm}</span><em>${st2.seats ? `${Math.round(fill * 100)} % belegt` : 'fehlt'}</em></div>`;
   }).join('')}</div>
-<p class="cz-note">Von einem Jahrgang schaffen heute <b>${pct(S.rates[0])}</b> den Schulabschluss, <b>${pct(S.rates[1])}</b> das Abitur und <b>${pct(S.rates[2])}</b> einen Hochschulabschluss.</p></div>
+<p class="cz-note">Abschlüsse je Jahrgang: Schule <b>${pct(S.rates[0])}</b> · Abitur <b>${pct(S.rates[1])}</b> · Hochschule <b>${pct(S.rates[2])}</b></p></div>
 <div class="sec"><h3>Plätze in den Einrichtungen</h3>${stages}</div>
-<div class="sec"><h3>So läuft die Bildungskette</h3><p class="cz-note">Kita (0–4) → Schule (5–14, Schulabschluss) → Gymnasium (15–19, Abitur) → Universität (20–24, Hochschulabschluss). Kinder lernen dort, wo sie wohnen: Einrichtungen haben eine Reichweite und begrenzte Plätze. Bibliotheken bilden auch Erwachsene weiter.</p>
+<div class="sec"><h3>So läuft die Bildungskette</h3><p class="cz-note">Kita 0–4 → Schule 5–14 → Gymnasium 15–19 → Uni 20–24</p>
 ${tips.length ? `<div class="cz-warn" style="margin-top:8px">${tips.join('<br>')}</div>` : ''}</div>
 <div class="sec"><h3>Abschlüsse heute</h3><div class="kv"><span>Schulabschlüsse</span><span class="v">${fmt(S.graduates[1])}</span><span>Abiture</span><span class="v">${fmt(S.graduates[2])}</span><span>Hochschulabschlüsse</span><span class="v">${fmt(S.graduates[3])}</span></div></div>`;
 }
@@ -143,7 +143,7 @@ function health(ui) {
   const g = ui.g;
   const tips = [];
   if (S.contam > 0.03) tips.push(`<b>Trinkwasser verschmutzt (${pct(S.contam)})</b>: Ein Pumpwerk zieht Wasser aus der Nähe eines Abwasserauslasses. Auslass flussabwärts verlegen oder eine Kläranlage bauen.`);
-  if (S.sickShare > 0.08) tips.push('<b>Viele Kranke</b>: Arztpraxen und Krankenhäuser heilen schneller. Abgase, fehlendes Abwasser und Kälte machen krank.');
+  if (S.sickShare > 0.08) tips.push('<b>Viele Kranke</b> – mehr Ärzte, weniger Abgase.');
   if (S.beds.q < 0.9 && S.beds.severe > 2) tips.push(`<b>Krankenhausbetten fehlen</b>: ${fmt(S.beds.severe)} schwere Fälle, ${fmt(S.beds.beds)} Betten. Ohne Bett sterben mehr Kranke – ein Krankenhaus hat 180 Betten, eine Praxis 12.`);
   if (S.care.demand > S.care.cap * 1.1 && S.care.demand > 30) tips.push(`<b>Pflegeplätze fehlen</b>: ${fmt(S.care.demand)} Hochbetagte, ${fmt(S.care.cap)} Plätze in Seniorenheimen.`);
   const hist = C(ui).hist.slice(-60);
@@ -158,7 +158,7 @@ ${tips.length ? `<div class="cz-warn">${tips.join('<br><br>')}</div>` : '<div cl
 <span>Trinkwasser verschmutzt</span><span class="v ${S.contam > 0.03 ? 'neg' : ''}">${pct(S.contam)}</span>
 <span>Gewässer (stärkste Stelle)</span><span class="v ${S.waterPolMax > 0.3 ? 'neg' : ''}">${pct(S.waterPolMax)}</span>
 <span>Pflegeplätze / Hochbetagte (75+)</span><span class="v">${fmt(S.care.cap)} / ${fmt(S.care.demand)}</span>
-</div><p class="cz-note">Krank machen: Abgase, fehlender Kanalanschluss, verschmutztes Trinkwasser, kalte Wohnungen und das Alter. Gute ärztliche Versorgung heilt schneller und senkt die Sterblichkeit. Seniorenheime verlängern das Leben der Ältesten.</p></div>
+</div><p class="cz-note">Krank machen: Abgase, kein Kanal, schmutziges Wasser, Kälte.</p></div>
 ${hist.length < 2 ? '' : ''}`;
 }
 
@@ -188,9 +188,9 @@ ${warn.length ? `<div class="${S.bodies >= 1 || S.graveFill > 0.85 ? 'cz-warn' :
 <div class="sec"><h3>Sterbefälle und wartende Verstorbene</h3><canvas class="cz-canvas" id="cz-dead" style="height:110px"></canvas>
 <div class="cz-legend" style="margin-top:6px"><span class="sw" style="background:#5d6470"></span><span>Sterbefälle pro Tag</span><span></span><span class="sw" style="background:#e8543f"></span><span>wartende Verstorbene</span><span></span></div></div>
 <div class="sec"><h3>Heute bestattet</h3><div class="kv"><span>Von eigenen Leichenwagen abgeholt</span><span class="v">${fmt(S.collected)}</span><span>Vom Umland abgeholt</span><span class="v">${fmt(S.umland)}${S.umlandCost ? ` · ${fmtMoney(S.umlandCost)}` : ''}</span><span>Gräber belegt</span><span class="v">${fmt(S.graves.used)} / ${fmt(S.graves.cap)}</span></div></div>
-<div class="sec"><h3>Friedhöfe und Krematorien</h3>${facs.join('') || '<p class="cz-note">Noch keine. Friedhof und Krematorium findest du unter Dienste.</p>'}</div>
+<div class="sec"><h3>Friedhöfe und Krematorien</h3>${facs.join('') || '<p class="cz-note">Noch keine – unter Dienste.</p>'}</div>
 <div class="sec"><h3>Wer stirbt?</h3><div class="kv">${AGE_GROUPS.map((gr, k) => `<span>${gr.name} (${gr.range})</span><span class="v">${dg[k].toLocaleString('de-DE')}</span>`).join('')}</div>
-<p class="cz-note">Leichenwagen holen Verstorbene im Umkreis ihres Friedhofs ab (Reichweite wie die Infoansicht „Bestattung"). Jeder Friedhof hat ${BUILDINGS.cemetery.hearses} Leichenwagen, ein Krematorium ${BUILDINGS.crematorium.hearses}.</p></div>
+<p class="cz-note">Leichenwagen: Friedhof ${BUILDINGS.cemetery.hearses} · Krematorium ${BUILDINGS.crematorium.hearses}</p></div>
 ${hist.length ? '' : ''}`;
 }
 
@@ -207,27 +207,27 @@ function supply(ui) {
     sew.push(`<div class="cz-fac"><div class="grow"><div><b>${esc(d.name)}</b> <span class="s">Feld ${b.x}, ${b.y}</span></div><div class="s">${d.residual >= 1 ? 'leitet ungeklärt ein' : `reinigt ${Math.round((1 - d.residual) * 100)} %`}${d.needsPower && !b.powered ? ' · <span style="color:var(--bad)">ohne Strom nur 30 %</span>' : ''}</div></div><div class="v">${fmt(cz.sewFlow || 0)} / ${fmt(cz.sewCap || d.sewage)} m³</div></div>`);
   }
   const sewWarn = [];
-  if (!S.sewageRequired) sewWarn.push('Noch reichen Sickergruben. Sobald die Stadt wächst, brauchen größere Gebäude einen Kanalanschluss.');
+  if (!S.sewageRequired) sewWarn.push('Sickergruben reichen noch.');
   else {
     if (S.unsewered > 0) sewWarn.push(`<b>${fmt(S.unsewered)} Gebäude</b> brauchen einen Kanalanschluss und haben keinen. Ohne Kanal wachsen Häuser nicht über Stufe ${SEWAGE_LEVEL - 1} hinaus, ab ${fmt(SEWAGE_ALL_POP)} Einwohnern brauchen alle Zonengebäude den Kanal. ${hotspot(g, (b) => (b.cz && b.cz.sewNeed && !b.cz.sew ? 1 + b.cz.noSew + b.level : 0), 'Eines zeigen')}`);
     if (S.sewageCap < S.sewageDemand && S.sewageCap > 0) sewWarn.push(`Das Kanalnetz ist <b>überlastet</b>: ${fmt(S.sewageDemand)} m³ Abwasser, ${fmt(S.sewageCap)} m³ Kapazität.`);
   }
   if (S.sewBlocked > 0) sewWarn.push(`<b>${fmt(S.sewBlocked)} Häuser</b> erfüllen alles für Stufe ${SEWAGE_LEVEL} – nur der Kanalanschluss fehlt.`);
-  if (S.waterPolMax > 0.25) sewWarn.push('Abwasserauslässe färben das Gewässer braun. Pumpwerke in der Nähe fördern verschmutztes Wasser.');
+  if (S.waterPolMax > 0.25) sewWarn.push('Auslässe verschmutzen das Gewässer.');
   const heatInfo = S.hd > 0
-    ? `Bei ${Math.round(S.temp)} °C brauchen die Gebäude Wärme: <b>${fmt(S.heatDemand)}</b> benötigt, <b>${fmt(S.heatSupply)}</b> aus Heizkraftwerken.${S.cold ? ` <span style="color:var(--bad)">${fmt(S.cold)} Gebäude frieren.</span>` : ''}`
-    : `Bei ${Math.round(S.temp)} °C braucht niemand Fernwärme. Unter 10 °C steigt der Bedarf – ohne Heizkraftwerk frieren die Menschen und werden krank.`;
+    ? `${Math.round(S.temp)} °C · Wärme <b>${fmt(S.heatSupply)}</b> / <b>${fmt(S.heatDemand)}</b>${S.cold ? ` · <span style="color:var(--bad)">${fmt(S.cold)} frieren</span>` : ''}`
+    : `${Math.round(S.temp)} °C – keine Fernwärme nötig (erst unter 10 °C).`;
   const pr = S.prison;
   return `
 <div class="sec"><h3>Abwasser</h3>
 ${strip([['Abwasser', fmt(S.sewageDemand), '', ' m³'], ['Kapazität', fmt(S.sewageCap), S.sewageCap < S.sewageDemand && S.sewageRequired ? 'neg' : '', ' m³'], ['Ohne Anschluss', fmt(S.unsewered), S.unsewered ? 'neg' : 'pos']])}
 ${meter(S.sewageDemand, Math.max(S.sewageCap, 1), S.sewageDemand > S.sewageCap ? 'var(--bad)' : '#9a6a3a')}
 ${sewWarn.length ? `<div class="cz-warn" style="margin-top:10px">${sewWarn.join('<br><br>')}</div>` : '<div class="cz-ok" style="margin-top:10px">Alles Abwasser fließt sauber ab.</div>'}
-${sew.join('') || '<p class="cz-note">Noch keine Abwasseranlage. Abwasserauslass und Kläranlage stehen unter Wasser am Ufer.</p>'}
-<p class="cz-note">Wie Strom und Wasser fließt Abwasser durch die Kanäle unter den Straßen – jedes zusammenhängende Straßennetz braucht eine eigene Anlage. ${fmt(Cz.sewConnected || 0)} Gebäude sind angeschlossen.</p></div>
+${sew.join('') || '<p class="cz-note">Noch keine Anlage – unter Wasser, am Ufer.</p>'}
+<p class="cz-note">${fmt(Cz.sewConnected || 0)} Gebäude angeschlossen · je Straßennetz eine Anlage</p></div>
 <div class="sec"><h3>Fernwärme</h3><p class="cz-note" style="margin-top:0">${heatInfo}</p>${S.hd > 0 ? meter(S.heatSupply, Math.max(S.heatDemand, 1), S.heatSupply < S.heatDemand ? 'var(--bad)' : '#e8543f') : ''}</div>
 <div class="sec"><h3>Gefängnis</h3><div class="kv"><span>Haftplätze</span><span class="v">${fmt(pr.cap)}</span><span>Straftäter (geschätzt)</span><span class="v">${fmt(pr.criminals)}</span><span>Kriminalität gesenkt um</span><span class="v">${pct(pr.red)}</span></div>
-<p class="cz-note">Gefängnisse senken die Kriminalität in der ganzen Stadt – solange genug Plätze frei sind.</p></div>`;
+<p class="cz-note">Senkt die Kriminalität stadtweit.</p></div>`;
 }
 
 // ---------- Diagramme
@@ -250,7 +250,7 @@ function drawPyramid(c, ages) {
   for (let k = 0; k < rows; k++) max = Math.max(max, ages[k] * Math.max(fem(k), 1 - fem(k)));
   const half = mid - labelW / 2 - 4;
   const colOf = (k) => AGE_GROUPS.find((gr) => k >= gr.from && k <= gr.to).color;
-  ctx.font = '600 10.5px "Stadtpuls Rund", Fredoka, sans-serif';
+  ctx.font = '600 10.5px "Stadtpuls Rund", Outfit, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (let k = 0; k < rows; k++) {
@@ -267,16 +267,16 @@ function drawPyramid(c, ages) {
     if (k % 2 === 0) { ctx.fillStyle = '#7a8294'; ctx.fillText(String(k * 5), mid, y + rh / 2 + 0.5); }
   }
   ctx.fillStyle = '#4a5263';
-  ctx.font = '700 11px "Stadtpuls Text", Nunito, sans-serif';
+  ctx.font = '700 11px "Stadtpuls Text", Figtree, sans-serif';
   ctx.textAlign = 'left'; ctx.fillText('Männer', 2, h - 7);
   ctx.textAlign = 'right'; ctx.fillText('Frauen', w - 2, h - 7);
-  ctx.textAlign = 'center'; ctx.fillStyle = '#7a8294'; ctx.font = '600 10.5px "Stadtpuls Text", Nunito, sans-serif'; ctx.fillText('Alter', mid, h - 7);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#7a8294'; ctx.font = '600 10.5px "Stadtpuls Text", Figtree, sans-serif'; ctx.fillText('Alter', mid, h - 7);
 }
 function drawSeries(c, series, opts = {}) {
   const [ctx, w, h] = prepCanvas(c);
   const padL = 34, padR = 6, padT = 8, padB = 16;
   const n = Math.max(...series.map((s) => s.values.length));
-  if (n < 2) { ctx.fillStyle = '#7a8294'; ctx.font = '12px "Stadtpuls Text", Nunito, sans-serif'; ctx.fillText('Noch keine Daten – der Verlauf erscheint nach dem ersten Spieltag.', 6, h / 2); return; }
+  if (n < 2) { ctx.fillStyle = '#7a8294'; ctx.font = '12px "Stadtpuls Text", Figtree, sans-serif'; ctx.fillText('Daten ab dem ersten Spieltag.', 6, h / 2); return; }
   let max = 0;
   for (const s of series) for (const v of s.values) max = Math.max(max, v);
   if (opts.pct) max = Math.max(0.05, max) * 1.15;
@@ -289,7 +289,7 @@ function drawSeries(c, series, opts = {}) {
   const X = (i) => padL + (i / (n - 1)) * (w - padL - padR);
   const Y = (v) => padT + (1 - v / max) * (h - padT - padB);
   ctx.strokeStyle = 'rgba(29,35,48,0.08)'; ctx.lineWidth = 1;
-  ctx.fillStyle = '#7a8294'; ctx.font = '600 10.5px "Stadtpuls Rund", Fredoka, sans-serif'; ctx.textAlign = 'right';
+  ctx.fillStyle = '#7a8294'; ctx.font = '600 10.5px "Stadtpuls Rund", Outfit, sans-serif'; ctx.textAlign = 'right';
   for (let k = 0; k <= 2; k++) {
     const v = (max * k) / 2;
     ctx.beginPath(); ctx.moveTo(padL, Y(v)); ctx.lineTo(w - padR, Y(v)); ctx.stroke();
@@ -320,7 +320,7 @@ registerPanel({
     ensureStyles();
     const Cz = C(ui);
     const tabs = `<div class="cz-tabs">${TABS.map(([id, n]) => `<button data-act="tab" data-t="${id}" class="${view.tab === id ? 'on' : ''}">${n}</button>`).join('')}</div>`;
-    if (!Cz || !Cz.stats) return `${tabs}<p class="cz-note">Die Statistik erscheint nach dem ersten Spieltag. Weise Wohngebiete aus – bald ziehen die ersten Menschen ein.</p>`;
+    if (!Cz || !Cz.stats) return `${tabs}<p class="cz-note">Daten ab dem ersten Spieltag.</p>`;
     const body = { overview, edu: education, health, death: deaths, supply }[view.tab] || overview;
     return tabs + body(ui);
   },
@@ -427,8 +427,8 @@ function inspectResidential(ui, b) {
 ${(() => { const r = residents(g, b, 4); return r.length ? `<div class="cz-ilabel">Familie ${FAMILY[Math.floor(mulberry32(b.id * 9973 + Math.floor(g.day() / 10) * 31)() * FAMILY.length)]} und Nachbarn</div><div class="factors" style="font-size:12.5px">${r.join('')}</div>` : ''; })()}
 <div class="kv" style="font-size:12.5px;margin-top:6px"><span>Plätze in Reichweite</span><span class="v" style="font-size:12.5px">${cov || 'keine'}</span><span>Geboren / gestorben hier</span><span class="v" style="font-size:12.5px">${fmt(P.born)} / ${fmt(P.died)}</span>${P.care > 0.05 ? `<span>Seniorenbetreuung</span><span class="v" style="font-size:12.5px">${pct(P.care)}</span>` : ''}</div>`;
   }
-  if (b.level === SEWAGE_LEVEL - 1 && !cz.sew && Cz.sewReq) html += `<p class="cz-note" style="color:var(--bad)">Für Stufe ${SEWAGE_LEVEL} braucht das Haus einen Kanalanschluss (Abwasserauslass oder Kläranlage im selben Straßennetz).</p>`;
-  if (cz.dead >= 1 && cz.deadDays >= 1) html += `<p class="cz-note" style="color:var(--bad)">Hier warten seit ${cz.deadDays} ${cz.deadDays === 1 ? 'Tag' : 'Tagen'} ${cz.dead} Verstorbene auf den Leichenwagen. Ein Friedhof oder Krematorium in Reichweite fehlt.</p>`;
+  if (b.level === SEWAGE_LEVEL - 1 && !cz.sew && Cz.sewReq) html += `<p class="cz-note" style="color:var(--bad)">Stufe ${SEWAGE_LEVEL} braucht Kanalanschluss.</p>`;
+  if (cz.dead >= 1 && cz.deadDays >= 1) html += `<p class="cz-note" style="color:var(--bad)">${cz.dead} Verstorbene warten seit ${cz.deadDays} ${cz.deadDays === 1 ? 'Tag' : 'Tagen'} – Friedhof fehlt.</p>`;
   return html;
 }
 function inspectService(ui, b) {
@@ -453,7 +453,7 @@ function inspectService(ui, b) {
   if (d.heat) rows.push(['Fernwärme', `${fmt(d.heat)} Einheiten`]);
   if (d.inmates) { const pr = (g.ext.citizens && g.ext.citizens.prison) || {}; rows.push(['Häftlinge (Stadt)', `${fmt(pr.inmates || 0)} / ${fmt(pr.cap || d.inmates)}`]); }
   if (!rows.length) return '';
-  return `<div class="kv" style="margin-top:6px">${rows.map(([k, v]) => `<span>${k}</span><span class="v">${v}</span>`).join('')}</div>${d.water && d.needsWater && cz.intake > 0.05 ? '<p class="cz-note" style="color:var(--bad)">Das Pumpwerk zieht Abwasser mit an. Baue Auslässe flussabwärts oder eine Kläranlage.</p>' : ''}`;
+  return `<div class="kv" style="margin-top:6px">${rows.map(([k, v]) => `<span>${k}</span><span class="v">${v}</span>`).join('')}</div>${d.water && d.needsWater && cz.intake > 0.05 ? '<p class="cz-note" style="color:var(--bad)">Zieht Abwasser an – Auslass flussabwärts verlegen.</p>' : ''}`;
 }
 INSPECTORS.push((ui, sel) => {
   if (!sel || sel.type !== 'building') return null;

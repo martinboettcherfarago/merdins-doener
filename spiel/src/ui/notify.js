@@ -64,7 +64,7 @@ export class Notifier {
     if (d.phase !== 'warn' && d.phase !== 'start') return;
     const name = DISASTER_NAMES[d.type] || d.name || 'Katastrophe';
     const where = d.x !== undefined ? { x: Math.round(d.x), y: Math.round(d.y) } : null;
-    const it = this.push({ title: d.phase === 'warn' ? `Warnung: ${name}` : name, text: d.text || (d.phase === 'warn' ? `${name} angekündigt. Notunterkünfte und Rettungskräfte bereithalten.` : `${name} trifft die Stadt!`), mood: 'bad', icon: 'warn', where, kind: 'disaster', key: `dis:${d.type}:${d.phase}` });
+    const it = this.push({ title: d.phase === 'warn' ? `Warnung: ${name}` : name, text: d.text || (d.phase === 'warn' ? `${name} angekündigt!` : `${name} trifft die Stadt!`), mood: 'bad', icon: 'warn', where, kind: 'disaster', key: `dis:${d.type}:${d.phase}` });
     // Kurzmeldung nur, wenn das System nicht gerade selbst eine Warnung gezeigt hat (S4 meldet z. B. „Ein Meteorit rast …“);
     // einzelne Blitzeinschläge landen nur in der Benachrichtigungszentrale
     if (d.phase === 'start' && this.ui.toast && d.type !== 'lightning') {
@@ -83,9 +83,9 @@ export class Notifier {
     const list = this.items.filter((it) => this.filter === 'all' || (this.filter === 'bad' ? it.mood === 'bad' : !!it.where));
     const when = (t) => { const d = Math.floor(t / 1440), h = String(Math.floor((t % 1440) / 60)).padStart(2, '0'), m = String(Math.floor(t % 60)).padStart(2, '0'); return d === g.day() ? `heute, ${h}:${m}` : `Tag ${d}, ${h}:${m}`; };
     return `
-${probs.length ? `<div class="sec"><button class="prob ${probs.some((p) => p.sev === 'bad') ? 'bad' : 'warn'}" data-act="check" data-tip="Stadt-Check" data-tip-desc="Alle offenen Punkte mit Lösungen zeigen." style="width:100%">${icon('pulse', 16, 2.2)}<span class="pt">${probs.length === 1 ? 'Eine Sache braucht' : `${probs.length} Dinge brauchen`} Aufmerksamkeit</span>${icon('arrowR', 15, 2.4)}</button></div>` : ''}
+${probs.length ? `<div class="sec"><button class="prob ${probs.some((p) => p.sev === 'bad') ? 'bad' : 'warn'}" data-act="check" data-tip="Stadt-Check" style="width:100%">${icon('pulse', 16, 2.2)}<span class="pt">Stadt-Check: ${probs.length} offen</span>${icon('arrowR', 15, 2.4)}</button></div>` : ''}
 <div class="sec"><h3>Meldungen</h3>
-<div class="chips filt">${[['all', 'Alle', 'Alle Meldungen der letzten Tage.'], ['bad', 'Wichtig', 'Nur Warnungen und Probleme.'], ['where', 'Mit Ort', 'Nur Meldungen, die einen Ort in der Stadt haben – Klick fliegt hin.']].map(([k, n, d]) => `<button class="chip${this.filter === k ? ' on' : ''}" data-act="nfilter" data-v="${k}" data-tip="${n}" data-tip-desc="${d}" data-tip-fast="1">${n}</button>`).join('')}<span class="grow"></span>${this.items.length ? '<button class="chip" data-act="nclear" data-tip="Leeren" data-tip-desc="Alle Meldungen aus der Liste entfernen." data-tip-fast="1">Leeren</button>' : ''}</div>
+<div class="chips filt">${[['all', 'Alle', ''], ['bad', 'Wichtig', ''], ['where', 'Mit Ort', '']].map(([k, n, d]) => `<button class="chip${this.filter === k ? ' on' : ''}" data-act="nfilter" data-v="${k}" data-tip="${n}" data-tip-desc="${d}" data-tip-fast="1">${n}</button>`).join('')}<span class="grow"></span>${this.items.length ? '<button class="chip" data-act="nclear" data-tip="Leeren" data-tip-fast="1">Leeren</button>' : ''}</div>
 ${list.length ? `<div class="notes">${list.slice(0, 60).map((it) => `<div class="note ${it.mood}${it.read ? '' : ' unread'}"><span class="ni">${iconAny(it.icon, 'info', 16, 2.2)}</span><div class="nb"><div class="nt">${esc(it.title)}${it.count > 1 ? ` <span class="cnt">×${it.count}</span>` : ''}<span class="nw">${when(it.time)}</span></div><div class="nx">${esc(it.text)}</div></div>${it.where ? `<button class="mini" data-act="goto" data-x="${it.where.x}" data-y="${it.where.y}" data-tip="Hinfliegen" data-tip-fast="1">${icon('pin', 15, 2.2)}</button>` : ''}</div>`).join('')}</div>` : '<p class="empty">Noch keine Meldungen.</p>'}</div>`;
   }
 

@@ -21,17 +21,17 @@ function ensureStyles() {
 .dt-tools button.on { border-color:var(--ink); background:#fff; }
 .dt-tools button:disabled { opacity:.45; }
 .dt-brush { display:flex; align-items:center; gap:4px; margin-bottom:12px; font-size:12.5px; color:var(--ink-2); }
-.dt-brush button { width:28px; height:28px; border-radius:8px; background:var(--paper-2); font-family:var(--f-num); font-weight:700; }
+.dt-brush button { width:28px; height:28px; border-radius:8px; background:var(--paper-2); font-family:var(--f-num); font-weight:650; }
 .dt-brush button.on { background:var(--ink); color:var(--paper); }
 .dt-card { border-radius:12px; background:var(--paper-2); padding:9px 11px; margin-bottom:8px; border:2px solid transparent; }
 .dt-card.sel { border-color:var(--ink); background:#fff; }
 .dt-card .hd { display:flex; align-items:center; gap:10px; }
 .dt-card .sw { width:26px; height:26px; border-radius:8px; flex:none; box-shadow: inset 0 0 0 2px rgba(255,255,255,.55); }
-.dt-card .nm { font-weight:800; font-size:14.5px; }
+.dt-card .nm { font-weight:700; font-size:14.5px; }
 .dt-card .sub { font-size:12px; color:var(--ink-3); }
 .dt-card .acts { display:flex; gap:5px; margin-top:7px; flex-wrap:wrap; }
 .dt-card .pol { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; }
-.dt-card .pol span { font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; background:rgba(0,0,0,.06); color:var(--ink-2); }
+.dt-card .pol span { font-size:11px; font-weight:700; padding:2px 7px; border-radius:999px; background:rgba(0,0,0,.06); color:var(--ink-2); }
 .dt-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:8px 0 12px; }
 .dt-grid div { background:var(--paper-2); border-radius:9px; padding:6px 8px; }
 .dt-grid .k { font-size:11px; color:var(--ink-3); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -40,12 +40,12 @@ function ensureStyles() {
 .dt-ages { display:flex; height:12px; border-radius:5px; overflow:hidden; background:var(--paper-3); margin:4px 0 2px; }
 .dt-ages i { display:block; height:100%; }
 .dt-tax { display:grid; grid-template-columns:1fr 64px; gap:10px; align-items:center; }
-.dt-tax .val { font-family:var(--f-num); font-weight:700; font-size:16px; text-align:right; }
-.dt-group { font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin:10px 0 0; }
+.dt-tax .val { font-family:var(--f-num); font-weight:650; font-size:16px; text-align:right; }
+.dt-group { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-3); font-weight:700; margin:10px 0 0; }
 .dt-note { font-size:12.5px; color:var(--ink-2); line-height:1.45; margin:6px 0 0; }
 .dt-cmp { display:grid; grid-template-columns: minmax(0,1fr) auto auto auto auto; gap:3px 10px; font-size:12.5px; align-items:center; }
 .dt-cmp span { font-family:var(--f-num); font-weight:600; text-align:right; }
-.dt-cmp span.h { font-family:var(--f-ui); font-size:10.5px; color:var(--ink-3); font-weight:700; text-align:right; }
+.dt-cmp span.h { font-family:var(--f-ui); font-size:11px; color:var(--ink-3); font-weight:700; text-align:right; }
 .dt-cmp span.h:first-child { text-align:left; }
 .dt-cmp span.n { font-family:var(--f-ui); text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:6px; }
 .dt-cmp span.n i { width:9px; height:9px; border-radius:50%; flex:none; }
@@ -109,7 +109,7 @@ function card(ui, d) {
   const pols = d.policies.map((pid) => DISTRICT_POLICIES.find((p) => p.id === pid)).filter(Boolean);
   return `<div class="dt-card ${sel ? 'sel' : ''}">
   <div class="hd"><button class="sw" style="background:${css(d.color)}" data-act="color" data-id="${d.id}" title="Farbe wechseln"></button>
-    <div style="flex:1;min-width:0"><div class="nm">${esc(d.name)}${active ? ' <span style="font-size:10.5px;color:var(--ink-3);font-weight:700">· AKTIV</span>' : ''}</div>
+    <div style="flex:1;min-width:0"><div class="nm">${esc(d.name)}${active ? ' <span style="font-size:11px;color:var(--ink-3);font-weight:700">· AKTIV</span>' : ''}</div>
     <div class="sub">${fmt(s.residents || 0)} Einw. · ${fmt(s.jobs || 0)} Jobs · Glück ${Math.round(s.happiness || 0)} % · ${fmt(s.tiles || 0)} Felder</div></div></div>
   ${(() => { const w = []; if (s.dead) w.push(`${fmt(s.dead)} Verstorbene warten`); if (s.unsewered) w.push(`${fmt(s.unsewered)} ohne Kanal`); if (s.abandoned) w.push(`${fmt(s.abandoned)} verlassen`); if ((s.sickShare || 0) > 0.1) w.push(`${pct(s.sickShare)} krank`); if ((s.crime || 0) > 0.4) w.push('hohe Kriminalität'); return w.length ? `<div class="pol">${w.map((x) => `<span style="background:#f6dcd8;color:#9e2b23">${x}</span>`).join('')}</div>` : ''; })()}
   ${pols.length || d.tax ? `<div class="pol">${d.tax ? `<span>Steuern ${d.tax > 0 ? '+' : '−'}${Math.abs(d.tax)} %</span>` : ''}${pols.map((p) => `<span>${esc(p.name)}</span>`).join('')}</div>` : ''}
@@ -152,7 +152,7 @@ ${s.dead ? `<span>Verstorbene warten</span><span class="v neg">${fmt(s.dead)}</s
 </div>
 <div class="sec"><h3>Steuern im Bezirk</h3>
 <div class="dt-tax"><input type="range" min="-5" max="5" step="1" value="${d.tax}" id="dist-tax" data-id="${d.id}"><span class="val" id="dist-tax-v">${d.tax > 0 ? '+' : d.tax < 0 ? '−' : '±'}${Math.abs(d.tax)} %</span></div>
-<p class="dt-note">Zuschlag oder Nachlass auf alle Steuersätze der Stadt, nur in diesem Bezirk. Jeder Prozentpunkt kostet dort etwa 1,7 Glückspunkte – oder bringt sie.</p></div>
+<p class="dt-note">Je Prozentpunkt ±1,7 Glück im Bezirk.</p></div>
 <div class="sec"><h3>Verordnungen im Bezirk</h3>${pols}</div>
 <div class="sec"><button class="btn small ghost" data-act="del" data-id="${d.id}" style="color:var(--bad)">${view.confirmDel === d.id ? 'Wirklich auflösen?' : 'Bezirk auflösen'}</button></div>`;
 }
@@ -167,10 +167,10 @@ registerPanel({
     if (view.sel && !D.byId[view.sel]) view.sel = 0;
     if (!view.sel && D.byId[districtTool.active]) view.sel = districtTool.active;
     if (!view.sel && D.list.length) view.sel = D.list[0].id;
-    const intro = D.list.length ? '' : `<div class="sec"><p class="dt-note" style="margin-top:0">Bezirke geben Stadtteilen einen Namen und eigene Regeln: <b>Hochhausverbot</b> in der Altstadt, <b>Verkehrsberuhigung</b> im Wohnviertel, eine <b>Einkaufsmeile</b> in der Mitte, Steuernachlass für den Problemkiez. Wähle <b>Malen</b> und ziehe mit der Maus über die Karte – ein Klick mit <b>Block füllen</b> färbt einen ganzen Straßenblock.</p></div>`;
+    const intro = D.list.length ? '' : `<div class="sec"><p class="dt-note" style="margin-top:0">Stadtteile mit Namen und eigenen Regeln. <b>Malen</b> wählen und über die Karte ziehen.</p></div>`;
     let tot = 0, totTax = 0, totCost = 0;
     for (const d of D.list) { const s = districtStats(g, d.id); if (s) { tot += s.residents; totTax += s.taxDelta; totCost += s.policyCost; } }
-    const summary = D.list.length ? `<p class="dt-note" style="margin:0 0 10px">${D.list.length} von ${MAX_DISTRICTS} Bezirken · ${fmt(tot)} Einwohner in Bezirken · Steuerzuschläge ${totTax >= 0 ? '+' : '−'}${fmtMoney(Math.abs(totTax))}/Tag · Verordnungen ${fmtMoney(totCost)}/Tag</p>` : '';
+    const summary = D.list.length ? `<p class="dt-note" style="margin:0 0 10px">${D.list.length} von ${MAX_DISTRICTS} Bezirken · ${fmt(tot)} Einwohner · Steuern ${totTax >= 0 ? '+' : '−'}${fmtMoney(Math.abs(totTax))}/Tag · Verordnungen ${fmtMoney(totCost)}/Tag</p>` : '';
     const sel = D.byId[view.sel];
     let cmp = '';
     if (D.list.length >= 2) {

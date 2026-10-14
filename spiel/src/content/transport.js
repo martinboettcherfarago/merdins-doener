@@ -6,21 +6,21 @@ import { CARDS, EVENTS, CHATTER } from '../sim/progress.js';
 import { fmtMoney } from '../util.js';
 
 Object.assign(BUILDINGS, {
-  bus_depot: { name: 'Busdepot', cat: 'transport', size: [2, 2], cost: 6000, upkeep: 50, unlock: 2, buses: 8, power_use: 6, noise: 0.6, desc: 'Heimat von 8 Bussen. Danach unter „Verkehr" eine Buslinie zeichnen: Haltestellen an Straßen anklicken. Braucht: Strom.' },
-  tram_depot: { name: 'Straßenbahndepot', cat: 'transport', size: [3, 2], cost: 14000, upkeep: 90, unlock: 3, trams: 6, power_use: 20, desc: 'Heimat von 6 Straßenbahnen. Ihre Gleise liegen auf Straßen und Alleen. Braucht: Strom.' },
-  train_station: { name: 'Hauptbahnhof', cat: 'transport', size: [4, 2], cost: 30000, upkeep: 160, unlock: 3, tourism: 120, intercity: 1, power_use: 20, noise: 1.1, lv: 8, lvRadius: 8, desc: 'Fernzüge bringen Pendler, Touristen und Geschäftsleute. Gut für Läden und Büros. Braucht: Strom.' },
-  airport: { name: 'Flughafen', cat: 'transport', size: [6, 4], cost: 90000, upkeep: 420, unlock: 5, tourism: 420, offBoost: 20, power_use: 60, water_use: 20, noise: 2.5, lv: -18, lvRadius: 10, desc: 'Das Tor zur Welt: viele Touristen, mehr Büros und Einnahmen. Sehr laut. Braucht: Strom und Wasser.' },
-  ferry_pier: { name: 'Fähranleger', cat: 'transport', size: [1, 1], cost: 3000, upkeep: 20, unlock: 2, needsWater: true, desc: 'Zwei Anleger am selben Gewässer bilden von selbst eine Fährlinie. Braucht: Platz am Ufer.' },
-  parking: { name: 'Parkhaus', cat: 'transport', size: [1, 1], cost: 4000, upkeep: 25, unlock: 3, parking: 200, comBoost: 4, lvRadius: 4, desc: 'Weniger Autos auf Parkplatzsuche: 15 % weniger Stau im Umkreis. Gut für Läden.' },
-  taxi_depot: { name: 'Taxizentrale', cat: 'transport', size: [1, 1], cost: 3500, upkeep: 30, unlock: 3, taxis: 10, desc: 'Bis zu 10 Taxis fahren Touristen und Nachtschwärmer. Bringt etwas Geld.' },
+  bus_depot: { name: 'Busdepot', cat: 'transport', size: [2, 2], cost: 6000, upkeep: 50, unlock: 2, buses: 8, power_use: 6, noise: 0.6, desc: '8 Busse. Danach Buslinie unter „Verkehr" zeichnen.' },
+  tram_depot: { name: 'Straßenbahndepot', cat: 'transport', size: [3, 2], cost: 14000, upkeep: 90, unlock: 3, trams: 6, power_use: 20, desc: '6 Straßenbahnen, Gleise auf Straßen.' },
+  train_station: { name: 'Hauptbahnhof', cat: 'transport', size: [4, 2], cost: 30000, upkeep: 160, unlock: 3, tourism: 120, intercity: 1, power_use: 20, noise: 1.1, lv: 8, lvRadius: 8, desc: 'Fernzüge: Pendler und Touristen. Gut für Läden.' },
+  airport: { name: 'Flughafen', cat: 'transport', size: [6, 4], cost: 90000, upkeep: 420, unlock: 5, tourism: 420, offBoost: 20, power_use: 60, water_use: 20, noise: 2.5, lv: -18, lvRadius: 10, desc: 'Viele Touristen und Büros. Sehr laut.' },
+  ferry_pier: { name: 'Fähranleger', cat: 'transport', size: [1, 1], cost: 3000, upkeep: 20, unlock: 2, needsWater: true, desc: 'Zwei Anleger am Ufer bilden eine Fährlinie.' },
+  parking: { name: 'Parkhaus', cat: 'transport', size: [1, 1], cost: 4000, upkeep: 25, unlock: 3, parking: 200, comBoost: 4, lvRadius: 4, desc: '15 % weniger Stau im Umkreis.' },
+  taxi_depot: { name: 'Taxizentrale', cat: 'transport', size: [1, 1], cost: 3500, upkeep: 30, unlock: 3, taxis: 10, desc: '10 Taxis für Touristen und Nachtschwärmer.' },
   metro_hub: { name: 'U-Bahn-Umsteigebahnhof', cat: 'transit', size: [2, 1], cost: 6000, upkeep: 30, unlock: 3, onRoad: false, stationCapacity: 30, desc: 'Großer U-Bahnhof mit Eingangshalle: Platz für doppelt so viele Wartende, Umsteigen geht schneller. Linien wie an eine Station anschließen.' },
 });
 
 // ---------------------------------------------------------------- Verordnungen
 const pol = (p) => { if (!POLICIES.find((x) => x.id === p.id)) POLICIES.push(p); };
-pol({ id: 'tp_buslanes', name: 'Busspuren', desc: 'Busse fahren am Stau vorbei. Autos haben auf Busstrecken etwas weniger Platz.', cost: 0.15, unlock: 2 });
-pol({ id: 'tp_parkfee', name: 'Parkraumbewirtschaftung', desc: 'Parkgebühren bringen Geld (je Parkhaus mehr), 10 % mehr Fahrgäste. Gewerbe-Glück −2.', cost: 0, unlock: 2 });
-pol({ id: 'tp_nightbus', name: 'Nachtbusse', desc: 'Busse und Bahnen fahren auch nachts gut besetzt. Fahrzeugkosten +15 %, Wohnglück +1.', cost: 0.2, unlock: 2 });
+pol({ id: 'tp_buslanes', name: 'Busspuren', desc: 'Busse fahren am Stau vorbei, Autos haben weniger Platz.', cost: 0.15, unlock: 2 });
+pol({ id: 'tp_parkfee', name: 'Parkraumbewirtschaftung', desc: 'Geld je Parkhaus, +10 % Fahrgäste, Gewerbe-Glück −2.', cost: 0, unlock: 2 });
+pol({ id: 'tp_nightbus', name: 'Nachtbusse', desc: 'Auch nachts Busse und Bahnen. Kosten +15 %, Wohnglück +1.', cost: 0.2, unlock: 2 });
 
 // ---------------------------------------------------------------- Wochenkarten
 const T = (g) => g.ext && g.ext.transport;
@@ -44,7 +44,7 @@ ev({
 });
 ev({
   id: 'tp_ticket', title: 'Das Land bietet ein Monatsticket', minPop: 900, cond: (g) => hasLines(g),
-  text: 'Für 49 Euro im Monat sollen alle Busse und Bahnen fahren. Die Stadt muss die Ausfälle beim Fahrgeld zum Teil selbst tragen.',
+  text: 'Alle Busse und Bahnen für 49 Euro im Monat – die Stadt trägt einen Teil der Ausfälle.',
   options: [
     { label: 'Mitmachen', hint: () => '14 Tage: Fahrgäste +40 %, Glück +3, dafür −2.500 €', apply: (g) => { g.money -= 2500; g.addEffect('busRidership', 0.4, 14, 'Monatsticket'); g.addEffect('happy', 3, 14, 'Monatsticket'); } },
     { label: 'Ablehnen', hint: () => 'Glück −2 für 5 Tage', apply: (g) => g.addEffect('happy', -2, 5, 'Kein Monatsticket') },
@@ -52,7 +52,7 @@ ev({
 });
 ev({
   id: 'tp_carfree', title: 'Autofreier Sonntag', minPop: 700,
-  text: 'Eine Bürgerinitiative möchte die Hauptstraßen einen Tag lang für Fahrräder, Spielstraßen und Flohmärkte öffnen.',
+  text: 'Einen Tag lang Hauptstraßen für Fahrräder, Spiel und Flohmarkt?',
   options: [
     { label: 'Unterstützen', hint: () => 'Glück +5 für 3 Tage, Gewerbenachfrage −10, Fahrgäste +25 %', apply: (g) => { g.addEffect('happy', 5, 3, 'Autofreier Sonntag'); g.addEffect('comDemand', -10, 3, 'Autofreier Sonntag'); g.addEffect('busRidership', 0.25, 3, 'Autofreier Sonntag'); } },
     { label: 'Absagen', hint: () => 'Glück −2 für 3 Tage', apply: (g) => g.addEffect('happy', -2, 3, 'Absage') },
@@ -60,7 +60,7 @@ ev({
 });
 ev({
   id: 'tp_airshow', title: 'Flugtage am Flughafen', minPop: 4000, cond: (g) => g.hasBuilt('airport'),
-  text: 'Kunstflieger und Oldtimer-Maschinen – ein Spektakel, das Besucher von weit her anlockt. Die Nachbarschaft fürchtet den Lärm.',
+  text: 'Flugschau: lockt Besucher von weit her, die Nachbarn fürchten den Lärm.',
   options: [
     { label: 'Genehmigen', hint: () => 'Touristen +250 für 4 Tage, Glück −2', apply: (g) => { g.addEffect('tourismAdd', 250, 4, 'Flugtage'); g.addEffect('happy', -2, 4, 'Fluglärm'); } },
     { label: 'Ablehnen', hint: () => 'Nichts passiert.', apply: () => {} },
