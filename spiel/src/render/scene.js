@@ -596,6 +596,15 @@ export class Engine {
   // wartet so lange. Höchstens ~2 s; danach übernimmt das normale Zeitbudget.
   warmFrame(now) {
     if (!this.warming) return;
+    // nach dem Vorübersetzen noch zwei Bilder hinter dem Ladebildschirm zeichnen (Shader binden, Puffer hochladen)
+    if (this._warmTail !== undefined) {
+      if (--this._warmTail <= 0) {
+        this.warming = false;
+        this._warmTail = undefined;
+        if (this.onWarmDone) { try { this.onWarmDone(); } catch (e) { /* egal */ } }
+      }
+      return;
+    }
     const bv = this.buildings;
     let p, more;
     if (bv.initial) {
@@ -610,9 +619,9 @@ export class Engine {
     p = 0.8 + 0.2 * bv.warmProgress();
     if (this.onWarm) { try { this.onWarm(p, 'Gebäude in der Nähe werden fein ausgearbeitet'); } catch (e) { /* egal */ } }
     if (!more || now - this._warm0 > 2000) {
-      this.warming = false;
       this.precompile();
-      if (this.onWarmDone) { try { this.onWarmDone(); } catch (e) { /* egal */ } }
+      this._warmTail = 2;
+      if (this.onWarm) { try { this.onWarm(1, 'Licht, Schatten und Leben'); } catch (e) { /* egal */ } }
     }
   }
 

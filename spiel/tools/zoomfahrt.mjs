@@ -40,6 +40,7 @@ export default async function zoomfahrt(page, h) {
       }, 0));
     }), txt);
     // erste Bilder nach dem Laden (Einflug): Bildzeit-Spitzen messen
+    console.log('LADEN ' + JSON.stringify(res.load));
     res.afterLoad = await page.evaluate(() => new Promise((resolve) => {
       const ts = []; let last = performance.now(); let n = 0;
       const step = () => { const now = performance.now(); ts.push(now - last); last = now; if (++n < 40) requestAnimationFrame(step); else resolve({ maxMs: Math.round(Math.max(...ts.slice(1))), sumMs: Math.round(ts.reduce((a, b) => a + b, 0)) }); };
@@ -140,7 +141,7 @@ export default async function zoomfahrt(page, h) {
   res.ride.freshPrograms = zoom.fresh;
   log('Fahrt fertig ' + JSON.stringify(res.ride));
   // Langsames Hin und Her an den Schwellen (Flackern): 2 Runden je Schwelle
-  if (process.env.ZF_PENDEL !== '0') {
+  if (process.env.ZF_PENDEL === '1' || (process.env.ZF_PENDEL !== '0' && !process.env.ZF_SAVE)) {
     await page.evaluate(() => { window.__zf.rec = true; window.__zf.frames = []; window.__zf.idle = { builds: 0, ms: 0 }; });
     for (const [a, b] of [[40, 48], [12, 15], [28, 36], [52, 64]]) {
       await settleAt(a); await frames(4);
