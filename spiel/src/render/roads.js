@@ -13,7 +13,7 @@
 // Öffentliche Schnittstelle (scene.js, overlay.js): rebuild(), setTrafficTint(on), setNight(n), lampPositions, group.
 // Zusätzlich: surfaceY(x, z) – Fahrbahnhöhe an einer Weltposition (Brücken/Rampen), signalAt(feld) – Ampelzustand.
 import * as THREE from 'three';
-import { R, T, Z, ROAD_GEOM, GAME_MIN_PER_SEC } from '../config.js';
+import { R, T, Z, ROAD_GEOM, minPerSec } from '../config.js';
 import { roadMask } from '../sim/network.js';
 import { hash2 } from '../util.js';
 import { registerView } from '../registry.js';
@@ -147,7 +147,7 @@ export class RoadView {
   // Wird jedes Bild von der Hilfsansicht aufgerufen (Ampeltakt, Detailstufe, Haltestellen, Zonen)
   tick(dt) {
     const g = this.g;
-    sigTime.value = g.time / GAME_MIN_PER_SEC;
+    sigTime.value = g.time / minPerSec(g);
     const fog = this.e.scene.fog;
     if (fog) { this.mats.fog.fogNear.value = fog.near; this.mats.fog.fogFar.value = fog.far; }
     // Qualitätsstufe: „Niedrig" zeigt Kleinteile und Detailbäume nur in größerer Nähe

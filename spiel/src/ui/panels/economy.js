@@ -457,7 +457,7 @@ function drawMulti(canvas, series, opts = {}) {
   const padL = 44, padR = 8, padT = 16, padB = 18;
   const n = Math.max(...series.map((s) => s.values.length));
   ctx.font = '600 11px "Stadtpuls Rund", Fredoka, sans-serif';
-  if (n < 1) { ctx.fillStyle = ink; ctx.fillText('Noch keine Daten – ein Spieltag vergeht in 30 Sekunden.', 8, h / 2); return; }
+  if (n < 1) { ctx.fillStyle = ink; ctx.fillText('Noch keine Daten – der Verlauf erscheint nach dem ersten Spieltag.', 8, h / 2); return; }
   let max = 1;
   for (const s of series) for (const v of s.values) max = Math.max(max, v);
   const X = (i) => padL + (n === 1 ? 0 : (i / (n - 1)) * (w - padL - padR));

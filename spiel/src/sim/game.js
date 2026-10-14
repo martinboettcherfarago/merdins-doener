@@ -71,6 +71,8 @@ export class Game extends Emitter {
     this.lastHour = Math.floor(this.time / 60);
     this.lastDay = 0;
     this.speed = 1;
+    // Spielminuten je Sekunde (Tageslänge, setzt die App aus den Einstellungen; ohne App der Grundtakt)
+    this.minPerSec = GAME_MIN_PER_SEC;
     this.taxes = { 1: 10, 2: 10, 3: 10, 4: 10 };
     this.serviceBudget = {}; // Kategorie → 0,5 … 1,5 (Budgetregler), Standard 1
     this.policies = new Set();
@@ -636,7 +638,7 @@ export class Game extends Emitter {
     const mul = this.blocking ? 0 : SPEEDS[this.speed];
     const simSec = Math.min(realDt, 0.1) * mul;
     if (simSec > 0) {
-      this.time += simSec * GAME_MIN_PER_SEC;
+      this.time += simSec * (this.minPerSec > 0 ? this.minPerSec : GAME_MIN_PER_SEC);
       let guard = 0;
       while (this.time >= this.nextStep && guard++ < 40) {
         try { this.simStep(10); } catch (e) { this.reportError('Simulation', e); }

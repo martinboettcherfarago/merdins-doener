@@ -8,6 +8,7 @@ import { Menu } from './ui/menu.js';
 import { Audio } from './audio.js';
 import { runGallery } from './render/gallery.js';
 import { hideLoader } from './ui/loading.js';
+import { applyDayLength } from './ui/settings.js';
 import { registerIcon } from './registry.js';
 import './sim/systems/index.js';
 import './render/views/index.js';
@@ -152,6 +153,7 @@ const app = {
       return;
     }
     this.ui = new UI(this);
+    applyDayLength(this);
     this.input = new Input(this.engine, this.ui, this.audio);
     this.ui.markToolButtons();
     g.on('day', () => this.queueAutosave());

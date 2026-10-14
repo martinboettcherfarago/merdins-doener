@@ -1,5 +1,5 @@
 // Verkehr: Fahrzeug-Agenten auf dem Straßenraster, Fahrtenerzeugung nach Tageszeit, Staus.
-import { ROADS, R, Z } from '../config.js';
+import { ROADS, R, Z, minPerSec } from '../config.js';
 import { findPath } from './network.js';
 import { WeightedList } from '../util.js';
 import { makeRng } from './rng.js';
@@ -53,7 +53,8 @@ export class Traffic {
     const rate = pop > 0 ? Math.min(32, (0.6 + Math.sqrt(pop) * 0.17 * rush) * carMul) : 0;
     // Echte Fahrten pro Spielstunde, die ein Auto repräsentiert
     const tripsPerHour = (pop * 1.5 / 24) * rush * carMul * (1 - g.stats.transitShare);
-    this.weight = rate > 0 ? tripsPerHour / (rate * 1.25) : 1;
+    // Autos je Spielstunde = Rate je Sekunde × Sekunden je Spielstunde (hängt von der Tageslänge ab)
+    this.weight = rate > 0 ? tripsPerHour / (rate * 60 / minPerSec(g)) : 1;
     this.spawnAcc += rate * simSec;
     let guard = 0;
     while (this.spawnAcc >= 1 && guard++ < 6) {

@@ -30,6 +30,8 @@ const summary = [];
 for (const map of maps) for (const seed of seeds) {
   seedMathRandom(seed * 97 + 1);
   const g = new Game({ size: 96, seed, mapType: map, difficulty: 'normal', name: 'Botstadt' });
+  // Tageslänge wie im Spiel prüfen: STADTPULS_MPS=24 (Lang) bzw. 16 (Sehr lang)
+  if (+process.env.STADTPULS_MPS > 0) g.minPerSec = +process.env.STADTPULS_MPS;
   const bot = new Bot(g, { naive: process.argv.includes('--naive') });
   let bankrupt = false;
   g.on('bankrupt', () => { bankrupt = true; });

@@ -740,8 +740,8 @@ export class Bot {
   }
 }
 
-// Spielt einen Tag in kleinen Schritten (wie bei 1×: 30 s = 1 Tag).
-export function runDay(g) { for (let s = 0; s < 300; s++) g.update(0.1); }
+// Spielt einen Tag in kleinen Schritten wie bei 1× (Grundtakt: 30 s = 1 Tag; mit g.minPerSec entsprechend länger).
+export function runDay(g) { const n = Math.round(300 * 48 / (g.minPerSec > 0 ? g.minPerSec : 48)); for (let s = 0; s < n; s++) g.update(0.1); }
 
 // Der Kernverkehr nutzt noch Math.random – für reproduzierbare Prüfstände durch einen festen Zufall ersetzen.
 export function seedMathRandom(seed = 1) {

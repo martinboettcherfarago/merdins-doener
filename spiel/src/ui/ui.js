@@ -28,7 +28,7 @@ import { Advisor, tutorialSteps, adviceLevel } from './advisor.js';
 import { Minimap } from './minimap.js';
 import { PhotoMode } from './photo.js';
 import { keysHTML } from './keys.js';
-import { settingsHTML, settingsClick, settingsInput, settingsChange, ensureSettings, applyUiScale, gfxSnapshot } from './settings.js';
+import { settingsHTML, settingsClick, settingsInput, settingsChange, ensureSettings, applyUiScale, gfxSnapshot, dayLengthText } from './settings.js';
 import { bindTips, hideTip, setTipsEnabled } from './tips.js';
 import { showLoader, hideLoader, loaderVisible, setLoader, painted } from './loading.js';
 import { Onboarding } from './onboarding.js';
@@ -160,10 +160,24 @@ export class UI {
   }
 
   // ---------- Aufbau
+  // Dauer eines Spieltags bei ×1 (Einstellung Tageslänge; im Metro-Modus immer der Grundtakt)
+  dayLenNow() {
+    const g = this.app && this.app.game;
+    return g && g.opts && g.opts.scenario === 'metro' ? '30 Sekunden' : dayLengthText(this.app && this.app.settings);
+  }
+  refreshDayText() {
+    const t = this.dayLenNow();
+    const when = document.querySelector('#u-timecard .when');
+    if (when) when.dataset.tipDesc = `Ein Spieltag dauert ${t}. Steuern, Wachstum und Wochenkarten richten sich danach. Die Tageslänge stellst du unter Optionen → Bedienung ein.`;
+    const one = document.querySelector('#u-speed [data-speed="1"]');
+    if (one) one.dataset.tipDesc = `Ein Spieltag dauert ${t}.`;
+  }
+
   mount() {
     const r = this.root;
     r.hidden = false;
     const zoneCol = (z) => hex(ZONE_INFO[z].color);
+    const dayLen = esc(this.dayLenNow());
     const sp = (v, inner, name, desc, key) => `<button class="spd" data-speed="${v}" data-tip="${name}" data-tip-desc="${desc}" data-key="${key}" aria-label="${name}">${inner}</button>`;
     // Runde 3b (Vorlage): oben links Rang- und Nachfrage-Chip, oben rechts Pillen für Kasse, Einwohner und Glück samt
     // Stadt-Check, Meldungen und Hilfe; unten links das Dock (Menü, Bau-Gruppen, Abriss, Ansichten, Stadt), unten rechts die Zeit-Karte.
@@ -196,9 +210,9 @@ export class UI {
 </div>
 <div class="sign timecard" id="u-timecard">
   <button class="wx" id="u-weather" hidden></button>
-  <div class="when" data-tour="time" data-tip="Uhrzeit und Datum" data-tip-desc="Ein Spieltag dauert 30 Sekunden. Steuern, Wachstum und Wochenkarten richten sich danach."><span class="date" id="u-date"></span><span class="time num" id="u-time"></span></div>
+  <div class="when" data-tour="time" data-tip="Uhrzeit und Datum" data-tip-desc="Ein Spieltag dauert ${dayLen}. Steuern, Wachstum und Wochenkarten richten sich danach. Die Tageslänge stellst du unter Optionen → Bedienung ein."><span class="date" id="u-date"></span><span class="time num" id="u-time"></span></div>
   <div class="speed" id="u-speed" data-tour="speed">
-    ${sp(0, icon('pause', 17, 3.2), 'Pause', 'Die Zeit anhalten und in Ruhe planen. Noch einmal drücken: weiter.', 'Leertaste')}${sp(1, '<b>×1</b>', 'Normal', 'Ein Spieltag in 30 Sekunden.', '1')}${sp(2, '<b>×2</b>', 'Schnell', 'Doppeltes Tempo.', '2')}${sp(3, '<b>×3</b>', 'Sehr schnell', 'Dreifaches Tempo – gut, wenn die Stadt rund läuft.', '3')}
+    ${sp(0, icon('pause', 17, 3.2), 'Pause', 'Die Zeit anhalten und in Ruhe planen. Noch einmal drücken: weiter.', 'Leertaste')}${sp(1, '<b>×1</b>', 'Normal', `Ein Spieltag dauert ${dayLen}.`, '1')}${sp(2, '<b>×2</b>', 'Schnell', 'Doppeltes Tempo.', '2')}${sp(3, '<b>×3</b>', 'Sehr schnell', 'Dreifaches Tempo – gut, wenn die Stadt rund läuft.', '3')}
   </div>
 </div>
 <div class="toolhint" id="u-toolhint" hidden></div>

@@ -97,7 +97,7 @@ export class Menu {
       <button class="btn ghost dark" data-act="keys" data-tip="Tastenkürzel" data-tip-desc="Alle Tasten auf einen Blick.">${icon('keyboard', 16)} Tasten</button>
       ${window.STADTPULS_EMBED ? '' : `<label class="btn ghost dark file" data-tip="Spielstand aus Datei" data-tip-desc="Eine gesicherte Stadt (.json) öffnen.">${icon('download', 16)} Aus Datei<input type="file" id="m-file" accept=".json,application/json"></label>`}
     </div>
-    <div class="foot">Rechte Maus verschiebt · Mausrad zoomt · Q/E dreht · Ein Spieltag dauert 30 Sekunden</div>
+    <div class="foot">Rechte Maus verschiebt · Mausrad zoomt · Q/E dreht · Tageslänge unter Einstellungen → Bedienung</div>
   </div>
   <div class="stage-note">${this.previewing ? `<span class="pv-tag">${icon('map', 14)} Vorschau · ${esc(mt.name)} · ${esc((MAP_SIZES.find((s) => s.id === o.size) || {}).name || '')} · Startwert ${o.seed}</span>` : ''}</div>
 </div>`;

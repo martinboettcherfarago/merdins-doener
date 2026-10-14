@@ -61,6 +61,8 @@ Version 2.0 hat ein Schwarm aus 17 spezialisierten Agenten gebaut, danach haben 
 | ? / F1 | Alle Tastenkürzel |
 | Strg + S | Schnellspeichern |
 
+Ein Spieltag dauert bei ×1 eine Minute. Unter Optionen → Bedienung → „Tageslänge“ lässt sich das auf 30 Sekunden (Normal) oder anderthalb Minuten (Sehr lang) stellen; Fahrzeuge fahren dabei immer gleich schnell. Der Metro-Modus nutzt fest 30 Sekunden, damit die Bestenliste vergleichbar bleibt.
+
 Auf Handy und Tablet verschiebt ein Finger die Karte, zwei Finger zoomen und drehen. Beim Bauen setzt Antippen erst eine Vorschau (verschiebbar, bei Straßen und Zonen mit Griffen); gebaut wird erst mit ✓ in der Leiste. Das lässt sich in den Optionen unter „Bauen bestätigen“ einstellen.
 
 ### Erste Schritte

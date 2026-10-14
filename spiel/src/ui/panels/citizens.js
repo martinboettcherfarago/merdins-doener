@@ -276,7 +276,7 @@ function drawSeries(c, series, opts = {}) {
   const [ctx, w, h] = prepCanvas(c);
   const padL = 34, padR = 6, padT = 8, padB = 16;
   const n = Math.max(...series.map((s) => s.values.length));
-  if (n < 2) { ctx.fillStyle = '#7a8294'; ctx.font = '12px "Stadtpuls Text", Nunito, sans-serif'; ctx.fillText('Noch keine Daten – ein Spieltag dauert 30 Sekunden.', 6, h / 2); return; }
+  if (n < 2) { ctx.fillStyle = '#7a8294'; ctx.font = '12px "Stadtpuls Text", Nunito, sans-serif'; ctx.fillText('Noch keine Daten – der Verlauf erscheint nach dem ersten Spieltag.', 6, h / 2); return; }
   let max = 0;
   for (const s of series) for (const v of s.values) max = Math.max(max, v);
   if (opts.pct) max = Math.max(0.05, max) * 1.15;

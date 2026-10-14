@@ -10,7 +10,7 @@
 // Zwei Zeitmaßstäbe (wie im übrigen Spiel): Fahrzeuge bewegen sich in Sim-Sekunden (sichtbares Tempo wie die Autos),
 // Takt, Fahrzeit und Kapazität rechnen in „Erzählminuten" wie die Pendelzeit (1 Feld Straße ≈ 1,2 Minuten).
 import { registerSystem, HAPPINESS_FACTORS, LANDVALUE_TERMS, DEMAND_MODIFIERS, BUDGET_LINES, BUILDING_PROBLEMS, emit } from '../../registry.js';
-import { BUILDINGS, ROADS, R, T as TER, Z, TRANSIT, GAME_MIN_PER_SEC, DAY, MILESTONES } from '../../config.js';
+import { BUILDINGS, ROADS, R, T as TER, Z, TRANSIT, minPerSec, DAY, MILESTONES } from '../../config.js';
 import { MinHeap, clamp, hash2, mulberry32 } from '../../util.js';
 import { forDisc } from '../services.js';
 import { findPath } from '../network.js';
@@ -873,7 +873,7 @@ function railStep(g, minutes) {
     const ok = b.construct >= 1 && b.powered && b.connected;
     R2.ok = ok;
     // abgelaufene Züge entfernen
-    R2.trains = R2.trains.filter((tr) => (g.time - tr.t0) / GAME_MIN_PER_SEC < TRAIN.ta + TRAIN.dwell + TRAIN.td + 0.1);
+    R2.trains = R2.trains.filter((tr) => (g.time - tr.t0) / minPerSec(g) < TRAIN.ta + TRAIN.dwell + TRAIN.td + 0.1);
     if (!ok) continue;
     if (g.time >= R2.nextAt) {
       const night = h < 5 || h >= 23.5;
@@ -892,7 +892,7 @@ function railStep(g, minutes) {
     }
     // Ankünfte zählen (Fahrgäste, Touristen, Einnahmen)
     for (const tr of R2.trains) {
-      const t = (g.time - tr.t0) / GAME_MIN_PER_SEC;
+      const t = (g.time - tr.t0) / minPerSec(g);
       if (!tr.counted && t >= TRAIN.ta) {
         tr.counted = true;
         const pax = Math.round((tr.ic ? 90 : 45) * (0.7 + T.rng() * 0.6) * (0.6 + Math.min(1.6, g.stats.pop / 6000)));
@@ -980,7 +980,7 @@ function airStep(g) {
     if (!b) continue;
     const ok = b.construct >= 1 && b.powered && b.connected;
     A.ok = ok;
-    A.flights = A.flights.filter((f) => (g.time - f.t0) / GAME_MIN_PER_SEC < FLIGHT_T + 0.2);
+    A.flights = A.flights.filter((f) => (g.time - f.t0) / minPerSec(g) < FLIGHT_T + 0.2);
     if (!ok) continue;
     if (g.time >= A.nextAt) {
       if (h >= 5 && h < 23) {
@@ -995,7 +995,7 @@ function airStep(g) {
       A.nextAt = g.time + (220 - Math.min(80, g.stats.pop / 250)) * (0.8 + T.rng() * 0.4);
     }
     for (const f of A.flights) {
-      const t = (g.time - f.t0) / GAME_MIN_PER_SEC;
+      const t = (g.time - f.t0) / minPerSec(g);
       if (!f.landed && t >= FLIGHT.app) { f.landed = true; emit('plane', { x: b.x + b.w / 2, y: b.y + b.h / 2, phase: 'landing' }); }
       if (!f.tookOff && t >= FLIGHT_T - FLIGHT.take) { f.tookOff = true; emit('plane', { x: b.x + b.w / 2, y: b.y + b.h / 2, phase: 'takeoff' }); }
       if (!f.counted && t >= FLIGHT.app + FLIGHT.roll) {
@@ -1933,7 +1933,7 @@ registerSystem({
     if (T.dirty.signals) updateSignals(g);
     if (T.dirty.ferries) rebuildFerries(g);
     if (T.dirty.graph) { updateStopLines(g); stopTakts(g); buildGraph(g); shortestTrees(g); }
-    const dt = minutes / GAME_MIN_PER_SEC;
+    const dt = minutes / minPerSec(g);
     moveVehicles(g, dt);
     railStep(g, minutes);
     airStep(g);
@@ -2058,7 +2058,7 @@ export function renderables(g) {
   if (!T) return [];
   const out = [];
   const get = () => { const o = {}; out.push(o); return o; };
-  const dtS = clamp((g.time - T.tStep) / GAME_MIN_PER_SEC, 0, 0.3);
+  const dtS = clamp((g.time - T.tStep) / minPerSec(g), 0, 0.3);
   const lm = lineMap(T);
   const W2 = g.W / 2, H2 = g.H / 2;
   // Busse und Straßenbahnen
@@ -2117,7 +2117,7 @@ export function renderables(g) {
     const L = def.size[0] / 2;
     const vis = L - STATION_LAYOUT.portal + 0.29;
     for (const tr of R2.trains) {
-      const t = (g.time - tr.t0) / GAME_MIN_PER_SEC;
+      const t = (g.time - tr.t0) / minPerSec(g);
       const xf = trainFront(def, tr, t);
       const z = STATION_LAYOUT.tracks[tr.track];
       let off = 0;
@@ -2144,7 +2144,7 @@ export function renderables(g) {
     const b = g.buildings.get(bid);
     if (!b) continue;
     for (const f of A.flights) {
-      const t = (g.time - f.t0) / GAME_MIN_PER_SEC;
+      const t = (g.time - f.t0) / minPerSec(g);
       flightPose(f, t, _fp);
       localToWorld(g, b, _fp.x, _fp.z, _o);
       const o = get();

@@ -1,7 +1,8 @@
 // Einstellungen (Vertrag 6.7): Grafik, Klang, Bedienung, Spielstand, Hilfe – im Spiel als Panel, im Menü als Fenster.
 // app.settings: quality 'low'|'medium'|'high'|'ultra', postfx, ao, bloom, shadows 'off'|'low'|'high', alwaysDay,
 // volume, music, sfx, muted, tutorialDone – dazu Oberflächen-Werte uiScale, minimap, advisor, tooltips,
-// confirmPlace 'auto'|'always'|'never' (Bauen bestätigen, ausgewertet von TOUCH in src/input/**).
+// confirmPlace 'auto'|'always'|'never' (Bauen bestätigen, ausgewertet von TOUCH in src/input/**),
+// dayLength 'normal'|'long'|'xlong' (Tageslänge: Spielminuten je Sekunde, gilt sofort; der Metro-Modus behält den Grundtakt).
 // Grafikwerte liest die Engine beim Start; geänderte Werte werden mit „Übernehmen" (Neustart der Ansicht) wirksam.
 import { fmt } from '../util.js';
 import { icon } from './icons.js';
@@ -28,6 +29,22 @@ export const CONFIRM_PLACE = [
   ['never', 'Nie', 'Antippen bzw. Klicken baut sofort, ohne Vorschau.'],
 ];
 
+// Tageslänge: [id, Name, Spielminuten je Sekunde, Dauer eines Spieltags bei ×1]
+export const DAY_LENGTHS = [
+  ['normal', 'Normal', 48, '30 Sekunden'],
+  ['long', 'Lang', 24, 'eine Minute'],
+  ['xlong', 'Sehr lang', 16, 'anderthalb Minuten'],
+];
+const dayLen = (s) => DAY_LENGTHS.find((x) => x[0] === (s && s.dayLength)) || DAY_LENGTHS[1];
+export const dayLengthText = (s) => dayLen(s)[3];
+// Takt der laufenden Stadt setzen (im Metro-Modus fester Grundtakt, damit Tageskarte und Bestenliste vergleichbar bleiben)
+export function applyDayLength(app) {
+  const g = app && app.game;
+  if (!g) return;
+  const metro = !!(g.opts && g.opts.scenario === 'metro');
+  g.minPerSec = metro ? DAY_LENGTHS[0][2] : dayLen(app.settings)[2];
+}
+
 // Fehlende Werte ergänzen (ältere Einstellungen) – vor dem Start der ersten Engine aufrufen.
 export function ensureSettings(s) {
   if (!PRESETS[s.quality]) s.quality = 'medium';
@@ -43,6 +60,8 @@ export function ensureSettings(s) {
   if (s.tooltips === undefined) s.tooltips = true;
   // Runde 3b (TOUCH): Bauen bestätigen – 'auto' = bei Touch/Stift mit Vorschau und ✓, mit der Maus sofort; 'always'; 'never'
   if (!['auto', 'always', 'never'].includes(s.confirmPlace)) s.confirmPlace = 'auto';
+  // Tageslänge: Standard „Lang" (ein Spieltag bei ×1 dauert eine Minute)
+  if (!DAY_LENGTHS.some((x) => x[0] === s.dayLength)) s.dayLength = 'long';
   return s;
 }
 export const gfxSnapshot = (s) => Object.fromEntries(GFX_KEYS.map((k) => [k, s[k]]));
@@ -90,6 +109,7 @@ ${live ? `<div class="apply">${icon('check', 16)}<span>Änderungen gelten sofort
   } else if (tab === 'bedienung') {
     const cp = CONFIRM_PLACE.find((x) => x[0] === s.confirmPlace) || CONFIRM_PLACE[0];
     body = `<div class="sec"><h3>Größe der Oberfläche</h3>${seg('uiScale', s.uiScale, UI_SCALES)}</div>
+<div class="sec"><h3>Tageslänge</h3>${seg('dayLength', s.dayLength, DAY_LENGTHS.map((x) => [x[0], x[1]]))}<p class="hint">Ein Spieltag dauert bei ×1 ${esc(dayLengthText(s))}. Autos und Bahnen fahren immer gleich schnell – es ändert sich nur, wie rasch Uhr, Wachstum und Einnahmen voranschreiten.${ctx.app.game && ctx.app.game.opts && ctx.app.game.opts.scenario === 'metro' ? ' Im Metro-Modus gilt immer die normale Tageslänge.' : ''}</p></div>
 <div class="sec" data-tour="confirmplace"><h3>Bauen bestätigen</h3>${seg('confirmPlace', s.confirmPlace, CONFIRM_PLACE.map((x) => [x[0], x[1]]))}<p class="hint">${esc(cp[2])}</p></div>
 <div class="sec"><h3>Hilfen</h3>
   ${sw('minimap', s.minimapOpen, 'Minikarte', 'Übersichtskarte unten links (Taste K).')}
@@ -137,6 +157,7 @@ export function settingsClick(ctx, act, el) {
     case 'icons': if (app.engine && app.engine.effects) app.engine.effects.showIcons = !app.engine.effects.showIcons; return true;
     case 'mute': s.muted = !s.muted; app.audio && app.audio.applyVolumes(); save(); return true;
     case 'uiScale': s.uiScale = +el.dataset.v; applyUiScale(s); save(); return true;
+    case 'dayLength': if (DAY_LENGTHS.some((x) => x[0] === el.dataset.v)) { s.dayLength = el.dataset.v; save(); applyDayLength(app); if (ctx.ui && ctx.ui.refreshDayText) ctx.ui.refreshDayText(); } return true;
     case 'confirmPlace': if (CONFIRM_PLACE.some((x) => x[0] === el.dataset.v)) { s.confirmPlace = el.dataset.v; save(); } return true;
     case 'minimap': s.minimapOpen = !s.minimapOpen; save(); if (ctx.ui && ctx.ui.toggleMinimap) ctx.ui.toggleMinimap(s.minimapOpen, true); return true;
     case 'advisor': s.advisor = !s.advisor; save(); return true;

@@ -3,8 +3,11 @@
 // Spielstand-Format: 1 = Stadtpuls 1.x (ohne Systemdaten), 2 = Stadtpuls 2.0 (mit g.ext, Budgets, Zufallszustand)
 export const VERSION = 2;
 
-// Zeit: Ein Spieltag dauert bei 1× Geschwindigkeit 30 Sekunden.
+// Zeit: Grundtakt 48 Spielminuten je Sekunde (ein Spieltag bei 1× in 30 Sekunden; so rechnen Prüfstände und Metro-Modus).
+// Im Spiel stellt die Einstellung „Tageslänge" den Takt je Stadt ein (g.minPerSec, Standard „Lang": 24 = 1 Minute je Tag).
+// Fahrzeuge rechnen in Echtzeit-Sekunden: Spielminuten immer mit minPerSec(g) umrechnen, nie mit der Konstante.
 export const GAME_MIN_PER_SEC = 48;
+export const minPerSec = (g) => (g && g.minPerSec > 0 ? g.minPerSec : GAME_MIN_PER_SEC);
 export const SPEEDS = [0, 1, 2, 4];
 export const DAY = 1440;
 export const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];

@@ -25,7 +25,7 @@ export function drawLineChart(canvas, values, opts = {}) {
   const extra = opts.series || [];
   if (!values.length) {
     ctx.fillStyle = INK; ctx.font = '12px "Stadtpuls Text", Nunito, sans-serif';
-    ctx.fillText(opts.empty || 'Noch keine Daten – ein Spieltag vergeht in 30 Sekunden.', 8, h / 2);
+    ctx.fillText(opts.empty || 'Noch keine Daten – der Verlauf erscheint nach dem ersten Spieltag.', 8, h / 2);
     return;
   }
   let min = Math.min(...values), max = Math.max(...values);
