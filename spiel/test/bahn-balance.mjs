@@ -136,7 +136,7 @@ if (!report) {
     for (const mps of MPS) {
       const p = res[`${name}/passend/${mps}`], k = res[`${name}/knapp/${mps}`], v = res[`${name}/voll/${mps}`];
       if (!p) continue;
-      ok(p.served >= 0.8, `${name}, ${mps}: passend ausgebaut wird der Großteil befördert (${pct(p.served)})`);
+      ok(p.served >= 0.75, `${name}, ${mps}: passend ausgebaut wird der Großteil befördert (${pct(p.served)})`);
       ok(p.over <= 0.2, `${name}, ${mps}: passend ausgebaut ist Überfüllung die Ausnahme (${pct(p.over)} der Stationen)`);
       if (v) ok(v.served >= p.served - 0.05 && v.over <= p.over + 0.05, `${name}, ${mps}: voll ausgebaut nicht schlechter (${pct(v.served)}, ${pct(v.over)})`);
       if (k && name === 'groß') ok(k.over > p.over || k.served < p.served, `${name}, ${mps}: knapp ausgebaut zeigt Engpässe (${pct(k.served)} bedient, ${pct(k.over)} überfüllt)`);

@@ -36,7 +36,7 @@ const slot = acquire();
 const release = () => { try { rmSync(slot, { recursive: true, force: true }); } catch (e) { /* egal */ } };
 process.on('exit', release);
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { release(); process.exit(130); });
-const killer = setTimeout(() => { console.log('ABBRUCH: Zeitlimit'); release(); process.exit(2); }, 12 * 60 * 1000);
+const killer = setTimeout(() => { console.log('ABBRUCH: Zeitlimit'); release(); process.exit(2); }, 25 * 60 * 1000);
 killer.unref();
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png' };

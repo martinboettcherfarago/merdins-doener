@@ -11,7 +11,7 @@
 //
 // Schnittstelle für input.js: tap(x, y), dragStart(end), dragMove(x, y), dragEnd(x, y), handles(), screen(), info(),
 // undo(), toggleRing(), popAction(a), commit(), hoverAt(x, y) – x/y sind Bildschirmkoordinaten (clientX/Y).
-import { Vector3 } from 'three';
+import { Vector2, Vector3, Plane, Raycaster } from 'three';
 import { TRANSIT } from '../config.js';
 import { fmtMoney } from '../util.js';
 import { LINE_COLORS, LINE_COLOR_NAMES } from '../sim/transit.js';
@@ -19,6 +19,10 @@ import { LINE_COLORS, LINE_COLOR_NAMES } from '../sim/transit.js';
 const SNAP = { touch: 44, mouse: 26 }; // Fangradius (px) beim Tippen und Loslassen
 const PASS = { touch: 24, mouse: 15 }; // beim Ziehen: Station unter dem Finger wird mitgenommen bzw. zurückgenommen
 const _v = new Vector3();
+const _p = new Vector3();
+const _n = new Vector2();
+const _ray = new Raycaster();
+const _plane = new Plane(new Vector3(0, 1, 0), 0);
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const BAD = '#e5484d';
 
@@ -52,16 +56,34 @@ export class LineDraft {
   isNew(r) { return typeof r !== 'number'; }
   n() { return this.stops.length; }
 
-  // Feldmitte → Bildschirm
+  // Zeichenebene: in der Untergrund-Ansicht die Tunnelebene der Linie, sonst das Gelände
+  depth() {
+    const ug = this.inp.e.underground;
+    try { return ug && ug.planDepth ? ug.planDepth(this.line) : 0; } catch (e) { return 0; }
+  }
+  // Feldkoordinaten (tx, ty, Feldmitte = +0,5) → Bildschirm
   proj(tx, ty) {
     const cam = this.inp.e.camera, rc = this.inp.e.canvas.getBoundingClientRect(), g = this.g;
-    _v.set(tx - g.W / 2, 0, ty - g.H / 2).project(cam);
+    _v.set(tx - g.W / 2, this._y || 0, ty - g.H / 2).project(cam);
     return { x: rc.left + ((_v.x + 1) / 2) * rc.width, y: rc.top + ((1 - _v.y) / 2) * rc.height, z: _v.z };
+  }
+  // Bildschirm → Feld auf der Zeichenebene
+  pick(sx, sy) {
+    const y = this.depth();
+    if (!y) return this.inp.e.pickTile(sx, sy);
+    const cam = this.inp.e.camera, rc = this.inp.e.canvas.getBoundingClientRect(), g = this.g;
+    _n.set(((sx - rc.left) / rc.width) * 2 - 1, -((sy - rc.top) / rc.height) * 2 + 1);
+    _ray.setFromCamera(_n, cam);
+    _plane.constant = -y;
+    if (!_ray.ray.intersectPlane(_plane, _p)) return null;
+    const x = Math.floor(_p.x + g.W / 2), yy = Math.floor(_p.z + g.H / 2);
+    return x < 0 || yy < 0 || x >= g.W || yy >= g.H ? { x, y: yy, i: -1 } : { x, y: yy, i: yy * g.W + x };
   }
   scr(r) { const p = this.pos(r); return p ? this.proj(p.x + 0.5, p.y + 0.5) : null; }
 
   // Gelöschte Stationen aus dem Entwurf nehmen (die Simulation läuft weiter)
   tidy() {
+    this._y = this.depth();
     const T = this.g.transit;
     const before = this.stops.length;
     this.stops = this.stops.filter((r) => typeof r !== 'number' || T.stations.has(r));
@@ -156,7 +178,7 @@ export class LineDraft {
       this.add(h.r, this.endFor(st.x, st.y) === 's');
       return 'add';
     }
-    const t = this.inp.e.pickTile(sx, sy);
+    const t = this.pick(sx, sy);
     if (!t || t.i < 0) return null;
     const err = this.canPlan(t.x, t.y);
     if (err) { this.say(err); return 'blocked'; }
@@ -222,7 +244,7 @@ export class LineDraft {
         if (h.k === other && h.k !== endK && n >= 3 && !this.loop) { this.loop = true; changed = true; }
       } else if (!this.loop) { this.add(h.r, d.end === 's'); changed = true; }
     } else if (!d.retracted && !this.loop && n) {
-      const t = this.inp.e.pickTile(sx, sy);
+      const t = this.pick(sx, sy);
       const ep = this.pos(this.stops[endK]);
       if (t && t.i >= 0 && ep && Math.max(Math.abs(t.x - ep.x), Math.abs(t.y - ep.y)) >= 2) {
         const err = this.canPlan(t.x, t.y);
@@ -359,7 +381,7 @@ export class LineDraft {
     let cand = null;
     if (tip && !this.loop) {
       const snap = this.hit(tip.x, tip.y, this.snapR());
-      const t = this.inp.e.pickTile(tip.x, tip.y);
+      const t = this.pick(tip.x, tip.y);
       let end = d ? d.end : null;
       let target = null, ok = true;
       if (snap) { const p = this.pos(snap.r); target = p; if (!d && snap.k >= 0) target = null; }
@@ -389,8 +411,11 @@ export class LineDraft {
       if (!p) return;
       const nu = this.isNew(r);
       const sel = this.pop && this.pop.k === k;
-      dots.push({ x: p.x, y: p.y, r: sel ? 12 : 9, fill: '#fff', stroke: col, sw: 4.5, dash: nu ? '4 3' : '' });
-      if (nu) dots.push({ x: p.x, y: p.y, r: 3, fill: col, stroke: 'none', sw: 0 });
+      // geplante Station: Punkt in der Mitte; Feld inzwischen ungültig (bebaut …): rot
+      const bad = nu && !!T.canPlaceStation(r.x, r.y);
+      if (sel) dots.push({ x: p.x, y: p.y, r: 18, fill: 'none', stroke: '#fff', sw: 3, glow: BAD });
+      dots.push({ x: p.x, y: p.y, r: sel ? 12 : 9, fill: '#fff', stroke: bad ? BAD : col, sw: nu ? 3 : 4.5 });
+      if (nu) dots.push({ x: p.x, y: p.y, r: 3.5, fill: bad ? BAD : col, stroke: 'none', sw: 0 });
     });
     if (cand) {
       if (cand.ring) dots.push({ x: cand.x, y: cand.y, r: 17, fill: 'none', stroke: '#fff', sw: 3.5, glow: col });
@@ -410,7 +435,7 @@ export class LineDraft {
   radiusAt() {
     const d = this.drag, tip = d && d.x != null ? d : this.hover;
     if (!tip || this.loop) return null;
-    const t = this.inp.e.pickTile(tip.x, tip.y);
+    const t = this.pick(tip.x, tip.y);
     if (!t || t.i < 0) return null;
     const snap = this.hit(tip.x, tip.y, this.snapR());
     const p = snap ? this.pos(snap.r) : t;

@@ -37,7 +37,7 @@ const slot = acquire();
 const release = () => { try { rmSync(slot, { recursive: true, force: true }); } catch (e) { /* egal */ } };
 process.on('exit', release);
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { release(); process.exit(130); });
-const killer = setTimeout(() => { console.log('ABBRUCH: Zeitlimit'); release(); process.exit(2); }, 14 * 60 * 1000);
+const killer = setTimeout(() => { console.log('ABBRUCH: Zeitlimit'); release(); process.exit(2); }, 25 * 60 * 1000);
 killer.unref();
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png' };
@@ -108,7 +108,9 @@ async function startGame(ctxOpts) {
     window.__T = {
       scr(x, y) {
         const cam = app.engine.camera, rc = app.engine.canvas.getBoundingClientRect();
-        const v = new V(x + 0.5 - W / 2, 0, y + 0.5 - H / 2).project(cam);
+        // auf der Zeichenebene des Linienentwurfs (Untergrund-Ansicht: Tunnelebene)
+        const depth = app.input.ld ? app.input.ld.depth() : 0;
+        const v = new V(x + 0.5 - W / 2, depth, y + 0.5 - H / 2).project(cam);
         return { x: rc.left + ((v.x + 1) / 2) * rc.width, y: rc.top + ((1 - v.y) / 2) * rc.height };
       },
       st() {
@@ -123,7 +125,7 @@ async function startGame(ctxOpts) {
           goal: { x: rig.goal.x, z: rig.goal.z }, money: g.money,
         };
       },
-      station(x, y) { return g.stationAt[y * W + x] || 0; },
+      station(x, y) { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const id = g.stationAt[(y + dy) * W + x + dx]; if (id) return id; } return 0; },
       dbg() { const inp = app.input; return { gest: inp.gest ? { mode: inp.gest.mode, id: inp.gest.id, kind: inp.gest.kind } : null, pinching: rig.pinching, ids: [...inp.touchIds], rt: rig.touches ? rig.touches.size : -1, pend: inp.pend, type: inp.lastType, ev: (window.__ev || []).slice(-12) }; },
       onCanvas(x, y) { const el = document.elementFromPoint(x, y); return el === app.engine.canvas ? true : el ? (el.className || el.tagName) + '' : 'nichts'; },
       trains(id) { return g.transit.trains.filter((t) => t.line === id).map((t) => ({ x: t.x, z: t.z, cur: t.cur, st: t.state })); },

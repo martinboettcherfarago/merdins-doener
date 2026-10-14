@@ -315,6 +315,7 @@ export class Input {
   }
 
   updateHover() {
+    if (this.ld) return; // Linienentwurf zeichnet seine Vorschau selbst (lineHover)
     const t = this.hover, g = this.g, ov = this.e.overlay, k = this.tool.kind;
     if (!t || t.i < 0) { ov.hideGhost(); ov.hideRadius(); this.ui.tooltip(null); if (k === 'select') { const sb = this.ui.selectedBox(); ov.select(sb && !sb.flat ? sb : null); } return; }
     if (k === 'select') {
@@ -494,7 +495,6 @@ export class Input {
       if (r === 'add' || r === 'new' || r === 'remove' || r === 'ring' || r === 'pop') this.audio.play('click');
       this.ui.tooltip(null);
       this.refreshPend();
-      this.ui.renderToolHint && this.ui.renderToolHint();
       return;
     }
     const t = this.e.pickTile(G.x0, G.y0);
@@ -638,6 +638,7 @@ export class Input {
     } else if (p.kind === 'line') {
       if (!this.ld || !this.ld.valid) { this.setTool({ kind: 'select' }); return; }
       info = this.ld.info();
+      if (this.ui.renderToolHint && this._ldN !== this.ld.stops.length) { this._ldN = this.ld.stops.length; this.ui.renderToolHint(); }
     } else info = this.draftInfo();
     if (!info) { this.pend = null; this.bar.hide(); return; }
     this.ui.tooltip(null);
@@ -817,9 +818,9 @@ export class Input {
     const ld = this.ld;
     if (!ld) return;
     if (a === 'cancel') { this.setTool({ kind: 'select' }); return; }
-    if (a === 'undo') { if (ld.undo()) this.audio.play('click'); this.refreshPend(); this.ui.renderToolHint && this.ui.renderToolHint(); return; }
+    if (a === 'undo') { if (ld.undo()) this.audio.play('click'); this.refreshPend(); return; }
     if (a === 'ring') { if (ld.toggleRing()) this.audio.play('click'); this.refreshPend(); return; }
-    if (a.startsWith('pop:')) { if (ld.popAction(a.slice(4))) this.audio.play('click'); this.refreshPend(); this.ui.renderToolHint && this.ui.renderToolHint(); return; }
+    if (a.startsWith('pop:')) { if (ld.popAction(a.slice(4))) this.audio.play('click'); this.refreshPend(); return; }
     if (a !== 'ok') return;
     const isNew = !ld.line, name = ld.name();
     const res = ld.commit();

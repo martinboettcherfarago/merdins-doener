@@ -753,7 +753,8 @@ ${gr && TRAY_STATS[gr.id] ? `<button class="close tr-stats" data-act="traystats"
     if (tool.kind === 'select' && this.cat && !this.search) this.closeTray();
     if (this.cat) this.renderTrayBody();
     this.markToolButtons();
-    if ((tool.kind === 'line' || tool.kind === 'extend') && this.view === 'none') this.setView('transit', true);
+    // Linienwerkzeuge: Einzugsgebiete einblenden (auf dem Handy nicht – die Legende verdeckt dort die halbe Karte)
+    if ((tool.kind === 'line' || tool.kind === 'extend') && this.view === 'none' && !this.mobile()) this.setView('transit', true);
     if (tool.kind !== 'line' && tool.kind !== 'extend' && this.autoTransitView) this.setView('none');
     this.renderToolHint();
     this.syncUnderground();

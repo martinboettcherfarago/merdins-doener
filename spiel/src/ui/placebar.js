@@ -1,6 +1,6 @@
 // Bestätigungsleiste für sicheres Bauen per Touch (TOUCH, Runde 3b).
 // Solange eine Bauvorschau auf Bestätigung wartet (input.pend), schwebt sie nahe der Vorschau – nie unter dem Finger:
-//   ✕ Abbrechen · ↶ Zurück (Linien) · ↻ Drehen (Gebäude) · ✓ Bauen/Ausweisen/Abreißen/Fertig mit Preis (oranger Knopf).
+//   ✕ Abbrechen · ↶ Zurück (Linien) · ◯ Ring (U-Bahn) · ↻ Drehen (Gebäude) · ✓ Bauen/Ausweisen/Abreißen/Fertig mit Preis (oranger Knopf).
 // Ist der Platz ungültig, ist ✓ gesperrt und die Zeile darüber nennt den Grund.
 // Griffe (Straßen-/Flächenenden, Verschiebe-Marke der Gebäudevorschau) sind reine Anzeige (pointer-events: none):
 // Die Geste wertet input.js auf der Karte aus, damit Zwei-Finger-Zoom und Kamera immer greifen.
@@ -78,6 +78,8 @@ const STYLE = `
 .placebar .pb-ok:disabled svg { filter: none; }
 .placebar .pb-ok:disabled .pb-p { background: rgba(76, 38, 160, 0.08); box-shadow: none; }
 .pb-hs { position: fixed; inset: 0; z-index: 27; pointer-events: none; overflow: hidden; }
+.pb-draw { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.pb-draw[hidden] { display: none; }
 .pb-svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
 .pb-pop {
   position: fixed; left: 0; top: 0; z-index: 46; display: flex; gap: 6px; padding: 6px; border-radius: 18px; pointer-events: auto;
@@ -136,9 +138,14 @@ export class PlaceBar {
     this.hs = document.createElement('div');
     this.hs.className = 'pb-hs';
     this.hs.hidden = true;
-    this.hs.innerHTML = '<svg class="pb-svg" aria-hidden="true"></svg>';
-    this.svgEl = this.hs.firstChild;
+    // Zeichnung des Linienentwurfs: über der Karte, aber unter der Oberfläche (#hud) – Tafeln verdecken sie
+    this.drawEl = document.createElement('div');
+    this.drawEl.className = 'pb-draw';
+    this.drawEl.hidden = true;
+    this.drawEl.innerHTML = '<svg class="pb-svg" aria-hidden="true"></svg>';
+    this.svgEl = this.drawEl.firstChild;
     this._svg = '';
+    this.mountDraw();
     // Kleines Menü an einer Station (Linie bearbeiten)
     this.popEl = document.createElement('div');
     this.popEl.className = 'pb-pop';
@@ -168,6 +175,13 @@ export class PlaceBar {
     this.pos = { x: -1, y: -1, side: 0 };
   }
 
+  // Zeichenebene direkt vor #hud einhängen (die Oberfläche entsteht evtl. erst nach der Leiste)
+  mountDraw() {
+    const hud = document.getElementById('hud');
+    if (hud && hud.parentNode) { if (this.drawEl.nextSibling !== hud) hud.parentNode.insertBefore(this.drawEl, hud); }
+    else if (!this.drawEl.isConnected) document.body.appendChild(this.drawEl);
+  }
+
   show(st) {
     const q = this.q;
     if (q.t.textContent !== st.title) q.t.textContent = st.title || '';
@@ -190,6 +204,8 @@ export class PlaceBar {
       document.documentElement.classList.add('placebar-on');
       this.el.hidden = false;
       this.hs.hidden = false;
+      this.drawEl.hidden = false;
+      this.mountDraw();
       this.pos.side = 0;
       this.place(true);
       this.loop();
@@ -202,6 +218,7 @@ export class PlaceBar {
     document.documentElement.classList.remove('placebar-on');
     this.el.hidden = true;
     this.hs.hidden = true;
+    this.drawEl.hidden = true;
     this.popEl.hidden = true;
     this._pop = '';
     if (this._svg) { this._svg = ''; this.svgEl.innerHTML = ''; }
@@ -230,6 +247,7 @@ export class PlaceBar {
     this.el.style.visibility = off ? 'hidden' : '';
     this.hs.style.visibility = off ? 'hidden' : '';
     this.popEl.style.visibility = off ? 'hidden' : '';
+    this.drawEl.style.visibility = off ? 'hidden' : '';
     if (off) return;
     this.drawSvg(s.draw);
     this.placePop(s.pop);
@@ -357,6 +375,7 @@ export class PlaceBar {
     this.hide();
     this.el.remove();
     this.hs.remove();
+    this.drawEl.remove();
     this.popEl.remove();
   }
 }
