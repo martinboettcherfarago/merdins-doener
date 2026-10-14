@@ -5,6 +5,7 @@ import { BUDGET_LINES } from '../registry.js';
 import { fmt, fmtMoney, fmtShort, clamp } from '../util.js';
 import { LINE_COLORS, LINE_COLOR_NAMES } from '../sim/transit.js';
 import { icon } from './icons.js';
+import { timetableHTML, timetableClick, timetableAfterRender, timetableBusy, TIMETABLE_HINT } from './timetable.js';
 import { drawLineChart, svgSpark, barsHTML, meterHTML, svgDonut, chartIndexAt } from './charts.js';
 
 const hex = (n) => '#' + n.toString(16).padStart(6, '0');
@@ -123,6 +124,7 @@ const transit = {
   id: 'transit', title: 'U-Bahn', icon: 'transit',
   render(ui) {
     const g = ui.g, tr = g.transit;
+    if (timetableBusy() && ui._panelBody) return ui._panelBody; // Zug wird im Fahrplan gezogen: nicht neu zeichnen
     if (!g.isUnlocked('transit')) {
       return `<div class="lockcard">${icon('lock', 20)}<div><b>Ab „${MILESTONES[2].name}"</b><br>${fmt(MILESTONES[2].pop)} Einwohner</div></div>
 <p class="lede">Die <b>Pulsbahn</b> ist die U-Bahn deiner Stadt: Ihre Züge fahren im Tunnel unter den Straßen, oben sieht man nur die Eingänge. Fahrgäste warten an den Stationen. Ihre Form zeigt das Ziel: <b>●</b> nach Hause, <b>▲</b> zum Einkaufen, <b>■</b> in die Industrie, <b>◆</b> ins Büro. Ist eine Station zu lange überfüllt, geben die Leute auf und die Gegend wird unzufrieden.</p>`;
@@ -137,7 +139,7 @@ const transit = {
       const load = cap ? pax / cap : 0;
       return `<div class="line-card" style="--lc:${col}">
   <div class="hd"><span class="badge" style="background:${col}">${l.id}</span><div class="grow"><div class="ttl">Linie ${LINE_COLOR_NAMES[l.color]}${l.loop ? ' · Ring' : ''}</div><div class="sub">${stops.length} Stationen · ${l.length.toFixed(0)} Felder · gestern ${fmt(l.riders)} Fahrgäste</div></div></div>
-  <div class="diagram${l.loop ? ' loop' : ''}">${stops.map((s) => `<button class="st${s.waiting.length > 10 ? ' full' : ''}" data-act="gost" data-x="${s.x}" data-y="${s.y}" data-tip="${esc(s.name)}" data-tip-desc="${s.waiting.length} wartend" data-tip-fast="1"><i></i><span>${esc(s.name)}${s.waiting.length > 10 ? ` (${s.waiting.length})` : ''}</span></button>`).join('')}</div>
+  ${timetableHTML(ui, l)}
   <div class="ctrl">
     <span>Züge <b>${ts.length}</b> · Auslastung <b class="${load > 0.9 ? 'neg' : ''}">${Math.round(load * 100)} %</b></span>
     <span class="grp"><button class="mini" data-act="train-" data-l="${l.id}" ${ts.length <= 1 ? 'disabled' : ''} aria-label="Zug entfernen">${icon('minus', 14, 2.6)}</button><button class="mini" data-act="train+" data-l="${l.id}" data-tip="${tr.freeTrains > 0 ? 'Zug aus dem Depot' : 'Zug kaufen · ' + fmtMoney(TRANSIT.trainCost * g.costMul)}" aria-label="Zug hinzufügen">${icon('plus', 14, 2.6)}</button></span>
@@ -155,11 +157,13 @@ const transit = {
 <div class="res-strip"><div><div class="k">Linien</div><div class="v">${tr.lines.length} / ${tr.linesMax}</div></div><div><div class="k">Züge im Depot</div><div class="v">${tr.freeTrains}</div></div><div><div class="k">Waggons</div><div class="v">${tr.freeWagons}</div></div></div>
 <div class="acts row-acts"><button class="btn" data-act="newline" ${tr.lines.length >= tr.linesMax ? 'disabled' : ''}>${icon('line', 16)} Neue Linie zeichnen</button><button class="btn ghost" data-act="station">${icon('station', 16)} Station setzen</button></div>
 ${linesHtml || '<p class="lede">Noch keine Linie. Klicke auf „Neue Linie zeichnen" und dann nacheinander auf Felder in Wohn- und Arbeitsvierteln. Ein Klick auf die erste Station schließt einen Ring.</p>'}
-<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3><p class="hint">Jede Station sammelt Fahrgäste im Umkreis von ${String(TRANSIT.catchment).replace(".", ",")} Feldern. Symbole über den Stationen zeigen das Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro. Wird eine Station zu voll, läuft ein roter Ring – mehr Züge oder Waggons helfen. Solange dieses Fenster offen ist, zeigt die Stadt den Untergrund mit Tunneln und Zügen.</p></div>`;
+${tr.lines.length ? TIMETABLE_HINT : ''}<div class="sec" style="margin-top:14px"><h3>So funktioniert es</h3><p class="hint">Jede Station sammelt Fahrgäste im Umkreis von ${String(TRANSIT.catchment).replace(".", ",")} Feldern. Symbole über den Stationen zeigen das Ziel: ● Wohnen, ▲ Gewerbe, ■ Industrie, ◆ Büro. Wird eine Station zu voll, läuft ein roter Ring – mehr Züge oder Waggons helfen. Solange dieses Fenster offen ist, zeigt die Stadt den Untergrund mit Tunneln und Zügen.</p></div>`;
   },
   click(ui, act, el) {
     const g = ui.g;
     const res = (r) => { if (r && r.ok === false && r.msg) ui.toast(r.msg, 'bad'); };
+    const tt = timetableClick(ui, act, el);
+    if (tt !== undefined) return tt;
     switch (act) {
       case 'newline': ui.app.input.setTool({ kind: 'line' }); ui.closePanels(); return false;
       case 'station': ui.app.input.setTool({ kind: 'place', key: 'station' }); ui.closePanels(); return false;
@@ -172,6 +176,7 @@ ${linesHtml || '<p class="lede">Noch keine Linie. Klicke auf „Neue Linie zeich
     }
     return true;
   },
+  afterRender(ui) { timetableAfterRender(ui); },
 };
 
 const news = {
