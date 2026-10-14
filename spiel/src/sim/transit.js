@@ -8,6 +8,24 @@ export const LINE_COLORS = [0xe8543f, 0x2f8fe0, 0xf2b01e, 0x22a866, 0x8f5ad8, 0x
 export const LINE_COLOR_NAMES = ['Rot', 'Blau', 'Gelb', 'Grün', 'Violett', 'Rosa', 'Türkis', 'Braun', 'Orange', 'Indigo'];
 
 const gauss = (h, m, s) => Math.exp(-0.5 * ((h - m) / s) ** 2);
+const mod = (a, m) => ((a % m) + m) % m;
+const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+// Automatischer Takt: Zurückhalten, wenn der Abstand zum Vordermann unter close × Soll-Abstand liegt oder kleiner ist als die Mitte zwischen Vorder- und Hintermann (− tol × Soll);
+// je Station höchstens holdShare × Soll-Folgezeit (zwischen minHold und maxHold Sekunden). Abgestimmt mit test/takt-test.mjs.
+export const TAKT = { close: 0.7, tol: 0.04, holdShare: 0.6, minHold: 1.5, maxHold: 8 };
+
+// Umlauf einer Linie: Pendellinie 2L (hin und zurück), Ring L je Fahrtrichtung
+export const cycLen = (line) => (line.loop ? line.length : 2 * line.length);
+// Position eines Zugs im Umlauf seiner Fahrtrichtung (wächst in Fahrtrichtung)
+export function cycPos(t, line) {
+  const L = line.length;
+  if (!(L > 0)) return 0;
+  if (line.loop) return t.dir > 0 ? mod(t.d, L) : mod(L - t.d, L);
+  return mod(t.dir > 0 ? t.d : 2 * L - t.d, 2 * L);
+}
+// Umlaufposition → Spurposition P (siehe Transit.trainP)
+export const cycToP = (line, dir, q) => (line.loop && dir < 0 ? line.length + q : q);
 
 export class Transit {
   constructor(g) {
@@ -93,7 +111,7 @@ export class Transit {
     const usedColors = new Set(this.lines.map((l) => l.color));
     let color = 0;
     while (usedColors.has(color) && color < LINE_COLORS.length - 1) color++;
-    const line = { id: this.nextLine++, color, stops: [...stops], loop: !!loop, ridersToday: 0, riders: 0, pts: [], cum: [], stopD: [], length: 0 };
+    const line = { id: this.nextLine++, color, stops: [...stops], loop: !!loop, takt: true, ridersToday: 0, riders: 0, pts: [], cum: [], stopD: [], length: 0 };
     this.lines.push(line);
     this.rebuildLine(line);
     this.addTrainToLine(line, true);
@@ -102,7 +120,8 @@ export class Transit {
   }
 
   extendLine(line, stationId, atStart) {
-    if (atStart) line.stops.unshift(stationId); else line.stops.push(stationId);
+    // Am Anfang verlängern: Knickrichtung der bestehenden Abschnitte beibehalten (par), sonst würde die ganze Linie umgezeichnet
+    if (atStart) { line.stops.unshift(stationId); line.par = ((line.par || 0) + 1) % 2; } else line.stops.push(stationId);
     this.rebuildLine(line);
     this.changed();
   }
@@ -123,18 +142,36 @@ export class Transit {
   }
 
   addTrainToLine(line, initial) {
-    const n = this.trains.filter((t) => t.line === line.id).length;
-    const t = { id: this.nextTrain++, line: line.id, d: 0, dir: 1, cur: 0, to: 0, targetD: 0, state: 'dwell', dwell: 0.6, pax: [], wagons: 0, x: 0, y: 0, z: 0, yaw: 0 };
-    // Züge gleichmäßig verteilen
-    if (n > 0 && line.stops.length > 1) {
-      t.cur = Math.floor((n * line.stops.length) / (n + 1)) % line.stops.length;
-      t.dir = n % 2 === 0 ? 1 : -1;
-      if (!line.loop && t.cur === line.stops.length - 1) t.dir = -1;
-      if (!line.loop && t.cur === 0) t.dir = 1;
-    }
-    t.d = line.stopD[t.cur] || 0;
+    const others = this.trains.filter((t) => t.line === line.id);
+    const t = { id: this.nextTrain++, line: line.id, d: 0, dir: 1, cur: 0, to: 0, targetD: 0, state: 'dwell', dwell: 0.6, hold: 0, pax: [], wagons: 0, x: 0, y: 0, z: 0, yaw: 0 };
+    t.d = line.stopD[0] || 0;
     this.trains.push(t);
-    poseTrain(this, t);
+    // Neuer Zug kommt in die größte Lücke des Umlaufs (an die nächstgelegene Station), damit die Züge verteilt fahren
+    if (others.length && line.stops.length > 1 && line.length > 0) {
+      let dir = 1;
+      if (line.loop) { const pos = others.filter((o) => o.dir > 0).length; dir = others.length - pos < pos ? -1 : 1; }
+      const C = cycLen(line);
+      const grp = others.filter((o) => !line.loop || o.dir === dir);
+      let q;
+      if (!grp.length) q = mod(line.length - others[0].d + line.length / 2, C); // Gegenrichtung im Ring: gegenüber dem ersten Zug
+      else {
+        const qs = grp.map((o) => cycPos(o, line)).sort((a, b) => a - b);
+        let best = -1, at = 0;
+        for (let k = 0; k < qs.length; k++) {
+          const gap = k + 1 < qs.length ? qs[k + 1] - qs[k] : qs[0] + C - qs[k];
+          if (gap > best + 1e-9) { best = gap; at = qs[k] + gap / 2; }
+        }
+        q = mod(at, C);
+      }
+      // nächstgelegene Station im Umlauf (Hin- oder Rückfahrt)
+      let bestQ = 0, bd = Infinity;
+      for (const sd of line.stopD) {
+        const cands = line.loop ? [dir > 0 ? sd : mod(line.length - sd, C)] : [sd, mod(2 * line.length - sd, C)];
+        for (const c of cands) { const dd = Math.min(Math.abs(c - q), C - Math.abs(c - q)); if (dd < bd - 1e-9) { bd = dd; bestQ = c; } }
+      }
+      this.placeAt(t, line, cycToP(line, dir, bestQ), { quiet: true, dir });
+      t.dwell = 0.6;
+    } else poseTrain(this, t);
     void initial;
     this.changed();
     return t;
@@ -188,7 +225,7 @@ export class Transit {
       // Diagonale zuerst, wenn der Abschnitt überwiegend diagonal ist; sonst gerade zuerst
       if (d > 0 && d !== Math.abs(dx) || d > 0 && d !== Math.abs(dy)) {
         let mx, my;
-        if (k % 2 === 0) { mx = ax + Math.sign(dx) * d; my = ay + Math.sign(dy) * d; }
+        if ((k + (line.par || 0)) % 2 === 0) { mx = ax + Math.sign(dx) * d; my = ay + Math.sign(dy) * d; }
         else { mx = bx - Math.sign(dx) * d; my = by - Math.sign(dy) * d; }
         push(mx, my, k);
       }
@@ -200,21 +237,190 @@ export class Transit {
     line.pair = pair;
     line.stopD = stopD;
     line.length = cum[cum.length - 1];
-    // Züge auf gültige Positionen setzen
+    // Züge bleiben, wo sie sind (gleiche Station bzw. gleicher Abschnitt mit gleichem Fortschritt).
+    // Früher sprangen beim Verlängern alle Züge auf eine Station zurück – nach Verlängerung am Anfang sogar um eine Station versetzt.
+    const old = line._geo;
     for (const t of this.trains) {
       if (t.line !== line.id) continue;
-      t.cur = Math.min(t.cur, n - 1);
-      t.d = stopD[t.cur];
-      t.state = 'dwell';
-      t.dwell = 0.5;
-      if (!line.loop) {
-        if (t.cur === 0) t.dir = 1;
-        if (t.cur === n - 1) t.dir = -1;
-      }
+      this.remapTrain(t, line, old);
       poseTrain(this, t);
     }
+    line._geo = { stops: [...line.stops], stopD: [...stopD], length: line.length, loop: line.loop };
     this.recomputeTracks();
     this.recomputeRouting();
+  }
+
+  // Zug nach dem Umbau einer Linie (verlängert, Ring geschlossen, Station entfernt) auf die neue Geometrie übertragen.
+  remapTrain(t, line, old) {
+    const n = line.stops.length;
+    const ends = (k) => { if (!line.loop) { if (k === 0) t.dir = 1; if (k === n - 1) t.dir = -1; } };
+    const dwellAt = (k, dw) => { t.cur = k; t.to = k; t.d = line.stopD[k]; t.state = 'dwell'; t.dwell = dw; ends(k); };
+    if (old && old.stops && old.stops.length > 1) {
+      const aId = old.stops[t.cur];
+      const ka = line.stops.indexOf(aId);
+      if (t.state === 'move') {
+        const bId = old.stops[t.to];
+        const kb = line.stops.indexOf(bId);
+        const dA = old.loop && t.cur === 0 && t.dir < 0 ? old.length : old.stopD[t.cur];
+        const dB = old.loop && t.to === 0 && t.dir > 0 ? old.length : old.stopD[t.to];
+        const frac = Math.abs(dB - dA) > 1e-9 ? clamp01((t.d - dA) / (dB - dA)) : 0;
+        if (ka >= 0 && kb >= 0) {
+          let dir = 0;
+          if (line.loop) { if ((ka + 1) % n === kb) dir = 1; else if ((ka - 1 + n) % n === kb) dir = -1; } else if (Math.abs(kb - ka) === 1) dir = Math.sign(kb - ka);
+          if (dir) {
+            const nA = line.loop && ka === 0 && dir < 0 ? line.length : line.stopD[ka];
+            const nB = line.loop && kb === 0 && dir > 0 ? line.length : line.stopD[kb];
+            t.cur = ka; t.to = kb; t.dir = dir; t.d = nA + (nB - nA) * frac; t.targetD = nB; t.state = 'move';
+            return;
+          }
+        }
+        const k = frac < 0.5 ? (ka >= 0 ? ka : kb) : (kb >= 0 ? kb : ka);
+        if (k >= 0) { dwellAt(k, 0.5); return; }
+      } else if (ka >= 0) { dwellAt(ka, Math.max(0.3, Math.min(2, t.dwell))); return; }
+    }
+    dwellAt(Math.max(0, Math.min(t.cur, n - 1)), 0.5);
+  }
+
+  // ---------- Takt: Position im Umlauf, Abstände, Zurückhalten, Verteilen, Verschieben
+  // Spurposition P ∈ [0, 2L): P = d auf der Hinfahrt (dir +1), P = 2L − d auf der Rückfahrt (dir −1).
+  // Pendellinie: Umlauf der Länge 2L mit Position P. Ring: je Fahrtrichtung ein Umlauf der Länge L.
+  trainP(t, line) { return mod(t.dir > 0 ? t.d : 2 * line.length - t.d, 2 * line.length || 1); }
+
+  // Abstand (Felder) zum vorausfahrenden und zum folgenden Zug derselben Fahrtrichtung; null bei nur einem Zug.
+  gapsOf(t, line, list) {
+    const C = cycLen(line);
+    if (!(C > 0)) return null;
+    const q = cycPos(t, line);
+    let ahead = Infinity, behind = Infinity, n = 1;
+    for (const o of list || this.trains) {
+      if (o === t || o.line !== t.line || (line.loop && o.dir !== t.dir)) continue;
+      n++;
+      const qo = cycPos(o, line);
+      let fa = mod(qo - q, C), fb = mod(q - qo, C);
+      if (fa < 1e-9) { if (o.id > t.id) { fa = 0; fb = C; } else { fa = C; fb = 0; } }
+      if (fa < ahead) ahead = fa;
+      if (fb < behind) behind = fb;
+    }
+    if (n < 2) return null;
+    return { ahead, behind, n, C, s: C / n };
+  }
+
+  // Automatischer Takt: Zug wartet an der Station, solange er dem Vordermann zu dicht folgt (begrenzt, ohne Verklemmung:
+  // Mindestens ein Zug hat immer genug Abstand und fährt; jeder Halt ist zeitlich gedeckelt).
+  wantsHold(t, line, speed) {
+    if (line.takt === false || t.drag) return false;
+    const h = this.gapsOf(t, line);
+    if (!h) return false;
+    const maxHold = Math.min(TAKT.maxHold, Math.max(TAKT.minHold, TAKT.holdShare * (h.s / Math.max(0.1, speed))));
+    if ((t.hold || 0) >= maxHold) return false;
+    if (h.ahead < TAKT.close * h.s) return true;
+    // ausgleichend: mittig zwischen Vorder- und Hintermann einpendeln (große Lücke hinter dem Zug schließt sich)
+    return h.ahead < (h.ahead + h.behind) / 2 - TAKT.tol * h.s;
+  }
+
+  // Zug an Spurposition P setzen. Liegt P an einer Station (± snap Felder), hält er dort, sonst fährt er von dort weiter.
+  // opts.hold: Zug steht festgehalten (Ziehen im Fahrplan), opts.quiet: kein Fahrgastwechsel an der Station.
+  placeAt(t, line, P, opts = {}) {
+    const L = line.length, n = line.stops.length;
+    if (!(L > 0) || n < 2 || !Number.isFinite(P)) return false;
+    P = mod(P, 2 * L);
+    // Im Ring ist Station 0 doppeldeutig (P = 0 bzw. L): Richtung darf vorgegeben werden
+    let dir = line.loop && (opts.dir === 1 || opts.dir === -1) ? opts.dir : P <= L ? 1 : -1;
+    let d = dir > 0 ? P : 2 * L - P;
+    d = Math.max(0, Math.min(L, d));
+    const snap = Math.max(1e-6, opts.snap || 0);
+    let k = -1, kd = Infinity;
+    for (let i = 0; i < n; i++) { const dd = Math.abs(line.stopD[i] - d); if (dd < kd) { kd = dd; k = i; } }
+    if (line.loop && L - d < kd) { kd = L - d; k = 0; }
+    t.hold = 0;
+    t.drag = !!opts.hold;
+    t.dragT = 0;
+    if (kd <= snap) {
+      t.dir = dir;
+      t.cur = k; t.to = k; t.d = line.stopD[k]; t.targetD = t.d; t.state = 'dwell'; t.dwell = 0.6;
+      if (!line.loop) { if (k === 0) t.dir = 1; if (k === n - 1) t.dir = -1; }
+      if (!opts.hold && !opts.quiet) this.arrive(t, line);
+    } else {
+      t.dir = dir; t.d = d; t.state = 'move';
+      if (dir > 0) {
+        let c = 0;
+        for (let i = 0; i < n; i++) if (line.stopD[i] <= d) c = i;
+        if (!line.loop) c = Math.min(c, n - 2);
+        t.cur = c; t.to = line.loop ? (c + 1) % n : c + 1;
+        t.targetD = line.loop && t.to === 0 ? L : line.stopD[t.to];
+      } else if (line.loop && d > line.stopD[n - 1]) {
+        t.cur = 0; t.to = n - 1; t.targetD = line.stopD[n - 1];
+      } else {
+        let c = n - 1;
+        for (let i = n - 1; i >= 1; i--) if (line.stopD[i] >= d) c = i;
+        c = Math.max(1, c);
+        t.cur = c; t.to = c - 1; t.targetD = line.stopD[c - 1];
+      }
+    }
+    poseTrain(this, t);
+    return true;
+  }
+
+  // API: Zug per Id an Spurposition P setzen (siehe trainP). Liefert false bei ungültigen Angaben.
+  placeTrain(trainId, P, opts) {
+    const t = this.trains.find((x) => x.id === trainId);
+    const line = t && this.lines.find((l) => l.id === t.line);
+    if (!line || !this.placeAt(t, line, P, opts)) return false;
+    this.changed();
+    return true;
+  }
+
+  // Alle Züge einer Linie auf gleiche Abstände im Umlauf setzen (Reihenfolge bleibt, kleinste Gesamtverschiebung).
+  evenOut(line, quiet) {
+    const ts = this.trains.filter((t) => t.line === line.id);
+    const C = cycLen(line);
+    if (!(C > 0)) return false;
+    const groups = line.loop ? [ts.filter((t) => t.dir > 0), ts.filter((t) => t.dir < 0)] : [ts];
+    let moved = false;
+    for (const grp of groups) {
+      if (grp.length < 2) continue;
+      const items = grp.map((t) => ({ t, q: cycPos(t, line) })).sort((a, b) => a.q - b.q || a.t.id - b.t.id);
+      const s = C / items.length;
+      // Versatz als Kreismittel von q_i − i·s
+      let sx = 0, sy = 0;
+      items.forEach((it, i) => { const a = (2 * Math.PI * (it.q - i * s)) / C; sx += Math.cos(a); sy += Math.sin(a); });
+      const o = (sx || sy) ? mod((Math.atan2(sy, sx) * C) / (2 * Math.PI), C) : items[0].q;
+      const dir = grp[0].dir;
+      items.forEach((it, i) => { this.placeAt(it.t, line, cycToP(line, dir, mod(o + i * s, C)), { snap: 1e-4, dir, quiet }); });
+      moved = true;
+    }
+    if (moved) this.changed();
+    return moved;
+  }
+
+  // Takt-Kennzahlen einer Linie für die Anzeige: Soll-Takt in Sekunden, Abstände, dicht folgende Züge.
+  taktInfo(line) {
+    const ts = this.trains.filter((t) => t.line === line.id);
+    const num = new Map(ts.map((t, i) => [t.id, i + 1]));
+    const speed = TRANSIT.speed * ((this.g.mods && this.g.mods.trainSpeed) || 1);
+    const n = line.stops.length;
+    const C = cycLen(line);
+    const dw = (line._dw || 0.9) + 0.25;
+    const groups = [];
+    for (const dir of line.loop ? [1, -1] : [1]) {
+      const grp = line.loop ? ts.filter((t) => t.dir === dir) : ts;
+      if (!grp.length) continue;
+      const cycleSec = C / speed + (line.loop ? n : 2 * (n - 1)) * dw;
+      const items = grp.map((t) => ({ t, q: cycPos(t, line) })).sort((a, b) => a.q - b.q || a.t.id - b.t.id);
+      const s = C / grp.length;
+      const gaps = [];
+      for (let k = 0; k < items.length && items.length > 1; k++) {
+        const a = items[k], b = items[(k + 1) % items.length];
+        gaps.push({ behind: num.get(a.t.id), ahead: num.get(b.t.id), gap: k + 1 < items.length ? b.q - a.q : b.q + C - a.q });
+      }
+      const mean = gaps.length ? C / gaps.length : 0;
+      const cv = gaps.length ? Math.sqrt(gaps.reduce((acc, x) => acc + (x.gap - mean) ** 2, 0) / gaps.length) / mean : 0;
+      const minGap = gaps.reduce((m, x) => Math.min(m, x.gap), Infinity);
+      const closest = gaps.reduce((m, x) => (!m || x.gap < m.gap ? x : m), null);
+      groups.push({ dir, n: grp.length, headSec: cycleSec / grp.length, cycleSec, s, gaps, cv, minRatio: gaps.length ? minGap / s : 1, closest });
+    }
+    const worst = groups.reduce((m, x) => (!m || x.minRatio < m.minRatio ? x : m), null);
+    return { groups, auto: line.takt !== false, minRatio: worst ? worst.minRatio : 1, closest: worst && worst.minRatio < 1 ? worst.closest : null, num, held: ts.filter((t) => (t.hold || 0) > 0).map((t) => num.get(t.id)) };
   }
 
   recomputeTracks() {
@@ -403,9 +609,18 @@ export class Transit {
     for (const t of this.trains) {
       const line = this.lines.find((l) => l.id === t.line);
       if (!line || line.stops.length < 2) continue;
+      if (t.drag) {
+        // im Fahrplan festgehalten: steht; Sicherung, falls das Loslassen verloren geht
+        t.dragT = (t.dragT || 0) + simSec;
+        if (t.dragT > 30) t.drag = false;
+        continue;
+      }
       if (t.state === 'dwell') {
         t.dwell -= simSec;
-        if (t.dwell <= 0) this.depart(t, line);
+        if (t.dwell <= 0) {
+          if (this.wantsHold(t, line, speed)) t.hold = (t.hold || 0) + simSec;
+          else this.depart(t, line);
+        }
       } else {
         let step = speed * simSec;
         // sanftes Bremsen vor der Station
@@ -427,6 +642,14 @@ export class Transit {
   }
 
   depart(t, line) {
+    // Wer auf den Takt gewartet hat, nimmt die inzwischen angekommenen Fahrgäste noch mit
+    if (t.hold > 0) {
+      const st = this.stations.get(line.stops[t.cur]);
+      if (st && st.waiting.length) this.board(t, line, st);
+    }
+    const dw = (t.dw0 || 0.6) + (t.hold || 0);
+    line._dw = line._dw == null ? dw : line._dw * 0.85 + dw * 0.15;
+    t.hold = 0;
     const { next, dir } = this.nextStop(line, t.cur, t.dir);
     t.dir = dir;
     t.to = next;
@@ -472,17 +695,28 @@ export class Transit {
     }
     t.pax = keep;
     if (st) {
-      const cap = this.trainCapacity(t);
-      const stay = [];
-      for (const p of st.waiting) {
-        if (t.pax.length < cap && this.hops(p.dest, nextSid) < this.hops(p.dest, sid)) { t.pax.push(p); moved++; }
-        else stay.push(p);
-      }
-      st.waiting = stay;
+      moved += this.board(t, line, st);
       if (this.arrivals.length < 40) this.arrivals.push({ line: line.color, station: sid, n: moved });
     }
     t.dwell = 0.45 + moved * 0.09;
+    t.dw0 = t.dwell;
+    t.hold = 0;
     void g;
+  }
+
+  // Wartende einsteigen lassen, die mit diesem Zug ihrem Ziel näher kommen
+  board(t, line, st) {
+    const sid = line.stops[t.cur];
+    const nextSid = line.stops[this.nextStop(line, t.cur, t.dir).next];
+    const cap = this.trainCapacity(t);
+    const stay = [];
+    let moved = 0;
+    for (const p of st.waiting) {
+      if (t.pax.length < cap && this.hops(p.dest, nextSid) < this.hops(p.dest, sid)) { t.pax.push(p); moved++; }
+      else stay.push(p);
+    }
+    st.waiting = stay;
+    return moved;
   }
 
   daily() {
@@ -496,8 +730,9 @@ export class Transit {
   serialize() {
     return {
       stations: [...this.stations.values()].map((s) => ({ id: s.id, x: s.x, y: s.y, name: s.name, waiting: s.waiting, over: s.over, penaltyUntil: s.penaltyUntil })),
-      lines: this.lines.map((l) => ({ id: l.id, color: l.color, stops: l.stops, loop: l.loop })),
-      trains: this.trains.map((t) => ({ id: t.id, line: t.line, cur: t.cur, dir: t.dir, wagons: t.wagons, pax: t.pax })),
+      lines: this.lines.map((l) => ({ id: l.id, color: l.color, stops: l.stops, loop: l.loop, takt: l.takt !== false, par: l.par || 0 })),
+      // Position (d), Ziel (to), Zustand, Haltezeit und Takt-Wartezeit, damit Züge nach dem Laden verteilt weiterfahren
+      trains: this.trains.map((t) => ({ id: t.id, line: t.line, cur: t.cur, dir: t.dir, wagons: t.wagons, pax: t.pax, d: t.d, to: t.to, st: t.state === 'move' ? 'move' : 'dwell', dwell: t.dwell, hold: t.hold || 0 })),
       linesMax: this.linesMax, freeTrains: this.freeTrains, freeWagons: this.freeWagons,
       nextStation: this.nextStation, nextLine: this.nextLine, nextTrain: this.nextTrain, deliveredTotal: this.deliveredTotal,
     };
@@ -512,17 +747,36 @@ export class Transit {
       this.usedNames.add(s.name);
       g.stationAt[s.y * g.W + s.x] = s.id;
     }
-    this.lines = d.lines.map((l) => ({ ...l, ridersToday: 0, riders: 0, pts: [], cum: [0], stopD: [], pair: [], length: 0 }));
+    this.lines = d.lines.map((l) => ({ ...l, takt: l.takt !== false, ridersToday: 0, riders: 0, pts: [], cum: [0], stopD: [], pair: [], length: 0 }));
     this.trains = [];
     Object.assign(this, { linesMax: d.linesMax, freeTrains: d.freeTrains, freeWagons: d.freeWagons, nextStation: d.nextStation, nextLine: d.nextLine, nextTrain: d.nextTrain, deliveredTotal: d.deliveredTotal || 0 });
     for (const l of this.lines) this.rebuildLine(l);
+    const oldStyle = new Set();
     for (const t of d.trains) {
       const line = this.lines.find((l) => l.id === t.line);
       if (!line) continue;
-      const tr = { id: t.id, line: t.line, d: line.stopD[t.cur] || 0, dir: t.dir, cur: t.cur, to: t.cur, targetD: 0, state: 'dwell', dwell: 0.5, pax: t.pax || [], wagons: t.wagons, x: 0, y: 0, z: 0, yaw: 0 };
+      const n = line.stops.length, L = line.length;
+      const cur = Number.isInteger(t.cur) && t.cur >= 0 && t.cur < n ? t.cur : 0;
+      const dir = t.dir < 0 ? -1 : 1;
+      const tr = { id: t.id, line: t.line, d: line.stopD[cur] || 0, dir, cur, to: cur, targetD: 0, state: 'dwell', dwell: 0.5, hold: 0, pax: t.pax || [], wagons: t.wagons, x: 0, y: 0, z: 0, yaw: 0 };
+      if (!line.loop) { if (cur === 0) tr.dir = 1; else if (cur === n - 1) tr.dir = -1; }
       this.trains.push(tr);
+      if (Number.isFinite(t.d) && t.d >= -1e-6 && t.d <= L + 1e-6 && n > 1) {
+        if (Number.isFinite(t.dwell)) tr.dwell = Math.max(-1, Math.min(20, t.dwell));
+        if (Number.isFinite(t.hold) && t.hold > 0) tr.hold = Math.min(60, t.hold);
+        tr.dir = dir;
+        const ns = this.nextStop(line, cur, dir);
+        const dA = line.loop && cur === 0 && dir < 0 ? L : line.stopD[cur];
+        const dB = line.loop && t.to === 0 && dir > 0 ? L : line.stopD[t.to];
+        if (t.st === 'move' && ns.next === t.to && ns.dir === dir && t.d >= Math.min(dA, dB) - 1e-6 && t.d <= Math.max(dA, dB) + 1e-6) {
+          Object.assign(tr, { state: 'move', d: t.d, to: t.to, targetD: dB });
+        } else if (t.st !== 'move' && Math.abs(t.d - line.stopD[cur]) < 1e-6) tr.d = t.d;
+        else this.placeAt(tr, line, dir > 0 ? t.d : 2 * L - t.d, { quiet: true, dir }); // unstimmig: an derselben Stelle neu einordnen
+      } else oldStyle.add(line);
       poseTrain(this, tr);
     }
+    // Alte Spielstände kannten nur die Station: Züge der Linie gleichmäßig verteilen statt alle gleichzeitig loszuschicken
+    for (const line of oldStyle) this.evenOut(line, true);
     for (const st of this.stations.values()) this.updateCatchment(st);
     this.recomputeRouting();
     this.changed();

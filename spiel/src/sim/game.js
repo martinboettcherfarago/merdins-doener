@@ -572,6 +572,34 @@ export class Game extends Emitter {
     this.afterTransitChange();
     return { ok: true };
   }
+  // Fahrplan: Zug an Spurposition p setzen (0 … Länge: Hinfahrt, Länge … 2·Länge: Rückfahrt; siehe transit.trainP).
+  // opts.hold: Zug wird festgehalten (Ziehen), opts.snap: Felder, ab denen er an der Station hält.
+  placeTrain(trainId, p, opts = {}) {
+    const t = this.transit.trains.find((x) => x.id === trainId);
+    if (!t) return { ok: false, msg: 'Diesen Zug gibt es nicht mehr.' };
+    const line = this.transit.lines.find((l) => l.id === t.line);
+    if (!line || line.stops.length < 2 || !(line.length > 0)) return { ok: false, msg: 'Die Linie ist nicht befahrbar.' };
+    if (!Number.isFinite(p)) return { ok: false, msg: 'Ungültige Position.' };
+    const snap = Number.isFinite(opts.snap) ? Math.max(0, Math.min(3, opts.snap)) : 0;
+    const dir = opts.dir === 1 || opts.dir === -1 ? opts.dir : undefined;
+    if (!this.transit.placeTrain(trainId, p, { hold: !!opts.hold, snap, dir })) return { ok: false, msg: 'Zug lässt sich dort nicht hinsetzen.' };
+    return { ok: true };
+  }
+  evenOutLine(lineId) {
+    const line = this.transit.lines.find((l) => l.id === lineId);
+    if (!line) return { ok: false };
+    if (this.transit.trains.filter((t) => t.line === lineId).length < 2) return { ok: false, msg: 'Mit nur einem Zug gibt es nichts zu verteilen.' };
+    this.transit.evenOut(line);
+    return { ok: true };
+  }
+  setLineTakt(lineId, on) {
+    const line = this.transit.lines.find((l) => l.id === lineId);
+    if (!line) return { ok: false };
+    line.takt = !!on;
+    if (!on) for (const t of this.transit.trains) if (t.line === lineId) t.hold = 0;
+    this.transit.changed();
+    return { ok: true };
+  }
   addWagon(lineId) {
     const line = this.transit.lines.find((l) => l.id === lineId);
     if (!line) return { ok: false };
