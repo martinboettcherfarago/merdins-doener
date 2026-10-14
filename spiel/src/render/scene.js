@@ -98,6 +98,13 @@ export class Engine {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.shadowMap.autoUpdate = false; // gezielt aktualisiert, siehe fitShadow()
     renderer.info.autoReset = false;
+    // Shader-Fehlerprüfung fragt beim ersten Gebrauch jedes Programms synchron die Protokolle ab (getProgramInfoLog,
+    // getShaderInfoLog) – das wartet auf den Treiber und machte im Profil des Ladens ~80 % der Zeit aus. Für Spieler
+    // aus, in Prüfwerkzeugen (navigator.webdriver) und mit ?debug an, damit Shaderfehler dort weiter auffallen.
+    try {
+      const forced = typeof window !== 'undefined' ? window.STADTPULS_SHADERCHECK : undefined; // Messwerkzeuge: wie beim Spieler messen
+      renderer.debug.checkShaderErrors = typeof forced === 'boolean' ? forced : !!((typeof navigator !== 'undefined' && navigator.webdriver) || (typeof location !== 'undefined' && /[?&]debug\b/.test(location.search)));
+    } catch (e) { /* egal */ }
     renderer.setClearColor(0x0a0f1e, 1);
     this.renderer = renderer;
     this.canPost = postSupported(renderer);
@@ -598,6 +605,7 @@ export class Engine {
     if (!this.warming) return;
     // nach dem Vorübersetzen noch zwei Bilder hinter dem Ladebildschirm zeichnen (Shader binden, Puffer hochladen)
     if (this._warmTail !== undefined) {
+      if (this._pcWait && now - (this._pcT0 || now) < 4000) return; // Shader werden noch übersetzt
       if (--this._warmTail <= 0) {
         this.warming = false;
         this._warmTail = undefined;
@@ -619,6 +627,7 @@ export class Engine {
     p = 0.8 + 0.2 * bv.warmProgress();
     if (this.onWarm) { try { this.onWarm(p, 'Gebäude in der Nähe werden fein ausgearbeitet'); } catch (e) { /* egal */ } }
     if (!more || now - this._warm0 > 2000) {
+      this._pcT0 = now;
       this.precompile();
       this._warmTail = 2;
       if (this.onWarm) { try { this.onWarm(1, 'Licht, Schatten und Leben'); } catch (e) { /* egal */ } }
@@ -661,8 +670,10 @@ export class Engine {
       const prevRT = r.getRenderTarget();
       if (this.post) { if (!this.post.sceneRT) this.post.allocate(); r.setRenderTarget(this.post.sceneRT); }
       else r.setRenderTarget(null);
-      r.compile(tmp, this.camera, this.scene);
-      if (full) r.compile(this.scene, this.camera);
+      if (full && r.compileAsync) {
+        // hinter dem Ladebildschirm: parallel übersetzen lassen (KHR_parallel_shader_compile) und darauf warten
+        this._pcWait = Promise.all([r.compileAsync(tmp, this.camera, this.scene), r.compileAsync(this.scene, this.camera)]).then(() => { this._pcWait = null; }, () => { this._pcWait = null; });
+      } else r.compile(tmp, this.camera, this.scene);
       r.setRenderTarget(prevRT);
       this._pcNew = r.info.programs.length - before;
       geo.dispose();

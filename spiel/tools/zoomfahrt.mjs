@@ -18,7 +18,7 @@ export default async function zoomfahrt(page, h) {
   if (out) mkdirSync(out, { recursive: true });
   const res = {};
   // ZF_EMU=0: keine 60-B/s-Nachbildung; ZF_NOLOADER=1: ohne Ladebildschirm laden
-  await page.evaluate(({ emu, nol }) => { window.ZF_EMU = emu; window.ZF_NOLOADER = nol; }, { emu: process.env.ZF_EMU !== '0', nol: process.env.ZF_NOLOADER === '1' });
+  await page.evaluate(({ emu, nol, nochk }) => { window.ZF_EMU = emu; window.ZF_NOLOADER = nol; if (nochk) window.STADTPULS_SHADERCHECK = false; }, { emu: process.env.ZF_EMU !== '0', nol: process.env.ZF_NOLOADER === '1', nochk: process.env.ZF_NOCHECK === '1' });
   if (process.env.ZF_SAVE) {
     const txt = readFileSync(process.env.ZF_SAVE, 'utf8');
     // wie im Spiel: Ladebildschirm zeigen, dann laden; gemessen bis spielbereit (Ladebildschirm hält nicht mehr)
