@@ -115,6 +115,66 @@ function glaswuerfel(b) {
   if (b.fw > 1 || b.fd > 1) for (let i = 0; i < 3; i++) b.putCar({ prefer: 'back' });
 }
 
+// Container-Büro: gestapelte, farbige Seecontainer mit Glasstirnseiten, Außentreppe, Dachterrasse
+function containerbuero(b) {
+  const { W, D, Z } = geom(b);
+  b.lot('gravel', 0.1);
+  const cols = ['container_red', 'container_blue', 'container_green', 'container_yellow', 'paint_white', 'paint_teal'];
+  const L = D >= 20 ? 12.19 : 6.06, cw = 2.44, ch = 2.59;
+  const n = Math.max(2, Math.min(4, Math.floor((W - 1.6) / cw)));
+  const x0 = -(n * cw) / 2 + cw / 2, cz = -Z + 0.8 + L / 2;
+  for (let t = 0; t < 2; t++) for (let i = 0; i < n; i++) {
+    if (t === 1 && i === n - 1) continue;
+    const x = x0 + i * cw + (t ? cw * 0.5 : 0), z = cz + (t ? 1.2 : 0), y = 0.3 + t * ch;
+    const mat = cols[(i * 2 + t * 3 + b.int(0, 5)) % cols.length];
+    b.box(mat, x, y, z, cw - 0.04, ch, L);
+    const f = b.face(x, z, cw - 0.04, L, 'front');
+    b.fplane('glass_window', f, 0, y + 0.25, cw - 0.4, ch - 0.5, 0.03, b.r());
+    if (b.d >= 1) { b.fbox('metal_dark', f, 0, y, cw, 0.15, 0.08, 0); b.fbox('metal_dark', f, 0, y + ch - 0.15, cw, 0.15, 0.08, 0); }
+    if (b.d >= 2) for (const sd of ['left', 'right']) { const fs = b.face(x, z, cw - 0.04, L, sd); for (let k = 1; k < 8; k++) b.fbox('metal_dark', fs, -L / 2 + (k * L) / 8, y, 0.06, ch, 0.04, 0); }
+  }
+  for (let i = 0; i < n; i++) b.box('concrete', x0 + i * cw, 0, cz, 0.6, 0.3, L - 1);
+  // Außentreppe und Laubengang
+  const sx = x0 + (n - 0.5) * cw + 0.6;
+  if (b.d >= 1) {
+    for (let k = 0; k < 8; k++) b.box('metal_grating', sx, 0.3 + k * 0.34, cz + L / 2 - 1.0 - k * 0.3, 1.0, 0.06, 0.32);
+    b.box('metal_grating', 0, 0.3 + ch, cz + L / 2 + 0.6, n * cw, 0.08, 1.2);
+    b.box('metal_dark', 0, 0.3 + ch + 1.0, cz + L / 2 + 1.15, n * cw, 0.06, 0.06);
+  }
+  b.box('wood_deck', x0 + (n - 1) * cw, 0.3 + ch, cz, cw, 0.06, L);
+  if (b.d >= 1) { b.box('concrete', x0 + (n - 1) * cw, 0.36 + ch, cz - L * 0.3, 0.8, 0.5, 0.8); b.sphere('leaves_green', x0 + (n - 1) * cw, 1.2 + ch, cz - L * 0.3, 0.55, { seg: 6 }); }
+  b.sign(b.face(x0, cz, cw, L, 'front'), 0, 0.3 + 2 * ch - 0.9, cw - 0.4, 0.5, { logo: b.pick(LOGO) });
+  b.take(0, cz, n * cw + 1.6, L + 2.4, 0.2);
+  for (let i = 0; i < 2; i++) b.putCar({ prefer: 'front' });
+  greenery(b, 1);
+}
+
+// Villenbüro: Gründerzeitvilla mit Walmdach als Kanzlei, Messingschild, Kiesauffahrt
+function villenbuero(b) {
+  const { W, D, Z } = geom(b);
+  b.lot('grass', 0.06);
+  const wall = b.pick(['plaster_cream', 'plaster_white', 'plaster_ochre', 'stone_sandstone', 'plaster_yellow']);
+  const trim = b.pick(['trim_stone', 'plaster_white']);
+  const sx = Math.min(W - 2.4, 10 + (b.fw - 1) * 4), sz = Math.min(D - 3.6, 9 + (b.fd - 1) * 4), pz = -Z + 1.2 + sz / 2, pl = 0.8;
+  b.box('stone_grey', 0, 0, pz, sx + 0.1, pl, sz + 0.1);
+  facPunch(b, vol(0, pz, sx, sz, pl, 2, 3.5), { wall, frame: 'window_frame_white', winW: 1.15, winH: 2.0, spacing: 2.3, sills: trim, lintel: b.d >= 2 ? trim : null, margin: 1.0 });
+  const top = pl + 7.0;
+  b.box(trim, 0, top - 0.35, pz, sx + 0.35, 0.35, sz + 0.35);
+  b.k.hipRoof(b.pick(['roof_slate', 'roof_tiles_anthracite', 'roof_tiles_red']), 0, top * 0.1, pz * 0.1, (sx + 0.6) * 0.1, (sz + 0.6) * 0.1, Math.min(sx, sz) * 0.32 * 0.1, { overhang: 0.06 });
+  const ff = b.faces(0, pz, sx, sz).front;
+  // Risalit mit Eingang und Balkon
+  b.fbox(wall, ff, 0, 0, 3.4, top - 0.2, 0.6, 0);
+  b.fbox('door_wood', ff, 0, pl, 1.6, 2.6, 0.08, 0.6);
+  if (b.d >= 1) { b.fbox(trim, ff, 0, pl + 3.4, 3.8, 0.2, 1.4, 0.6); b.fbox('metal_dark', ff, 0, pl + 3.6, 3.6, 0.9, 0.05, 1.9); }
+  for (let k = 0; k < 4; k++) b.fbox('stone_grey', ff, 0, k * 0.2, 2.4, 0.2, 0.6 + (4 - k) * 0.32, 0.6);
+  b.sign(ff, -sx / 2 + 1.6, pl + 1.0, 1.0, 0.6, { bg: 'roof_copper', logo: 'trim_dark', text: 'trim_dark' });
+  b.ground('gravel', 0, (pz + sz / 2 + Z) / 2, 3.0, Z - pz - sz / 2, 0.1);
+  b.take(0, pz, sx, sz + 1.4, 0.3);
+  if (b.d >= 1) b.hedge(0, Z - 0.5, W - 4, 0.7, 1.0);
+  for (let i = 0; i < 2; i++) b.putCar({ prefer: 'back' });
+  greenery(b, 3);
+}
+
 // =====================================================================================
 // Stufe 2
 // =====================================================================================
@@ -670,7 +730,7 @@ function stufenpyramide(b) {
 }
 
 export const OFF_NEW = {
-  1: [stadtkontor, praxishaus, glaswuerfel],
+  1: [stadtkontor, praxishaus, glaswuerfel, containerbuero, villenbuero],
   2: [klinkerbuero, holzhybrid, rundbau],
   3: [campus, wellenhaus, rasterwuerfel, zwillingsriegel],
   4: [steinturm, pultdachturm, kreuzturm, sockelturm],

@@ -103,6 +103,68 @@ function friseur(ctx, g) {
   b.putTree(0.7, 'laub', { prefer: 'back' });
 }
 
+// Fahrradladen: kleine Werkstatthalle mit Sheddach, Räder vor dem Schaufenster, Ausleger-Schild
+function fahrradladen(ctx, g) {
+  const b = new B(ctx), { W, D } = b;
+  const front = 3.0;
+  ground(b, front);
+  const wall = b.pick(['brick_red', 'metal_panel_blue', 'plaster_white', 'wood_planks', 'brick_yellow']);
+  const sx = Math.min(W - 2.0, 8.5 + (b.fw - 1) * 6), sz = Math.min(D - front - 1.2, 7.5 + (b.fd - 1) * 4), cz = D / 2 - front - sz / 2;
+  b.box(wall, 0, 0, cz, sx, 3.8, sz);
+  const f = b.faces(0, cz, sx, sz);
+  shopFront(b, f.front, -sx * 0.15, sx * 0.6, 3.0, { glass: 'glass_shop' });
+  b.rollerDoor(f.front, sx * 0.33, 2.2, 2.8, { mat: 'metal_panel_grey', bollards: false });
+  // Sheddach (zwei Zähne mit Oberlicht)
+  for (let i = 0; i < 2; i++) {
+    const zz = cz - sz / 2 + (i + 0.5) * (sz / 2);
+    b.prism(b.pick(['roof_metal_grey', 'roof_flat_membrane']), [[-sz / 4, 0], [sz / 4, 0], [sz / 4, 1.4]], sx, 0, 3.8, zz, HP);
+    if (b.d >= 1) b.plane('glass_skylight', 0, 3.8 + 0.7, zz + (sz / 4) * -1 + 0.02, sx - 0.2, 1.3, PI, b.r());
+  }
+  label(g, gfr(0, cz, sx, sz, 'front'), b.pick(['FAHRRÄDER', 'RADLADEN', 'ZWEIRAD']), -sx * 0.15, 3.15, sx * 0.6, 0.6, { band: 'trim_dark', mat: 'paint_yellow' });
+  if (b.d >= 2) {
+    // Räder vor dem Laden
+    for (let i = 0; i < 5; i++) {
+      const x = -sx / 2 + 1.0 + i * 1.0, z = D / 2 - front + 0.8;
+      for (const e of [-0.45, 0.45]) b.g('rubber', new THREE.TorusGeometry(0.33, 0.04, 4, 10), x, 0.36, z + e, { ry: HP });
+      b.box(b.pick(['paint_red', 'paint_blue', 'metal_dark', 'paint_green', 'paint_yellow']), x, 0.5, z, 0.05, 0.05, 0.9);
+    }
+  }
+  b.take(0, cz, sx, sz, 0.3);
+  b.putTree(0.7, 'laub', { prefer: 'back' });
+}
+
+// Buchladen im Fachwerkhaus: zwei Fachwerkgeschosse, Schaufenster mit Sprossen, Nasenschild
+function buchladen(ctx, g) {
+  const b = new B(ctx), { W, D } = b;
+  const front = 2.2;
+  ground(b, front, 'cobblestone');
+  const wall = b.pick(['plaster_white', 'plaster_cream', 'plaster_white', 'plaster_ochre']);
+  const timber = b.pick(['wood_dark', 'wood_dark', 'brick_dark']);
+  const sx = Math.min(W - 1.6, 7.6 + (b.fw - 1) * 6), sz = Math.min(D - front - 1.4, 8 + (b.fd - 1) * 4), cz = D / 2 - front - sz / 2;
+  b.box('stone_sandstone', 0, 0, cz, sx, 3.4, sz);
+  const f = b.faces(0, cz, sx, sz);
+  shopFront(b, f.front, 0, sx - 2.2, 2.6, { frame: 'wood_dark', glass: 'glass_shop' });
+  // Fachwerk-Obergeschosse, leicht auskragend
+  const uz = cz + 0.25;
+  b.box(wall, 0, 3.4, uz, sx + 0.3, 5.6, sz + 0.5);
+  const fu = b.faces(0, uz, sx + 0.3, sz + 0.5);
+  for (const sd of SIDES) {
+    const fc = fu[sd], len = fc.len;
+    b.winRow(fc, -len / 2 + 0.9, len / 2 - 0.9, 4.3, 1.0, 1.3, { spacing: 2.0, frame: 'window_frame_white' });
+    b.winRow(fc, -len / 2 + 0.9, len / 2 - 0.9, 7.1, 0.9, 1.1, { spacing: 2.0, frame: 'window_frame_white' });
+    if (b.d >= 1) {
+      for (const y of [3.4, 6.2, 8.9]) b.fbox(timber, fc, 0, y, len, 0.18, 0.06, 0);
+      const m = Math.max(2, Math.round(len / 1.0));
+      for (let i = 0; i <= m; i++) b.fbox(timber, fc, -len / 2 + 0.09 + (i * (len - 0.18)) / m, 3.4, 0.16, 5.6, 0.06, 0);
+      if (b.d >= 2) for (let i = 0; i < m; i += 2) b.beam(timber, [fc.at(-len / 2 + (i * len) / m, 0.05)[0], 3.6, fc.at(-len / 2 + (i * len) / m, 0.05)[1]], [fc.at(-len / 2 + ((i + 1) * len) / m, 0.05)[0], 6.0, fc.at(-len / 2 + ((i + 1) * len) / m, 0.05)[1]], 0.12);
+    }
+  }
+  b.prism(b.pick(['roof_tiles_red', 'roof_tiles_beaver', 'roof_tiles_brown']), [[-(sx + 0.3) / 2 - 0.3, 0], [(sx + 0.3) / 2 + 0.3, 0], [0, Math.min(5, sx * 0.6)]], sz + 0.9, 0, 9.0, uz, 0);
+  label(g, gfr(0, cz, sx, sz, 'front'), b.pick(['BÜCHER', 'BUCHLADEN', 'ANTIQUARIAT']), 0, 2.75, sx - 2.4, 0.55, { mat: 'roof_copper', band: 'trim_dark' });
+  if (b.d >= 1) { const [bx, bz] = f.front.at(sx / 2 - 0.6, 0.6); b.box('metal_dark', bx, 4.2, bz, 0.06, 0.06, 1.0); b.box('roof_copper', bx, 3.5, bz + 0.2, 0.06, 0.7, 0.7); }
+  b.take(0, cz, sx, sz, 0.3);
+}
+
 // Wochenmarkt: Marktstände mit bunten Planendächern, Kisten, Lieferwagen
 function wochenmarkt(ctx, g) {
   const b = new B(ctx), { W, D } = b;
@@ -527,8 +589,9 @@ function kaufhausturm(ctx, g) {
 
 const L = (fn, o) => (c, g, P) => fn(c, g, P, o);
 export const COM_NEW = {
-  1: { '1x1': [eckcafe, friseur], '2x1': [wochenmarkt, ladenzeileModern], '1x2': [eckcafe, friseur], '2x2': [wochenmarkt, ladenzeileModern] },
-  2: { '1x1': [eckhausCafe, modehaus], '2x1': [markthalle, L(ladenzeileModern, { floors: 2 })], '1x2': [eckhausCafe, modehaus], '2x2': [markthalle, eckhausCafe] },
+  1: { '1x1': [eckcafe, friseur, fahrradladen, buchladen], '2x1': [wochenmarkt, ladenzeileModern, fahrradladen], '1x2': [eckcafe, friseur, buchladen], '2x2': [wochenmarkt, ladenzeileModern, fahrradladen] },
+  // Stufe 2 nutzt den Buchladen ebenfalls (zwei Fachwerkgeschosse passen zum Wohn- und Geschäftshaus)
+  2: { '1x1': [eckhausCafe, modehaus, buchladen], '2x1': [markthalle, L(ladenzeileModern, { floors: 2 })], '1x2': [eckhausCafe, modehaus], '2x2': [markthalle, eckhausCafe] },
   3: { '*': [markthalle, L(eckhausCafe, { floors: 5 }), boutiquen, kaufhausKlassik] },
   4: { '*': [passage, hotelModern, kinocenter, kaufhausKlassik] },
   5: { '*': [hotelSpitze, mallturm, ledturm, kaufhausturm] },
