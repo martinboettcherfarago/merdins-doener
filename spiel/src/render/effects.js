@@ -385,7 +385,7 @@ export class EffectsView {
     geo.setAttribute('aBorn', new THREE.BufferAttribute(this.iconBorn, 1).setUsage(THREE.DynamicDrawUsage));
     this.iconGeo = geo;
     this.iconMat = new THREE.ShaderMaterial({
-      uniforms: { uTex: { value: makeIconAtlas() }, uTime: { value: 0 }, uSize: { value: 27 }, uPR: { value: 1 } },
+      uniforms: { uTex: { value: makeIconAtlas() }, uTime: { value: 0 }, uSize: { value: 25 }, uPR: { value: 1 } },
       vertexShader: `
 attribute float aIcon;
 attribute float aBorn;
@@ -395,14 +395,14 @@ uniform float uTime; uniform float uSize; uniform float uPR;
 void main() {
   vIcon = aIcon;
   vec3 p = position;
-  p.y += sin(uTime * 2.4 + position.x * 2.0 + position.z) * 0.05;
+  p.y += sin(uTime * 2.0 + position.x * 2.0 + position.z) * 0.03; // sanftes Schweben (ruhiger als zuvor)
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   float d = max(1.0, -mv.z);
   float t = clamp((uTime - aBorn) / 0.35, 0.0, 1.0);
   float pop = 1.0 + 2.70158 * pow(t - 1.0, 3.0) + 1.70158 * pow(t - 1.0, 2.0);
   float pulse = abs(mod(aIcon, 32.0) - 3.0) < 0.5 ? 1.0 + 0.08 * sin(uTime * 9.0) : 1.0;
   float stack = aIcon > 31.5 ? 1.14 : 1.0;
-  float px = clamp(uSize * 20.0 / d, 17.0, uSize) * uPR * pop * pulse * stack;
+  float px = clamp(uSize * 20.0 / d, 16.0, uSize) * uPR * pop * pulse * stack;
   vA = smoothstep(2.5, 5.0, d) * clamp(t * 3.0, 0.0, 1.0);
   gl_PointSize = px;
   gl_Position = projectionMatrix * mv;
