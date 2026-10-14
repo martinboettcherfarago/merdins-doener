@@ -863,10 +863,10 @@ export class Vegetation {
       for (const k of SPECIES_KEYS) { const sp = this.sp[k]; if (sp.mesh[1] && !sp.def.near) sp.mesh[1].material = this.matFor(sp, 1); }
     }
     const q = Math.max(2, R * 0.25);
-    const key = on ? [Math.round(tx / q), Math.round(tz / q), Math.round(R / 2)].join(':') : 'aus';
+    const key = on ? [Math.round(tx / q), Math.round(tz / q), Math.round(R / 3.5)].join(':') : 'aus';
     if (!force && key === this.lodKey) return;
     this.lodKey = key;
-    const margin = q + 2.5;
+    const margin = q + 3.5;
     const rIn = on ? R + margin : 0, rOut = on ? Math.max(0, R - B - margin) : -1;
     const RI2 = rIn * rIn, RO2 = rOut < 0 ? -1 : rOut * rOut;
     for (const k of SPECIES_KEYS) {

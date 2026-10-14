@@ -41,7 +41,7 @@ Version 2.0 hat ein Schwarm aus 17 spezialisierten Agenten gebaut, danach haben 
 
 - **Direkt öffnen:** `spiel/index.html` im Browser öffnen (Doppelklick genügt, ein Server ist nicht nötig).
 - **Über die Website:** Wird das Repository als statische Seite ausgeliefert, liegt das Spiel unter `/spiel/`.
-- Nötig ist ein aktueller Browser mit WebGL 2 (Chrome, Edge, Firefox, Safari). Auf Tablets und Handys läuft es auch; mit Maus spielt es sich am besten. In den Einstellungen gibt es die Qualitätsstufen Niedrig, Mittel, Hoch und Ultra.
+- Nötig ist ein aktueller Browser mit WebGL 2 (Chrome, Edge, Firefox, Safari). Auf Tablets und Handys läuft es auch; mit Maus spielt es sich am besten. Die Grafikstufe „Automatisch“ (Standard) schätzt das Gerät beim Start ein und regelt danach Auflösung, Schatten und Effekte so nach, dass das Bild flüssig bleibt; wer mag, wählt in den Einstellungen fest Niedrig, Mittel, Hoch oder Ultra.
 
 ### Steuerung
 

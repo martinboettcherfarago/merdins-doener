@@ -17,14 +17,28 @@ export default async function zoomfahrt(page, h) {
   const shots = process.env.ZF_SHOTS !== '0' && !!out;
   if (out) mkdirSync(out, { recursive: true });
   const res = {};
+  // ZF_EMU=0: keine 60-B/s-Nachbildung; ZF_NOLOADER=1: ohne Ladebildschirm laden
+  await page.evaluate(({ emu, nol }) => { window.ZF_EMU = emu; window.ZF_NOLOADER = nol; }, { emu: process.env.ZF_EMU !== '0', nol: process.env.ZF_NOLOADER === '1' });
   if (process.env.ZF_SAVE) {
     const txt = readFileSync(process.env.ZF_SAVE, 'utf8');
-    res.load = await page.evaluate((t) => {
-      const t0 = performance.now();
-      window.__stadtpuls.loadData(t, { quiet: true });
-      const en = window.__stadtpuls.engine;
-      return { ms: Math.round(performance.now() - t0), parts: en && en.loadTimes ? en.loadTimes : null };
-    }, txt);
+    // wie im Spiel: Ladebildschirm zeigen, dann laden; gemessen bis spielbereit (Ladebildschirm hält nicht mehr)
+    res.load = await page.evaluate((t) => new Promise((resolve) => {
+      const api = window.__stadtpulsLoaderApi;
+      if (api && !window.ZF_NOLOADER) api.show('Spielstand wird geladen');
+      requestAnimationFrame(() => setTimeout(() => {
+        const t0 = performance.now();
+        window.__stadtpuls.loadData(t, { quiet: true });
+        const en = window.__stadtpuls.engine;
+        const syncMs = Math.round(performance.now() - t0);
+        let frames = 0, maxGap = 0, last = performance.now();
+        const wait = () => {
+          const now = performance.now(); maxGap = Math.max(maxGap, now - last); last = now; frames++;
+          if (en.warming && now - t0 < 60000) { requestAnimationFrame(wait); return; }
+          resolve({ syncMs, readyMs: Math.round(now - t0), framesWhileLoading: frames, maxGapWhileLoading: Math.round(maxGap), parts: en && en.loadTimes ? en.loadTimes : null });
+        };
+        requestAnimationFrame(wait);
+      }, 0));
+    }), txt);
     // erste Bilder nach dem Laden (Einflug): Bildzeit-Spitzen messen
     res.afterLoad = await page.evaluate(() => new Promise((resolve) => {
       const ts = []; let last = performance.now(); let n = 0;
@@ -70,7 +84,11 @@ export default async function zoomfahrt(page, h) {
       veg.updateNear = function (f) { const k = veg.nearKey; const r = un(f); if (S.cur && veg.nearKey !== k) S.cur.grass++; return r; };
     }
     const ef = en.frame.bind(en);
+    // Gerät mit 60 Bildern/s nachstellen (Standard): Zeitbudgets, Überblendungen und Takte wie auf dem iPad, obwohl
+    // SwiftShader Sekunden pro Bild braucht (sonst greift der Nachholmodus für sehr langsame Bilder)
+    const emu = window.ZF_EMU !== false;
     en.frame = function (dt, sdt) {
+      if (emu) { const n = performance.now(); bv.lastFrame = n - 16.7; en._lastNow = n - 16.7; en.realDt = 1 / 60; dt = 1 / 60; }
       const t0 = performance.now();
       S.cur = { builds: 0, buildMs: 0, sw: 0, roadDet: 0, treeNear: 0, veg: 0, grass: 0 };
       const sk = en._shadowKey ? en._shadowKey.split(',')[2] : '';
@@ -110,11 +128,16 @@ export default async function zoomfahrt(page, h) {
     requestAnimationFrame(step);
   }), { from, to, n });
   log('Fahrt startet');
-  await page.evaluate(() => { window.__zf.rec = true; window.__zf.frames = []; });
+  await page.evaluate(() => { window.__zf.rec = true; window.__zf.frames = []; window.__zf.progs = new Set(window.__stadtpuls.engine.renderer.info.programs.map((p) => p.id)); });
   await ride(120, 6, N);
   await ride(6, 120, N);
-  const zoom = await page.evaluate(() => { const S = window.__zf; S.rec = false; return { frames: S.frames, idle: S.idle }; });
+  const zoom = await page.evaluate(() => {
+    const S = window.__zf; S.rec = false;
+    const fresh = window.__stadtpuls.engine.renderer.info.programs.filter((p) => !S.progs.has(p.id)).map((p) => p.name + ':' + String(p.cacheKey).replace(/[\s,]+/g, ' ').slice(0, 90));
+    return { frames: S.frames, idle: S.idle, fresh };
+  });
   res.ride = summarize(zoom.frames, zoom.idle);
+  res.ride.freshPrograms = zoom.fresh;
   log('Fahrt fertig ' + JSON.stringify(res.ride));
   // Langsames Hin und Her an den Schwellen (Flackern): 2 Runden je Schwelle
   if (process.env.ZF_PENDEL !== '0') {

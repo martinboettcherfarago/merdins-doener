@@ -1990,13 +1990,25 @@ export class BuildingView {
     const cp = Math.cos(g.pitch);
     return (this._gc || (this._gc = new THREE.Vector3())).set(g.x + Math.sin(g.yaw) * cp * g.dist, Math.sin(g.pitch) * g.dist, g.z + Math.cos(g.yaw) * cp * g.dist);
   }
+  // Takt in Scheiben: Große Städte (Tausende Gebäude) verteilen den Durchlauf auf einige Bilder (_lodScan), die
+  // Entscheidung (Obergrenzen, Übergänge) fällt nach einer vollen Runde. _lodTick() erledigt alles auf einmal.
   _lodTick() {
+    this._lodScanStart();
+    this._lodScan(Infinity);
+    this._lodDecide();
+  }
+  _lodScanStart() {
     const [t2, t1] = this._thresholds();
-    const arr = [];
-    const goal = this._goalCam();
-    const pm = this.protoMgr;
-    const ring = [];
-    for (const rec of this.recs.values()) {
+    const g = this._goalCam();
+    this._scan = { list: [...this.recs.values()], pos: 0, arr: [], ring: [], goal: g ? g.clone() : null, t2, t1 };
+  }
+  // n Datensätze weiterzählen; true, wenn die Runde fertig ist
+  _lodScan(n) {
+    const S = this._scan;
+    const { t2, t1, goal, arr, ring, list } = S;
+    const end = Math.min(list.length, S.pos + n);
+    for (; S.pos < end; S.pos++) {
+      const rec = list[S.pos];
       if (!rec.p0 || rec.dead || rec.dyingT >= 0) continue;
       if (this._changed(rec)) { this.add(rec.b); continue; }
       this._syncPhase(rec);
@@ -2017,6 +2029,14 @@ export class BuildingView {
       if (d < t2 * PREFETCH) pre = Math.max(pre, 2); else if (d < t1 * PREFETCH) pre = Math.max(pre, 1);
       if (pre > cur && pre > 0) ring.push([rec, pre, pd]);
     }
+    return S.pos >= list.length;
+  }
+  _lodDecide() {
+    const S = this._scan;
+    this._scan = null;
+    if (!S) return;
+    const { arr, ring } = S;
+    const pm = this.protoMgr;
     // Obergrenzen: nur die nächsten Gebäude bekommen Detail 1/2 (nach Abstand sortiert). Jeder weitere Prototyp
     // kostet seine Teile (+ Schatten) aus dem Draw-Call-Budget; Gebäude mit schon gezeigtem Prototyp sind gratis.
     const near = arr.filter((r) => r.want >= 1).sort((a, b) => a.sk - b.sk);
@@ -2035,6 +2055,7 @@ export class BuildingView {
       return true;
     };
     for (const rec of near) {
+      if (rec.dead) continue;
       if (rec.want === 2 && (n2 >= MAX_D2 || !fits(rec, 2))) rec.want = 1;
       if (rec.want === 1 && (n1 >= MAX_D1 || !fits(rec, 1))) rec.want = 0;
       if (rec.want === 2) n2++;
@@ -2264,7 +2285,14 @@ export class BuildingView {
     const budget = gap > 300 ? 250 : clamp(gap * 0.25, 3, 10);
     // Takt alle 0,3 s – sofort, wenn die Kamera seit dem letzten Takt weit gesprungen ist
     this.lodT -= dt;
-    if (this.lodT <= 0 || this._lastCam.distanceToSquared(cam) > 9) { this.lodT = LOD_TICK; this._lastCam.copy(cam); const tk = performance.now(); this._lodTick(); const tm = performance.now() - tk; if (tm > this.ev.maxTickMs) this.ev.maxTickMs = tm; }
+    // (große Städte: Durchlauf über einige Bilder verteilt, bei einem Kamerasprung sofort komplett)
+    const jumped = this._lastCam.distanceToSquared(cam) > 9;
+    if (!this._scan && (this.lodT <= 0 || jumped)) { this.lodT = LOD_TICK; this._lastCam.copy(cam); this._lodScanStart(); }
+    if (this._scan) {
+      const tk = performance.now();
+      if (this._lodScan(jumped || gap > 300 ? Infinity : Math.max(400, Math.ceil(this._scan.list.length / 4)))) this._lodDecide();
+      const tm = performance.now() - tk; if (tm > this.ev.maxTickMs) this.ev.maxTickMs = tm;
+    }
     // Übergänge zeitlich verteilen (nächste zuerst): ~8 je Bild bei 60 Bildern/s
     const maxStarts = gap > 300 ? Infinity : Math.max(3, Math.round(dt * 480));
     const used = this._work(budget, maxStarts);
