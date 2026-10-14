@@ -354,6 +354,17 @@ export function g9Materials() {
   for (const byGlass of derived.values()) for (const d of Object.values(byGlass)) out.push({ mat: d.mat, anim: d.anim });
   return out;
 }
+// Welche Materialien als Instanz (Nahstufen, drehende Teile) bzw. als Bündel (Fernstufe) gebraucht werden – nur diese
+// Varianten werden vorübersetzt (jedes Programm kostet auf Tablets spürbar Zeit). uses: Material → { inst, batch }
+const uses = new Map();
+let usesVersion = 0;
+function noteUse(mat, kind) {
+  let u = uses.get(mat);
+  if (!u) { u = { inst: false, batch: false }; uses.set(mat, u); }
+  if (!u[kind]) { u[kind] = true; usesVersion++; }
+}
+export function g9Uses() { return uses; }
+export function g9UsesVersion() { return usesVersion; }
 function refreshDerived() {
   for (const byGlass of derived.values()) for (const d of Object.values(byGlass)) if (d.v !== d.base.version) syncDerived(d, d.base);
 }
@@ -719,6 +730,8 @@ export class ProtoManager {
       proto.triangles += parts.reduce((sum, p) => sum + p.src.count / 3, 0);
     }
     this.protos.set(id, proto);
+    for (const p of proto.parts) noteUse(p.material, detail >= 1 ? 'inst' : 'batch');
+    for (const a of proto.anims) for (const p of a.set.parts) noteUse(p.material, 'inst');
     proto.ms = performance.now() - t0;
     this.buildMs += proto.ms;
     return proto;

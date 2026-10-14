@@ -31,7 +31,7 @@ import { UndergroundView } from './underground.js';
 import { EffectsView } from './effects.js';
 import { VIEWS } from '../registry.js';
 import { detectDevice, AutoGovernor } from './autoquality.js';
-import { g9Materials, g9DepthMaterial } from './protos.js';
+import { g9Materials, g9DepthMaterial, g9Uses, g9UsesVersion } from './protos.js';
 
 // lod: Faktor der Detailabstände der Gebäude (buildings.js)
 export const QUALITY = {
@@ -639,7 +639,7 @@ export class Engine {
   // full: zusätzlich die ganze Szene (auch ausgeblendete Meshes) – teuer, nur hinter dem Ladebildschirm
   precompile(full = true) {
     const t0 = performance.now();
-    const done = this._pcMats || (this._pcMats = new WeakSet());
+    const doneI = this._pcInst || (this._pcInst = new WeakSet()), doneB = this._pcBatch || (this._pcBatch = new WeakSet());
     try {
       const tmp = new THREE.Scene();
       const geo = new THREE.BufferGeometry();
@@ -652,7 +652,11 @@ export class Engine {
         m.castShadow = m.receiveShadow = true;
         tmp.add(m);
       };
-      for (const { mat } of g9Materials()) if (!done.has(mat)) { done.add(mat); add(mat, true); add(mat, false); }
+      // Gebäudematerialien nur in den Varianten, die Prototypen tatsächlich brauchen (Instanz = Nahstufe, Bündel = fern)
+      for (const [mat, u] of g9Uses()) {
+        if (u.inst && !doneI.has(mat)) { doneI.add(mat); add(mat, true); }
+        if (u.batch && !doneB.has(mat)) { doneB.add(mat); add(mat, false); }
+      }
       const fm = this.roads && this.roads.fadeMats;
       if (fm) for (const m of Object.values(fm)) { add(m, true); add(m, true, true); }
       const veg = this.terrain && this.terrain.veg;
@@ -704,12 +708,11 @@ export class Engine {
   // bevor sie zum ersten Mal ins Bild kommen
   precompileIdle(now) {
     if (this.warming || now < (this._pcT || 0)) return;
-    // nur, wenn neue Gebäudematerialien dazugekommen sind (sonst nichts zu tun)
-    const n = g9Materials().length;
+    // nur, wenn neue Materialvarianten dazugekommen sind, und nur bei ruhender Kamera (kein Zusatzaufwand beim Zoomen)
+    const n = g9UsesVersion();
     if (n === this._pcCount && this._pcDepth) { this._pcT = now + 1000; return; }
-    if (!this.cameraCalm() && now - (this._pcLast || 0) < 4000) { this._pcT = now + 300; return; }
+    if (!this.cameraCalm()) { this._pcT = now + 300; return; }
     this._pcCount = n;
-    this._pcLast = now;
     const ms = this.precompile(false);
     this._pcT = now + (ms > 25 ? 8000 : 1500);
   }
@@ -727,7 +730,7 @@ export class Engine {
     this.autoFrame(interval, now);
     this.fxFrame(dt);
     this.warmFrame(now);
-    if (this.frameNo > 30 && !this.slow) this.precompileIdle(now);
+    if (this.frameNo > 30) this.precompileIdle(now);
     this.renderer.info.reset();
     shared.uTime.value = this.time;
     const g = this.game;
