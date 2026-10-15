@@ -146,6 +146,16 @@ void main() {
   // Tiefe (Schienenoberkante) einer Linie
   depthOf(line) { return this.lineY.get(line.id) ?? -TRANSIT.tunnelDepth; }
 
+  // Höhe für die Zeichnung des Linienentwurfs (input/linedraft.js): Ebene der bearbeiteten bzw. der nächsten neuen
+  // Linie, mit der Überblendung der Untergrund-Ansicht (aus: Gelände, an: Tunnelebene) – Vorschau und Tunnel decken sich
+  planDepth(lineId) {
+    const tr = this.g.transit;
+    const line = lineId ? tr.lines.find((l) => l.id === lineId) : null;
+    const y = line ? this.depthOf(line) : -(TRANSIT.tunnelDepth + (tr.lines.length % 3) * LEVEL_STEP);
+    const k = Math.max(0, Math.min(1, this.kv || 0));
+    return y * k;
+  }
+
   // Pose auf der Linie; bei offenen Linien über die Enden hinaus verlängert (Bahnsteig an Endstationen)
   pose(line, d, out) {
     const tr = this.g.transit;

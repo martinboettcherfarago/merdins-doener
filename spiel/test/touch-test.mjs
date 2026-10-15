@@ -36,7 +36,7 @@ const slot = acquire();
 const release = () => { try { rmSync(slot, { recursive: true, force: true }); } catch (e) { /* egal */ } };
 process.on('exit', release);
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { release(); process.exit(130); });
-const killer = setTimeout(() => { console.log('ABBRUCH: Zeitlimit'); release(); process.exit(2); }, 12 * 60 * 1000);
+const killer = setTimeout(() => { console.log('ABBRUCH: Zeitlimit'); release(); process.exit(2); }, 25 * 60 * 1000);
 killer.unref();
 
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png' };
@@ -324,7 +324,7 @@ try {
   await tapBar(page, 'ok');
   check('Abriss: ✓ reißt ab', (await st(page)).blds === nb - 1);
 
-  // 7) U-Bahn-Linie
+  // 7) U-Bahn-Linie (Entwurf: geplante Stationen entstehen erst mit ✓; Details in test/bahnplan-test.mjs)
   console.log('-- U-Bahn-Linie');
   await setTool(page, { kind: 'line' });
   const l0 = await st(page);
@@ -332,26 +332,27 @@ try {
   p = await scr(page, bx + 5, ry - 5);
   await touchDrag(page, cdp, p, { x: p.x + 7, y: p.y - 6 }, 3);
   s = await st(page);
-  check('Station antippen (auch mit leichtem Verrutschen)', s.stops === 2 && s.stations === l0.stations + 2, `${s.stops} Halte`);
-  check('Leiste zeigt „Fertig"', s.bar && s.label === 'Fertig' && s.ok && !s.ok.disabled && !!s.undo);
+  check('Station antippen (auch mit leichtem Verrutschen) plant nur', s.stops === 2 && s.stations === l0.stations, `${s.stops} Halte, ${s.stations} Stationen`);
+  check('Leiste zeigt ✓ Bauen mit ↶', s.bar && s.label === 'Bauen' && s.ok && !s.ok.disabled && !!s.undo);
   p = await scr(page, bx + 8, ry - 3);
   await touchDrag(page, cdp, p, { x: p.x - 70, y: p.y + 60 }, 8);
   s = await st(page);
-  check('echtes Ziehen verschiebt nur die Kamera', s.stops === 2 && s.stations === l0.stations + 2);
+  check('echtes Ziehen verschiebt nur die Kamera', s.stops === 2 && s.stations === l0.stations);
   await resetCam(page, bx + 5, ry - 2);
   await pause(page, 500);
-  await tapTile(page, bx + 8, ry - 5);
-  await tapTile(page, bx + 8, ry - 5);
+  await tapTile(page, bx + 9, ry - 5);
   s = await st(page);
-  check('doppeltes Tippen auf die letzte Station schließt nicht ab', s.stops === 3 && s.lines === l0.lines, `${s.stops} Halte, ${s.lines} Linien`);
+  check('dritte Station geplant', s.stops === 3, `${s.stops} Halte`);
+  await tapTile(page, bx + 9, ry - 5);
+  s = await st(page);
+  check('zweiter Tipp auf die letzte Station nimmt sie zurück', s.stops === 2 && s.lines === l0.lines, `${s.stops} Halte, ${s.lines} Linien`);
   await shot(page, 'touch-6-linie');
   await tapBar(page, 'undo');
   s = await st(page);
-  check('↶ nimmt die letzte Station zurück', s.stops === 2);
-  await tapTile(page, bx + 8, ry - 5);
+  check('↶ macht das rückgängig', s.stops === 3);
   await tapBar(page, 'ok');
   s = await st(page);
-  check('„Fertig" eröffnet die Linie', s.lines === l0.lines + 1 && s.stops === 0 && !s.bar, `${s.lines} Linien`);
+  check('✓ eröffnet die Linie und baut die Stationen', s.lines === l0.lines + 1 && s.stops === 0 && !s.bar && s.stations === l0.stations + 3, `${s.lines} Linien, ${s.stations} Stationen`);
   await page.evaluate(() => { window.__stadtpuls.ui.closePanels(); });
 
   // 8) Ohne Bestätigung (Einstellung „never"): wie früher

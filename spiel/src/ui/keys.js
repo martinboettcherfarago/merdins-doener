@@ -21,7 +21,8 @@ export const KEYMAP = [
     [['F'], 'Baukatalog durchsuchen'],
     [['R'], 'Gebäude drehen'],
     [['B', 'Entf'], 'Abriss'],
-    [['Enter'], 'Linie fertigstellen'],
+    [['Enter'], 'Bauen (✓)'],
+    [['⌫'], 'Linie: einen Schritt zurück'],
     [['Esc', 'Rechtsklick'], 'Werkzeug abbrechen'],
   ] },
   { group: 'Ansichten & Fenster', items: [

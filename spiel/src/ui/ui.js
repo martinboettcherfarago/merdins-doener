@@ -753,7 +753,8 @@ ${gr && TRAY_STATS[gr.id] ? `<button class="close tr-stats" data-act="traystats"
     if (tool.kind === 'select' && this.cat && !this.search) this.closeTray();
     if (this.cat) this.renderTrayBody();
     this.markToolButtons();
-    if (tool.kind === 'line' && this.view === 'none') this.setView('transit', true);
+    // Linienwerkzeuge: Einzugsgebiete einblenden (auf dem Handy nicht – die Legende verdeckt dort die halbe Karte)
+    if ((tool.kind === 'line' || tool.kind === 'extend') && this.view === 'none' && !this.mobile()) this.setView('transit', true);
     if (tool.kind !== 'line' && tool.kind !== 'extend' && this.autoTransitView) this.setView('none');
     this.renderToolHint();
     this.syncUnderground();
@@ -780,9 +781,9 @@ ${gr && TRAY_STATS[gr.id] ? `<button class="close tr-stats" data-act="traystats"
       hint = `${d ? fmtMoney(this.g.buildingCost(t.key)) : ''}${d && d.size[0] !== d.size[1] ? ' · R dreht' : ''}`;
       if (d && d.size[0] !== d.size[1]) extra.push(['rotate', 'Drehen', 'rotate', '']);
     } else if (t.kind === 'line' || t.kind === 'extend') {
-      name = t.kind === 'line' ? 'U-Bahn-Linie zeichnen' : 'Linie verlängern'; ic = 'line'; col = '#e8543f';
-      hint = `${input.lineStops.length} ${input.lineStops.length === 1 ? 'Station' : 'Stationen'}${touch ? '' : ' · Enter beendet'}`;
-      extra.push(['finish', 'Fertig', 'check', '']);
+      // Bauen über die Leiste (✓); hier nur Name und Stand des Entwurfs
+      name = t.kind === 'line' ? 'Neue Linie' : 'Linie bearbeiten'; ic = 'line'; col = '#e8543f';
+      hint = `${input.lineStops.length} ${input.lineStops.length === 1 ? 'Station' : 'Stationen'}${touch ? '' : ' · Enter ✓'}`;
     } else {
       const T2 = TOOLS[t.kind] || {};
       name = T2.name || (this.trayList && (this.trayList.find((x) => x.kind === 'tool' && x.key === t.kind) || {}).name) || t.kind;

@@ -102,7 +102,8 @@ const TOPICS = [
     `Kredite ab ${ms(2)}.`,
   ], act: { panel: 'budget' }, actLabel: 'Haushalt' },
   { id: 'ubahn', title: 'U-Bahn', icon: 'transit', lead: 'Die Pulsbahn fährt im Tunnel.', points: [
-    'Linie zeichnen: Bahnhöfe nacheinander antippen, Enter oder „Fertig".',
+    'Linie zeichnen: Bahnhöfe antippen, ✓ baut. Nochmal tippen nimmt zurück.',
+    'Bearbeiten: Enden ziehen verlängert oder kürzt, Bahnhof antippen → Entfernen.',
     'Bahnhöfe nah an Wohnen und Arbeit – weniger Autos, weniger Stau.',
     'Darüber darfst du beliebig hoch bauen.',
     'Überfüllt? Mehr Züge oder Wagen.',

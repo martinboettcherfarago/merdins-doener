@@ -15,6 +15,22 @@ const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 // je Station höchstens holdShare × Soll-Folgezeit (zwischen minHold und maxHold Sekunden). Abgestimmt mit test/takt-test.mjs.
 export const TAKT = { close: 0.7, tol: 0.04, holdShare: 0.6, minHold: 1.5, maxHold: 8 };
 
+// Gleichgewicht Fahrgäste ↔ Züge (gemessen mit test/bahn-balance.mjs):
+// – Züge fahren in Spielzeit: Bei kürzeren Tagen (mehr Spielminuten je Sekunde) fahren sie entsprechend schneller, bei längeren
+//   langsamer (Bezug: ref Spielminuten je Sekunde, Standard-Tageslänge). So schafft eine Linie an jedem Spieltag gleich viele
+//   Fahrgäste, egal wie lang der Tag ist. Der Metro-Modus hat einen festen Takt (siehe ui/settings.js) und behält seine Werte.
+// – Andrang je Station wächst mit den Bewohnern und Arbeitsplätzen im Einzugsgebiet, flacht aber ab (sat): Ein Eingang
+//   füllt sich in dichten Vierteln nicht endlos – Überfüllung bleibt ein Signal für mehr Züge, Waggons oder Linien.
+// – Ziele in der Nähe sind wahrscheinlicher (Gewicht 1 / (1 + (Haltestellen / hop)²)): Fahrten bleiben eher im Stadtteil,
+//   statt quer durchs ganze Netz – so tragen große Netze mehr Fahrgäste, ohne dass kleine Netze leer laufen.
+// – Umsteiger stehen schon im Netz: Sie dürfen eine Station bis transferCap × Stationsgröße füllen (Neue nur bis 1,5 ×).
+export const BALANCE = { ref: 24, sat: 700, hop: 3, transferCap: 6, minScale: 0.5, maxScale: 3 };
+export function transitScale(g) {
+  if (g && g.opts && g.opts.scenario === 'metro') return 1;
+  const mps = g && g.minPerSec > 0 ? g.minPerSec : BALANCE.ref;
+  return Math.max(BALANCE.minScale, Math.min(BALANCE.maxScale, mps / BALANCE.ref));
+}
+
 // Umlauf einer Linie: Pendellinie 2L (hin und zurück), Ring L je Fahrtrichtung
 export const cycLen = (line) => (line.loop ? line.length : 2 * line.length);
 // Position eines Zugs im Umlauf seiner Fahrtrichtung (wächst in Fahrtrichtung)
@@ -45,6 +61,8 @@ export class Transit {
     this.deliveredToday = 0;
     this.deliveredTotal = 0;
     this.version = 0;
+    // Zähler für Statistik und Prüfstände (nicht im Spielstand): entstanden, abgewiesen (Station übervoll), aufgegeben, verfallen
+    this.cnt = { spawn: 0, reject: 0, lost: 0, expire: 0 };
     this.arrivals = []; // für Klänge und Effekte: {line, station}
   }
 
@@ -274,11 +292,38 @@ export class Transit {
             return;
           }
         }
-        const k = frac < 0.5 ? (ka >= 0 ? ka : kb) : (kb >= 0 ? kb : ka);
-        if (k >= 0) { dwellAt(k, 0.5); return; }
       } else if (ka >= 0) { dwellAt(ka, Math.max(0.3, Math.min(2, t.dwell))); return; }
+      // Abschnitt oder Station gibt es so nicht mehr (Station entfernt, Linie gekürzt): an der nächstgelegenen Stelle der
+      // neuen Strecke weiterfahren, statt auf eine Station zu springen
+      if (this.keepPlace(t, line)) return;
     }
     dwellAt(Math.max(0, Math.min(t.cur, n - 1)), 0.5);
+  }
+
+  // Nächster Punkt der Linie zu (x, y) in Feldkoordinaten: Abstand d entlang der Linie
+  project(line, x, y) {
+    const pts = line.pts, cum = line.cum;
+    if (!pts || pts.length < 2) return null;
+    let best = null;
+    for (let k = 0; k < pts.length - 1; k++) {
+      const [ax, ay] = pts[k], [bx, by] = pts[k + 1];
+      const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const u = l2 > 1e-12 ? clamp01(((x - ax) * dx + (y - ay) * dy) / l2) : 0;
+      const ex = ax + dx * u - x, ey = ay + dy * u - y, e = ex * ex + ey * ey;
+      if (!best || e < best.e) best = { e, d: cum[k] + (cum[k + 1] - cum[k]) * u };
+    }
+    return { d: best.d, dist: Math.sqrt(best.e) };
+  }
+
+  // Zug an seiner bisherigen Weltposition auf die (umgebaute) Linie setzen, Fahrtrichtung bleibt
+  keepPlace(t, line) {
+    const g = this.g, L = line.length;
+    if (!(L > 0) || line.stops.length < 2 || !Number.isFinite(t.x) || !Number.isFinite(t.z)) return false;
+    const pr = this.project(line, t.x + g.W / 2, t.z + g.H / 2);
+    if (!pr) return false;
+    const dir = t.dir < 0 ? -1 : 1;
+    const P = line.loop ? (dir > 0 ? pr.d : L + (L - pr.d)) : dir > 0 ? pr.d : 2 * L - pr.d;
+    return this.placeAt(t, line, P, { quiet: true, dir, snap: 0.05 });
   }
 
   // ---------- Takt: Position im Umlauf, Abstände, Zurückhalten, Verteilen, Verschieben
@@ -405,7 +450,7 @@ export class Transit {
     for (const dir of line.loop ? [1, -1] : [1]) {
       const grp = line.loop ? ts.filter((t) => t.dir === dir) : ts;
       if (!grp.length) continue;
-      const cycleSec = C / speed + (line.loop ? n : 2 * (n - 1)) * dw;
+      const cycleSec = (C / speed + (line.loop ? n : 2 * (n - 1)) * dw) / transitScale(this.g); // in echten Sekunden
       const items = grp.map((t) => ({ t, q: cycPos(t, line) })).sort((a, b) => a.q - b.q || a.t.id - b.t.id);
       const s = C / grp.length;
       const gaps = [];
@@ -550,14 +595,19 @@ export class Transit {
     const ridership = (g.policies.has('freetransit') ? 1.4 : 1) * (1 + g.eff('ridership'));
     const k = (minutes / 60) * night * ridership * 0.55;
     // Außerhalb des Metro-Modus nehmen Leute an einer übervollen Station lieber das Auto: Überfüllung bleibt spürbar, wächst aber nicht endlos
-    const capWait = g.opts && g.opts.scenario === 'metro' ? Infinity : Math.ceil(TRANSIT.stationCapacity * 1.5);
+    const metro = !!(g.opts && g.opts.scenario === 'metro');
+    const capWait = metro ? Infinity : Math.ceil(TRANSIT.stationCapacity * 1.5);
+    const sat = metro ? 0 : BALANCE.sat;
+    const hop2 = metro ? 0 : BALANCE.hop ** 2;
     for (const st of this.stations.values()) {
       if (!st.active) continue;
-      if (st.waiting.length >= capWait) { st.acc = 0; continue; }
       const w = st.w;
-      const rWork = w[1] * 0.01 * workF * k;
-      const rShop = w[1] * 0.005 * shopF * k;
-      const rHome = (w[2] + w[3] + w[4]) * 0.01 * homeF * k;
+      const tot = w[1] + w[2] + w[3] + w[4];
+      const f = sat > 0 && tot > 0 ? 1 / (1 + tot / sat) : 1;
+      const rWork = w[1] * 0.01 * workF * k * f;
+      const rShop = w[1] * 0.005 * shopF * k * f;
+      const rHome = (w[2] + w[3] + w[4]) * 0.01 * homeF * k * f;
+      if (st.waiting.length >= capWait) { st.acc = 0; this.cnt.reject += rWork + rShop + rHome; continue; }
       st.acc = (st.acc || 0) + rWork + rShop + rHome;
       let guard = 0;
       while (st.acc >= 1 && guard++ < 6) {
@@ -572,9 +622,12 @@ export class Transit {
         const cands = [];
         for (const t of this.stations.values()) {
           if (t === st || !t.active) continue;
-          if (this.hops(t.id, st.id) === Infinity) continue;
+          const h = this.hops(t.id, st.id);
+          if (h === Infinity) continue;
+          // Nahe Ziele sind wahrscheinlicher (außer im Metro-Modus): Fahrten bleiben eher im eigenen Stadtteil
+          const near = hop2 > 0 ? 1 / (1 + (h * h) / hop2) : 1;
           for (const z of types) {
-            const v = t.w[z];
+            const v = t.w[z] * near;
             if (v > 0) { cands.push([t, z, v]); total += v; }
           }
         }
@@ -583,6 +636,7 @@ export class Transit {
         let pick = cands[cands.length - 1];
         for (const c of cands) { q -= c[2]; if (q <= 0) { pick = c; break; } }
         st.waiting.push({ dest: pick[0].id, shape: pick[1], t: g.time });
+        this.cnt.spawn++;
       }
       if (st.acc > 4) st.acc = 4;
       // Überfüllung
@@ -593,18 +647,20 @@ export class Transit {
           st.penaltyUntil = g.time + 2 * 1440;
           const lost = Math.ceil(st.waiting.length / 2);
           st.waiting.splice(0, lost);
+          this.cnt.lost += lost;
           g.news('transit', `Station ${st.name} ist hoffnungslos überfüllt! ${lost} Fahrgäste geben auf. Mehr Züge oder Waggons einsetzen.`, 'bad', { x: st.x, y: st.y });
           this.changed();
         }
       } else st.over = Math.max(0, st.over - minutes / 720);
       // Fahrgäste ohne erreichbares Ziel verlassen die Station
-      if (st.waiting.length) st.waiting = st.waiting.filter((p) => this.hops(p.dest, st.id) !== Infinity && g.time - p.t < 1440 * 1.5);
+      if (st.waiting.length) { const n0 = st.waiting.length; st.waiting = st.waiting.filter((p) => this.hops(p.dest, st.id) !== Infinity && g.time - p.t < 1440 * 1.5); this.cnt.expire += n0 - st.waiting.length; }
     }
   }
 
   update(simSec) {
     if (simSec <= 0) return;
     const g = this.g;
+    simSec *= transitScale(g);
     const speed = TRANSIT.speed * g.mods.trainSpeed;
     for (const t of this.trains) {
       const line = this.lines.find((l) => l.id === t.line);
@@ -667,7 +723,7 @@ export class Transit {
 
   arrive(t, line) {
     const g = this.g;
-    const capWait = g.opts && g.opts.scenario === 'metro' ? Infinity : Math.ceil(TRANSIT.stationCapacity * 1.5);
+    const capWait = g.opts && g.opts.scenario === 'metro' ? Infinity : Math.ceil(TRANSIT.stationCapacity * BALANCE.transferCap);
     t.cur = t.to;
     if (line.loop && t.d >= line.length - 1e-6) t.d = 0;
     t.state = 'dwell';
@@ -691,6 +747,7 @@ export class Transit {
         // Umsteigen: Außerhalb des Metro-Modus gilt dieselbe Obergrenze wie für neue Fahrgäste – an einer übervollen
         // Station nehmen Umsteiger lieber das Auto (sonst stauen sich an Knoten Tausende und der Spielstand wird riesig)
         if (st && (capWait === Infinity || st.waiting.length < capWait)) st.waiting.push(p);
+        else this.cnt.lost++;
       }
     }
     t.pax = keep;
