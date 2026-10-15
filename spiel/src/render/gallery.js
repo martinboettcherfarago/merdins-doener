@@ -8,6 +8,7 @@ import { getMaterial } from './matlib.js';
 import { shared } from './materials.js';
 import { BUILDINGS } from '../config.js';
 import { VIEWS } from '../registry.js';
+import { peopleGallery } from './gallery_people.js';
 void VIEWS;
 
 export function runGallery(params) {
@@ -43,6 +44,7 @@ export function runGallery(params) {
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.02;
   scene.add(sun, sun.target);
+  if (filter === 'people') { peopleGallery(params, renderer, scene, sun); return; }
   const items = [];
   const spinners = [];
   const singleLevel = keys.length > 1;
