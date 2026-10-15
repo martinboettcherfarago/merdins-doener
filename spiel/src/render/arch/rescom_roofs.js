@@ -108,7 +108,37 @@ export function rectRoof(g, o) {
       }
     }
   }
-  return { ridgeX, cx: o.cx, cz: o.cz, a, b, A, A0, B, y0, yE, yR, tan, T, t, mat: o.mat, k0, k1, sx: o.sx, sz: o.sz };
+  const info = { ridgeX, cx: o.cx, cz: o.cz, a, b, A, A0, B, y0, yE, yR, tan, T, t, mat: o.mat, k0, k1, sx: o.sx, sz: o.sz };
+  if (g.detail >= 2 && o.tech !== false && h > 0.8 * M && a > 2 * M && b > 1.5 * M) roofTech(g, info, o);
+  return info;
+}
+
+// Nahsicht: kleine Dachtechnik – Entlüftungsrohr, manchmal Antenne oder Satellitenschüssel (Zufall aus der Lage)
+function roofTech(g, info, o) {
+  let r = Math.sin((o.cx * 91.7 + o.cz * 47.3 + info.y0 * 13.1 + info.a * 7.9) * 43758.5453); r -= Math.floor(r);
+  const m = o.gutter === null ? 'metal_dark' : (o.gutter || 'metal_light');
+  // Entlüftungsrohr auf der Rückseite, nahe am First
+  const X = (r - 0.5) * info.a * 0.9;
+  const dist = info.b * 0.62;
+  const p = slopePoint(info, -1, X, dist, 0);
+  g.cyl(m, p[0], p[1] - 0.05 * M, p[2], 0.07 * M, 0.55 * M, { seg: 6 });
+  g.cyl('metal_dark', p[0], p[1] + 0.5 * M, p[2], 0.09 * M, 0.06 * M, { seg: 6 });
+  if (r < 0.28) {
+    // Dachantenne am First
+    const q = info.T((0.5 - r) * info.a * 0.8, info.yR, 0);
+    g.cyl('metal_dark', q[0], q[1], q[2], 0.03 * M, 1.6 * M, { seg: 4 });
+    for (const [yy, ll] of [[1.2, 1.1], [1.45, 0.8]]) {
+      const c = info.T((0.5 - r) * info.a * 0.8, info.yR + yy * M, 0);
+      g.box('metal_dark', c[0], c[1], c[2], info.ridgeX ? 0.03 * M : ll * M, 0.03 * M, info.ridgeX ? ll * M : 0.03 * M);
+    }
+  } else if (r > 0.8) {
+    // Satellitenschüssel auf der Rückseite
+    const s2 = slopePoint(info, -1, -X * 0.7, info.b * 0.4, 0);
+    g.cyl('metal_dark', s2[0], s2[1] - 0.05 * M, s2[2], 0.03 * M, 0.5 * M, { seg: 4 });
+    const n = info.T(0, 0, -1), o0 = info.T(0, 0, 0);
+    const ry = Math.atan2(n[0] - o0[0], n[2] - o0[2]);
+    g.rbox('paint_white', s2[0], s2[1] + 0.55 * M, s2[2], 0.6 * M, 0.6 * M, 0.08 * M, -0.5, ry, 0);
+  }
 }
 
 // Punkt auf einer Dachfläche: s = +1/-1 (Seite), X entlang First, dist = waagrechter Abstand von der Wandflucht nach innen

@@ -167,6 +167,14 @@ export class Kit {
       this.box(matParapet, x, y0, z + sz / 2 - t / 2, sx, p, t);
       this.box(matParapet, x - sx / 2 + t / 2, y0, z, t, p, sz - t * 2);
       this.box(matParapet, x + sx / 2 - t / 2, y0, z, t, p, sz - t * 2);
+      if (this.detail >= 2 && o.coping !== false) {
+        // Abdeckblech auf der Attika (steht etwas über)
+        const c = o.coping || 'metal_light', ct = t + 0.08 * M, ch = 0.06 * M;
+        this.box(c, x, y0 + p, z - sz / 2 + t / 2, sx + 0.08 * M, ch, ct);
+        this.box(c, x, y0 + p, z + sz / 2 - t / 2, sx + 0.08 * M, ch, ct);
+        this.box(c, x - sx / 2 + t / 2, y0 + p, z, ct, ch, sz - t * 2);
+        this.box(c, x + sx / 2 - t / 2, y0 + p, z, ct, ch, sz - t * 2);
+      }
     }
   }
   // Sägezahndach (Industrie)
@@ -237,7 +245,10 @@ export class Kit {
     this.add(glass, pane, { x: p.x, y: y0 + h / 2, z: p.z, ry, lit: o.lit ?? this.rng() });
     if (this.detail < 2) return;
     if (o.mullion !== false && w > 0.9 * M) { p = P(0, d / 2); this.box(frame, p.x, y0, p.z, t * 0.6, h, 0.04 * M, { ry }); }
+    // Kämpfer (Querholz) bei hohen Fenstern
+    if (o.mullion !== false && h > 1.35 * M) { p = P(0, d / 2); this.box(frame, p.x, y0 + h * 0.72, p.z, w, t * 0.6, 0.04 * M, { ry }); }
     if (o.sill) { p = P(0, 0.06 * M); this.box(o.sill === true ? 'trim_stone' : o.sill, p.x, y0 - t - 0.06 * M, p.z, w + t * 4, 0.08 * M, 0.25 * M, { ry }); }
+    else if (o.sill !== false) { p = P(0, 0.05 * M); this.box(frame, p.x, y0 - t - 0.035 * M, p.z, w + t * 3, 0.035 * M, 0.18 * M, { ry }); } // schmale Blechbank
     if (o.shutters) {
       for (const s of [-1, 1]) { p = P(s * (w / 2 + t + 0.3 * M), 0.02 * M); this.box(o.shutters, p.x, y0, p.z, 0.55 * M, h, 0.05 * M, { ry }); }
     }
@@ -281,6 +292,12 @@ export class Kit {
     this.box(o.frame || 'trim_stone', x, h, z + 0.04 * M, w + 0.3 * M, 0.15 * M, 0.1 * M);
     if (o.step !== false) this.box('stone_grey', x, 0, z + 0.4 * M, w + 0.6 * M, 0.15 * M, 0.8 * M);
     if (o.canopy) this.box(o.canopy, x, h + 0.3 * M, z + 0.5 * M, w + 0.8 * M, 0.08 * M, 1.0 * M);
+    if (this.detail >= 2) {
+      // Türgriff, Füllung, Leuchte neben der Tür
+      this.box('metal_light', x + w * 0.32, h * 0.45, z + 0.06 * M, 0.05 * M, 0.25 * M, 0.06 * M);
+      this.box(o.frame || 'trim_stone', x, h * 0.55, z + 0.05 * M, w * 0.6, h * 0.3, 0.02 * M);
+      if (!o.canopy) this.box('metal_dark', x - w / 2 - 0.35 * M, h * 0.78, z + 0.08 * M, 0.14 * M, 0.22 * M, 0.14 * M);
+    }
   }
   // Waagrechtes Gesims/Band um eine Box
   band(mat, cx, cz, sx, sz, y, h = 0.2 * M, out = 0.08 * M) {

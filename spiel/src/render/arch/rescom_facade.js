@@ -128,6 +128,8 @@ export function opening(g, f, op, wallMat) {
   paneSet(g, f, u, y, back + 0.02 * M, w, h, null, op.glass || 'glass_window', op.panes || {}, lit, op.ft);
   if (D < 2) return;
   if (op.sill) g.wbox(op.sill === true ? 'trim_stone' : op.sill, f, u, y - 0.05 * M, -r / 2 + 0.03 * M, w + 0.12 * M, 0.06 * M, r + 0.06 * M);
+  // Nahsicht: schmale Blechbank unter Fenstern ohne eigene Fensterbank (nicht bei Balkontüren, Blumenkästen, Gittern)
+  else if (op.kind !== 'vent' && h < 2.0 * M && y > 0.3 * M && !op.flowers && !op.french) g.wbox(fr, f, u, y - 0.035 * M, -r / 2 + 0.02 * M, w + 0.08 * M, 0.035 * M, r + 0.08 * M);
   if (op.surround) {
     const s = op.surroundW ?? 0.16 * M, t = 0.04 * M, sm = op.surround;
     const yb = y - (op.sill ? 0.02 * M : s), hh = h + (op.sill ? 0.02 * M : s) + s;
@@ -226,6 +228,27 @@ export function shrubRow(g, f, u, y, d, w, mat = 'leaves_green') {
   }
 }
 
+// Pseudozufall aus Wandlage (ohne g.rng: Nahdetails dürfen die Zufallsfolge der übrigen Teile nicht verschieben)
+export function hashLoc(f, u, y) {
+  let h = Math.sin((f.ox * 12.9898 + f.oz * 78.233 + u * 37.719 + y * 51.13 + f.ry * 3.1) * 43758.5453);
+  h -= Math.floor(h);
+  return h;
+}
+const CLOTH = ['canvas_white', 'awning_blue', 'awning_red', 'awning_yellow', 'awning_green', 'plaster_pink', 'canvas_white', 'paint_white'];
+// Wäscheständer mit ein paar Wäschestücken (d = Abstand vor der Wand)
+function laundry(g, f, u, y, w, d, r) {
+  const hh = 0.95 * M, rail = 'metal_light';
+  for (const s of [-1, 1]) g.wbox(rail, f, u + s * w / 2, y, d, 0.03 * M, hh, 0.45 * M, { skip: F.BOTTOM });
+  for (const dz of [-0.16, 0, 0.16]) g.wbox(rail, f, u, y + hh, d + dz * M, w, 0.025 * M, 0.025 * M);
+  const n = 2 + Math.floor(r * 3);
+  for (let k = 0; k < n; k++) {
+    const q = (r * 7.31 + k * 0.618) % 1;
+    const cw = (0.3 + q * 0.35) * M, ch = (0.35 + ((q * 3.7) % 1) * 0.35) * M;
+    const cu = u - w / 2 + (w * (k + 0.5)) / n;
+    g.wbox(CLOTH[Math.floor(q * CLOTH.length) % CLOTH.length], f, cu, y + hh - ch, d + (k % 2 ? 0.16 : -0.16) * M, cw, ch, 0.02 * M);
+  }
+}
+
 // Kragbalkon vor der Wand: Bodenplatte + Geländer (vorne + Seiten)
 export function balcony(g, f, u, yFloor, w, dep, o = {}) {
   if (g.detail === 0) return;
@@ -244,6 +267,8 @@ export function balcony(g, f, u, yFloor, w, dep, o = {}) {
       } else g.box(rail, x, yFloor, z, rt, rh, dep - rt, { ry: f.ry, skip: NB });
     }
   }
+  // Wäscheständer auf manchen Balkonen (Nahsicht; Zufall aus der Lage, damit andere Detailstufen gleich bleiben)
+  if (g.detail >= 2 && dep > 0.9 * M && w > 1.6 * M && o.laundry !== false && hashLoc(f, u, yFloor) < (o.laundryP ?? 0.22)) laundry(g, f, u - w * 0.12, yFloor, Math.min(w * 0.55, 1.6 * M), dep * 0.5, hashLoc(f, u + 1, yFloor));
   if (o.plants && g.detail >= 2) {
     const [x, , z] = W(f, u + w / 2 - 0.35 * M, 0, dep * 0.45);
     g.box('wood_dark', x, yFloor, z, 0.4 * M, 0.35 * M, 0.4 * M, { skip: NB });
