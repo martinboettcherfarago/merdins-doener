@@ -345,6 +345,17 @@ if (outlets.length && S0 && S0.sewageCap - outlets.length * BUILDINGS.sewage_out
   while (g.time % DAY < 10.5 * 60 || g.time % DAY > 10.6 * 60) g.update(0.1);
 }
 
+// Leerstehende Häuser abreißen – auf den Grundstücken wird neu gebaut (sonst warnt der Berater beim Laden)
+for (let k = 0; k < 3; k++) {
+  const empty = [...g.buildings.values()].filter((b) => b.zone && b.abandoned);
+  if (!empty.length) break;
+  for (const b of empty) g.bulldoze([b.y * g.W + b.x]);
+  log(`${empty.length} leerstehende Gebäude abgerissen`);
+  runDay(g);
+  while (g.time % DAY < 10.5 * 60 || g.time % DAY > 10.6 * 60) g.update(0.1);
+}
+log(`leer ${g.stats.abandoned || 0} · Müll ${g.stats.garbageProb || 0} · ohne Strom ${g.stats.unpowered || 0} · ohne Wasser ${g.stats.unwatered || 0}`);
+
 // Abdeckung erst nach ein paar Stunden Betrieb messen (Haltestellen gelten ab dem ersten Takt als bedient)
 const cov = covLog();
 
@@ -353,6 +364,9 @@ g.money = 25_000_000;
 g.loans = [];
 g.pendingCards = null; g.pendingEvent = null;
 g.speed = 1;
+
+// letzte Leerstände direkt vor dem Speichern räumen (die Grundstücke bebaut das Spiel beim Weiterspielen neu)
+{ const empty = [...g.buildings.values()].filter((b) => b.zone && b.abandoned); for (const b of empty) g.bulldoze([b.y * g.W + b.x]); if (empty.length) log(`${empty.length} leerstehende Gebäude zuletzt abgerissen`); }
 
 const lv = {};
 for (const b of g.buildings.values()) if (b.zone) lv[b.level] = (lv[b.level] || 0) + 1;
