@@ -138,7 +138,12 @@ async function startGame(ctxOpts) {
 
 const st = (page) => page.evaluate(() => window.__T.st());
 const scr = (page, x, y) => page.evaluate(([x, y]) => window.__T.scr(x, y), [x, y]);
-const setTool = (page, tool) => page.evaluate((t) => window.__stadtpuls.input.setTool(t), tool);
+// Werkzeug setzen und warten, bis die Untergrund-Ansicht eingeblendet ist (die Vorschau liegt dann auf der Tunnelebene)
+const setTool = async (page, tool) => {
+  await page.evaluate((t) => window.__stadtpuls.input.setTool(t), tool);
+  await page.waitForFunction(() => { const u = window.__stadtpuls.engine.underground; return !u || !u.on || u.kv >= 0.999; }, null, { timeout: 15000 }).catch(() => {});
+};
+const frames = (page, n = 2) => page.evaluate((n) => new Promise((r) => { const f = () => (n-- > 0 ? requestAnimationFrame(f) : r()); f(); }), n);
 const pause = (page, ms = 250) => page.waitForTimeout(ms);
 const shot = async (page, name) => { if (shotDir) await page.screenshot({ path: join(shotDir, name + '.png') }); };
 
@@ -172,6 +177,7 @@ const tapAt = async (page, p) => {
 };
 const tapTile = async (page, x, y, dx = 0, dy = 0) => { const p = await scr(page, x, y); await tapAt(page, { x: p.x + dx, y: p.y + dy }); };
 async function tapBar(page, which) {
+  await frames(page); // Leiste hat sich nach der letzten Änderung neu ausgerichtet
   const s = await st(page);
   const r = s[which];
   if (!r) throw new Error(`Knopf ${which} nicht sichtbar`);

@@ -9,7 +9,7 @@
 // --r-pill, --f-ui) – jeweils mit Rückfallwert, falls sie (noch) fehlen.
 //
 // Schnittstelle für input.js:
-//   bar.show(st)  st = { title, sub, warn, ok, okLabel, price, reason, rotate, undo, ring: 'close' | 'open' | null }
+//   bar.show(st)  st = { title, sub, warn, ok, okLabel, price, reason, rotate, undo, undoOff, ring: 'close' | 'open' | null }
 //   bar.hide()
 //   input.pendScreen() → { box: {x0, y0, x1, y1}, handles: [{x, y, kind: 's'|'e'|'m', on}], finger: {x, y} | null,
 //                          draw?: { lines: [{pts, color, w, op, dash, halo}], dots: [{x, y, r, fill, stroke, sw, dash, glow}] },
@@ -61,6 +61,7 @@ const STYLE = `
 }
 .placebar .pb-k:active { transform: translateY(2px); box-shadow: var(--p-soft, inset 0 -1px 0 rgba(76, 38, 160, 0.16)); }
 .placebar .pb-k[hidden] { display: none; }
+.placebar .pb-k:disabled { opacity: 0.4; cursor: default; transform: none; }
 .placebar .pb-x { background: var(--m-violet, var(--pb-accent)); color: #fff; box-shadow: var(--e-violet, inset 0 -3px 0 rgba(0, 0, 0, 0.22)); }
 .placebar .pb-x svg { filter: drop-shadow(0 1px 0 rgba(28, 6, 78, 0.5)); }
 .placebar .pb-x:active { box-shadow: var(--p-violet, 0 1px 0 var(--accent-edge, #3a1a80)); }
@@ -194,6 +195,7 @@ export class PlaceBar {
     q.ok.setAttribute('aria-label', `${st.okLabel || 'Bauen'}${st.price ? ' für ' + st.price : ''}${!st.ok && st.reason ? ' – gesperrt: ' + st.reason : ''}`);
     q.rot.hidden = !st.rotate;
     q.undo.hidden = !st.undo;
+    q.undo.disabled = !!st.undoOff; // Linienentwurf: Knopf bleibt stehen (gesperrt), damit die Leiste nicht springt
     q.ring.hidden = !st.ring;
     if (st.ring) {
       const lab = st.ring === 'open' ? 'Ring öffnen' : 'Ring schließen';

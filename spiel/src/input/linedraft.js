@@ -313,7 +313,7 @@ export class LineDraft {
     const quiet = pl.reason === 'Keine Änderung' || (pl.reason === 'Mindestens 2 Stationen' && n < 2);
     return {
       title: this.name() || (this.line ? 'Linie' : 'Neue Linie'), sub, ok: pl.ok, reason: quiet ? '' : pl.reason,
-      okLabel: 'Bauen', price: pl.cost > 0 && (this.line ? pl.changed : n >= 2) ? fmtMoney(pl.cost) : '', undo: this.hist.length > 0,
+      okLabel: 'Bauen', price: pl.cost > 0 && (this.line ? pl.changed : n >= 2) ? fmtMoney(pl.cost) : '', undo: true, undoOff: !this.hist.length,
       ring: n >= 3 ? (this.loop ? 'open' : 'close') : null,
     };
   }
