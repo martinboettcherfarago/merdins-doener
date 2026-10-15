@@ -1434,7 +1434,7 @@ export class RoadView {
     const p = place(...posFn(s));
     if (zn === Z.COM || zn === Z.OFF) {
       if (r < 0.2) this.put(ctx, 'bench', ...p, face);
-      else if (r < 0.34) this.put(ctx, 'bikeRack', ...p, face + Math.PI / 2);
+      else if (r < 0.34) this.put(ctx, hash2(x, y, 205 + side) < 0.5 ? 'bikeRackB' : 'bikeRack', ...p, face + Math.PI / 2);
       else if (r < 0.46) this.put(ctx, 'bin', ...p, face);
       else if (r < 0.52) this.put(ctx, 'mailbox', ...p, face);
     } else if (zn === Z.RES) {

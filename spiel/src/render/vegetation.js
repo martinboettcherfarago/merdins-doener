@@ -539,6 +539,16 @@ function makeVegMaterial(u, variant = 'solid', lod = 0) {
     }
     col *= rb.rgb + 0.5;
     g7Hgt = rb.a * 0.35;
+    if (k < 0.5) {
+      // Borke: senkrechte Furchen (gestreckte Rauschtextur), dunkle Rillen, etwas Moos am Stammfuß
+      vec3 an = normalize(vec3(wn.x, 0.0, wn.z) + 1e-4);
+      float ang = atan(an.z, an.x);
+      float fur = texture2D(tNoise, vec2(ang * 0.95493 + vSeed * 5.0, vWP.y * 2.2)).r; // 6 Furchen-Perioden je Umlauf (nahtlos)
+      fur = smoothstep(0.35, 0.7, fur);
+      col *= mix(0.62, 1.08, fur);
+      col = mix(col, g7lin(vec3(0.33, 0.4, 0.2)) * (0.6 + 0.4 * rb.a), (1.0 - smoothstep(0.02, 0.09, vH)) * 0.35 * (1.0 - uSnowK));
+      g7Hgt = rb.a * 0.2 + fur * 0.5;
+    }
     g7Rough = 0.95;
   } else if (abs(k - 3.0) < 0.5) {
     vec4 r1 = texture2D(tRock, vWP.zy * 1.4) * bw.x + texture2D(tRock, vWP.xz * 1.4) * bw.y + texture2D(tRock, vWP.xy * 1.4) * bw.z;

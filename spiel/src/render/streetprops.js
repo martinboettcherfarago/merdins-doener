@@ -795,8 +795,10 @@ export function streetLamp(ctx, x, y, z, yaw, opts = {}) {
   const b = ctx.solid.at(x, y, z, yaw);
   const H = opts.h || 0.62, arm = opts.arm ?? 0.11;
   b.m('metal_dark');
-  b.cyl(0, 0, 0, 0.016, 0.014, 0.05, 6, 1);
-  b.cyl(0, 0.05, 0, 0.011, 0.007, H - 0.05, 6, 0);
+  b.cyl(0, 0, 0, 0.019, 0.017, 0.006, 8, 1);               // Fußplatte
+  b.cyl(0, 0.006, 0, 0.016, 0.014, 0.044, 8, 1);
+  b.box(0, 0.016, 0.0145, 0.008, 0.02, 0.002);             // Wartungsklappe
+  b.cyl(0, 0.05, 0, 0.011, 0.007, H - 0.05, 8, 0);
   // gebogener Ausleger
   b.beam(0, H - 0.03, 0, 0, H + 0.01, arm * 0.45, 0.009);
   b.beam(0, H + 0.01, arm * 0.45, 0, H + 0.012, arm, 0.008);
@@ -1001,17 +1003,21 @@ export function shrub(ctx, x, y, z, r, seed) {
   b.blob(0, r * 0.55, 0, r, r * 0.6, r, Math.floor(seed * 997), 0);
 }
 
-// Parkbank (Blick nach lokal +z)
+// Parkbank (Blick nach lokal +z): Gusseisen-Wangen mit Armlehnen, Sitz aus drei Latten, zwei Lehnenlatten
 export function bench(ctx, x, y, z, yaw) {
   const b = ctx.detail.at(x, y, z, yaw);
   b.m('metal_dark');
-  for (const sx of [-0.06, 0.06]) { b.box(sx, 0, 0, 0.006, 0.042, 0.04); }
+  for (const sx of [-0.066, 0.066]) {
+    b.box(sx, 0, 0.012, 0.006, 0.04, 0.006);                 // Vorderbein
+    b.box(sx, 0, -0.014, 0.006, 0.04, 0.006);                // Hinterbein
+    b.beam(sx, 0.04, -0.016, sx, 0.084, -0.025, 0.005);      // Lehnenstütze
+    b.beam(sx, 0.042, 0.016, sx, 0.06, 0.012, 0.005);        // Armlehnen-Stütze
+    b.beam(sx, 0.061, 0.016, sx, 0.061, -0.016, 0.006, 0.004); // Armlehne
+  }
   b.m('wood_planks');
-  b.box(0, 0.042, 0.004, 0.15, 0.006, 0.036);
-  b.beam(-0.075, 0.056, -0.018, 0.075, 0.056, -0.018, 0.008, 0.012);
-  b.beam(-0.075, 0.074, -0.022, 0.075, 0.074, -0.022, 0.008, 0.012);
-  b.m('metal_dark');
-  for (const sx of [-0.06, 0.06]) b.beam(sx, 0.042, -0.016, sx, 0.084, -0.024, 0.005);
+  for (const dz of [-0.01, 0.003, 0.016]) b.box(0, 0.04, dz, 0.15, 0.006, 0.0105);
+  b.beam(-0.075, 0.058, -0.019, 0.075, 0.058, -0.019, 0.007, 0.011);
+  b.beam(-0.075, 0.075, -0.023, 0.075, 0.075, -0.023, 0.007, 0.011);
 }
 
 export function bin(ctx, x, y, z, yaw, color = 'paint_orange') {
@@ -1045,14 +1051,42 @@ export function mailbox(ctx, x, y, z, yaw) {
   b.box(0, 0.082, 0.0135, 0.022, 0.003, 0.002);
 }
 
-export function bikeRack(ctx, x, y, z, yaw, n = 4) {
+export function bikeRack(ctx, x, y, z, yaw, n = 4, bikes = 0) {
   const b = ctx.detail.at(x, y, z, yaw).m('metal_light');
   for (let k = 0; k < n; k++) {
     const ox = (k - (n - 1) / 2) * 0.035;
-    b.beam(ox, 0, -0.018, ox, 0.032, -0.018, 0.004);
-    b.beam(ox, 0, 0.018, ox, 0.032, 0.018, 0.004);
-    b.beam(ox, 0.032, -0.018, ox, 0.032, 0.018, 0.004);
+    b.beam(ox, 0, -0.018, ox, 0.026, -0.018, 0.004);
+    b.beam(ox, 0, 0.018, ox, 0.026, 0.018, 0.004);
+    b.beam(ox, 0.026, -0.018, ox, 0.032, -0.012, 0.004);
+    b.beam(ox, 0.026, 0.018, ox, 0.032, 0.012, 0.004);
+    b.beam(ox, 0.032, -0.012, ox, 0.032, 0.012, 0.004);
   }
+  // abgestellte Fahrräder (schlichte Silhouetten aus Reifen-Ringen und Rahmen)
+  for (let k = 0; k < bikes; k++) {
+    const ox = ((k * 2) - (n - 1) / 2) * 0.035 + 0.008;
+    parkedBike(b, ox, k % 2 ? 'paint_blue' : 'paint_red');
+  }
+}
+function parkedBike(b, ox, paint) {
+  const r = 0.031, wb = 0.052;
+  b.m('trim_dark');
+  for (const zc of [-wb, wb]) {
+    // Reifen als Achteck aus Balken
+    for (let i = 0; i < 8; i++) {
+      const a0 = (i / 8) * Math.PI * 2, a1 = ((i + 1) / 8) * Math.PI * 2;
+      b.beam(ox, r + Math.cos(a0) * r, zc + Math.sin(a0) * r, ox, r + Math.cos(a1) * r, zc + Math.sin(a1) * r, 0.0035, 0.0035);
+    }
+  }
+  b.m(paint);
+  b.beam(ox, 0.03, 0.0, ox, r, -wb, 0.003);
+  b.beam(ox, 0.03, 0.0, ox, 0.07, -0.012, 0.0035);
+  b.beam(ox, 0.07, -0.012, ox, 0.072, 0.036, 0.0033);
+  b.beam(ox, 0.03, 0.0, ox, 0.068, 0.038, 0.0038);
+  b.beam(ox, 0.07, 0.04, ox, r, wb, 0.003);
+  b.beam(ox, r, -wb, ox, 0.07, -0.012, 0.0028);
+  b.m('trim_dark');
+  b.box(ox, 0.076, -0.016, 0.009, 0.004, 0.02);
+  b.beam(ox - 0.017, 0.082, 0.038, ox + 0.017, 0.082, 0.038, 0.0032);
 }
 
 export function bollard(ctx, x, y, z) {
@@ -1247,6 +1281,7 @@ export const PROTOS = {
   hydrant: { build: (c) => hydrant(c, 0, 0, 0), detail: true },
   mailbox: { build: (c) => mailbox(c, 0, 0, 0, 0), detail: true },
   bikeRack: { build: (c) => bikeRack(c, 0, 0, 0, 0, 4), detail: true },
+  bikeRackB: { build: (c) => bikeRack(c, 0, 0, 0, 0, 4, 2), detail: true },
   bollard: { build: (c) => bollard(c, 0, 0, 0), detail: true },
   planter: { build: (c) => planter(c, 0, 0, 0, 0.7), detail: true, shadow: true },
   car: { build: (c) => parkedCar(c, 0, 0, 0, 0, 0.05, true), detail: true, shadow: true, colored: true },
