@@ -1,5 +1,6 @@
 // Baut die Vorzeigestadt „Megastadt" als Spielstand (saves/megastadt.json): größte Karte, dicht bebaut, alle Wahrzeichen,
 // Hauptbahnhof, Flughafen, viele U-Bahn-, Bus- und Straßenbahnlinien, volle Versorgung und hohe Einnahmen.
+// Am Ende deckt ein Busnetz alle Viertel ab, die keine U-Bahn-Station oder Haltestelle in Gehweite haben.
 // Aufruf: node tools/megastadt.mjs [tage=260] [karte=river] [saat=11] [--out saves/megastadt.json]
 // Der Bot aus den Prüfständen spielt wie ein Mensch; hier bekommt er unbegrenzt Geld und Szenario-Ziele (Fahrgäste,
 // Pendelzeit, Tourismus, Wahrzeichen, Parks, Bildung, Glück), damit er alles ausbaut, was das Spiel hergibt.
@@ -10,6 +11,7 @@ import { BUILDINGS, R, T as TER, DAY } from '../src/config.js';
 import { computeUtilities } from '../src/sim/services.js';
 import * as TPS from '../src/sim/systems/transport.js';
 import { Bot, runDay, seedMathRandom } from '../test/bot.mjs';
+import { planBusCoverage, coverageReport } from './oepnv-lib.mjs';
 
 const argv = process.argv.slice(2);
 const flag = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d; };
@@ -216,6 +218,19 @@ function trams() {
   else if (r) log(`Straßenbahn nicht möglich: ${r.msg}`);
 }
 
+// Busnetz für die ganze Stadt: Linien durch alle Viertel ohne U-Bahn- oder Bushalt in Gehweite, Busdepots nach Bedarf
+function busCoverage() {
+  if (!g.isUnlocked('bus_depot') || !g.ext.transport) return 0;
+  const n = planBusCoverage(g, {
+    canStop: TPS.canStop, createLine: TPS.createLine, setVehicles: TPS.setVehicles, setVehicleType: TPS.setVehicleType,
+    placeDepot: (x, y) => { const ok = bot.placeNear('bus_depot', x, y, 24); if (ok) log('baut Busdepot'); return ok; },
+    log,
+  });
+  if (n) log(`${n} Buslinien für die Abdeckung`);
+  return n;
+}
+const covLog = () => { const r = coverageReport(g); log(`ÖPNV-Abdeckung: Bewohner ${(r.res * 100).toFixed(1)} % · Arbeitsplätze ${(r.jobs * 100).toFixed(1)} % · ohne Anschluss ${r.uncovered}/${r.total} Gebäude`); return r; };
+
 const t0 = Date.now();
 for (let d = 1; d <= days; d++) {
   bot.daily();
@@ -243,9 +258,16 @@ for (let d = 1; d <= days; d++) {
 }
 landmarks();
 metroGrid();
+runDay(g);
+busCoverage();
 
 // Bis in den Sommer weiterleben lassen (schöne Ansicht beim Laden), dann auf 10:30 Uhr vorspulen
-for (let k = 0; k < 120 && !(g.ext.weather && g.ext.weather.season === 'summer' && g.ext.weather.seasonT > 0.25); k++) { bot.daily(); runDay(g); if (g.money < RICH / 2) g.money = RICH; }
+for (let k = 0; k < 120 && !(g.ext.weather && g.ext.weather.season === 'summer' && g.ext.weather.seasonT > 0.25); k++) {
+  bot.daily(); runDay(g); if (g.money < RICH / 2) g.money = RICH;
+  // neu gewachsene Viertel gleich mit anbinden
+  if (k % 10 === 9) busCoverage();
+}
+busCoverage();
 const target = Math.floor(g.time / DAY) * DAY + DAY + 10.5 * 60;
 while (g.time < target) g.update(0.1);
 
@@ -258,6 +280,9 @@ if (outlets.length && S0 && S0.sewageCap - outlets.length * BUILDINGS.sewage_out
   for (let k = 0; k < 2; k++) runDay(g);
   while (g.time % DAY < 10.5 * 60 || g.time % DAY > 10.6 * 60) g.update(0.1);
 }
+
+// Abdeckung erst nach ein paar Stunden Betrieb messen (Haltestellen gelten ab dem ersten Takt als bedient)
+const cov = covLog();
 
 // Kasse: viel Geld, Einnahmen echt aus Steuern; keine offenen Dialoge
 g.money = 25_000_000;
@@ -280,5 +305,5 @@ if (Array.isArray(data.news)) data.news = data.news.filter((n) => !/überfüllt/
 const txt = JSON.stringify(data);
 mkdirSync(dirname(out), { recursive: true });
 writeFileSync(out, txt);
-console.log(`\nMegastadt: ${g.stats.pop} Einwohner · ${g.buildings.size} Gebäude · Stufen ${JSON.stringify(lv)} · U-Bahn ${T.lines.length} Linien / ${T.trains.length} Züge / ${T.stations.size} Stationen · Bus/Tram ${(g.ext.transport?.lines || []).length} Linien · Glück ${Math.round(g.stats.happiness)} · Saldo ${Math.round(g.budget().net)} €/Tag · Tag ${g.day()} ${g.ext.weather?.season}`);
+console.log(`\nMegastadt: ${g.stats.pop} Einwohner · ${g.buildings.size} Gebäude · Stufen ${JSON.stringify(lv)} · U-Bahn ${T.lines.length} Linien / ${T.trains.length} Züge / ${T.stations.size} Stationen · Bus/Tram ${(g.ext.transport?.lines || []).length} Linien · ÖPNV-Abdeckung ${(cov.res * 100).toFixed(1)} % Bewohner / ${(cov.jobs * 100).toFixed(1)} % Arbeitsplätze · Glück ${Math.round(g.stats.happiness)} · Saldo ${Math.round(g.budget().net)} €/Tag · Tag ${g.day()} ${g.ext.weather?.season}`);
 console.log(`Gespeichert: ${out} (${(txt.length / 1e6).toFixed(2)} MB) · ${((Date.now() - t0) / 1000).toFixed(0)} s`);
