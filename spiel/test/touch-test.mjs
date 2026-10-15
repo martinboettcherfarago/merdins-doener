@@ -68,11 +68,16 @@ async function startGame(ctxOpts, settings = {}) {
   await page.goto(`http://localhost:${port}/index.html`);
   await page.waitForSelector('[data-act=start]', { timeout: 90000 });
   await page.waitForTimeout(400);
-  await page.evaluate(() => {
+  // SEED=<zahl> legt die Karte fest (zum Nachstellen einer roten Karte), sonst Zufall
+  const usedSeed = await page.evaluate((seed) => {
     const mr = document.getElementById('modal-root'); if (mr) mr.innerHTML = '';
     const b = document.querySelector('[data-act=diff][data-v=sandbox]'); if (b) b.click();
+    const opts = window.__stadtpuls.menu && window.__stadtpuls.menu.opts;
+    if (seed && opts) opts.seed = seed;
     document.querySelector('[data-act=start]').click();
-  });
+    return opts ? opts.seed : null;
+  }, +(process.env.SEED || 0));
+  console.log('Karte', usedSeed);
   await page.waitForFunction(() => window.__stadtpuls && window.__stadtpuls.game && window.__stadtpuls.engine && window.__stadtpuls.input, null, { timeout: 120000 });
   await page.waitForTimeout(800);
   // Freie Fläche suchen, Straße anlegen, Kamera fest darauf richten; Hilfsfunktionen für das Skript
@@ -87,7 +92,8 @@ async function startGame(ctxOpts, settings = {}) {
       if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
       const x0 = cx + dx, y0 = cy + dy;
       let ok = true;
-      for (let y = y0; y < y0 + 12 && ok; y++) for (let x = x0; x < x0 + 10 && ok; x++) if (!free(x, y)) ok = false;
+      // zwei Reihen Rand oben: die U-Bahn-Planungsebene trifft beim Tippen teils eine Reihe darüber
+      for (let y = y0 - 2; y < y0 + 12 && ok; y++) for (let x = x0; x < x0 + 10 && ok; x++) if (!free(x, y)) ok = false;
       if (ok) { bx = x0; by = y0; break outer; }
     }
     const ry = by + 5;
