@@ -518,6 +518,47 @@ class Sitters {
   }
 }
 
+// ---------------------------------------------------------------- Abgestellte Fahrräder an Fahrradständern (nur in der Nähe)
+// Die Ständer sind stadtweit instanziert; die Räder darin zeichnet diese Ansicht nur um die Kamera (keine Kosten im Überblick).
+class ParkedBikes {
+  constructor(view) { this.v = view; this.g = view.g; this.e = view.e; this.list = []; this.timer = 0; this.tmp = []; }
+  update(dt, ctx) {
+    this.timer -= dt;
+    if (this.timer > 0) return;
+    this.timer = 1.5;
+    this.list.length = 0;
+    const roads = this.e.roads;
+    if (!roads || !roads.benchesNear || ctx.dist > 40) return;
+    const g = this.g, h = g.hour();
+    const busy = 0.25 + 0.75 * Math.min(1, gauss(h, 13, 4.5) * 1.2);
+    const period = Math.floor(g.time / 120);
+    const racks = roads.benchesNear(ctx.cx, ctx.cz, Math.min(ctx.radius, 18), this.tmp, 'rack');
+    for (let i = 0; i < racks.length; i += 4) {
+      const x = racks[i], y = racks[i + 1], z = racks[i + 2], yaw = racks[i + 3];
+      const bk = (Math.round(x * 50) * 73856093) ^ (Math.round(z * 50) * 19349663);
+      for (let k = 0; k < 4; k++) {
+        const r = hashf((bk & 0xfffff) * 0.0137 + k * 7.1 + period * 3.3);
+        if (r > busy * 0.55) continue;
+        const ox = (k - 1.5) * 0.035;
+        const c = Math.cos(yaw), sn = Math.sin(yaw);
+        const sd = hashf(r * 911 + k);
+        this.list.push({ x: x + ox * c + (sd - 0.5) * 0.01 * sn, y, z: z - ox * sn + (sd - 0.5) * 0.01 * c, yaw: yaw + (sd < 0.5 ? Math.PI : 0) + (sd - 0.5) * 0.08, seed: sd });
+      }
+    }
+  }
+  draw(ctx, bikes) {
+    for (const p of this.list) {
+      const ex = p.x - ctx.cam.x, ey = p.y - ctx.cam.y, ez = p.z - ctx.cam.z;
+      const d2 = ex * ex + ey * ey + ez * ez;
+      if (d2 > ctx.midNear2) continue;
+      ctx.sph.center.set(p.x, p.y + 0.05, p.z);
+      if (!ctx.frustum.intersectsSphere(ctx.sph)) continue;
+      _c.setHex(BIKES[Math.floor(p.seed * 557) % BIKES.length]);
+      (d2 < ctx.near2 ? bikes.near : bikes.mid).push(p.x, p.y, p.z, p.yaw, 0, 0, 1, 1, 1, _c.r, _c.g, _c.b, p.seed * 6.28, 0, p.seed, 0);
+    }
+  }
+}
+
 // ---------------------------------------------------------------- Bauarbeiter auf Baustellen (tagsüber, werktags)
 // Zwei bis drei Leute vor dem Gerüst: einer hämmert, einer schaut zu, manchmal geht einer auf und ab.
 class Workers {
@@ -1016,6 +1057,7 @@ class LifeView {
     this.bikes = new Cyclists(this);
     this.sitters = new Sitters(this);
     this.workers = new Workers(this);
+    this.parked = new ParkedBikes(this);
     this.birds = new Birds(this);
     this.boats = new Boats(this);
     this.sky = new Sky(this);
@@ -1126,7 +1168,7 @@ class LifeView {
     const weather = 1 - Math.min(0.7, rain * 0.6) - (cold ? 0.15 : 0);
     const ctx = this.ctx;
     Object.assign(ctx, {
-      cx, cz, radius, total, rain, night, cold, wearFeat: wearOf(w, h), cand: this.cand, frustum: this.frustum, sph: this.sph, cam: this.cam, glow: this.glow,
+      cx, cz, radius, dist, total, rain, night, cold, wearFeat: wearOf(w, h), cand: this.cand, frustum: this.frustum, sph: this.sph, cam: this.cam, glow: this.glow,
       pedTarget: Math.min(this.peds.max, total * 0.22 * vis * weather * q),
       bikeTarget: Math.min(this.bikes.max, (total * 0.004 + 2) * vis * (g.policies && g.policies.has('bikes') ? 2.2 : 1) * (1 - rain) * (cold ? 0.3 : 1) * (night > 0.6 ? 0.25 : 1) * q),
       birdTarget: night > 0.5 || dist > 110 ? 0 : Math.round((2 + (w && w.season === 'winter' ? -1 : w && w.season === 'spring' ? 2 : 1)) * (1 - rain * 0.8)),
@@ -1144,6 +1186,7 @@ class LifeView {
     this.bikes.update(ldt, ctx);
     this.sitters.update(ldt, ctx);
     this.workers.update(ldt, ctx);
+    this.parked.update(dt, ctx);
     this.birds.update(ldt, ctx);
     this.boats.update(ldt, ctx);
     this.sky.update(ldt, ctx);
@@ -1154,6 +1197,7 @@ class LifeView {
     this.peds.begin(); this.bikes.begin();
     this.peds.draw(ctx);
     this.bikes.draw(ctx, this.peds);
+    this.parked.draw(ctx, this.bikes);
     this.sitters.draw(ctx, this.peds);
     this.workers.draw(ctx, this.peds);
     this.peds.finish(); this.bikes.finish();

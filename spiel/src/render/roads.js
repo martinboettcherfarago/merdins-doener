@@ -116,7 +116,7 @@ export class RoadView {
     this.nCx = Math.ceil(g.W / CHUNK);
     this.nCy = Math.ceil(g.H / CHUNK);
     this.chunks = new Array(this.nCx * this.nCy).fill(null);
-    this.benchChunks = new Map(); // Block → [x, y, z, yaw, …] der Straßenbänke (Sitzende in views/life.js)
+    this.benchChunks = new Map(); // Block → { bench, rack: [x, y, z, yaw, …] } – Sitzende und abgestellte Räder in views/life.js
     this.sig = new Uint32Array(g.N);
     this.mask = new Uint8Array(g.N);
     this.jclass = new Uint8Array(g.N);
@@ -407,16 +407,17 @@ export class RoadView {
     }
     if (!any) { this.props.setChunk(k, null); this.benchChunks.delete(k); return; }
     this.chunks[k] = this.finishCtx(ctx);
-    if (ctx.benches.length) this.benchChunks.set(k, ctx.benches); else this.benchChunks.delete(k);
+    if (ctx.benches.length || ctx.racks.length) this.benchChunks.set(k, { bench: ctx.benches, rack: ctx.racks }); else this.benchChunks.delete(k);
     this.benchVersion = (this.benchVersion || 0) + 1;
     this.props.setChunk(k, ctx.inst);
   }
 
-  // Straßenbänke im Umkreis (Weltkoordinaten): out = [x, y, z, yaw, …]
-  benchesNear(cx, cz, r, out = []) {
+  // Straßenbänke (kind 'bench') bzw. Fahrradständer ('rack') im Umkreis (Weltkoordinaten): out = [x, y, z, yaw, …]
+  benchesNear(cx, cz, r, out = [], kind = 'bench') {
     out.length = 0;
     const r2 = r * r;
-    for (const list of this.benchChunks.values()) {
+    for (const e of this.benchChunks.values()) {
+      const list = e[kind];
       for (let i = 0; i < list.length; i += 4) {
         const dx = list[i] - cx, dz = list[i + 2] - cz;
         if (dx * dx + dz * dz <= r2) out.push(list[i], list[i + 1], list[i + 2], list[i + 3]);
@@ -427,7 +428,7 @@ export class RoadView {
 
   newCtx() {
     const L = { solid: new Layer('solid', true), detail: new Layer('solid'), paint: new Layer('paint', true), glow: new Layer('glow', true), light: new Layer('light'), tint: new Layer('tint', true) };
-    return { L, solid: new Brush(L.solid), detail: new Brush(L.detail), paint: new Brush(L.paint), glow: new Brush(L.glow), light: L.light, lamps: [], tintTiles: [], signals: [], inst: new InstanceList(), benches: [] };
+    return { L, solid: new Brush(L.solid), detail: new Brush(L.detail), paint: new Brush(L.paint), glow: new Brush(L.glow), light: L.light, lamps: [], tintTiles: [], signals: [], inst: new InstanceList(), benches: [], racks: [] };
   }
 
   finishCtx(ctx) {
@@ -1247,6 +1248,7 @@ export class RoadView {
   put(ctx, kind, x, y, z, yaw = 0, s = 1, o = {}) {
     const k = this.props.meta(kind);
     if (kind === 'bench' && ctx.benches) ctx.benches.push(x, y, z, yaw);
+    else if (kind === 'bikeRack' && ctx.racks) ctx.racks.push(x, y, z, yaw);
     ctx.inst.add(kind, x, y, z, yaw, s, s, s, o.phase || 0, o.axis || 0, o.col || null);
     const c = Math.cos(yaw), sn = Math.sin(yaw);
     const Wp = (lx, ly, lz) => [x + (lx * c + lz * sn) * s, y + ly * s, z + (-lx * sn + lz * c) * s];
@@ -1434,7 +1436,7 @@ export class RoadView {
     const p = place(...posFn(s));
     if (zn === Z.COM || zn === Z.OFF) {
       if (r < 0.2) this.put(ctx, 'bench', ...p, face);
-      else if (r < 0.34) this.put(ctx, hash2(x, y, 205 + side) < 0.5 ? 'bikeRackB' : 'bikeRack', ...p, face + Math.PI / 2);
+      else if (r < 0.34) this.put(ctx, 'bikeRack', ...p, face + Math.PI / 2);
       else if (r < 0.46) this.put(ctx, 'bin', ...p, face);
       else if (r < 0.52) this.put(ctx, 'mailbox', ...p, face);
     } else if (zn === Z.RES) {
