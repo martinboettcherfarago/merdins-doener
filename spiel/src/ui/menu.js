@@ -23,6 +23,13 @@ const MAP_ART = {
 
 let booted = false;
 
+// Eingebaute Vorzeigestadt (siehe build.mjs): erscheint als Spielstand in der Liste, bis man sie herausnimmt
+const MEGA = typeof __MEGASTADT__ !== 'undefined' ? __MEGASTADT__ : null;
+const MEGA_OFF = 'stadtpuls.megastadt.aus';
+const megaShown = () => { if (!MEGA) return false; try { return localStorage.getItem(MEGA_OFF) !== '1'; } catch (e) { return true; } };
+// liegt neben der Seite: saves/megastadt.json (Netlify: /spiel/saves/…, Artifact: als Begleitdatei veröffentlicht)
+const megaUrl = () => { const sc = document.querySelector('script[src*="stadtpuls.js"]'); return new URL(sc ? '../saves/megastadt.json' : 'saves/megastadt.json', sc ? sc.src : document.baseURI).href; };
+
 export class Menu {
   constructor(app) {
     this.app = app;
@@ -56,6 +63,7 @@ export class Menu {
     const app = this.app;
     const auto = app.slotMeta('auto');
     const slots = [1, 2, 3].map((k) => [k, app.slotMeta(k)]).filter(([, m]) => m);
+    const mega = megaShown() ? `<div class="slot mega"><span class="sn">${icon('city', 14, 2.2)}</span><div class="grow"><div class="t">${esc(MEGA.name)}</div><div class="s">${fmt(MEGA.pop)} Einwohner · Tag ${MEGA.day}</div></div><button class="btn small ghost" data-act="mega" data-tip="${esc(MEGA.name)} laden">Laden</button><button class="btn small ghost mega-x" data-act="megaoff" data-tip="Aus der Liste nehmen" aria-label="Aus der Liste nehmen">${icon('close', 14, 2.4)}</button></div>` : '';
     const o = this.opts;
     const mt = MAP_TYPES.find((m) => m.id === o.mapType) || MAP_TYPES[0];
     const df = DIFFICULTIES.find((d) => d.id === o.difficulty) || DIFFICULTIES[1];
@@ -71,7 +79,7 @@ export class Menu {
 <div class="menu${this.previewing ? ' previewing' : ''}${this._introDone ? '' : ' intro'}">
   <div class="side">
     <div class="brand">${logo(58)}<div><h1>Cityscapes</h1><div class="tag">Städtebau im Takt der U-Bahn</div></div></div>
-    ${auto ? `<div class="card continue"><div class="cc-line"></div><div class="cc-row"><div class="grow"><div class="eyebrow">Weiterspielen</div><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue" data-tip="Fortsetzen">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}" data-tip="Platz ${k} laden">Laden</button></div>`).join('')}</div>` : ''}</div>` : ''}
+    ${auto ? `<div class="card continue"><div class="cc-line"></div><div class="cc-row"><div class="grow"><div class="eyebrow">Weiterspielen</div><div class="cc-name">${esc(auto.name)}</div><div class="cc-sub">${fmt(auto.pop)} Einwohner · ${ago(auto.savedAt)}</div></div><button class="btn big go" data-act="continue" data-tip="Fortsetzen">${icon('play', 16, 2.4)} Fortsetzen</button></div>${slots.length ? `<div class="cc-slots">${slots.map(([k, m]) => `<div class="slot"><span class="sn num">${k}</span><div class="grow"><div class="t">${esc(m.name)}</div><div class="s">${fmt(m.pop)} Einwohner · ${new Date(m.savedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div></div><button class="btn small ghost" data-act="slot" data-k="${k}" data-tip="Platz ${k} laden">Laden</button></div>`).join('')}${mega}</div>` : mega ? `<div class="cc-slots">${mega}</div>` : ''}</div>` : mega ? `<div class="card saves"><div class="eyebrow">Spielstand</div><div class="cc-slots">${mega}</div></div>` : ''}
     ${modes ? `<div class="mtabs" role="tablist"><button role="tab" class="${tab === 'free' ? 'on' : ''}" data-act="mtab" data-v="free" data-tip="Freies Spiel">${icon('city', 16, 2.1)}<span>Freies Spiel</span></button><button role="tab" class="${tab === 'modes' ? 'on' : ''}" data-act="mtab" data-v="modes" data-tip="Herausforderungen" data-tip-desc="Szenarien und Metro-Modus.">${icon('trophy', 16, 2.1)}<span>Herausforderungen</span></button></div>` : ''}
     ${tab === 'free' ? `<div class="card newcity${this.formOpen ? '' : ' closed'}">
       <button class="nc-head" data-act="toggleform" aria-expanded="${this.formOpen}"><h3>Neue Stadt gründen</h3>${auto ? `<span class="nc-chev">${icon(this.formOpen ? 'chevronU' : 'chevronD', 18, 2.4)}</span>` : ''}</button>
@@ -126,6 +134,16 @@ export class Menu {
     }
     if (act === 'continue') { this.launch('Weiterspielen', 'Spielstand wird geladen …', () => this.app.loadSlot('auto')); return; }
     if (act === 'slot') { const k = +b.dataset.k; this.launch('Spielstand wird geladen', `Platz ${k}`, () => this.app.loadSlot(k)); return; }
+    if (act === 'mega') {
+      const app = this.app, prev = app.mode;
+      showLoader(`${MEGA.name} wird geladen`, `${fmt(MEGA.pop)} Einwohner`);
+      app.mode = 'loading'; // Menü-Stadt anhalten, solange der Stand geholt wird
+      // Einzelseite (Artifact): Stand liegt eingebettet in der Seite, sonst neben der Seite abrufen
+      const inl = document.getElementById('stadtpuls-megastadt');
+      painted().then(() => (inl ? app.loadData(inl.textContent) : app.loadUrl(megaUrl()))).then((ok) => { if (!ok && app.mode !== 'game') { app.mode = prev === 'loading' ? 'menu' : prev; hideLoader(); } });
+      return;
+    }
+    if (act === 'megaoff') { try { localStorage.setItem(MEGA_OFF, '1'); } catch (err) { /* egal */ } this.render(); return; }
     if (act === 'settings') { this.openSettings(); return; }
     if (act === 'keys') { this.openModal(keysHTML(), (ev, close) => { if (ev.target.closest('[data-act=ok]') || ev.target.classList.contains('backdrop')) close(); }); return; }
     if (act === 'toggleform') { if (!this.app.slotMeta('auto')) return; this.formOpen = !this.formOpen; this.render(); return; }

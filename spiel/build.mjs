@@ -9,8 +9,17 @@ const args = process.argv.slice(2);
 const watch = args.includes('--watch');
 const artIdx = args.indexOf('--artifact');
 
+// Eingebaute Vorzeigestadt (saves/megastadt.json): nur die Eckdaten für den Eintrag im Menü, der Stand selbst wird
+// erst beim Laden geholt
+let mega = null;
+try {
+  const d = JSON.parse(readFileSync(join(here, 'saves/megastadt.json'), 'utf8'));
+  mega = { name: d.name || 'Megastadt', pop: d.pop || 0, day: Math.floor((d.time || 0) / 1440) + 1 };
+} catch (e) { console.warn('saves/megastadt.json fehlt – kein Megastadt-Eintrag im Menü'); }
+
 const opts = {
   entryPoints: [join(here, 'src/main.js')],
+  define: { __MEGASTADT__: JSON.stringify(mega) },
   bundle: true,
   format: 'iife',
   target: ['es2020'],
@@ -43,7 +52,10 @@ if (watch) {
     // Schriften liegen lokal unter fonts/ (style.css) – ein Google-Fonts-Link ist optional
     const fonts = (html.match(/<link href="https:\/\/fonts\.googleapis\.com[^>]+>/) || [''])[0];
     const body = html.split('<body>')[1].split('</body>')[0].replace(/<script src="dist\/stadtpuls\.js"><\/script>/, '');
-    const page = `<title>Cityscapes</title>\n<meta name="description" content="3D-Städtebau- und Verkehrsspiel im Browser.">\n${fonts}\n<style>\n${css}\n</style>\n${body.trim()}\n<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>\n<script>window.STADTPULS_EMBED = true;</script>\n<script>\n${js}\n</script>\n`;
+    // Die Megastadt reist in der Einzelseite mit (kein Nachladen nötig); „</" wird für das Script-Tag maskiert
+    let megaTag = '';
+    try { megaTag = `<script type="application/json" id="stadtpuls-megastadt">${readFileSync(join(here, 'saves/megastadt.json'), 'utf8').replace(/<\//g, '<\\/')}</script>\n`; } catch (e) { /* ohne Megastadt */ }
+    const page = `<title>Cityscapes</title>\n<meta name="description" content="3D-Städtebau- und Verkehrsspiel im Browser.">\n${fonts}\n<style>\n${css}\n</style>\n${body.trim()}\n${megaTag}<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>\n<script>window.STADTPULS_EMBED = true;</script>\n<script>\n${js}\n</script>\n`;
     writeFileSync(out, page);
     console.log('Artifact-Seite geschrieben:', out, (page.length / 1024).toFixed(0), 'KB');
   }

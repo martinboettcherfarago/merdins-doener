@@ -1284,6 +1284,8 @@ kbd { font-family: var(--f-num); font-variant-numeric: tabular-nums; font-weight
 .slot .grow { flex: 1; min-width: 0; }
 .slot .t { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--accent-ink); }
 .slot .s { font-size: 12px; color: var(--ink-3); }
+.slot .mega-x { padding: 0 6px; min-width: 0; color: var(--ink-3); }
+.card.saves .cc-slots { margin-top: 6px; border-top: 0; padding-top: 0; }
 .help h4 { margin: 14px 0 6px; font-family: var(--f-display); font-weight: 600; font-size: 14px; color: var(--accent-ink); }
 .help p, .help li { font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
 .help ul { padding-left: 18px; margin: 4px 0; }

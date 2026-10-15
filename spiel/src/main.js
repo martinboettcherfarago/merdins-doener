@@ -275,6 +275,18 @@ const app = {
       navigator.clipboard.writeText(txt).then(() => this.ui.toast('Spielstand in die Zwischenablage kopiert.', 'good'), () => this.ui.toast('Zwischenablage nicht verfügbar.', 'bad'));
     } catch (e) { this.ui.toast('Zwischenablage nicht verfügbar.', 'bad'); }
   },
+  // Spielstand von einer Adresse holen (eingebaute Megastadt: saves/megastadt.json neben der Seite)
+  loadUrl(url) {
+    return fetch(url, { cache: 'no-cache' })
+      .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
+      .then((txt) => new Promise((res) => requestAnimationFrame(() => res(this.loadData(txt)))))
+      .catch((e) => {
+        console.warn('Cityscapes: Spielstand nicht abrufbar', url, e);
+        hideLoader();
+        alertBox('Der Spielstand konnte nicht geholt werden. Bitte die Internetverbindung prüfen und noch einmal versuchen.');
+        return false;
+      });
+  },
   importFile(file) {
     const r = new FileReader();
     r.onload = () => { this.loadData(String(r.result || '')); };
