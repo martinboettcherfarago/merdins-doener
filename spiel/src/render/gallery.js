@@ -1,4 +1,4 @@
-// Galerie für Architektur-Bausteine: index.html?gallery=res&fp=1x1,2x1&night=0
+// Galerie für Architektur-Bausteine: index.html?gallery=res&fp=1x1,2x1&night=0 (Menschen: index.html?gallery=people, siehe gallery_people.js)
 // Zeigt alle Stufen (Zeilen) × Varianten (Spalten) eines Schlüssels – zum Prüfen per Screenshot.
 // Weitere Parameter: levels=1,2  variants=4  v0=0  detail=0|1|2  zoom=1.5  yaw  pitch  ty=<Blickhöhe>  t=<Animationszeit>
 // Animierte Teile (res.anim) drehen mit, Glas/Metall spiegeln eine Himmels-Umgebungskarte (wie im Spiel).
