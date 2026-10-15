@@ -6,7 +6,7 @@
 //    Straßenabschnitts, an dem das Gebäude liegt. Beide Straßenseiten eines Abschnitts teilen so die Epoche, benachbarte
 //    Abschnitte unterscheiden sich höchstens um eine Stufe. Bezirke ziehen die Epoche leicht zu ihrem eigenen Charakter.
 //    Gewählt wird unter den Modellen, deren Epoche am nächsten liegt: innerhalb der Familie mit festem Farbraster
-//    (gierige Färbung, direkte Nachbarn nie dasselbe Modell), damit eine Straße einheitlich, aber nicht eintönig wirkt.
+//    (gierige Färbung, direkte Nachbarn selten dasselbe Modell), damit eine Straße einheitlich, aber nicht eintönig wirkt.
 //  • Höhenklasse (ab Stufe 4, nur offene Bauweise und Türme): dicht bebaute Viertel bekommen höhere Türme, Ränder und
 //    Türme neben niedriger Bebauung niedrigere (Höhenstaffelung statt Sprung).
 //  • Ecklage (geschlossene Bauweise): Seiten, die an eine Straße grenzen, bekommen eine Fassade statt einer Brandwand.
@@ -42,7 +42,15 @@ const hash = (x, y, s) => {
 export { hash as mixHash };
 
 const R = 3;
-const WEIGHT = [0, 100, 12, 2];
+// Abstoßung gleicher Modelle nach Lage: Nachbarn in derselben Zeile/Spalte (an der Straße nebeneinander, gegenüber,
+// hintereinander) sehr stark, über Eck schwächer, in zweiter Reihe leicht
+const weight = (dx, dy) => {
+  const a = Math.abs(dx), b = Math.abs(dy);
+  if (a + b === 1) return 100;
+  if (a === 1 && b === 1) return 20;
+  if (Math.max(a, b) === 2) return a === 0 || b === 0 ? 14 : 6;
+  return 2;
+};
 
 export class MixGrid {
   constructor(W, H, seed = 1) {
@@ -64,7 +72,7 @@ export class MixGrid {
     const { W, H } = this;
     g = new Int8Array(W * H).fill(-1);
     const cost = new Float32Array(n);
-    for (const i of this._order()) {
+    const choose = (i) => {
       const x = i % W, y = (i / W) | 0;
       cost.fill(0);
       for (let dy = -R; dy <= R; dy++) {
@@ -74,7 +82,7 @@ export class MixGrid {
           const xx = x + dx;
           if (xx < 0 || xx >= W || (!dx && !dy)) continue;
           const c = g[yy * W + xx];
-          if (c >= 0) cost[c] += WEIGHT[Math.max(Math.abs(dx), Math.abs(dy))];
+          if (c >= 0) cost[c] += weight(dx, dy);
         }
       }
       let best = 0, bc = Infinity;
@@ -82,8 +90,13 @@ export class MixGrid {
         const v = cost[c] + hash(i, c, this.seed + 17) * 1.5;
         if (v < bc) { bc = v; best = c; }
       }
-      g[i] = best;
-    }
+      return best;
+    };
+    // gierige Färbung in fester Zufallsreihenfolge, danach ein Durchgang Nachbesserung (jede Zelle nimmt die günstigste
+    // Nummer, nun mit allen Nachbarn): bei vier Modellen sind direkte Nachbarn so fast nie gleich
+    const ord = this._order();
+    for (const i of ord) g[i] = choose(i);
+    for (const i of ord) g[i] = choose(i);
     this.grids.set(n, g);
     return g;
   }
