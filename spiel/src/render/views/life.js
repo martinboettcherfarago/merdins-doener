@@ -102,8 +102,7 @@ class Pedestrians {
     const mat = getPeopleMaterial(), depth = getPeopleDepthMaterial();
     const parent = this.e.scene;
     // Eine Geometrie je Detailstufe für alle Fußgänger (Kleidung/Zubehör über Merkmale im Shader)
-    this.near = new Batch(parent, lifeGeometry('human', 2).clone(), mat, { shadow: true, cap: 128 });
-    this.near.mesh.customDepthMaterial = depth;
+    this.near = new Batch(parent, lifeGeometry('human', 2).clone(), mat, { shadow: true, cap: 128, depth });
     this.mid = new Batch(parent, lifeGeometry('human', 1).clone(), mat, { shadow: false, cap: 256 });
     this.far = new Batch(parent, lifeGeometry('human', 0).clone(), mat, { shadow: false, cap: 512 });
     this.umb = new Batch(parent, lifeGeometry('umbrella', 2).clone(), mat, { shadow: false, cap: 32 });
@@ -299,8 +298,7 @@ class Cyclists {
     this.max = Math.round(110 * q);
     this.list = [];
     const mat = getPeopleMaterial();
-    this.near = new Batch(this.e.scene, lifeGeometry('bicycle', 2).clone(), mat, { shadow: true, cap: 32 });
-    this.near.mesh.customDepthMaterial = getPeopleDepthMaterial();
+    this.near = new Batch(this.e.scene, lifeGeometry('bicycle', 2).clone(), mat, { shadow: true, cap: 32, depth: getPeopleDepthMaterial() });
     this.mid = new Batch(this.e.scene, lifeGeometry('bicycle', 1).clone(), mat, { shadow: false, cap: 64 });
   }
   nextTile(c) {

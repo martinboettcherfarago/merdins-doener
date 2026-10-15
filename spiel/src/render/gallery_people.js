@@ -9,10 +9,8 @@ const SHIRTS = [0x2f6db3, 0xb8302a, 0xf2f2ee, 0x2a2d31, 0x2f7a4f, 0xe8b52c, 0x8f
 export function peopleGallery(params, renderer, scene, sun) {
   const d = +(params.get('detail') ?? 2);
   const mat = getPeopleMaterial();
-  const hb = new Batch(scene, lifeGeometry('human', d).clone(), mat, { shadow: true, cap: 64 });
-  hb.mesh.customDepthMaterial = getPeopleDepthMaterial();
-  const bb = new Batch(scene, lifeGeometry('bicycle', d).clone(), mat, { shadow: true, cap: 8 });
-  bb.mesh.customDepthMaterial = getPeopleDepthMaterial();
+  const hb = new Batch(scene, lifeGeometry('human', d).clone(), mat, { shadow: true, cap: 64, depth: getPeopleDepthMaterial() });
+  const bb = new Batch(scene, lifeGeometry('bicycle', d).clone(), mat, { shadow: true, cap: 8, depth: getPeopleDepthMaterial() });
   const ub = new Batch(scene, lifeGeometry('umbrella', 2).clone(), mat, { shadow: true, cap: 8 });
   const pb = new Batch(scene, lifeGeometry('pigeon', 2).clone(), mat, { shadow: true, cap: 8 });
   // Darsteller: [Reihe, Spalte, Haltung, Merkmale, Gangstärke, Schrittrate, Größe]

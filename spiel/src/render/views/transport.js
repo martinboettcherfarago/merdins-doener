@@ -190,8 +190,7 @@ registerView(class TransportView {
     // Dynamisch: Wartende, Ampel-Lampen, Unfälle, Vorschau, Platzhalter
     // Wartende als stehende Menschen (gleiche Figuren wie die Fußgänger, Gewicht verlagern im Shader)
     const pm = getPeopleMaterial();
-    this.people = { near: new Batch(this.dyn, lifeGeometry('human', 2).clone(), pm, { shadow: true, cap: 64 }), mid: new Batch(this.dyn, lifeGeometry('human', 1).clone(), pm, { shadow: false, cap: 128 }), far: new Batch(this.dyn, lifeGeometry('human', 0).clone(), pm, { shadow: false, cap: 256 }) };
-    this.people.near.mesh.customDepthMaterial = getPeopleDepthMaterial();
+    this.people = { near: new Batch(this.dyn, lifeGeometry('human', 2).clone(), pm, { shadow: true, cap: 64, depth: getPeopleDepthMaterial() }), mid: new Batch(this.dyn, lifeGeometry('human', 1).clone(), pm, { shadow: false, cap: 128 }), far: new Batch(this.dyn, lifeGeometry('human', 0).clone(), pm, { shadow: false, cap: 256 }) };
     this.lamps = this.inst(new THREE.BoxGeometry(0.03, 0.03, 0.03), this.lampMat, 2400);
     this.triangles = this.inst(merge([part(new THREE.ConeGeometry(0.06, 0.09, 3), 0xd8261c, new THREE.Matrix4().makeTranslation(0, 0.045, 0)), box(0.02, 0.02, 0.02, 0, 0.012, 0, 0xffffff)]), this.instMat, 64);
     this.hoverRing = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.4, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false, toneMapped: false }));
