@@ -143,7 +143,7 @@ function tabOverview(ui) {
 <div class="sec"><h3>Ratgeber</h3>${tips || muted('Noch nichts zu tun.')}</div>
 <div class="sec"><h3>Kennzahlen</h3><div class="kv">
   <span>Verkehrsfluss</span><span class="v ${s.trafficFlow < 0.8 ? 'neg' : ''}">${pct(s.trafficFlow || 1)}</span>
-  <span>Autos unterwegs</span><span class="v">${fmt(g.traffic.cars.length)}</span>
+  <span>Autos unterwegs</span><span class="v">${fmt((g.traffic.trips || g.traffic.cars).length)}</span>
   <span>Ø Pendelzeit</span><span class="v">${Math.round(avgCommute(g))} Min.</span>
   <span>Fahrgäste gestern Bus / Tram</span><span class="v">${fmt(y.bus || 0)} / ${fmt(y.tram || 0)}</span>
   <span>U-Bahn gestern</span><span class="v">${fmt(s.ridersToday || 0)}</span>

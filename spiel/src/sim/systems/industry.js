@@ -806,13 +806,7 @@ function spawnTruck(g, st) {
   const res = findPath(g, from, to);
   if (!res || res.path.length < 2) return false;
   const tr = g.traffic;
-  const n = tr.cars.length;
-  tr.addCar(fl.type, res.path, null);
-  if (tr.cars.length > n) {
-    const car = tr.cars[tr.cars.length - 1];
-    car.weight = plan.scale * (fl.type === VT.VAN ? PCU.van : PCU.truck);
-    car.freight = true;
-  }
+  tr.addCar(fl.type, res.path, null, false, { weight: plan.scale * (fl.type === VT.VAN ? PCU.van : PCU.truck), freight: true });
   return true;
 }
 
@@ -1170,7 +1164,8 @@ registerSystem({
     plan.scale = Math.max(1, (g.traffic.weight || 1) * 0.4);
     st.truckAcc += (plan.total * minutes) / 1440 / plan.scale;
     // Höchstens ein Drittel der sichtbaren Fahrzeuge ist Lieferverkehr
-    const cars = g.traffic.cars;
+    // Fahrten der Rechnung (nicht die sichtbaren Fahrzeuge, die gemächlicher fahren)
+    const cars = g.traffic.trips || g.traffic.cars;
     let freight = 0;
     if (st.truckAcc >= 1) for (const c of cars) if (c.freight) freight++;
     let n = 0;

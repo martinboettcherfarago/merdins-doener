@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { registerView, registerOverlay, registerIcon, on } from '../../registry.js';
 import { R, T as TER, BUILDINGS } from '../../config.js';
 import * as TPS from '../../sim/systems/transport.js';
+import { LC } from '../../sim/roadnet.js';
 import { ARCH } from '../arch/index.js';
 import { Batch } from '../vehicles_kit.js';
 import { lifeGeometry, getPeopleMaterial, getPeopleDepthMaterial, baseFeatures, wearFeatures, wearOf, MODE } from '../vehicles_people.js';
@@ -102,6 +103,28 @@ function strip(out, cols, g, pts, off, width, yBase, color, yLift = 0) {
     for (const v of p) out.push(v);
     if (c && cols) for (let q = 0; q < 6; q++) cols.push(c.r, c.g, c.b);
   }
+}
+// Gleismitten einer Straßenbahnlinie aus den Fahrwegen (roadnet.Route): Punkte in Feldkoordinaten je Gleis
+const _tq = { x: 0, z: 0, hx: 0, hz: 1, k: 0 };
+function trackLines(g, l) {
+  const vr = l.vr;
+  if (!vr) return [];
+  const out = [];
+  for (const r of [vr.f, vr.b, vr.cyc]) {
+    if (!r || r.len < 0.2) continue;
+    const pts = [];
+    const S0 = r.cyclic ? 0 : -0.5, S1 = r.cyclic ? r.len : r.len + 0.5;
+    _tq.k = 0;
+    for (let S = S0; ; S += 0.08) {
+      const s = Math.min(S, S1);
+      r.at(s, LC.TRAM, _tq, 2);
+      pts.push(_tq.x + g.W / 2, _tq.z + g.H / 2);
+      if (s >= S1) break;
+    }
+    if (r.cyclic) pts.push(pts[0], pts[1]);
+    out.push(pts);
+  }
+  return out;
 }
 function yAt(g, x, y, base) {
   const tx = Math.min(g.W - 1, Math.max(0, Math.floor(x))), ty = Math.min(g.H - 1, Math.max(0, Math.floor(y)));
@@ -260,13 +283,24 @@ registerView(class TransportView {
     const seenPole = new Set();
     for (const l of T.lines) {
       if (l.mode !== 'tram' || !l.pts || l.pts.length < 4) continue;
-      for (const o of [-0.215, -0.085, 0.085, 0.215]) strip(rails, null, g, l.pts, o, 0.018, 0.021, null);
-      const n = l.pts.length / 2;
-      for (let k = 0; k < n - 1; k++) {
-        const ax = l.pts[k * 2], ay = l.pts[k * 2 + 1], bx = l.pts[k * 2 + 2], by = l.pts[k * 2 + 3];
-        const L = Math.hypot(bx - ax, by - ay); if (L < 1e-5) continue;
-        const nx = -(by - ay) / L, ny = (bx - ax) / L;
-        for (const o of [-0.15, 0.15]) wires.push(ax + nx * o - W2, yAt(g, ax, ay, 0.5), ay + ny * o - H2, bx + nx * o - W2, yAt(g, bx, by, 0.5), by + ny * o - H2);
+      // Gleise genau dort, wo die Bahnen fahren (Fahrwege der Fahrzeuge: je Richtung ein Gleis, in engen Kurven weiter
+      // ausholend, hinter den Endhaltestellen der Gleiswechsel); ohne Fahrwege die alte Lage neben der Linienmitte
+      const tracks = trackLines(g, l);
+      if (tracks.length) {
+        for (const pts of tracks) {
+          for (const o of [-0.065, 0.065]) strip(rails, null, g, pts, o, 0.018, 0.021, null);
+          const n = pts.length / 2;
+          for (let k = 0; k < n - 1; k++) wires.push(pts[k * 2] - W2, yAt(g, pts[k * 2], pts[k * 2 + 1], 0.5), pts[k * 2 + 1] - H2, pts[k * 2 + 2] - W2, yAt(g, pts[k * 2 + 2], pts[k * 2 + 3], 0.5), pts[k * 2 + 3] - H2);
+        }
+      } else {
+        for (const o of [-0.215, -0.085, 0.085, 0.215]) strip(rails, null, g, l.pts, o, 0.018, 0.021, null);
+        const n = l.pts.length / 2;
+        for (let k = 0; k < n - 1; k++) {
+          const ax = l.pts[k * 2], ay = l.pts[k * 2 + 1], bx = l.pts[k * 2 + 2], by = l.pts[k * 2 + 3];
+          const L = Math.hypot(bx - ax, by - ay); if (L < 1e-5) continue;
+          const nx = -(by - ay) / L, ny = (bx - ax) / L;
+          for (const o of [-0.15, 0.15]) wires.push(ax + nx * o - W2, yAt(g, ax, ay, 0.5), ay + ny * o - H2, bx + nx * o - W2, yAt(g, bx, by, 0.5), by + ny * o - H2);
+        }
       }
       for (const t of l.path) {
         const x = t % g.W, y = (t / g.W) | 0;
