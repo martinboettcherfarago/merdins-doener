@@ -119,7 +119,10 @@ export default async function ruckel(page, h) {
     };
     T(bv, '_lodScan', 'lodScan'); T(bv, '_lodDecide', 'lodDecide'); T(bv, '_work', 'lodWork'); T(bv, '_buildSome', 'buildSome');
     T(bv, '_lightsFrame', 'bldLights'); T(bv, '_animate', 'bldAnim');
-    if (en.roads) { T(en.roads, 'tick', 'roads'); T(en.roads, 'rebuild', 'roadsRebuild'); T(en.roads, 'buildChunk', 'roadsChunk'); if (en.roads.props) T(en.roads.props, 'setState', 'props'); }
+    if (en.roads) {
+      T(en.roads, 'tick', 'roads'); T(en.roads, 'rebuild', 'roadsRebuild'); T(en.roads, 'buildChunk', 'roadsChunk'); T(en.roads, 'finishCtx', 'roadsFinish'); T(en.roads, 'afterChunks', 'roadsAfter');
+      if (en.roads.props) { T(en.roads.props, 'setState', 'props'); T(en.roads.props, 'commit', 'propsCommit'); }
+    }
     if (en.terrain) { T(en.terrain, 'frame', 'terrain'); if (en.terrain.veg) T(en.terrain.veg, 'frame', 'veg'); }
     for (const v of en.views) T(v, 'frame', 'view:' + (v.constructor && v.constructor.name));
     const life = en.views.find((v) => v.constructor && v.constructor.name === 'LifeView');
@@ -604,7 +607,7 @@ export function check(res) {
   return errs;
 }
 
-const KEYS = ['sim', 'step', 'hourly', 'daily', 'traffic', 'transitSim', 'eng', 'bld', 'lodScan', 'lodDecide', 'lodWork', 'buildSome', 'veh', 'trn', 'ug', 'fx', 'icons', 'lifeW', 'lifeCand', 'lifeWalk', 'rig', 'sky', 'draw', 'ui', 'minimap', 'audio', 'autosave', 'applyQ', 'pcIdle', 'roads', 'props', 'veg', 'terrain'];
+const KEYS = ['sim', 'step', 'hourly', 'daily', 'traffic', 'transitSim', 'eng', 'bld', 'lodScan', 'lodDecide', 'lodWork', 'buildSome', 'veh', 'trn', 'ug', 'fx', 'icons', 'lifeW', 'lifeCand', 'lifeWalk', 'rig', 'sky', 'draw', 'ui', 'minimap', 'audio', 'autosave', 'applyQ', 'pcIdle', 'roads', 'roadsRebuild', 'roadsChunk', 'roadsFinish', 'roadsAfter', 'propsCommit', 'props', 'veg', 'terrain'];
 function summarize(fr, sw) {
   const ms = fr.map((f) => f.ms).sort((a, b) => a - b);
   // reine JS-Zeit: ohne Warten auf den GPU-Prozess (Programmstatus, finish, readPixels) – das kostet hier die

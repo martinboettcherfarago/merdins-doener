@@ -159,12 +159,32 @@ export class RoadView {
   // soft: Anlass kommt nicht vom Spieler (Ampelautomatik, Haltestellen, Zonen) – geänderte Blöcke dann über einige
   // Bilder verteilt neu bauen (tick, Zeitbudget) statt alle in einem Bild (Megastadt: bis 250 ms am Stück)
   rebuild(soft = false) {
+    // weich: auch die Durchsicht aller Felder in Zeitscheiben (tick) – in der Megastadt 10–40 ms am Stück
+    if (soft && !this.first) { if (!this._scanJob) this._scanJob = this.scanSteps(); return; }
+    this._scanJob = null;
     const t0 = performance.now();
-    const g = this.g, W = g.W, H = g.H, N = g.N;
-    for (let i = 0; i < N; i++) this.mask[i] = g.road[i] ? roadMask(g, i) : 0;
+    let dirty;
+    { const it = this.scanSteps(); for (;;) { const r = it.next(); if (r.done) { dirty = r.value; break; } } }
+    if (this.pendingChunks) { for (const k of this.pendingChunks) dirty.add(k); this.pendingChunks.clear(); }
+    if (this._chunkJob) { for (const _ of this._chunkJob) { /* fertig bauen */ } this._chunkJob = null; }
+    for (const k of dirty) this.buildChunk(k);
+    this.props.flush();
+    if (dirty.size) this.afterChunks();
+    this.buildStats = { chunks: dirty.size, ms: Math.round(performance.now() - t0) };
+  }
+  // Masken, Brückenecken, Kreuzungsklassen, Haltestellen und Feldsignaturen neu bestimmen; Rückgabe: geänderte Blöcke
+  // (yield nach je 4096 Feldern je Durchgang; die Ergebnisse werden erst am Ende übernommen)
+  *scanSteps() {
+    const g = this.g, W = g.W, N = g.N;
+    const mask = this._mask2 || (this._mask2 = new this.mask.constructor(N));
+    for (let i = 0; i < N; i++) { mask[i] = g.road[i] ? roadMask(g, i) : 0; if ((i & 4095) === 4095) yield; }
+    // (Kreuzungsklassen und Signaturen lesen die Maske: ab hier mit der neuen rechnen)
+    this._mask2 = this.mask; this.mask = mask;
     this.computeCornerY();
-    for (let i = 0; i < N; i++) this.jclass[i] = g.road[i] ? this.junctionClass(i) : J_NONE;
+    yield;
+    for (let i = 0; i < N; i++) { this.jclass[i] = g.road[i] ? this.junctionClass(i) : J_NONE; if ((i & 4095) === 4095) yield; }
     this.stopMap = this.collectStops();
+    yield;
     const dirty = new Set();
     for (let i = 0; i < N; i++) {
       const s = this.tileSig(i);
@@ -172,21 +192,25 @@ export class RoadView {
         this.sig[i] = s;
         dirty.add(((((i / W) | 0) / CHUNK) | 0) * this.nCx + (((i % W) / CHUNK) | 0));
       }
+      if ((i & 4095) === 4095) yield;
     }
     if (this.first) { for (let k = 0; k < this.chunks.length; k++) dirty.add(k); this.first = false; }
-    if (soft && dirty.size) {
-      const P = this.pendingChunks || (this.pendingChunks = new Set());
-      for (const k of dirty) P.add(k);
-      this.buildStats = { chunks: dirty.size, ms: Math.round(performance.now() - t0), queued: P.size };
-      return;
+    return dirty;
+  }
+  // weiche Durchsicht fortsetzen; fertig → geänderte Blöcke vormerken (gebaut in buildPending)
+  scanSome(budget) {
+    const t0 = performance.now();
+    while (this._scanJob && performance.now() - t0 < budget) {
+      const r = this._scanJob.next();
+      if (!r.done) continue;
+      this._scanJob = null;
+      const dirty = r.value;
+      if (dirty.size) {
+        const P = this.pendingChunks || (this.pendingChunks = new Set());
+        for (const k of dirty) P.add(k);
+        this.buildStats = { chunks: dirty.size, queued: P.size };
+      }
     }
-    if (this.pendingChunks) { for (const k of this.pendingChunks) dirty.add(k); this.pendingChunks.clear(); }
-    if (this._chunkJob) { for (const _ of this._chunkJob) { /* fertig bauen */ } this._chunkJob = null; }
-    for (const k of dirty) this.buildChunk(k);
-    this.props.flush();
-    if (dirty.size) this.afterChunks();
-    this.buildStats = { chunks: dirty.size, ms: Math.round(performance.now() - t0) };
-    void H;
   }
   // Vorgemerkte Blöcke im Zeitbudget bauen – auch ein einzelner Block in Schritten (bis 120 ms am Stück in der
   // Megastadt); die alte Fassung bleibt sichtbar, bis die neue fertig ist. Danach Lampen/Ampeln neu sammeln.
@@ -209,8 +233,8 @@ export class RoadView {
       if (r.done) { this._chunkJob = null; done++; }
     }
     if (this._chunkJob || (P && P.size)) return;
-    if (done) this.afterChunks();
-    if (props.pending.size) props.flushSome(Math.max(1, budget - (performance.now() - t0)));
+    if (done) { this.afterChunks(); return; } // Kleinteile ab dem nächsten Bild
+    if (props.pending.size) props.flushSome(budget);
   }
   afterChunks() {
     {
@@ -270,7 +294,8 @@ export class RoadView {
       if (sk !== undefined && sk !== this.sigKey) { this.sigKey = sk; this.softDirty = true; }
       if (this.softDirty) { this.softDirty = false; this.rebuild(true); }
     }
-    this.buildPending();
+    // erst die Durchsicht, dann die Blöcke (die Blöcke lesen Masken und Klassen)
+    if (this._scanJob) this.scanSome(3); else this.buildPending();
     this.signalGlow();
   }
 
