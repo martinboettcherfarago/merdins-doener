@@ -39,6 +39,7 @@ const MAX_PROTOS = 64; // höchstens so viele verschiedene Prototypen in Detail 
 const HYST_IN = 0.93, HYST_OUT = 1.1; // Hysterese der Abstandsschwellen (aufwerten unter 93 %, abwerten über 110 %)
 const PREFETCH = 1.3; // Prototypen bis 130 % der Schwelle vorab bauen (Leerlauf, Zeitbudget)
 const FADE_DUR = 0.4; // Sekunden Überblendung zwischen zwei Detailstufen
+const STICKY = 0.95; // gezeigte Nahstufen zählen bei den Obergrenzen 5 % näher (kein Tauschen am Rand, Nähe hat Vorrang)
 const DRAW_BUDGET = 300; // Draw Calls für alle Gebäude (Bündel + Baustellen + Nahdarstellung, inkl. Schatten)
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
@@ -2020,7 +2021,7 @@ export class BuildingView {
       const a2 = cur === 2 ? t2 * HYST_OUT : t2 * HYST_IN, a1 = cur >= 1 ? t1 * HYST_OUT : t1 * HYST_IN;
       rec.want = d < a2 ? 2 : d < a1 ? 1 : 0;
       // Bereits gezeigte Nahstufen haben bei den Obergrenzen Vorrang (sonst tauschen Gebäude am Rand ständig)
-      rec.sk = d * (cur >= 1 ? 0.85 : 1);
+      rec.sk = d * (cur >= 1 && !this._fresh ? STICKY : 1);
       arr.push(rec);
       if (!rec.finished) continue;
       // Vorausschau: Stufe am Kameraziel und ein Ring knapp jenseits der Schwellen vorab bauen
@@ -2317,7 +2318,7 @@ export class BuildingView {
   // Detailstufen sofort einschwingen (Fotomodus, Vorschaubilder, Messungen): Takt + alle Übergänge ohne Zeitbudget
   settle() {
     for (const rec of [...this.fading]) this._endFade(rec);
-    this._lodTick();
+    this._fresh = true; this._lodTick(); this._fresh = false;
     this._work(Infinity, Infinity, true);
     this.need.clear();
     this.protoMgr.flush();
