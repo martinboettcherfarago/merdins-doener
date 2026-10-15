@@ -44,13 +44,11 @@ export { hash as mixHash };
 const R = 3;
 // Abstoßung gleicher Modelle nach Lage: Nachbarn in derselben Zeile/Spalte (an der Straße nebeneinander, gegenüber,
 // hintereinander) sehr stark, über Eck schwächer, in zweiter Reihe leicht
-const weight = (dx, dy) => {
+const WT = new Float32Array((2 * R + 1) * (2 * R + 1));
+for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
   const a = Math.abs(dx), b = Math.abs(dy);
-  if (a + b === 1) return 100;
-  if (a === 1 && b === 1) return 20;
-  if (Math.max(a, b) === 2) return a === 0 || b === 0 ? 14 : 6;
-  return 2;
-};
+  WT[(dy + R) * (2 * R + 1) + dx + R] = !a && !b ? 0 : a + b === 1 ? 100 : a === 1 && b === 1 ? 20 : Math.max(a, b) === 2 ? (a === 0 || b === 0 ? 14 : 6) : 2;
+}
 
 export class MixGrid {
   constructor(W, H, seed = 1) {
@@ -72,22 +70,23 @@ export class MixGrid {
     const { W, H } = this;
     g = new Int8Array(W * H).fill(-1);
     const cost = new Float32Array(n);
+    const S = 2 * R + 1, seed = this.seed + 17;
+    const jitter = new Float32Array(W * H * n); // feste Zufallsanteile je Zelle und Nummer (beide Durchgänge gleich)
+    for (let i = 0; i < W * H; i++) for (let c = 0; c < n; c++) jitter[i * n + c] = hash(i, c, seed) * 1.5;
     const choose = (i) => {
       const x = i % W, y = (i / W) | 0;
       cost.fill(0);
-      for (let dy = -R; dy <= R; dy++) {
-        const yy = y + dy;
-        if (yy < 0 || yy >= H) continue;
-        for (let dx = -R; dx <= R; dx++) {
-          const xx = x + dx;
-          if (xx < 0 || xx >= W || (!dx && !dy)) continue;
-          const c = g[yy * W + xx];
-          if (c >= 0) cost[c] += weight(dx, dy);
+      const y0 = Math.max(0, y - R), y1 = Math.min(H - 1, y + R), x0 = Math.max(0, x - R), x1 = Math.min(W - 1, x + R);
+      for (let yy = y0; yy <= y1; yy++) {
+        const row = yy * W, wrow = (yy - y + R) * S - x + R;
+        for (let xx = x0; xx <= x1; xx++) {
+          const c = g[row + xx];
+          if (c >= 0) cost[c] += WT[wrow + xx];
         }
       }
       let best = 0, bc = Infinity;
       for (let c = 0; c < n; c++) {
-        const v = cost[c] + hash(i, c, this.seed + 17) * 1.5;
+        const v = cost[c] + jitter[i * n + c];
         if (v < bc) { bc = v; best = c; }
       }
       return best;

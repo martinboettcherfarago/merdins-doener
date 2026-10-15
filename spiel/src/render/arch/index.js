@@ -23,13 +23,21 @@ export function archCount(key, level, fw, fd) {
   if (def.count) return Math.max(1, Math.min(MIX_STRIDE, def.count(level, fw, fd) | 0));
   return Math.max(1, Math.min(MIX_STRIDE, def.variants || 6));
 }
-// Epoche und Bauweise aller Modelle einer Typliste (ohne Liste: neutral, Solitär)
+// Epoche und Bauweise aller Modelle einer Typliste (ohne Liste: neutral, Solitär); die Listen stehen nach dem Laden fest
+const TAGS = new Map();
 export function archTags(key, level, fw, fd) {
+  const id = `${key}|${level}|${fw}x${fd}`;
+  let t = TAGS.get(id);
+  if (t) return t;
   const def = ARCH[key];
   const n = archCount(key, level, fw, fd);
-  if (!def || !def.list) return Array.from({ length: n }, () => ({ era: 1.5, typ: 'S' }));
-  const list = def.list(level, fw, fd);
-  return Array.from({ length: n }, (_, i) => tagOf(list[i % list.length]));
+  if (!def || !def.list) t = Array.from({ length: n }, () => ({ era: 1.5, typ: 'S' }));
+  else {
+    const list = def.list(level, fw, fd);
+    t = Array.from({ length: n }, (_, i) => tagOf(list[i % list.length]));
+  }
+  TAGS.set(id, t);
+  return t;
 }
 
 const ZONE_KEY = { [Z.RES]: 'res', [Z.COM]: 'com', [Z.IND]: 'ind', [Z.OFF]: 'off' };
