@@ -8,6 +8,8 @@ import { registerView, registerOverlay, registerIcon, on } from '../../registry.
 import { R, T as TER, BUILDINGS } from '../../config.js';
 import * as TPS from '../../sim/systems/transport.js';
 import { ARCH } from '../arch/index.js';
+import { Batch } from '../vehicles_kit.js';
+import { lifeGeometry, getPeopleMaterial, getPeopleDepthMaterial, baseFeatures, wearFeatures, wearOf, MODE } from '../vehicles_people.js';
 
 const BUS_ICON = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="15" rx="3"/><path d="M4 11h16M8 21v-3M16 21v-3"/><circle cx="8" cy="14.5" r="0.9" fill="currentColor"/><circle cx="16" cy="14.5" r="0.9" fill="currentColor"/><path d="M9 6.5h6"/></svg>';
 
@@ -186,8 +188,9 @@ registerView(class TransportView {
     this.lampMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
     this.previewMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.92, depthTest: false, depthWrite: false, toneMapped: false });
     // Dynamisch: Wartende, Ampel-Lampen, Unfälle, Vorschau, Platzhalter
-    const personGeo = merge([cyl(0.024, 0.028, 0.11, 0, 0.067, 0, 0xffffff, 6), part(new THREE.SphereGeometry(0.024, 8, 6), 0xf0c8a0, new THREE.Matrix4().makeTranslation(0, 0.145, 0))]);
-    this.people = this.inst(personGeo, this.instMat, 600);
+    // Wartende als stehende Menschen (gleiche Figuren wie die Fußgänger, Gewicht verlagern im Shader)
+    const pm = getPeopleMaterial();
+    this.people = { near: new Batch(this.dyn, lifeGeometry('human', 2).clone(), pm, { shadow: true, cap: 64, depth: getPeopleDepthMaterial() }), mid: new Batch(this.dyn, lifeGeometry('human', 1).clone(), pm, { shadow: false, cap: 128 }), far: new Batch(this.dyn, lifeGeometry('human', 0).clone(), pm, { shadow: false, cap: 256 }) };
     this.lamps = this.inst(new THREE.BoxGeometry(0.03, 0.03, 0.03), this.lampMat, 2400);
     this.triangles = this.inst(merge([part(new THREE.ConeGeometry(0.06, 0.09, 3), 0xd8261c, new THREE.Matrix4().makeTranslation(0, 0.045, 0)), box(0.02, 0.02, 0.02, 0, 0.012, 0, 0xffffff)]), this.instMat, 64);
     this.hoverRing = new THREE.Mesh(new THREE.RingGeometry(0.28, 0.4, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false, toneMapped: false }));
@@ -534,28 +537,35 @@ registerView(class TransportView {
   }
 
   updatePeople(T) {
-    const m = this.people;
-    let n = 0;
-    const cols = [0x2f5f9a, 0xb5473a, 0x3b4048, 0xe0c060, 0x22a866, 0x8f5ad8, 0xd9d4ca, 0x7a5a3a];
+    const P = this.people;
+    P.near.begin(); P.mid.begin(); P.far.begin();
+    const cols = [0x2f5f9a, 0xb5473a, 0x3b4048, 0xe0c060, 0x22a866, 0x8f5ad8, 0xd9d4ca, 0x7a5a3a, 0x5d7f8f, 0x6b2f2a];
+    const cam = this.e.camera.position;
+    const q = { low: 0.4, medium: 1, high: 1.7, ultra: 2.4 }[this.e.settings && this.e.settings.quality] ?? 1;
+    const n2 = (7.5 * Math.sqrt(q)) ** 2, m2 = (15 * Math.sqrt(q)) ** 2;
+    const g = this.e.game;
+    const wf = wearOf(g.ext && g.ext.weather, g.hour());
     for (const sp of this.stopPos || []) {
       const s = sp.s;
       const w = s.waiting || 0;
       const k = Math.min(7, w > 0 ? Math.max(1, Math.round(Math.sqrt(w) * 1.3)) : 0);
-      for (let j = 0; j < k && n < 600; j++) {
+      for (let j = 0; j < k; j++) {
         const along = 0.3 - 0.11 - j * 0.075 + ((s.id * 7 + j * 3) % 5) * 0.006;
         const out = 0.03 + ((s.id + j) % 3) * 0.035;
-        this.q.setFromAxisAngle(this.yAxis, (s.id * 1.7 + j * 2.3) % 6.28);
-        this.p.set(sp.x + sp.dx * along + sp.nx * out, sp.y, sp.z + sp.dz * along + sp.nz * out);
-        this.m4.compose(this.p, this.q, this.s);
-        m.setMatrixAt(n, this.m4);
-        m.setColorAt(n, this.c.setHex(cols[(s.id * 3 + j * 5) % cols.length]));
-        n++;
+        const x = sp.x + sp.dx * along + sp.nx * out, z = sp.z + sp.dz * along + sp.nz * out;
+        // zur Straße schauen, etwas gestreut; manche zur Seite (Ausschau nach dem Bus)
+        const sd = ((s.id * 0.6180339 + j * 0.3819) % 1);
+        const yaw = Math.atan2(-sp.nx, -sp.nz) + (sd - 0.5) * 1.2 + (j % 3 === 1 ? 0.7 : 0);
+        const kind = sd < 0.08 ? 2 : sd < 0.22 ? 3 : 0;
+        const f = baseFeatures(kind, sd) | wearFeatures(wf, kind, sd);
+        const sc = kind === 2 ? 0.64 : 0.94 + sd * 0.12;
+        this.c.setHex(cols[(s.id * 3 + j * 5) % cols.length]);
+        const dx = x - cam.x, dy = sp.y - cam.y, dz = z - cam.z, d2 = dx * dx + dy * dy + dz * dz;
+        const b = d2 < n2 ? P.near : d2 < m2 ? P.mid : P.far;
+        b.push(x, sp.y, z, yaw, 0, 0, sc, sc, sc, this.c.r, this.c.g, this.c.b, 0, 0, sd, MODE.WALK + 8 * f);
       }
     }
-    m.count = n;
-    m.visible = n > 0;
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    P.near.finish(); P.mid.finish(); P.far.finish();
   }
 
   updateAccidents(g, T, time) {

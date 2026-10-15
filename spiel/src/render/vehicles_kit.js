@@ -546,6 +546,7 @@ export class Batch {
     this.shadow = o.shadow ?? true;
     this.receive = o.receive ?? true;
     this.renderOrder = o.renderOrder || 0;
+    this.depth = o.depth || null; // eigenes Schattenmaterial (z. B. Bewegung im Vertex-Shader), bleibt beim Vergrößern erhalten
     this.triangles = geometry.userData.triangles || (geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3);
     this.n = 0;
     this.mesh = null;
@@ -569,6 +570,7 @@ export class Batch {
     m.castShadow = this.shadow;
     m.receiveShadow = this.receive;
     m.renderOrder = this.renderOrder;
+    if (this.depth) m.customDepthMaterial = this.depth;
     m.count = 0;
     m.visible = false;
     if (old) { this.parent.remove(old); old.dispose(); this.geo.dispose(); }

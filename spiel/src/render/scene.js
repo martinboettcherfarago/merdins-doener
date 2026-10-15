@@ -19,6 +19,7 @@
 // überschreiben einzelne Teile (bei „Automatisch" als Obergrenze). Änderungen an settings werden live übernommen.
 import * as THREE from 'three';
 import { shared, atmo } from './materials.js';
+import { getPeopleMaterial, getPeopleDepthMaterial } from './vehicles_people.js';
 import { CameraRig } from './camera.js';
 import { SkySystem } from './sky.js';
 import { PostFX, postSupported } from './post.js';
@@ -661,6 +662,8 @@ export class Engine {
       if (fm) for (const m of Object.values(fm)) { add(m, true); add(m, true, true); }
       const veg = this.terrain && this.terrain.veg;
       if (veg && veg.lodMats) { for (const set of veg.lodMats) for (const m of Object.values(set)) add(m, true, true); if (veg.grassMat) add(veg.grassMat, true, true); }
+      // Menschen, Räder, Vögel (Skelett im Vertex-Shader) – erscheinen erst beim Heranzoomen
+      add(getPeopleMaterial(), true, true);
       // Schattenprogramme (Tiefenmaterialien) lassen sich mit compile() nicht passend vorbereiten (anderer Zustand
       // im Schattendurchgang): stattdessen für ein Bild entartete Probe-Meshes (keine Fläche) in die Szene hängen,
       // die echte Schattendurchgang übersetzt dann genau die richtigen Programme
@@ -686,6 +689,7 @@ export class Engine {
           }
         }
         if (this.roads && this.roads.fadeDepth) { pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true); pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true, true); }
+        pm(getPeopleMaterial(), getPeopleDepthMaterial(), true, true);
         this.scene.add(probe);
         this._pcProbe = { group: probe, geo: geo2, frames: 2 };
         this.renderer.shadowMap.needsUpdate = true;

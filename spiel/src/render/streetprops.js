@@ -1001,17 +1001,20 @@ export function shrub(ctx, x, y, z, r, seed) {
   b.blob(0, r * 0.55, 0, r, r * 0.6, r, Math.floor(seed * 997), 0);
 }
 
-// Parkbank (Blick nach lokal +z)
+// Parkbank (Blick nach lokal +z): Wangen mit Armlehne, Sitz aus drei Latten, zwei Lehnenlatten.
+// Stadtweit instanziert – bewusst sparsam (≈ 11 Teile).
 export function bench(ctx, x, y, z, yaw) {
   const b = ctx.detail.at(x, y, z, yaw);
   b.m('metal_dark');
-  for (const sx of [-0.06, 0.06]) { b.box(sx, 0, 0, 0.006, 0.042, 0.04); }
+  for (const sx of [-0.066, 0.066]) {
+    b.box(sx, 0, 0, 0.006, 0.04, 0.034);                     // Wange
+    b.beam(sx, 0.04, -0.016, sx, 0.084, -0.025, 0.005);      // Lehnenstütze
+    b.beam(sx, 0.061, 0.017, sx, 0.061, -0.016, 0.006, 0.004); // Armlehne
+  }
   b.m('wood_planks');
-  b.box(0, 0.042, 0.004, 0.15, 0.006, 0.036);
-  b.beam(-0.075, 0.056, -0.018, 0.075, 0.056, -0.018, 0.008, 0.012);
-  b.beam(-0.075, 0.074, -0.022, 0.075, 0.074, -0.022, 0.008, 0.012);
-  b.m('metal_dark');
-  for (const sx of [-0.06, 0.06]) b.beam(sx, 0.042, -0.016, sx, 0.084, -0.024, 0.005);
+  for (const dz of [-0.01, 0.003, 0.016]) b.box(0, 0.04, dz, 0.15, 0.006, 0.0105);
+  b.beam(-0.075, 0.058, -0.019, 0.075, 0.058, -0.019, 0.007, 0.011);
+  b.beam(-0.075, 0.075, -0.023, 0.075, 0.075, -0.023, 0.007, 0.011);
 }
 
 export function bin(ctx, x, y, z, yaw, color = 'paint_orange') {

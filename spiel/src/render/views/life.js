@@ -9,11 +9,13 @@ import { registerView } from '../../registry.js';
 import { R, T, Z, ROAD_GEOM } from '../../config.js';
 import { roadMask } from '../../sim/network.js';
 import { Batch, GlowPoints, hashf, VU } from '../vehicles_kit.js';
-import { lifeGeometry, getPeopleMaterial } from '../vehicles_people.js';
+import { lifeGeometry, getPeopleMaterial, getPeopleDepthMaterial, setPeopleTime, FEAT, MODE, baseFeatures, wearFeatures, wearOf } from '../vehicles_people.js';
 import { Fleet } from '../agents.js';
 
 const QUAL = { low: 0.4, medium: 1, high: 1.7, ultra: 2.4 };
 const SHIRTS = [0x2f6db3, 0xb8302a, 0xf2f2ee, 0x2a2d31, 0x2f7a4f, 0xe8b52c, 0x8f5ad8, 0xd26a8a, 0x5d7f8f, 0xc9672e, 0x6f747a, 0x1f3b63, 0xe6e2d8, 0x8a3c2e, 0x3ab6d8];
+const COATS = [0x3a3f45, 0x5a4636, 0x1f3b63, 0x6b2f2a, 0x7a7466, 0x2a2d31, 0x45544a, 0x8a6a4a];
+const SPORT = [0xe8452c, 0x2fb3d8, 0x9ad82f, 0xf06fae, 0xf2f2ee, 0x2a2d31, 0xe8b52c];
 const UMBRELLAS = [0x1f3b63, 0xb8302a, 0x2a2d31, 0xe8b52c, 0x2f7a4f, 0x8f5ad8, 0xf06fae];
 const _c = new THREE.Color();
 const gauss = (h, m, s) => Math.exp(-0.5 * ((h - m) / s) ** 2);
@@ -93,14 +95,16 @@ class Pedestrians {
     this.seed = new Float32Array(n); this.lane = new Float32Array(n);
     this.steps = new Int16Array(n); this.state = new Uint8Array(n); // 0 frei, 1 kommt heraus, 2 läuft, 3 geht hinein
     this.scale = new Float32Array(n); this.kind = new Uint8Array(n); this.age = new Float32Array(n);
+    this.feat = new Int32Array(n); this.amt = new Float32Array(n); this.wait = new Float32Array(n); this.gait = new Float32Array(n);
     this.count = 0;
     this.free = [];
     for (let i = n - 1; i >= 0; i--) this.free.push(i);
-    const mat = getPeopleMaterial();
+    const mat = getPeopleMaterial(), depth = getPeopleDepthMaterial();
     const parent = this.e.scene;
-    this.models = ['man', 'woman', 'long', 'bag'];
-    this.near = this.models.map((id) => new Batch(parent, lifeGeometry(id, 2).clone(), mat, { shadow: true, cap: 64 }));
-    this.mid = this.models.map((id) => new Batch(parent, lifeGeometry(id, 1).clone(), mat, { shadow: false, cap: 128 }));
+    // Eine Geometrie je Detailstufe für alle Fußgänger (Kleidung/Zubehör über Merkmale im Shader)
+    this.near = new Batch(parent, lifeGeometry('human', 2).clone(), mat, { shadow: true, cap: 128, depth });
+    this.mid = new Batch(parent, lifeGeometry('human', 1).clone(), mat, { shadow: false, cap: 256 });
+    this.far = new Batch(parent, lifeGeometry('human', 0).clone(), mat, { shadow: false, cap: 512 });
     this.umb = new Batch(parent, lifeGeometry('umbrella', 2).clone(), mat, { shadow: false, cap: 32 });
     this.tmp = [0, 0];
     this.nbs = [];
@@ -129,8 +133,12 @@ class Pedestrians {
     this.t[k] = 0;
     this.node[k] = n; this.prev[k] = -1;
     const u = Math.random();
-    this.kind[k] = u < 0.08 ? 2 : u < 0.13 ? 3 : 0; // 2 Kind, 3 Senior
-    this.speed[k] = (this.kind[k] === 3 ? 0.075 : this.kind[k] === 2 ? 0.1 : 0.11 + Math.random() * 0.05);
+    this.kind[k] = u < 0.08 ? 2 : u < 0.15 ? 3 : u < 0.2 ? 4 : 0; // 2 Kind, 3 Senior, 4 Jogger
+    const kd = this.kind[k];
+    this.speed[k] = (kd === 3 ? 0.075 : kd === 2 ? 0.1 : kd === 4 ? 0.24 + Math.random() * 0.05 : 0.11 + Math.random() * 0.05);
+    this.gait[k] = kd === 4 ? 1.85 : 1;
+    this.amt[k] = this.gait[k]; this.wait[k] = 0;
+    this.feat[k] = baseFeatures(kd, Math.random());
     this.phase[k] = Math.random() * 6.28;
     this.seed[k] = Math.random();
     this.lane[k] = (Math.random() < 0.85 ? 1 : -1) * (0.012 + Math.random() * 0.018);
@@ -157,7 +165,12 @@ class Pedestrians {
     this.len[k] = Math.max(0.01, Math.hypot(this.bx[k] - this.ax[k], this.bz[k] - this.az[k]));
     this.t[k] = 0;
     this.prev[k] = n; this.node[k] = pick[0];
-    if (pick[1]) this.speed[k] = Math.max(this.speed[k], 0.13);
+    if (pick[1]) this.speed[k] = Math.max(this.speed[k], this.kind[k] === 4 ? 0.24 : 0.13);
+    // kurz stehen bleiben: vor dem Überqueren (Ampel/Verkehr), sonst ab und zu (Schaufenster, Gespräch)
+    if (this.kind[k] !== 4) {
+      if (pick[1] && jn && Math.random() < 0.55) this.wait[k] = 1.5 + Math.random() * 4;
+      else if (!pick[1] && Math.random() < 0.07) this.wait[k] = 2 + Math.random() * 6;
+    }
   }
 
   // ins Haus gehen: vom Knoten zum Feldrand
@@ -200,9 +213,17 @@ class Pedestrians {
       const st = this.state[k];
       if (!st) continue;
       this.age[k] += dt;
-      const v = this.speed[k] * dt;
+      // Warten: auslaufen lassen (Gangstärke → 0), dann wieder anlaufen
+      let go = 1;
+      if (this.wait[k] > 0 && st === 2) { this.wait[k] -= dt; go = 0; }
+      const want = go ? this.gait[k] : 0;
+      const a0 = this.amt[k];
+      this.amt[k] = a0 + (want - a0) * Math.min(1, dt * (want > a0 ? 5 : 7));
+      const mv = Math.min(1, this.amt[k] / Math.max(0.01, this.gait[k]));
+      const v = this.speed[k] * dt * mv;
       this.t[k] += v / this.len[k];
-      this.phase[k] += (this.speed[k] / 0.068) * Math.PI * dt;
+      // Schrittfrequenz passend zur Geschwindigkeit (Joggen: längere Schritte)
+      this.phase[k] += (this.speed[k] / (this.kind[k] === 4 ? 0.105 : this.kind[k] === 2 ? 0.055 : 0.068)) * Math.PI * dt * mv;
       if (st === 1 || st === 2) this.scale[k] = Math.min(1, this.scale[k] + dt * 4);
       else if (st === 3 && this.t[k] > 0.6) this.scale[k] = Math.max(0, this.scale[k] - dt * 5);
       while (this.t[k] >= 1) {
@@ -220,14 +241,16 @@ class Pedestrians {
     void g;
   }
 
+  begin() { this.near.begin(); this.mid.begin(); this.far.begin(); this.umb.begin(); }
+  finish() { this.near.finish(); this.mid.finish(); this.far.finish(); this.umb.finish(); }
+  // Detailstufe nach Abstand²: volle Figur, vereinfacht, Fernform
+  pick(d2, ctx) { return d2 < ctx.near2 ? this.near : d2 < ctx.midNear2 ? this.mid : this.far; }
   draw(ctx) {
-    for (const b of this.near) b.begin();
-    for (const b of this.mid) b.begin();
-    this.umb.begin();
     const fr = ctx.frustum, sph = ctx.sph, cam = ctx.cam;
     const swY = ctx.swY;
     const rain = ctx.rain > 0.25;
-    const near2 = ctx.near2, mid2 = ctx.mid2;
+    const mid2 = ctx.mid2;
+    const wf = ctx.wearFeat;
     for (let k = 0; k < this.max; k++) {
       if (!this.state[k]) continue;
       const t = Math.min(1, this.t[k]);
@@ -244,24 +267,26 @@ class Pedestrians {
       sph.center.set(x, y + 0.09, z);
       if (!fr.intersectsSphere(sph)) continue;
       const kind = this.kind[k];
-      const s = this.scale[k] * (kind === 2 ? 0.62 : kind === 3 ? 0.96 : 0.95 + this.seed[k] * 0.1);
-      if (s <= 0.01) continue;
-      const yaw = Math.atan2(dx, dz);
       const sd = this.seed[k];
-      const variant = Math.floor(sd * 997) % 4;
-      const shirt = SHIRTS[Math.floor(sd * 7919) % SHIRTS.length];
-      _c.setHex(shirt);
-      const b = d2 < near2 ? this.near[variant] : this.mid[variant];
-      const amt = this.state[k] ? 1 : 0;
-      b.push(x, y, z, yaw, 0, 0, s, s, s, _c.r, _c.g, _c.b, this.phase[k], amt, sd, 0);
-      if (rain && kind !== 2 && sd > 0.25 && d2 < mid2 * 0.6) {
+      const s = this.scale[k] * (kind === 2 ? 0.6 + sd * 0.12 : kind === 3 ? 0.95 : 0.93 + sd * 0.13);
+      if (s <= 0.01) continue;
+      // Statur: Breite unabhängig von der Größe
+      const wdt = s * (kind === 2 ? 1.06 : 0.92 + ((sd * 7.31) % 1) * 0.2);
+      let yaw = Math.atan2(dx, dz);
+      // Wartende drehen sich etwas zur Straße/zum Schaufenster
+      if (this.amt[k] < 0.6 && kind !== 4) yaw += Math.sin(sd * 40) * 0.9 * (1 - this.amt[k] / 0.6);
+      let f = this.feat[k] | wearFeatures(wf, kind, sd);
+      const umb = rain && kind !== 2 && kind !== 4 && sd > 0.25;
+      if (umb) f |= FEAT.UMBRELLA;
+      _c.setHex(kind === 4 ? SPORT[Math.floor(sd * 911) % SPORT.length] : (f & FEAT.COAT) ? COATS[Math.floor(sd * 7919) % COATS.length] : SHIRTS[Math.floor(sd * 7919) % SHIRTS.length]);
+      const b = this.pick(d2, ctx);
+      const w = MODE.WALK + 8 * f;
+      b.push(x, y, z, yaw, 0, 0, wdt, s, wdt, _c.r, _c.g, _c.b, this.phase[k], this.amt[k], sd, w);
+      if (umb && d2 < ctx.midNear2) {
         _c.setHex(UMBRELLAS[Math.floor(sd * 131) % UMBRELLAS.length]);
-        this.umb.push(x, y, z, yaw, 0, 0, s, s, s, _c.r, _c.g, _c.b, 0, 0, sd, 0);
+        this.umb.push(x, y, z, yaw, 0, 0, wdt, s, wdt, _c.r, _c.g, _c.b, this.phase[k], this.amt[k], sd, w);
       }
     }
-    for (const b of this.near) b.finish();
-    for (const b of this.mid) b.finish();
-    this.umb.finish();
   }
 }
 
@@ -273,8 +298,8 @@ class Cyclists {
     this.max = Math.round(110 * q);
     this.list = [];
     const mat = getPeopleMaterial();
-    this.near = new Batch(this.e.scene, lifeGeometry('cyclist', 2).clone(), mat, { shadow: true, cap: 32 });
-    this.mid = new Batch(this.e.scene, lifeGeometry('cyclist', 1).clone(), mat, { shadow: false, cap: 64 });
+    this.near = new Batch(this.e.scene, lifeGeometry('bicycle', 2).clone(), mat, { shadow: true, cap: 32, depth: getPeopleDepthMaterial() });
+    this.mid = new Batch(this.e.scene, lifeGeometry('bicycle', 1).clone(), mat, { shadow: false, cap: 64 });
   }
   nextTile(c) {
     const g = this.g, W = g.W;
@@ -295,6 +320,7 @@ class Cyclists {
   }
   spawn(tile) {
     const c = { prev: -1, cur: tile, next: -1, t: 0, speed: 0.32 + Math.random() * 0.16, phase: Math.random() * 6, seed: Math.random(), life: 8 + Math.random() * 30 };
+    c.feat = (Math.random() < 0.45 ? FEAT.HELMET : 0) | (Math.random() < 0.25 ? FEAT.BACKPACK : 0) | (Math.random() < 0.3 ? FEAT.LONGHAIR : 0);
     c.next = this.nextTile(c);
     if (c.next < 0) return;
     // vorheriges Feld = entgegengesetzt
@@ -317,7 +343,7 @@ class Cyclists {
     for (const c of this.list) {
       c.t += c.speed * dt;
       c.life -= dt;
-      c.phase += c.speed * dt * 38;
+      c.phase += c.speed * dt * 11; // Tretkurbel ≈ 0,7 Umdrehungen/s
       let alive = true;
       while (c.t >= 1) {
         c.t -= 1;
@@ -356,8 +382,11 @@ class Cyclists {
     c.yaw = Math.atan2(tx, ty);
     c.lean = 0;
   }
-  draw(ctx) {
-    this.near.begin(); this.mid.begin();
+  begin() { this.near.begin(); this.mid.begin(); }
+  finish() { this.near.finish(); this.mid.finish(); }
+  // Rad und Fahrer (Fahrer als Mensch in Haltung „Rad" im Fußgänger-Stapel: gleiche Phase → Beine treten die Pedale)
+  draw(ctx, peds) {
+    const wf = ctx.wearFeat;
     for (const c of this.list) {
       if (c.x === undefined) continue;
       const y = ctx.yAt(c.x, c.z);
@@ -366,11 +395,233 @@ class Cyclists {
       if (d2 > ctx.mid2) continue;
       ctx.sph.center.set(c.x, y + 0.08, c.z);
       if (!ctx.frustum.intersectsSphere(ctx.sph)) continue;
+      const near = d2 < ctx.near2;
+      _c.setHex(BIKES[Math.floor(c.seed * 557) % BIKES.length]);
+      (near ? this.near : this.mid).push(c.x, y, c.z, c.yaw, 0, 0, 1, 1, 1, _c.r, _c.g, _c.b, c.phase, 1, c.seed, 0);
+      const f = (c.feat | wearFeatures(wf, 0, c.seed)) & ~(FEAT.COAT | FEAT.SKIRT);
       _c.setHex(SHIRTS[Math.floor(c.seed * 7919) % SHIRTS.length]);
-      const b = d2 < ctx.near2 ? this.near : this.mid;
-      b.push(c.x, y, c.z, c.yaw, 0, 0, 1, 1, 1, _c.r, _c.g, _c.b, c.phase, 1, c.seed, 1);
+      (near ? peds.near : peds.mid).push(c.x, y, c.z, c.yaw, 0, 0, 1, 1, 1, _c.r, _c.g, _c.b, c.phase, 1, c.seed, MODE.CYCLE + 8 * f); // Fahrer nie als Fernform (sitzt)
     }
-    this.near.finish(); this.mid.finish();
+  }
+}
+const BIKES = [0x2a2d31, 0xb8302a, 0x1f3b63, 0xd9dcdf, 0x2f7a4f, 0x8a9096, 0xe8b52c, 0x3ab6d8];
+
+// ---------------------------------------------------------------- Sitzende auf Straßenbänken und Tauben davor
+// Belegung je Bank deterministisch aus Ort und Spielzeit (wechselt alle ~45 Spielminuten), weich ein- und ausgeblendet.
+class Sitters {
+  constructor(view) {
+    this.v = view; this.g = view.g; this.e = view.e;
+    this.seats = new Map(); // Schlüssel → { x, y, z, yaw, seed, s, on, kind, feat }
+    this.birds = new Map(); // Bank → [{ x, z, h, ph, rate, peck, t }]
+    this.timer = 0;
+    this.tmp = [];
+    this.pigeons = new Batch(this.e.scene, lifeGeometry('pigeon', 2).clone(), getPeopleMaterial(), { shadow: false, cap: 64 });
+  }
+  occupancy(h, ctx) {
+    const day = gauss(h, 11, 2.5) * 0.55 + gauss(h, 16.5, 2.4) * 0.8 + gauss(h, 20, 1.2) * 0.25;
+    return Math.min(0.85, day) * (1 - Math.min(1, ctx.rain * 1.6)) * (ctx.cold ? 0.35 : 1);
+  }
+  update(dt, ctx) {
+    const roads = this.e.roads;
+    this.timer -= dt;
+    if (this.timer <= 0 && roads && roads.benchesNear) {
+      this.timer = 1.2;
+      const g = this.g;
+      const list = roads.benchesNear(ctx.cx, ctx.cz, Math.min(ctx.radius, 26), this.tmp);
+      const occ = this.occupancy(g.hour(), ctx);
+      const period = Math.floor(g.time / 45);
+      const seen = new Set();
+      for (let i = 0; i < list.length; i += 4) {
+        const x = list[i], y = list[i + 1], z = list[i + 2], yaw = list[i + 3];
+        const bk = Math.round(x * 50) * 73856093 ^ Math.round(z * 50) * 19349663;
+        for (let j = 0; j < 2; j++) {
+          const key = bk * 2 + j;
+          seen.add(key);
+          const r = hashf((bk & 0xffff) * 0.37 + j * 13.1 + period * 7.77);
+          const on = r < occ * (j ? 0.45 : 1);
+          let st = this.seats.get(key);
+          if (!st) {
+            if (!on) continue;
+            const off = j ? -0.038 : 0.036;
+            const seed = hashf(r * 917 + j);
+            const kind = seed < 0.3 ? 3 : seed < 0.36 ? 2 : 0;
+            st = { x: x + Math.cos(yaw) * off, y, z: z - Math.sin(yaw) * off, yaw, seed, s: 0, on: true, kind, feat: baseFeatures(kind, seed) & ~(FEAT.CANE) };
+            this.seats.set(key, st);
+          }
+          st.on = on;
+        }
+        // Tauben: an einem Teil der Bänke tagsüber, nicht bei Regen/Kälte
+        const pk = bk;
+        const want = occ > 0.15 && hashf((bk & 0xfffff) * 0.013 + 3.3) < 0.35;
+        if (want && !this.birds.has(pk)) {
+          const n = 2 + Math.floor(hashf(bk * 0.001 + 5) * 4);
+          const arr = [];
+          const fx = Math.sin(yaw), fz = Math.cos(yaw);
+          for (let q = 0; q < n; q++) {
+            const a = Math.random() * 6.28, rr = 0.02 + Math.random() * 0.045;
+            arr.push({ x: x + fx * 0.055 + Math.cos(a) * rr, y, z: z + fz * 0.055 + Math.sin(a) * rr, cx: x + fx * 0.055, cz: z + fz * 0.055, h: Math.random() * 6.28, ph: Math.random() * 6, peck: Math.random() < 0.5 ? 1 : 0, t: Math.random() * 3, s: 0 });
+          }
+          this.birds.set(pk, { list: arr, on: true, seen: true });
+        } else if (this.birds.has(pk)) { const b = this.birds.get(pk); b.on = want; b.seen = true; }
+      }
+      for (const [key, st] of this.seats) if (!seen.has(key)) st.on = false;
+      for (const b of this.birds.values()) { if (!b.seen) b.on = false; b.seen = false; }
+    }
+    for (const [key, st] of this.seats) {
+      st.s = Math.max(0, Math.min(1, st.s + (st.on ? dt * 2 : -dt * 2)));
+      if (!st.on && st.s <= 0) this.seats.delete(key);
+    }
+    for (const [key, b] of this.birds) {
+      let alive = 0;
+      for (const p of b.list) {
+        p.s = Math.max(0, Math.min(1, p.s + (b.on ? dt * 1.5 : -dt * 3)));
+        if (p.s > 0) alive++;
+        p.t -= dt;
+        if (p.t <= 0) { p.peck = p.peck ? 0 : 1; p.t = p.peck ? 1 + Math.random() * 3 : 0.6 + Math.random() * 1.6; if (!p.peck) p.h += (Math.random() - 0.5) * 2.2; }
+        if (!p.peck) {
+          // trippeln, zurück zur Mitte ziehen
+          const sp = 0.03 * dt;
+          p.x += Math.sin(p.h) * sp; p.z += Math.cos(p.h) * sp;
+          const dx = p.cx - p.x, dz = p.cz - p.z;
+          if (dx * dx + dz * dz > 0.0042) p.h = Math.atan2(dx, dz) + (Math.random() - 0.5) * 0.8;
+          p.ph += dt * 9;
+        } else p.ph += dt * 3.2;
+      }
+      if (!b.on && !alive) this.birds.delete(key);
+    }
+  }
+  draw(ctx, peds) {
+    this.pigeons.begin();
+    const wf = ctx.wearFeat;
+    for (const st of this.seats.values()) {
+      if (st.s <= 0.01) continue;
+      const ex = st.x - ctx.cam.x, ey = st.y - ctx.cam.y, ez = st.z - ctx.cam.z;
+      const d2 = ex * ex + ey * ey + ez * ez;
+      if (d2 > ctx.mid2) continue;
+      ctx.sph.center.set(st.x, st.y + 0.08, st.z);
+      if (!ctx.frustum.intersectsSphere(ctx.sph)) continue;
+      const sc = (st.kind === 2 ? 0.66 : 0.97) * st.s, w = sc * (0.94 + st.seed * 0.15);
+      const f = st.feat | wearFeatures(wf, st.kind, st.seed);
+      _c.setHex((f & FEAT.COAT) ? COATS[Math.floor(st.seed * 7919) % COATS.length] : SHIRTS[Math.floor(st.seed * 7919) % SHIRTS.length]);
+      (d2 < ctx.near2 ? peds.near : peds.mid).push(st.x, st.y, st.z, st.yaw, 0, 0, w, sc, w, _c.r, _c.g, _c.b, 0, 0, st.seed, MODE.SIT + 8 * f);
+    }
+    const lim = ctx.near2 * 1.3;
+    _c.setHex(0xffffff);
+    for (const b of this.birds.values()) for (const p of b.list) {
+      if (p.s <= 0.01) continue;
+      const ex = p.x - ctx.cam.x, ey = p.y - ctx.cam.y, ez = p.z - ctx.cam.z;
+      if (ex * ex + ey * ey + ez * ez > lim) continue;
+      const sc = p.s;
+      this.pigeons.push(p.x, p.y, p.z, p.h, 0, 0, sc, sc, sc, 1, 1, 1, p.ph, p.peck, 0.5, MODE.BIRD_GROUND);
+    }
+    this.pigeons.finish();
+  }
+}
+
+// ---------------------------------------------------------------- Abgestellte Fahrräder an Fahrradständern (nur in der Nähe)
+// Die Ständer sind stadtweit instanziert; die Räder darin zeichnet diese Ansicht nur um die Kamera (keine Kosten im Überblick).
+class ParkedBikes {
+  constructor(view) { this.v = view; this.g = view.g; this.e = view.e; this.list = []; this.timer = 0; this.tmp = []; }
+  update(dt, ctx) {
+    this.timer -= dt;
+    if (this.timer > 0) return;
+    this.timer = 1.5;
+    this.list.length = 0;
+    const roads = this.e.roads;
+    if (!roads || !roads.benchesNear || ctx.dist > 40) return;
+    const g = this.g, h = g.hour();
+    const busy = 0.25 + 0.75 * Math.min(1, gauss(h, 13, 4.5) * 1.2);
+    const period = Math.floor(g.time / 120);
+    const racks = roads.benchesNear(ctx.cx, ctx.cz, Math.min(ctx.radius, 18), this.tmp, 'rack');
+    for (let i = 0; i < racks.length; i += 4) {
+      const x = racks[i], y = racks[i + 1], z = racks[i + 2], yaw = racks[i + 3];
+      const bk = (Math.round(x * 50) * 73856093) ^ (Math.round(z * 50) * 19349663);
+      for (let k = 0; k < 4; k++) {
+        const r = hashf((bk & 0xfffff) * 0.0137 + k * 7.1 + period * 3.3);
+        if (r > busy * 0.55) continue;
+        const ox = (k - 1.5) * 0.035;
+        const c = Math.cos(yaw), sn = Math.sin(yaw);
+        const sd = hashf(r * 911 + k);
+        this.list.push({ x: x + ox * c + (sd - 0.5) * 0.01 * sn, y, z: z - ox * sn + (sd - 0.5) * 0.01 * c, yaw: yaw + (sd < 0.5 ? Math.PI : 0) + (sd - 0.5) * 0.08, seed: sd });
+      }
+    }
+  }
+  draw(ctx, bikes) {
+    for (const p of this.list) {
+      const ex = p.x - ctx.cam.x, ey = p.y - ctx.cam.y, ez = p.z - ctx.cam.z;
+      const d2 = ex * ex + ey * ey + ez * ez;
+      if (d2 > ctx.midNear2) continue;
+      ctx.sph.center.set(p.x, p.y + 0.05, p.z);
+      if (!ctx.frustum.intersectsSphere(ctx.sph)) continue;
+      _c.setHex(BIKES[Math.floor(p.seed * 557) % BIKES.length]);
+      (d2 < ctx.near2 ? bikes.near : bikes.mid).push(p.x, p.y, p.z, p.yaw, 0, 0, 1, 1, 1, _c.r, _c.g, _c.b, p.seed * 6.28, 0, p.seed, 0);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- Bauarbeiter auf Baustellen (tagsüber, werktags)
+// Zwei bis drei Leute vor dem Gerüst: einer hämmert, einer schaut zu, manchmal geht einer auf und ab.
+class Workers {
+  constructor(view) { this.v = view; this.g = view.g; this.e = view.e; this.list = []; this.timer = 0; }
+  update(dt, ctx) {
+    this.timer -= dt;
+    for (const w of this.list) { w.t += dt; w.s = Math.max(0, Math.min(1, w.s + (w.on ? dt * 2 : -dt * 2))); }
+    if (this.timer > 0) return;
+    this.timer = 1.5;
+    const B = this.e.buildings, g = this.g;
+    const h = g.hour(), work = h >= 7 && h < 17.5 && g.weekday() < 5 && ctx.rain < 0.6;
+    const seen = new Set();
+    if (work && B && B.recs) {
+      const R2 = Math.min(ctx.radius, 24) ** 2;
+      for (const rec of B.recs.values()) {
+        if (!rec.site || rec.dead || !rec.site.box) continue;
+        const dx = rec.ox - ctx.cx, dz = rec.oz - ctx.cz;
+        if (dx * dx + dz * dz > R2) continue;
+        const [bx0, bx1, , bz1] = rec.site.box;
+        const n = 2 + (rec.id % 2);
+        for (let j = 0; j < n; j++) {
+          const key = rec.id * 4 + j;
+          seen.add(key);
+          let w = this.list.find((q) => q.key === key);
+          if (!w) {
+            const sd = hashf(rec.id * 13.7 + j * 3.1);
+            const lx = bx0 + (bx1 - bx0) * (0.2 + 0.6 * ((j + 0.5) / n)) + (sd - 0.5) * 0.05;
+            const lz = bz1 + 0.06 + sd * 0.05;
+            const yaw0 = rec.k * Math.PI / 2;
+            const c = Math.cos(yaw0), s = Math.sin(yaw0);
+            w = { key, seed: sd, x0: rec.ox + lx * c + lz * s, z0: rec.oz - lx * s + lz * c, ax: c, az: -s, span: (bx1 - bx0) * 0.3, yaw: yaw0 + Math.PI + (sd - 0.5) * 0.8, role: j === 0 ? 'work' : j === 2 ? 'walk' : 'stand', t: sd * 10, s: 0, on: true };
+            this.list.push(w);
+          }
+          w.on = true;
+        }
+      }
+    }
+    for (const w of this.list) if (!seen.has(w.key)) w.on = false;
+    this.list = this.list.filter((w) => w.on || w.s > 0);
+  }
+  draw(ctx, peds) {
+    for (const w of this.list) {
+      if (w.s <= 0.01) continue;
+      let x = w.x0, z = w.z0, yaw = w.yaw, amt = 0, ph = 0, mode = MODE.WORK;
+      if (w.role === 'stand') mode = MODE.WALK;
+      else if (w.role === 'walk') {
+        // auf und ab vor dem Gerüst, an den Enden kurz stehen
+        const T = 9, u = (w.t % T) / T;
+        const go = u < 0.4 ? u / 0.4 : u < 0.5 ? 1 : u < 0.9 ? 1 - (u - 0.5) / 0.4 : 0;
+        const moving = (u < 0.4 || (u >= 0.5 && u < 0.9));
+        x += w.ax * (go - 0.5) * w.span * 2; z += w.az * (go - 0.5) * w.span * 2;
+        yaw = Math.atan2(w.ax, w.az) + (u >= 0.5 ? Math.PI : 0);
+        amt = moving ? 1 : 0; ph = w.t * 7.2; mode = MODE.WALK;
+      }
+      const ex = x - ctx.cam.x, ey = -ctx.cam.y, ez = z - ctx.cam.z;
+      const d2 = ex * ex + ey * ey + ez * ez;
+      if (d2 > ctx.mid2) continue;
+      ctx.sph.center.set(x, 0.09, z);
+      if (!ctx.frustum.intersectsSphere(ctx.sph)) continue;
+      _c.setHex(w.seed < 0.5 ? 0xf07a1a : 0xe6d21c);
+      const sc = (0.95 + w.seed * 0.1) * w.s;
+      peds.pick(d2, ctx).push(x, 0.002, z, yaw, 0, 0, sc * 1.04, sc, sc * 1.04, _c.r, _c.g, _c.b, ph, amt, w.seed, mode + 8 * FEAT.HELMET);
+    }
   }
 }
 
@@ -431,7 +682,7 @@ class Birds {
         ctx.sph.center.set(x, y, z);
         if (!ctx.frustum.intersectsSphere(ctx.sph)) continue;
         const flap = f.sea ? (b.glide > 0.5 ? 0.25 : 0.8) : 1;
-        this.batch.push(x, y, z, yaw + Math.sin(b.a) * 0.3, 0, Math.sin(b.a * 1.3) * 0.2, sc, sc, sc, _c.r, _c.g, _c.b, b.ph, flap, 0.5, 1);
+        this.batch.push(x, y, z, yaw + Math.sin(b.a) * 0.3, 0, Math.sin(b.a * 1.3) * 0.2, sc, sc, sc, _c.r, _c.g, _c.b, b.ph, flap, 0.5, MODE.BIRD_FLY);
       }
     }
     this.batch.finish();
@@ -804,6 +1055,9 @@ class LifeView {
     this.walk = new Walkways(this);
     this.peds = new Pedestrians(this);
     this.bikes = new Cyclists(this);
+    this.sitters = new Sitters(this);
+    this.workers = new Workers(this);
+    this.parked = new ParkedBikes(this);
     this.birds = new Birds(this);
     this.boats = new Boats(this);
     this.sky = new Sky(this);
@@ -907,11 +1161,14 @@ class LifeView {
       lc.x = cx; lc.z = cz; lc.r = radius; lc.t = this.time;
     }
     const q = QUAL[e.settings && e.settings.quality] ?? 1;
+    // „Automatisch": Detailabstände folgen der laufenden Regelung (wie bei den Gebäuden)
+    const eq = e.quality;
+    const lodK = eq && eq.auto && Number.isFinite(eq.lod) ? Math.max(0.6, Math.min(1.25, eq.lod)) : 1;
     const vis = 1 - smooth(48, 85, dist);
     const weather = 1 - Math.min(0.7, rain * 0.6) - (cold ? 0.15 : 0);
     const ctx = this.ctx;
     Object.assign(ctx, {
-      cx, cz, radius, total, rain, night, cand: this.cand, frustum: this.frustum, sph: this.sph, cam: this.cam, glow: this.glow,
+      cx, cz, radius, dist, total, rain, night, cold, wearFeat: wearOf(w, h), cand: this.cand, frustum: this.frustum, sph: this.sph, cam: this.cam, glow: this.glow,
       pedTarget: Math.min(this.peds.max, total * 0.22 * vis * weather * q),
       bikeTarget: Math.min(this.bikes.max, (total * 0.004 + 2) * vis * (g.policies && g.policies.has('bikes') ? 2.2 : 1) * (1 - rain) * (cold ? 0.3 : 1) * (night > 0.6 ? 0.25 : 1) * q),
       birdTarget: night > 0.5 || dist > 110 ? 0 : Math.round((2 + (w && w.season === 'winter' ? -1 : w && w.season === 'spring' ? 2 : 1)) * (1 - rain * 0.8)),
@@ -919,7 +1176,7 @@ class LifeView {
       waterNear: this.boats.tiles && this.boats.tiles.length > 0,
       planes: true, contrails: !w || (w.cloud || 0) < 0.85,
       calm: !w || ((w.wind || 0) < 0.5 && (w.rain || 0) < 0.1 && (w.fog || 0) < 0.4),
-      near2: (13 * Math.sqrt(q)) ** 2, mid2: (Math.min(52, 30 + 12 * q)) ** 2,
+      near2: (7.5 * Math.sqrt(q) * lodK) ** 2, midNear2: (15 * Math.sqrt(q) * lodK) ** 2, mid2: (Math.min(52, 30 + 12 * q)) ** 2,
       swY: e.roads && typeof e.roads.surfaceY === 'function' ? 0.014 : 0.012,
       yAt: (x, z) => (e.vehicles ? e.vehicles.roadY(x + g.W / 2, z + g.H / 2) : 0.012),
     });
@@ -927,14 +1184,23 @@ class LifeView {
     if (g.ext && g.ext.weather === undefined) void 0;
     this.peds.update(ldt, ctx);
     this.bikes.update(ldt, ctx);
+    this.sitters.update(ldt, ctx);
+    this.workers.update(ldt, ctx);
+    this.parked.update(dt, ctx);
     this.birds.update(ldt, ctx);
     this.boats.update(ldt, ctx);
     this.sky.update(ldt, ctx);
     // Zeichnen
     this.glow.begin();
     this.fleet.begin();
+    setPeopleTime(this.time);
+    this.peds.begin(); this.bikes.begin();
     this.peds.draw(ctx);
-    this.bikes.draw(ctx);
+    this.bikes.draw(ctx, this.peds);
+    this.parked.draw(ctx, this.bikes);
+    this.sitters.draw(ctx, this.peds);
+    this.workers.draw(ctx, this.peds);
+    this.peds.finish(); this.bikes.finish();
     this.birds.draw(ctx);
     this.sph.radius = 1.2;
     this.boats.draw(ctx, this.fleet, this.time);
@@ -948,7 +1214,7 @@ class LifeView {
   }
 
   stats() {
-    return { peds: this.peds.live(), bikes: this.bikes.list.length, flocks: this.birds.flocks.length, boats: this.boats.list.length, planes: this.sky.planes.length, balloon: !!this.sky.balloon, fleet: this.fleet.stats() };
+    return { workers: this.workers.list.length, sitting: this.sitters.seats.size, peds: this.peds.live(), bikes: this.bikes.list.length, flocks: this.birds.flocks.length, boats: this.boats.list.length, planes: this.sky.planes.length, balloon: !!this.sky.balloon, fleet: this.fleet.stats() };
   }
 
   dispose() { for (const u of this.unbind) u(); }
