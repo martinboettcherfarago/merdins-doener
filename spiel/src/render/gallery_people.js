@@ -1,5 +1,5 @@
 // Galerie der Menschen (index.html?gallery=people): Körper, Kleidung, Haltungen und Bewegung zum Prüfen per Screenshot.
-// Parameter: t=<Zeit in s> (Bewegungsstand), detail=2|1, zoom, yaw, pitch, ty (Blickhöhe), rows=0,1,2,3 (Auswahl)
+// Parameter: t=<Zeit in s> (Bewegungsstand), freeze (Zeit anhalten), detail=2|1, zoom, yaw, pitch, ty (Blickhöhe), rows=0,1,2,3 (Auswahl)
 import * as THREE from 'three';
 import { Batch } from './vehicles_kit.js';
 import { lifeGeometry, getPeopleMaterial, getPeopleDepthMaterial, setPeopleTime, FEAT, MODE } from './vehicles_people.js';
@@ -55,9 +55,10 @@ export function peopleGallery(params, renderer, scene, sun) {
   camera.lookAt(0, ty, 0);
   const t0 = +(params.get('t') || 0);
   const clock = { t: 0 };
+  const freeze = params.has('freeze'); // Bewegungsstand festhalten (Bildfolgen)
   const _c = new THREE.Color();
   const loop = () => {
-    clock.t += 0.016;
+    if (!freeze) clock.t += 0.016;
     const t = t0 + clock.t;
     setPeopleTime(t);
     hb.begin(); bb.begin(); ub.begin(); pb.begin();

@@ -9,7 +9,7 @@ import { registerView } from '../../registry.js';
 import { R, T, Z, ROAD_GEOM } from '../../config.js';
 import { roadMask } from '../../sim/network.js';
 import { Batch, GlowPoints, hashf, VU } from '../vehicles_kit.js';
-import { lifeGeometry, getPeopleMaterial, getPeopleDepthMaterial, setPeopleTime, FEAT, MODE } from '../vehicles_people.js';
+import { lifeGeometry, getPeopleMaterial, getPeopleDepthMaterial, setPeopleTime, FEAT, MODE, baseFeatures, wearFeatures, wearOf } from '../vehicles_people.js';
 import { Fleet } from '../agents.js';
 
 const QUAL = { low: 0.4, medium: 1, high: 1.7, ultra: 2.4 };
@@ -105,6 +105,7 @@ class Pedestrians {
     this.near = new Batch(parent, lifeGeometry('human', 2).clone(), mat, { shadow: true, cap: 128 });
     this.near.mesh.customDepthMaterial = depth;
     this.mid = new Batch(parent, lifeGeometry('human', 1).clone(), mat, { shadow: false, cap: 256 });
+    this.far = new Batch(parent, lifeGeometry('human', 0).clone(), mat, { shadow: false, cap: 512 });
     this.umb = new Batch(parent, lifeGeometry('umbrella', 2).clone(), mat, { shadow: false, cap: 32 });
     this.tmp = [0, 0];
     this.nbs = [];
@@ -241,13 +242,15 @@ class Pedestrians {
     void g;
   }
 
-  begin() { this.near.begin(); this.mid.begin(); this.umb.begin(); }
-  finish() { this.near.finish(); this.mid.finish(); this.umb.finish(); }
+  begin() { this.near.begin(); this.mid.begin(); this.far.begin(); this.umb.begin(); }
+  finish() { this.near.finish(); this.mid.finish(); this.far.finish(); this.umb.finish(); }
+  // Detailstufe nach Abstand²: volle Figur, vereinfacht, Fernform
+  pick(d2, ctx) { return d2 < ctx.near2 ? this.near : d2 < ctx.midNear2 ? this.mid : this.far; }
   draw(ctx) {
     const fr = ctx.frustum, sph = ctx.sph, cam = ctx.cam;
     const swY = ctx.swY;
     const rain = ctx.rain > 0.25;
-    const near2 = ctx.near2, mid2 = ctx.mid2;
+    const mid2 = ctx.mid2;
     const wf = ctx.wearFeat;
     for (let k = 0; k < this.max; k++) {
       if (!this.state[k]) continue;
@@ -277,70 +280,15 @@ class Pedestrians {
       const umb = rain && kind !== 2 && kind !== 4 && sd > 0.25;
       if (umb) f |= FEAT.UMBRELLA;
       _c.setHex(kind === 4 ? SPORT[Math.floor(sd * 911) % SPORT.length] : (f & FEAT.COAT) ? COATS[Math.floor(sd * 7919) % COATS.length] : SHIRTS[Math.floor(sd * 7919) % SHIRTS.length]);
-      const near = d2 < near2;
-      const b = near ? this.near : this.mid;
+      const b = this.pick(d2, ctx);
       const w = MODE.WALK + 8 * f;
       b.push(x, y, z, yaw, 0, 0, wdt, s, wdt, _c.r, _c.g, _c.b, this.phase[k], this.amt[k], sd, w);
-      if (umb && d2 < mid2 * 0.6) {
+      if (umb && d2 < ctx.midNear2) {
         _c.setHex(UMBRELLAS[Math.floor(sd * 131) % UMBRELLAS.length]);
         this.umb.push(x, y, z, yaw, 0, 0, wdt, s, wdt, _c.r, _c.g, _c.b, this.phase[k], this.amt[k], sd, w);
       }
     }
   }
-}
-
-// Feste Merkmale je Person (Frisur, Kleidung, Zubehör); Wetter-Merkmale kommen beim Zeichnen dazu
-function baseFeatures(kind, u) {
-  const h = (n) => hashf(u * 9973 + n * 17.13);
-  let f = 0;
-  const fem = h(1) < 0.5;
-  if (kind === 2) { // Kind: großer Kopf, oft Rucksack
-    f |= FEAT.CHILD;
-    if (h(2) < 0.6) f |= FEAT.BACKPACK;
-    if (fem && h(3) < 0.5) f |= h(4) < 0.5 ? FEAT.PONY : FEAT.LONGHAIR;
-    if (fem && h(5) < 0.35) f |= FEAT.SKIRT;
-    return f;
-  }
-  if (kind === 4) { // Jogger
-    f |= FEAT.SHORTS | FEAT.SHORTSLEEVE;
-    if (fem && h(3) < 0.7) f |= FEAT.PONY;
-    return f;
-  }
-  if (kind === 3) { // Ältere
-    f |= FEAT.ELDER;
-    if (h(2) < 0.3) f |= FEAT.CANE;
-    if (!fem && h(3) < 0.45) f |= FEAT.BALD;
-    if (fem && h(4) < 0.4) f |= FEAT.SKIRT;
-    if (h(5) < 0.35) f |= FEAT.BAG;
-    return f;
-  }
-  if (fem) {
-    if (h(2) < 0.38) f |= FEAT.SKIRT;
-    const hr = h(3);
-    if (hr < 0.45) f |= FEAT.LONGHAIR; else if (hr < 0.7) f |= FEAT.PONY;
-    if (h(4) < 0.35) f |= FEAT.BAG;
-  } else {
-    if (h(3) < 0.12) f |= FEAT.BALD;
-    if (h(4) < 0.12) f |= FEAT.LONGHAIR;
-  }
-  const acc = h(6);
-  if (acc < 0.2) f |= FEAT.BACKPACK; else if (acc < 0.3 && !(f & FEAT.BAG)) f |= FEAT.BAG;
-  return f;
-}
-// Wetter: kalt → Mantel, Mütze, Schal; warm → kurze Ärmel, Shorts
-function wearFeatures(wf, kind, sd) {
-  if (!wf || kind === 4) return 0;
-  const r = (sd * 3.17 + 0.37) % 1, q = (sd * 5.71 + 0.11) % 1;
-  let f = 0;
-  if (wf.cold > 0) {
-    if (r < 0.75 * wf.cold && kind !== 2) f |= FEAT.COAT;
-    if (q < 0.55 * wf.cold) f |= FEAT.HAT;
-    if (((sd * 8.3) % 1) < 0.35 * wf.cold) f |= FEAT.SCARF;
-  } else if (wf.warm > 0) {
-    if (r < 0.7 * wf.warm) f |= FEAT.SHORTSLEEVE;
-    if (q < 0.3 * wf.warm && kind !== 3) f |= FEAT.SHORTS;
-  }
-  return f;
 }
 
 // ---------------------------------------------------------------- Radfahrer
@@ -454,7 +402,7 @@ class Cyclists {
       (near ? this.near : this.mid).push(c.x, y, c.z, c.yaw, 0, 0, 1, 1, 1, _c.r, _c.g, _c.b, c.phase, 1, c.seed, 0);
       const f = (c.feat | wearFeatures(wf, 0, c.seed)) & ~(FEAT.COAT | FEAT.SKIRT);
       _c.setHex(SHIRTS[Math.floor(c.seed * 7919) % SHIRTS.length]);
-      (near ? peds.near : peds.mid).push(c.x, y, c.z, c.yaw, 0, 0, 1, 1, 1, _c.r, _c.g, _c.b, c.phase, 1, c.seed, MODE.CYCLE + 8 * f);
+      (near ? peds.near : peds.mid).push(c.x, y, c.z, c.yaw, 0, 0, 1, 1, 1, _c.r, _c.g, _c.b, c.phase, 1, c.seed, MODE.CYCLE + 8 * f); // Fahrer nie als Fernform (sitzt)
     }
   }
 }
@@ -994,13 +942,6 @@ class Candidates {
   }
 }
 
-// Kleidung nach Wetter: cold/warm 0..1 (Temperatur, Jahreszeit, Abendkühle)
-function wearOf(w, h) {
-  if (!w) return { cold: 0, warm: 0.5 };
-  const t = (w.temp ?? 15) - (h < 8 || h > 20 ? 2 : 0);
-  return { cold: smooth(12, 1, t), warm: smooth(19, 27, t) };
-}
-
 // ---------------------------------------------------------------- Ansicht
 class LifeView {
   constructor(engine) {
@@ -1113,6 +1054,9 @@ class LifeView {
       lc.x = cx; lc.z = cz; lc.r = radius; lc.t = this.time;
     }
     const q = QUAL[e.settings && e.settings.quality] ?? 1;
+    // „Automatisch": Detailabstände folgen der laufenden Regelung (wie bei den Gebäuden)
+    const eq = e.quality;
+    const lodK = eq && eq.auto && Number.isFinite(eq.lod) ? Math.max(0.6, Math.min(1.25, eq.lod)) : 1;
     const vis = 1 - smooth(48, 85, dist);
     const weather = 1 - Math.min(0.7, rain * 0.6) - (cold ? 0.15 : 0);
     const ctx = this.ctx;
@@ -1125,7 +1069,7 @@ class LifeView {
       waterNear: this.boats.tiles && this.boats.tiles.length > 0,
       planes: true, contrails: !w || (w.cloud || 0) < 0.85,
       calm: !w || ((w.wind || 0) < 0.5 && (w.rain || 0) < 0.1 && (w.fog || 0) < 0.4),
-      near2: (13 * Math.sqrt(q)) ** 2, mid2: (Math.min(52, 30 + 12 * q)) ** 2,
+      near2: (7.5 * Math.sqrt(q) * lodK) ** 2, midNear2: (15 * Math.sqrt(q) * lodK) ** 2, mid2: (Math.min(52, 30 + 12 * q)) ** 2,
       swY: e.roads && typeof e.roads.surfaceY === 'function' ? 0.014 : 0.012,
       yAt: (x, z) => (e.vehicles ? e.vehicles.roadY(x + g.W / 2, z + g.H / 2) : 0.012),
     });

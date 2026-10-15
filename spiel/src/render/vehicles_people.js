@@ -14,7 +14,8 @@
 // aInst: x = Phase (rad; Schritt bzw. Tretkurbel), y = Gangstärke (0 Stehen … 1 Gehen … 2 Joggen; Vögel: Flügelschlag),
 //        z = Zufall (Paletten), w = Haltung + 8 · Merkmale (Menschen) bzw. Vogel-Haltung.
 import * as THREE from 'three';
-import { VKit } from './vehicles_kit.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { VKit, hashf } from './vehicles_kit.js';
 
 // ---------------------------------------------------------------- Knochen, Haltungen, Merkmale
 export const B = {
@@ -141,7 +142,7 @@ function humanNear(k) {
     // Oberschenkel (Hose) – unter Rock/Mantel trotzdem vorhanden (Bewegung sichtbar)
     k.tube([[x, HIP_Y + 0.004, 0, 0.0074, 0.0084], [x, 0.07, 0.0004, 0.0066, 0.0072], [x, KNEE_Y + 0.002, 0.0006, 0.0052, 0.0055]], seg, W, L(th, 1));
     // Knie und Unterschenkel
-    k.ell([x, KNEE_Y, 0.0006], [0.0053, 0.0054, 0.0056], 6, 3, W, L(sh, 1));
+    k.ell([x, KNEE_Y, 0.0006], [0.0053, 0.0054, 0.0056], 6, 2, W, L(sh, 1));
     k.tube([[x, KNEE_Y, 0.0004, 0.0052, 0.0054], [x, 0.03, -0.0006, 0.0050, 0.0054], [x, ANK_Y + 0.003, -0.0004, 0.0034, 0.0036]], seg, W, L(sh, 1), { capBot: true });
     // Schuh (Profil [z, y] seitlich extrudiert), Sohle dunkler
     k.group({ x }, () => k.prism([[-0.0058, 0], [0.0148, 0], [0.0158, 0.0026], [0.0128, 0.0056], [0.0042, 0.0074], [-0.0038, 0.0086], [-0.0064, 0.005]], 0.0047, 0.0043, 0x2b2a2c, L(ft, 4), { edge: (i) => (i === 0 ? { c: 0x161616 } : undefined) }));
@@ -151,39 +152,39 @@ function humanNear(k) {
   // Gürtel
   k.tube([[0, WAIST_Y - 0.0018, -0.0004, 0.0137, 0.0097], [0, WAIST_Y + 0.0006, -0.0004, 0.0137, 0.0097]], 9, 0x2a2420, L(B.PELVIS, 5));
   // Rock / Kleid
-  on(FEAT.SKIRT, () => k.tube([[0, WAIST_Y + 0.001, -0.0004, 0.0140, 0.0100], [0, 0.085, 0.0, 0.0166, 0.0128], [0, 0.062, 0.0006, 0.0192, 0.0152]], 10, W, L(B.PELVIS, 1), { capBot: 0x2a2a2a }));
+  on(FEAT.SKIRT, () => k.tube([[0, WAIST_Y + 0.001, -0.0004, 0.0140, 0.0102], [0, 0.085, 0.0006, 0.0168, 0.0138], [0, 0.062, 0.0014, 0.0194, 0.0166]], 9, W, L(B.PELVIS, 1), { capBot: 0x2a2a2a }));
   // Mantelschöße (Oberteilfarbe)
-  on(FEAT.COAT, () => k.tube([[0, WAIST_Y + 0.004, -0.0004, 0.0144, 0.0104], [0, 0.082, -0.0002, 0.0164, 0.0124], [0, 0.066, 0.0, 0.0175, 0.0135]], 10, W, L(B.PELVIS, 0), { capBot: 0x303030 }));
+  on(FEAT.COAT, () => k.tube([[0, WAIST_Y + 0.004, -0.0004, 0.0144, 0.0106], [0, 0.082, 0.0004, 0.0166, 0.0138], [0, 0.066, 0.0012, 0.0178, 0.0162]], 9, W, L(B.PELVIS, 0), { capBot: 0x3a3a3a }));
   // Rumpf (Oberteil): Taille → Brust → Schultern
-  k.tube([[0, WAIST_Y - 0.001, -0.0004, 0.0133, 0.0094], [0, 0.118, 0.0006, 0.0146, 0.0104], [0, 0.131, 0.0012, 0.0162, 0.0112], [0, 0.141, 0.0004, 0.0172, 0.0102], [0, 0.1465, -0.0002, 0.0110, 0.0075]], 10, W, L(B.SPINE, 0), { capTop: true });
+  k.tube([[0, WAIST_Y - 0.001, -0.0004, 0.0133, 0.0094], [0, 0.118, 0.0006, 0.0146, 0.0104], [0, 0.131, 0.0012, 0.0162, 0.0112], [0, 0.141, 0.0004, 0.0172, 0.0102], [0, 0.1465, -0.0002, 0.0110, 0.0075]], 9, W, L(B.SPINE, 0), { capTop: true });
   // Kragen / Schal
   off(FEAT.SCARF, () => k.tube([[0, 0.1455, 0, 0.0064, 0.0058], [0, 0.149, 0, 0.0057, 0.0053]], 7, W, L(B.SPINE, 0)));
   on(FEAT.SCARF, () => k.tube([[0, 0.1425, 0, 0.0098, 0.0084], [0, 0.1505, 0.0002, 0.0078, 0.0068]], 8, W, L(B.SPINE, 7), { capTop: true }));
   // Hals
   k.tube([[0, 0.144, -0.0006, 0.0041, 0.0041], [0, 0.153, -0.0006, 0.0038, 0.0039]], 6, W, L(B.HEAD, 2));
   // Kopf (leicht eiförmig, Kinn nach vorn) und Ohren
-  k.ell([0, 0.1632, 0.0006], [0.0094, 0.0115, 0.0103], 9, 6, W, L(B.HEAD, 2), { sq: 0.86 });
+  k.ell([0, 0.1632, 0.0006], [0.0094, 0.0115, 0.0103], 8, 5, W, L(B.HEAD, 2), { sq: 0.86 });
   k.ell([0, 0.1603, 0.0105], [0.0013, 0.0017, 0.0015], 4, 2, W, L(B.HEAD, 2)); // Nase
   for (const s of [1, -1]) k.ell([s * 0.0093, 0.162, -0.0004], [0.0014, 0.0026, 0.0018], 4, 2, W, L(B.HEAD, 2));
   // Haare: Kappe (nicht bei Glatze), lang, Zopf
-  off(FEAT.BALD, () => k.ell([0, 0.1652, -0.0006], [0.0101, 0.0115, 0.0108], 9, 3, W, L(B.HEAD, 3), { v0: 0.46, v1: 1, rot: 0.2 }));
+  off(FEAT.BALD, () => k.ell([0, 0.1652, -0.0006], [0.0101, 0.0115, 0.0108], 8, 3, W, L(B.HEAD, 3), { v0: 0.46, v1: 1, rot: 0.2 }));
   off(FEAT.BALD, () => k.ell([0, 0.1615, -0.0038], [0.0098, 0.0080, 0.0076], 8, 2, W, L(B.HEAD, 3), { v0: 0.35, v1: 0.75 }));
   on(FEAT.BALD, () => k.ell([0, 0.1615, -0.003], [0.0099, 0.0058, 0.008], 8, 2, W, L(B.HEAD, 3), { v0: 0.3, v1: 0.7 }));
   on(FEAT.LONGHAIR, () => k.tube([[0, 0.167, -0.0046, 0.0104, 0.0069], [0, 0.152, -0.0064, 0.0102, 0.0061], [0, 0.137, -0.0072, 0.009, 0.0046]], 8, W, L(B.HEAD, 3), { capBot: true, rot: 0 }));
   on(FEAT.PONY, () => k.ell([0, 0.1585, -0.0128], [0.0034, 0.0076, 0.0032], 5, 3, W, L(B.HEAD, 3)));
   // Mütze / Helm
-  on(FEAT.HAT, () => { k.ell([0, 0.1675, -0.0006], [0.0106, 0.0104, 0.0112], 9, 3, W, L(B.HEAD, 7), { v0: 0.5, v1: 1 }); k.ell([0, 0.1782, -0.0008], [0.0028, 0.0026, 0.0028], 5, 2, W, L(B.HEAD, 7)); });
-  on(FEAT.HELMET, () => k.ell([0, 0.168, -0.0008], [0.0113, 0.0108, 0.0123], 9, 3, W, L(B.HEAD, 7), { v0: 0.5, v1: 1 }));
+  on(FEAT.HAT, () => { k.ell([0, 0.1675, -0.0006], [0.0106, 0.0104, 0.0112], 8, 2, W, L(B.HEAD, 7), { v0: 0.5, v1: 1 }); k.ell([0, 0.1782, -0.0008], [0.0028, 0.0026, 0.0028], 5, 2, W, L(B.HEAD, 7)); });
+  on(FEAT.HELMET, () => k.ell([0, 0.168, -0.0008], [0.0113, 0.0108, 0.0123], 8, 2, W, L(B.HEAD, 7), { v0: 0.5, v1: 1 }));
   // Arme: Schulter, Oberarm (Ärmel), Ellbogen, Unterarm (Ärmel oder Haut), Hand
   for (const s of [1, -1]) {
     const ua = s > 0 ? B.UARM_L : B.UARM_R, fa = s > 0 ? B.FARM_L : B.FARM_R;
     const x = s * SH_X;
-    k.ell([x, SH_Y, 0], [0.0055, 0.0054, 0.0058], 7, 3, W, L(ua, 0), { v0: 0.45, v1: 1 });
+    k.ell([x, SH_Y, 0], [0.0055, 0.0054, 0.0058], 7, 2, W, L(ua, 0), { v0: 0.45, v1: 1 });
     k.tube([[x, SH_Y, 0, 0.0054, 0.0057], [x, 0.125, 0, 0.0048, 0.005], [x, EL_Y + 0.001, 0, 0.0041, 0.0042]], 7, W, L(ua, 0));
-    k.ell([x, EL_Y, 0], [0.0041, 0.0041, 0.0042], 6, 3, W, L(fa, 0));
+    k.ell([x, EL_Y, 0], [0.0041, 0.0041, 0.0042], 6, 2, W, L(fa, 0));
     off(FEAT.SHORTSLEEVE, () => k.tube([[x, EL_Y, 0, 0.0041, 0.0042], [x, 0.096, 0.0003, 0.0038, 0.0039], [x, WR_Y + 0.001, 0.0005, 0.0033, 0.0034]], 7, W, L(fa, 0)));
     on(FEAT.SHORTSLEEVE, () => k.tube([[x, EL_Y, 0, 0.0037, 0.0038], [x, 0.096, 0.0003, 0.0033, 0.0034], [x, WR_Y + 0.001, 0.0005, 0.0029, 0.003]], 7, W, L(fa, 2)));
-    k.ell([x - s * 0.0003, WR_Y - 0.004, 0.0008], [0.0028, 0.0052, 0.0035], 6, 3, W, L(fa, 2));
+    k.ell([x - s * 0.0003, WR_Y - 0.004, 0.0008], [0.0028, 0.0052, 0.0035], 5, 3, W, L(fa, 2));
   }
   // Kurzarm: Oberarm unten Haut; Shorts: Unterschenkel Haut – über Farbfeld-Regeln im Shader
   // Rucksack, Umhängetasche, Gehstock
@@ -355,8 +356,19 @@ function umbrellaHand() {
 }
 const UMB_POSE = { sh: 0.55, ab: 0.14, el: 1.72 };
 
+// ---------------------------------------------------------------- Mensch, Fernstufe (≈ 50 Dreiecke, nur Beine schwingen)
+function humanFar(k) {
+  const W = 0xffffff;
+  for (const s of [1, -1]) k.box(s * HIP_X - 0.0058, 0, -0.0058, s * HIP_X + 0.0058, HIP_Y + 0.004, 0.0068, W, L(s > 0 ? B.THIGH_L : B.THIGH_R, 1));
+  k.box(-0.0148, 0.082, -0.0102, 0.0148, WAIST_Y, 0.0098, W, L(B.PELVIS, 1), { top: false });
+  k.box(-0.0215, WAIST_Y, -0.0105, 0.0215, 0.146, 0.0112, W, L(B.SPINE, 0));
+  k.box(-0.0088, 0.146, -0.0095, 0.0088, 0.166, 0.0102, W, L(B.HEAD, 2), { top: false });
+  k.on(-FBIT(FEAT.BALD), () => k.box(-0.0094, 0.166, -0.0102, 0.0094, 0.176, 0.0098, W, L(B.HEAD, 3), { bottom: false }));
+  k.on(FBIT(FEAT.BALD), () => k.box(-0.0088, 0.166, -0.0095, 0.0088, 0.174, 0.0102, W, L(B.HEAD, 2), { bottom: false }));
+}
+
 const BUILDERS = {
-  human: (k, d) => (d >= 2 ? humanNear(k) : humanMid(k)),
+  human: (k, d) => (d >= 2 ? humanNear(k) : d === 1 ? humanMid(k) : humanFar(k)),
   bicycle: (k, d) => bicycle(k, d),
   bird: (k) => bird(k),
   pigeon: (k) => pigeon(k),
@@ -369,10 +381,77 @@ export function lifeGeometry(id, d = 2) {
   if (cache.has(key)) return cache.get(key);
   const k = new PKit(d);
   BUILDERS[id](k, d);
-  const geo = k.build();
+  // Gemeinsame Vertizes zusammenlegen (runde Teile teilen Normalen) – spart Vertex-Shader-Arbeit pro Figur
+  const raw = k.build();
+  const geo = mergeVertices(raw, 1e-6);
+  geo.userData.triangles = raw.userData.triangles;
+  raw.dispose();
   cache.set(key, geo);
   return geo;
 }
+
+// ---------------------------------------------------------------- Merkmale je Person
+// Feste Merkmale je Person (Frisur, Kleidung, Zubehör); Wetter-Merkmale kommen beim Zeichnen dazu
+export function baseFeatures(kind, u) {
+  const h = (n) => hashf(u * 9973 + n * 17.13);
+  let f = 0;
+  const fem = h(1) < 0.5;
+  if (kind === 2) { // Kind: großer Kopf, oft Rucksack
+    f |= FEAT.CHILD;
+    if (h(2) < 0.6) f |= FEAT.BACKPACK;
+    if (fem && h(3) < 0.5) f |= h(4) < 0.5 ? FEAT.PONY : FEAT.LONGHAIR;
+    if (fem && h(5) < 0.35) f |= FEAT.SKIRT;
+    return f;
+  }
+  if (kind === 4) { // Jogger
+    f |= FEAT.SHORTS | FEAT.SHORTSLEEVE;
+    if (fem && h(3) < 0.7) f |= FEAT.PONY;
+    return f;
+  }
+  if (kind === 3) { // Ältere
+    f |= FEAT.ELDER;
+    if (h(2) < 0.3) f |= FEAT.CANE;
+    if (!fem && h(3) < 0.45) f |= FEAT.BALD;
+    if (fem && h(4) < 0.4) f |= FEAT.SKIRT;
+    if (h(5) < 0.35) f |= FEAT.BAG;
+    return f;
+  }
+  if (fem) {
+    if (h(2) < 0.38) f |= FEAT.SKIRT;
+    const hr = h(3);
+    if (hr < 0.45) f |= FEAT.LONGHAIR; else if (hr < 0.7) f |= FEAT.PONY;
+    if (h(4) < 0.35) f |= FEAT.BAG;
+  } else {
+    if (h(3) < 0.12) f |= FEAT.BALD;
+    if (h(4) < 0.12) f |= FEAT.LONGHAIR;
+  }
+  const acc = h(6);
+  if (acc < 0.2) f |= FEAT.BACKPACK; else if (acc < 0.3 && !(f & FEAT.BAG)) f |= FEAT.BAG;
+  return f;
+}
+// Wetter: kalt → Mantel, Mütze, Schal; warm → kurze Ärmel, Shorts
+export function wearFeatures(wf, kind, sd) {
+  if (!wf || kind === 4) return 0;
+  const r = (sd * 3.17 + 0.37) % 1, q = (sd * 5.71 + 0.11) % 1;
+  let f = 0;
+  if (wf.cold > 0) {
+    if (r < 0.75 * wf.cold && kind !== 2) f |= FEAT.COAT;
+    if (q < 0.55 * wf.cold) f |= FEAT.HAT;
+    if (((sd * 8.3) % 1) < 0.35 * wf.cold) f |= FEAT.SCARF;
+  } else if (wf.warm > 0) {
+    if (r < 0.7 * wf.warm) f |= FEAT.SHORTSLEEVE;
+    if (q < 0.3 * wf.warm && kind !== 3) f |= FEAT.SHORTS;
+  }
+  return f;
+}
+
+// Kleidung nach Wetter: cold/warm 0..1 (Temperatur, Abendkühle)
+export function wearOf(w, h) {
+  if (!w) return { cold: 0, warm: 0.5 };
+  const t = (w.temp ?? 15) - (h < 8 || h > 20 ? 2 : 0);
+  return { cold: sstep(12, 1, t), warm: sstep(19, 27, t) };
+}
+const sstep = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // ---------------------------------------------------------------- Shader: Skelett und Farben
 const fl = (v) => (Number.isInteger(v) ? v.toFixed(1) : String(v)); // Zahl als GLSL-Fließkomma
@@ -423,7 +502,8 @@ PX pBone(int bone, float ph, float amt, int mode, int feat, float seed) {
   if (mode == ${MODE.WALK}) {
     float wk = clamp(amt, 0.0, 1.0), rn = clamp(amt - 1.0, 0.0, 1.0), idle = 1.0 - wk;
     float s = sin(ph), c = cos(ph);
-    float A = mix(0.4, 0.66, rn) * wk * (elder ? 0.7 : 1.0);
+    bool robe = (feat & ${FEAT.SKIRT | FEAT.COAT}) != 0;
+    float A = mix(0.4, 0.66, rn) * wk * (elder ? 0.7 : 1.0) * (robe ? 0.85 : 1.0);
     fL = A * s + 0.04 * wk; fR = -A * s + 0.04 * wk;
     float kw = mix(0.78, 1.55, rn) * wk;
     kL = 0.06 * wk + kw * pow(max(0.0, cos(ph + 0.35)), 1.6) + 0.1 * wk * max(0.0, -cos(ph + 0.35));
