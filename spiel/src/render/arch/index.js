@@ -69,7 +69,7 @@ export function buildArch(key, level, variant, fw, fd, extra = {}, detail = 2) {
     ctx.typ = t.typ; ctx.era = t.era;
     // Grundstücks-Einpassung (fit.js): Abstände, Bauflucht, keine Überstände ins Nachbargrundstück
     // (nicht bei Bausteinen mit drehenden Teilen – deren Drehpunkte liegen außerhalb des Baukastens)
-    if (extra.fit !== false && !NO_FIT.has(key)) kit.fitCfg = { W: fw, D: fd, typ: t.typ, level, id: `${key}|${level}|${v}|${fw}x${fd}` };
+    if (extra.fit !== false && !NO_FIT.has(key)) kit.fitCfg = { W: fw, D: fd, typ: t.typ, key, level, id: `${key}|${level}|${v}|${fw}x${fd}` };
   }
   const res = def.build(ctx);
   if (!res) return null;

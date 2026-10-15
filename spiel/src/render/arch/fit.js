@@ -19,7 +19,9 @@ const GROUND = 0.0135; // Bodenplatten, Wege, Markierungen, Becken (≤ 13,5 cm)
 const MASS_Y = 0.28; // Dreiecke ab 2,8 m Höhe zählen zur Gebäudemasse (Autos, Zäune, Hecken, Carports und Garagen nicht)
 const SOFT = /^(leaves|hedge|bark|ivy|grass|flower|lawn|water|rubber|paint_white)/; // Pflanzen u. Ä. zählen nicht zur Masse
 // Bauflucht geschlossener Bauweise (Abstand der Hauptfassade zur Straße)
-export const BUILD_LINE = 0.25;
+// (Geschäftshäuser mit Vorplatz für Auslagen und Außengastronomie etwas weiter zurück als Wohnhäuser)
+export const BUILD_LINE = { res: 0.2, com: 0.3, off: 0.2 };
+const YARD = 0.12; // geschlossene Bauweise: so viel Hof bleibt mindestens hinter dem Haus
 const MAX_SHIFT = 0.25; // höchstens so weit wird ein Modell zur Bauflucht verschoben
 const MAX_STRETCH = 1.08; // geschlossene Bauweise: höchstens 8 % breiter ziehen, sonst gilt das Modell als Solitär
 // Abstände je Bauweise: side = Ziel-Seitenabstand, front = Mindest-Vorgarten, back = Abstand zur hinteren Grenze,
@@ -60,7 +62,7 @@ function peak(h, step) {
 
 function analyse(groups) {
   hx0.fill(0); hx1.fill(0); hz0.fill(0); hz1.fill(0); hl.fill(0); hr.fill(0); hf.fill(0);
-  let mass = 0, nf = 0, al = 0, ar = 0, af = 0, xa = 0;
+  let mass = 0, nf = 0, al = 0, ar = 0, af = 0, xa = 0, za = -1e9;
   for (const [mat, list] of groups) {
     const soft = SOFT.test(mat);
     for (const geo of list) {
@@ -69,7 +71,10 @@ function analyse(groups) {
         const ay = p[i + 1], by = p[i + 4], cy = p[i + 7];
         const maxY = ay > by ? (ay > cy ? ay : cy) : (by > cy ? by : cy);
         // größte seitliche Ausdehnung von allem über den Bodenplatten (auch Bäume, Zäune, Autos)
-        if (maxY > GROUND) { const m = Math.max(Math.abs(p[i]), Math.abs(p[i + 3]), Math.abs(p[i + 6])); if (m > xa) xa = m; }
+        if (maxY > GROUND) {
+          const m = Math.max(Math.abs(p[i]), Math.abs(p[i + 3]), Math.abs(p[i + 6])); if (m > xa) xa = m;
+          const mz = Math.max(p[i + 2], p[i + 5], p[i + 8]); if (mz > za) za = mz;
+        }
         if (maxY <= MASS_Y || soft) continue;
         const ax = p[i], az = p[i + 2], bx = p[i + 3], bz = p[i + 5], cx = p[i + 6], cz = p[i + 8];
         const ux = bx - ax, uy = by - ay, uz = bz - az, vx = cx - ax, vy = cy - ay, vz = cz - az;
@@ -107,7 +112,7 @@ function analyse(groups) {
   }
   return {
     x0: quant(hx0, mass, 0.004, BIN), x1: quant(hx1, mass, 0.996, BIN), z0: quant(hz0, mass, 0.004, BIN), z1: quant(hz1, mass, 0.996, BIN),
-    left: al ? peak(hl, PBIN) : null, right: ar ? peak(hr, PBIN) : null, front, eave, xa,
+    left: al ? peak(hl, PBIN) : null, right: ar ? peak(hr, PBIN) : null, front, eave, xa, za,
   };
 }
 
@@ -122,13 +127,16 @@ function makePlan(a, cfg) {
     if (flush) {
       // Brandwände auf die Grenzen strecken, Hauptfassade auf die Bauflucht, Traufe auf die Bezugshöhe
       const kx = W / (xr - xl);
-      let dz = a.front !== null ? Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, D / 2 - (cfg.line ?? BUILD_LINE) - a.front)) : 0;
-      if (a.z0 + dz < -D / 2 + RULES.A.back) dz = Math.max(dz, -D / 2 + RULES.A.back - a.z0);
+      // So weit wie möglich zur gemeinsamen Bauflucht: nach vorne nur, solange Vorplatz-Möbel, Bäume und Markisen nicht auf
+      // den Gehweg rutschen, nach hinten nur, solange ein Hof von mindestens 1,2 m bleibt
+      let dz = a.front !== null ? D / 2 - (cfg.line ?? BUILD_LINE[cfg.key] ?? 0.2) - a.front : 0;
+      if (dz > 0) dz = Math.min(dz, MAX_SHIFT, Math.max(0, D / 2 + 0.07 - a.za));
+      else dz = Math.max(dz, -MAX_SHIFT, Math.min(0, -D / 2 + YARD - a.z0));
       const ref = EAVE_REF[cfg.level];
       let ky = 1;
       if (ref && a.eave > 0.5) ky = Math.max(1 - EAVE_K, Math.min(1 + EAVE_K, ref / a.eave));
       if (Math.abs(ky - 1) < 0.004) ky = 1;
-      return { typ, kx, ox: xl, tx: -W / 2, kz: 1, dz, ky, clamp: [-W / 2, W / 2, -D / 2 + RULES.A.back, D / 2 + FRONT_OVER], eave: a.eave };
+      return { typ, kx, ox: xl, tx: -W / 2, kz: 1, dz, ky, clamp: [-W / 2, W / 2, -D / 2 + RULES.A.back, D / 2 + FRONT_OVER], eave: a.eave, line: a.front !== null ? D / 2 - a.front - dz : null };
     }
     typ = 'S';
   }
@@ -179,7 +187,7 @@ function apply(kit, P) {
     q.x = Math.max(cx0, Math.min(cx1, (q.x - ox) * kx + tx)); q.z = Math.max(cz0, Math.min(cz1, q.z * kz + dz)); q.y *= ky;
   }
   if (ky !== 1) kit.height *= ky;
-  if (P.hedge && P.W) {
+  if (P.hedge && P.W && kit.detail >= 1) {
     const { W, D } = P;
     for (const sx of [-1, 1]) kit.box('hedge', sx * (W / 2 - 0.022), 0, -0.01, 0.028, 0.085, D - 0.1);
   }
@@ -199,5 +207,5 @@ export function fitLot(kit, cfg) {
     if (cfg.id) { if (PLANS.size > 5000) PLANS.clear(); PLANS.set(cfg.id, plan); }
   }
   apply(kit, plan);
-  return { typ: plan.typ, s: +plan.kz.toFixed(3), sx: +plan.kx.toFixed(3), dz: +plan.dz.toFixed(3), ky: +plan.ky.toFixed(3), eave: plan.eave, hedge: !!plan.hedge };
+  return { typ: plan.typ, s: +plan.kz.toFixed(3), sx: +plan.kx.toFixed(3), dz: +plan.dz.toFixed(3), ky: +plan.ky.toFixed(3), eave: plan.eave, line: plan.line, hedge: !!plan.hedge };
 }
