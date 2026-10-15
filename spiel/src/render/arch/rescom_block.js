@@ -137,19 +137,23 @@ function gruenderzeit(ctx, g, P, o = {}) {
   const backUs = bays(bw, Math.max(2, nb - 1), 0.6 * M);
   const backOps = rows(st, backUs, (f) => winT({ w: 1.15 * M, h: f === 0 ? 1.5 * M : 1.7 * M, y: f === 0 ? st.gf - 2.2 * M : 0.75 * M, frame: 'window_frame_white', panes: { cols: 2, transom: 0.25 }, sill: 'metal_light' }));
   // Treppenhaus-Fenster hinten (halbgeschossig versetzt)
-  const sideOps = W > 1.5 || o.corner ? rows(st, bays(bd, Math.max(1, Math.round(bd / (3.4 * M))), 0.8 * M), (f) => f === 0 ? null : winT({ w: 1.1 * M, h: 1.8 * M, y: 0.75 * M, frame: 'window_frame_white', panes: { cols: 2, transom: 0.25 }, sill: 'trim_stone', surround: trim })) : [];
+  // Ecklage (mix.js/buildings.js): Seiten zur Straße bekommen Fenster und Gesims statt Brandwand
+  const corner = o.corner ?? (ctx.cornerL && ctx.cornerR ? 'both' : ctx.cornerL ? 'left' : ctx.cornerR ? 'right' : null);
+  const cL = corner === 'left' || corner === 'both', cR = corner === 'right' || corner === 'both';
+  const sideOps = W > 1.5 || corner ? rows(st, bays(bd, Math.max(1, Math.round(bd / (3.4 * M))), 0.8 * M), (f) => f === 0 ? null : winT({ w: 1.1 * M, h: 1.8 * M, y: 0.75 * M, frame: 'window_frame_white', panes: { cols: 2, transom: 0.25 }, sill: 'trim_stone', surround: trim })) : [];
   const fwk = [firewallKind(rng), firewallKind(rng)];
-  const fwL = o.corner === 'left' ? sideOps : firewallOps(st, bd, rng, fwk[0]), fwR = o.corner === 'right' ? sideOps : firewallOps(st, bd, rng, fwk[1]);
+  const fwL = cL ? sideOps : firewallOps(st, bd, rng, fwk[0]), fwR = cR ? sideOps : firewallOps(st, bd, rng, fwk[1]);
   massWalls(g, m, { front: frontOps, back: backOps, left: fwL, right: fwR });
-  if (o.corner !== 'left') firewallDecor(g, mframe(0, cz, bw, bd, 'left'), st.y[1], st.top, rng, fwk[0]);
-  if (o.corner !== 'right') firewallDecor(g, mframe(0, cz, bw, bd, 'right'), st.y[1], st.top, rng, fwk[1]);
+  if (!cL) firewallDecor(g, mframe(0, cz, bw, bd, 'left'), st.y[1], st.top, rng, fwk[0]);
+  if (!cR) firewallDecor(g, mframe(0, cz, bw, bd, 'right'), st.y[1], st.top, rng, fwk[1]);
+  const cSides = [...(cL ? ['left'] : []), ...(cR ? ['right'] : [])];
   // Gliederung: Sockel, Rustika im EG, Gurtgesimse, Traufgesims
   band(g, 'stone_sandstone', m, 0, st.pl + 0.05 * M, 0.05 * M, { skip: F.BOTTOM });
   if (!o.shops) rustication(g, fF, 'trim_dark', st.pl + 0.3 * M, st.y[1] - 0.2 * M, 0.45 * M);
-  band(g, trim, m, st.y[1] - 0.15 * M, 0.3 * M, 0.08 * M, { sides: ['front', 'back'] });
+  band(g, trim, m, st.y[1] - 0.15 * M, 0.3 * M, 0.08 * M, { sides: ['front', 'back', ...cSides] });
   if (n >= 4) band(g, trim, m, st.y[2] - 0.1 * M, 0.16 * M, 0.05 * M, { sides: ['front'] });
   const wide = W > 1.5;
-  cornice(g, trim, m, st.top - 0.4 * M, 1.2, { dentils: !wide, sides: ['front', 'back'] });
+  cornice(g, trim, m, st.top - 0.4 * M, 1.2, { dentils: !wide, sides: ['front', 'back', ...cSides] });
   if (g.detail >= 2 && !wide) quoins(g, fF, trim, st.y[1], st.top - 0.4 * M);
   if (g.detail >= 1 && o.lisenen !== false) pilasters(g, fF, trim, [-bw / 2 + 0.25 * M, bw / 2 - 0.25 * M], st.y[1], st.top - 0.4 * M, 0.4 * M, 0.05 * M);
   // Erker / Balkone
@@ -233,12 +237,16 @@ function backstein(ctx, g, P) {
   });
   const backOps = rows(st, bays(bw, nb, 0.5 * M), () => winT({ w: 1.1 * M, h: 1.6 * M, y: 0.8 * M, frame: 'window_frame_white', panes: { cols: 2, transom: 0.25 }, sill: 'metal_light' }));
   const fwk = [firewallKind(rng), firewallKind(rng)];
-  massWalls(g, m, { front: frontOps, back: backOps, left: firewallOps(st, bd, rng, fwk[0]), right: firewallOps(st, bd, rng, fwk[1]) });
-  firewallDecor(g, mframe(0, cz, bw, bd, 'left'), st.y[1], st.top, rng, fwk[0]);
-  firewallDecor(g, mframe(0, cz, bw, bd, 'right'), st.y[1], st.top, rng, fwk[1]);
+  // Ecklage: Seite zur Straße mit Fenstern und Gesimsen statt Brandwand
+  const cL = !!ctx.cornerL, cR = !!ctx.cornerR;
+  const sideOps = rows(st, bays(bd, Math.max(1, Math.round(bd / (3.0 * M))), 0.8 * M), (f) => winT({ w: 1.1 * M, h: f === 0 ? 1.6 * M : 1.75 * M, y: f === 0 ? 1.0 * M : 0.75 * M, frame: 'window_frame_white', panes: { cols: 2, rows: 2, transom: 0.25 }, sill: 'trim_stone', header: 'seg', headerMat: trim }));
+  massWalls(g, m, { front: frontOps, back: backOps, left: cL ? sideOps : firewallOps(st, bd, rng, fwk[0]), right: cR ? sideOps : firewallOps(st, bd, rng, fwk[1]) });
+  if (!cL) firewallDecor(g, mframe(0, cz, bw, bd, 'left'), st.y[1], st.top, rng, fwk[0]);
+  if (!cR) firewallDecor(g, mframe(0, cz, bw, bd, 'right'), st.y[1], st.top, rng, fwk[1]);
+  const cSides = [...(cL ? ['left'] : []), ...(cR ? ['right'] : [])];
   band(g, 'stone_dark', m, 0, st.pl, 0.05 * M, { skip: F.BOTTOM });
-  for (let k = 1; k < n; k++) band(g, trim, m, st.y[k] - 0.12 * M, 0.14 * M, 0.04 * M, { sides: ['front'] });
-  cornice(g, trim, m, st.top - 0.35 * M, 0.9, { sides: ['front', 'back'] });
+  for (let k = 1; k < n; k++) band(g, trim, m, st.y[k] - 0.12 * M, 0.14 * M, 0.04 * M, { sides: ['front', ...cSides] });
+  cornice(g, trim, m, st.top - 0.35 * M, 0.9, { sides: ['front', 'back', ...cSides] });
   // Zwerchhaus mit Treppengiebel über der Mitte
   const info = rectRoof(g, { cx: 0, cz, sx: bw, sz: bd, y0: st.top, pitch: rr(rng, 44, 50), ridge: 'x', mat: rpick(rng, ['roof_tiles_red', 'roof_tiles_anthracite', 'roof_tiles_brown']), under: 'wood_dark', edge: 'trim_dark', wall, eave: 0.25 * M, verge: 0.001 * M });
   const zw = Math.min(4.2 * M, bw * 0.4);

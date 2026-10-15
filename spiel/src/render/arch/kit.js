@@ -4,6 +4,7 @@
 // Alle Teile werden pro Material gesammelt und am Ende zu wenigen Geometrien zusammengeführt.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { fitLot } from './fit.js';
 
 export const M = 0.1;           // ein Meter
 export const FLOOR = 0.3;       // Geschosshöhe (3 m)
@@ -355,6 +356,8 @@ export class Kit {
 
   // Fertig: pro Material eine zusammengeführte Geometrie
   build() {
+    // Zonengebäude: vor dem Zusammenführen auf das Grundstück einpassen (fit.js, gesetzt von buildArch)
+    if (this.fitCfg) { const cfg = this.fitCfg; this.fitCfg = null; this.fitInfo = fitLot(this, cfg); }
     const meshes = [];
     for (const [mat, list] of this.groups) {
       const geo = list.length === 1 ? list[0] : mergeGeometries(list, false);
@@ -364,7 +367,7 @@ export class Kit {
     }
     let tris = 0;
     for (const m of meshes) tris += m.geometry.attributes.position.count / 3;
-    return { meshes, height: this.height, emitters: this.emitters, lights: this.lights, triangles: Math.round(tris) };
+    return { meshes, height: this.height, emitters: this.emitters, lights: this.lights, triangles: Math.round(tris), fit: this.fitInfo || null };
   }
 }
 

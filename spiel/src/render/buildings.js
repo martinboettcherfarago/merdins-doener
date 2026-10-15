@@ -18,13 +18,13 @@
 // Öffentlich: add(b), update(b), remove(b), frame(dt, time, night), setTint(fn), heightOf(b), stats(),
 //   emitters (Map id → [{x, y, z, type, amount}]), constructing (Set), protoMgr, root.
 import * as THREE from 'three';
-import { Z, BUILDINGS, TRANSIT } from '../config.js';
+import { Z, R, BUILDINGS, TRANSIT } from '../config.js';
 import { mulberry32 } from '../util.js';
 import { shared, makeGlowTexture, makePointsMaterial, PointBuffer } from './materials.js';
 import { ProtoManager, Batcher, InstSet, prepareModel, states, SLOT_HIDDEN } from './protos.js';
 import { ARCH, buildArch, archKeyFor, frontFootprint } from './arch/all.js';
-import { archCount } from './arch/index.js';
-import { MixGrid, encodeVariant, setVariantResolver } from './arch/mix.js';
+import { archTags } from './arch/index.js';
+import { MixGrid, encodeVariant, setVariantResolver, pickByStyle, mixHash, PALETTES } from './arch/mix.js';
 import { getMaterial } from './matlib.js';
 import { Kit, M, FLOOR, pick, range } from './arch/kit.js';
 
@@ -1504,18 +1504,90 @@ export class BuildingView {
     rec.m4.compose(this._v.set(ox, 0, oz), this._q, this._s.set(1, 1, 1));
     return rec;
   }
-  // Anzeige-Variante eines Zonengebäudes (arch/mix.js): Modell nach Lage, Höhenklasse nach Dichte ringsum
+  // Anzeige-Variante eines Zonengebäudes (arch/mix.js): Stilfamilie nach Straßenabschnitt (und Bezirk), Modell innerhalb
+  // der Familie nach Lage, Höhenklasse nach Dichte und Nachbarn, Ecklage und Farbfamilie der Straße
   _mixVariant(b, key, level, fw, fd) {
-    const n = archCount(key, level, fw, fd);
+    const tags = archTags(key, level, fw, fd);
+    const n = tags.length;
     const salt = { 1: 0, 2: 3, 3: 5, 4: 7 }[b.zone] || 0;
-    const idx = this.mix.pick(n, b.x, b.y, salt + level);
+    const styled = !!ARCH[key].list;
+    const st = styled ? this._street(b) : null;
+    let idx;
+    const cornerBits = styled ? this._corners(b) : 0;
+    const tall = level >= 4 && TALL_KEYS.has(key);
+    const nmin = tall ? this._neighbourMinLevel(b) : 9;
+    if (styled) {
+      let u = this.mix.at(0, st.x, st.y);
+      const d = this._district(b);
+      if (d) u = u * 0.65 + mixHash(d, 7, this.mix.seed) * 0.35;
+      idx = pickByStyle(tags, u * 3, this.mix, b.x, b.y, salt + level, cornerBits, nmin <= level - 3);
+    } else idx = this.mix.pick(n, b.x, b.y, salt + level);
+    const t = tags[idx] || { typ: 'S' };
     let hc = 0;
-    if (level >= 4 && TALL_KEYS.has(key)) {
-      const t = this._density(b) * 0.75 + (this.mix.noise(b.x, b.y) - 0.5) * 0.5;
+    if (tall && t.typ !== 'A') {
+      const v = this._density(b) * 0.75 + (this.mix.noise(b.x, b.y) - 0.5) * 0.5;
       const hi = level >= 5 ? 0.42 : 0.5, lo = level >= 5 ? 0.12 : 0.16;
-      hc = t > hi ? 1 : t < lo ? 2 : 0;
+      hc = v > hi ? 1 : v < lo ? 2 : 0;
+      // Höhenstaffelung: direkt neben deutlich niedrigerer Bebauung kein hoher, sondern ein niedriger Turm (mit Sockel)
+      if (nmin <= level - 3) hc = 2;
+      else if (nmin <= level - 2 && hc === 1) hc = 0;
     }
-    return encodeVariant(idx, hc);
+    const corner = t.typ === 'A' && t.corner ? cornerBits : 0;
+    // Farbfamilie (Dach und Putz) je Straße für Bausteine, die sie lesen (Ein- und Zweifamilienhäuser)
+    const pal = styled && key === 'res' && level <= 2 ? Math.min(PALETTES - 1, Math.floor(this.mix.at(1, st.x, st.y) * PALETTES)) : 0;
+    return encodeVariant(idx, hc, corner, pal);
+  }
+  // Mitte des Straßenabschnitts vor dem Grundstück (Feldkoordinaten): Zufahrtsfeld, entlang der Straße bis zur
+  // nächsten Kreuzung (höchstens 7 Felder je Richtung). Beide Straßenseiten eines Abschnitts teilen so ihren Stil.
+  _street(b) {
+    const g = this.g, W = g.W, H = g.H, road = g.road;
+    const a = b.access;
+    if (a === undefined || a < 0 || !road[a] || road[a] === R.HIGHWAY) return { x: b.x + (b.w - 1) / 2, y: b.y + (b.h - 1) / 2 };
+    const ax = a % W, ay = (a / W) | 0;
+    const isR = (x, y) => x >= 0 && y >= 0 && x < W && y < H && road[y * W + x] > 0 && road[y * W + x] !== R.HIGHWAY;
+    const alongX = ((b.rot || 0) & 1) === 0; // Front nach ±y → Straße läuft entlang x
+    const dx = alongX ? 1 : 0, dy = alongX ? 0 : 1;
+    const cross = (x, y) => (alongX ? isR(x, y - 1) || isR(x, y + 1) : isR(x - 1, y) || isR(x + 1, y));
+    let lo = 0, hi = 0;
+    if (!cross(ax, ay)) {
+      for (let k = 1; k <= 7; k++) { const x = ax - dx * k, y = ay - dy * k; if (!isR(x, y)) break; lo = -k; if (cross(x, y)) break; }
+      for (let k = 1; k <= 7; k++) { const x = ax + dx * k, y = ay + dy * k; if (!isR(x, y)) break; hi = k; if (cross(x, y)) break; }
+    }
+    const m = (lo + hi) / 2;
+    return { x: ax + dx * m, y: ay + dy * m };
+  }
+  _district(b) {
+    const d = this.g.ext && this.g.ext.districts;
+    if (!d || !d.map) return 0;
+    return d.map[b.y * this.g.W + b.x] || 0;
+  }
+  // Niedrigste Stufe der Zonengebäude rings um das Grundstück (ohne Straßen; leere Felder zählen nicht)
+  _neighbourMinLevel(b) {
+    const g = this.g, W = g.W, H = g.H;
+    let min = 9;
+    for (let y = b.y - 1; y <= b.y + b.h; y++) for (let x = b.x - 1; x <= b.x + b.w; x++) {
+      if (x < 0 || y < 0 || x >= W || y >= H || (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h)) continue;
+      const id = g.bld[y * W + x];
+      if (!id || id === b.id) continue;
+      const o = g.buildings.get(id);
+      if (o && o.zone) min = Math.min(min, o.level || 1);
+    }
+    return min;
+  }
+  // Ecklage (geschlossene Bauweise): Bit 1 = linke, Bit 2 = rechte Seite (von der Straße aus) grenzt an eine Straße
+  _corners(b) {
+    const g = this.g, W = g.W, H = g.H, road = g.road;
+    const k = (b.rot || 0) & 3;
+    const [rx, ry] = [[1, 0], [0, -1], [-1, 0], [0, 1]][k]; // Modell +x (rechts) in Feldrichtung
+    const side = (sx, sy) => {
+      const tiles = [];
+      if (sx > 0) for (let y = b.y; y < b.y + b.h; y++) tiles.push([b.x + b.w, y]);
+      else if (sx < 0) for (let y = b.y; y < b.y + b.h; y++) tiles.push([b.x - 1, y]);
+      else if (sy > 0) for (let x = b.x; x < b.x + b.w; x++) tiles.push([x, b.y + b.h]);
+      else for (let x = b.x; x < b.x + b.w; x++) tiles.push([x, b.y - 1]);
+      return tiles.some(([x, y]) => x >= 0 && y >= 0 && x < W && y < H && road[y * W + x] > 0);
+    };
+    return (side(-rx, -ry) ? 1 : 0) | (side(rx, ry) ? 2 : 0);
   }
   // Anteil dicht bebauter Felder (Stufe ≥ 4) im Umkreis von 5 Feldern; Raster wird höchstens alle 4 s erneuert
   _density(b) {
