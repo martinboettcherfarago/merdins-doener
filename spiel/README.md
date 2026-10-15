@@ -97,6 +97,7 @@ Weitere Werkzeuge:
   Mit `variants=10&v0=6` erscheinen weitere Modelle (Wohnen, Gewerbe und Büro haben je Stufe 8 bis 13). Welches Modell ein Zonengebäude in der Stadt bekommt, wählt die Ansicht nach Lage (`src/render/arch/mix.js`): Jede Straße hat eine Stilfamilie (historisch, traditionell, Nachkriegsmoderne, zeitgenössisch) und eine Farbfamilie für Dächer und Putz, Nachbarn sind verschiedene Modelle derselben Familie, dicht bebaute Viertel bekommen höhere Türme, neben niedriger Bebauung stehen niedrigere Türme mit Sockel.
 - Jedes Zonenmodell wird auf sein Grundstück eingepasst (`src/render/arch/fit.js`): Einzelhäuser und kleine Bauten halten seitlich und zur Straße Abstand (Gärten, Vorgärten), Blockrandbauten stehen mit Brandwänden bündig auf der Grenze, in gemeinsamer Bauflucht und Traufhöhe; nichts ragt ins Nachbargrundstück. `index.html?gallery=street&key=res&level=3` zeigt Straßenzeilen je Stilfamilie (Parameter `fp`, `n`, `eras`, `pal`).
 - `node tools/bench.mjs` misst die Rechenzeit der Simulation auf einer großen Karte.
+- `sh test/ruckel-check.sh [spielstand.json …]` spielt in der Megastadt ein iPad nach (Zoomen, Schwenken, Drehen, Untergrund, Zeitraffer) und prüft lange Bilder, Flackern der Detailstufen und die Zeit bis zum vollen Detail (je Spielstand 4–6 Minuten, daher nicht in `run-all.sh`). Messwerte und Fehlersuche: `tools/ruckel.mjs`.
 
 ### Aufbau
 
