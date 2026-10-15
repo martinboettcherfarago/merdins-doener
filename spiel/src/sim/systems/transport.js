@@ -1674,7 +1674,9 @@ function timings(g) {
   }
 }
 
-function updateCatchments(g) {
+function updateCatchments(g) { for (const _ of updateCatchmentsSteps(g)) { /* alles sofort */ } }
+// (in Schritten für die Zeitscheiben der Simulation: yield nach je 60 Haltestellen; Ergebnis wie am Stück)
+function* updateCatchmentsSteps(g) {
   const T = TS(g);
   const R0 = TP.stopRadius;
   const cover = T._cover || (T._cover = new Uint8Array(g.N));
@@ -1683,7 +1685,9 @@ function updateCatchments(g) {
   for (const s of active) forDisc(g, s.x + 0.5, s.y + 0.5, R0, (t) => { if (cover[t] < 255) cover[t]++; });
   // Pulsbahn-Stationen für Zubringer
   const stations = [...g.transit.stations.values()].filter((st) => st.active);
+  let k = 0;
   for (const s of active) {
+    if (++k % 60 === 0) yield;
     const w = [0, 0, 0, 0, 0];
     let lm = 0;
     forDisc(g, s.x + 0.5, s.y + 0.5, R0, (t) => {
@@ -1779,12 +1783,19 @@ function purposeRates(g, h) {
 }
 
 function assignHour(g, h) {
+  const it = assignHourSteps(g, h);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+// (in Schritten für die Zeitscheiben der Simulation: yield nach je 40 Start-Haltestellen bzw. 6000 Fahrten; Graph und
+// Bäume werden zu Beginn festgehalten – ändert der Spieler zwischendurch das Netz, rechnet diese Stunde mit dem alten)
+function* assignHourSteps(g, h) {
   const T = TS(g);
   const G = T.graph;
   const S = G ? G.S : 0;
   for (const l of T.lines) { l.edgeLoad = new Float32Array(Math.max(1, l.segs) * 2); l.hourRiders = 0; }
   for (const s of T.stops) { s.genH = 0; s.boardH = 0; s.rejH = 0; }
-  if (!S || !T.trees) return { delivered: 0 };
+  const trees = T.trees;
+  if (!S || !trees) return { delivered: 0 };
   const strikeBus = g.eff('busStrike') > 0;
   const rates = purposeRates(g, h);
   const fare = T.fare;
@@ -1822,8 +1833,9 @@ function assignHour(g, h) {
   ];
   const decay = new Float32Array(S);
   for (let o = 0; o < S; o++) {
+    if (o % 40 === 39) yield;
     const so = nodes[o];
-    const tree = T.trees[o];
+    const tree = trees[o];
     if (!tree) continue;
     const res = so.w[1], jobs = so.w[2] + so.w[3] + so.w[4];
     const gen = { work: res * rates.work, home: jobs * rates.home, shop: res * rates.shop, misc: (res + jobs) * rates.misc, tour: so.tour * rates.tour };
@@ -1863,8 +1875,9 @@ function assignHour(g, h) {
   let delivered = 0, rejected = 0, transfers = 0, feeder = 0, busR = 0, tramR = 0;
   const used = new Set();
   for (let k = 0; k < ods.length; k += 3) {
+    if (k % 18000 === 17997) yield;
     const o = ods[k], d = ods[k + 1], t = ods[k + 2];
-    const tree = T.trees[o];
+    const tree = trees[o];
     let acc = 1;
     used.clear();
     let lastLine = -1, chg = 0;
@@ -2233,7 +2246,9 @@ registerSystem({
     T.tStep = g.nextStep;
   },
 
-  hourly(g, h) {
+  hourly(g, h) { for (const _ of this.hourlySteps(g, h)) { /* alles sofort */ } },
+  // Stundenarbeit in Abschnitten (game.js _sysGen, Zeitscheiben): mit vielen Linien sonst 20–50 ms am Stück
+  *hourlySteps(g, h) {
     const T = TS(g);
     if (!T) return;
     if (T.dirty.facilities) scanFacilities(g);
@@ -2241,15 +2256,20 @@ registerSystem({
     if (h % 3 === 0 || T.dirty.signals) updateSignals(g);
     timings(g);
     stopTakts(g);
-    updateCatchments(g);
-    if (T.dirty.graph || h % 2 === 0) { buildGraph(g); shortestTrees(g); }
-    const r = assignHour(g, h);
+    yield;
+    yield* updateCatchmentsSteps(g);
+    yield;
+    if (T.dirty.graph || h % 2 === 0) { buildGraph(g); shortestTrees(g); yield; }
+    const r = yield* assignHourSteps(g, h);
+    yield;
     ferryDemand(g);
     const ferryH = T.ferries.reduce((a, f) => a + (f.demand || 0), 0) * 0.5;
     T.ring[h % 24] = (r.delivered || 0) + ferryH;
     accidentsHour(g, h);
     adjustCongestion(g);
+    yield;
     computeFields(g);
+    yield;
     commuteEffect(g);
     demandMods(g);
     shareAndTourism(g);
