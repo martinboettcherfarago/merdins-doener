@@ -7,6 +7,7 @@
 //   node tools/shot.mjs --scenario gallery --gallery "res&fp=1x1,2x1" --out /tmp/res.png
 //   node tools/shot.mjs --scenario city --eval tools/my-check.mjs   (export default async (page, h) => {...})
 //   node tools/shot.mjs --scenario winter|rain --out /tmp/w.png       (Stadt mit gesetztem Wetter: Schnee bzw. Regen)
+//   --quality auto|low|medium|high|ultra: Grafikstufe (Standard medium wie vor der Stufe „Automatisch")
 //   --strict: auch Konsolen-Fehler und abgefangene Simulationsfehler (g.errors) lassen das Werkzeug mit Code 1 enden
 //   --timeout <s>: Abbruch nach so vielen Sekunden (Standard 600)
 // Höchstens zwei Browser laufen gleichzeitig (Sperre unter /tmp), damit sich parallele Agenten nicht ausbremsen.
@@ -84,14 +85,33 @@ const browser = await chromium.launch({
 });
 const logs = [];
 try {
-  const page = await browser.newPage({ viewport: { width: W, height: H } });
+  // Geräte nachstellen (Grafikstufe „Automatisch"): --dpr 2, --ua ipad|iphone, --gpu "Apple GPU" (Kennung des Grafikchips)
+  const UAS = {
+    ipad: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+    iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+  };
+  const touch = args.ua === 'ipad' || args.ua === 'iphone';
+  const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: +(args.dpr || 1), hasTouch: touch, isMobile: args.ua === 'iphone', ...(UAS[args.ua] ? { userAgent: UAS[args.ua] } : {}) });
+  if (touch || args.gpu) {
+    await page.addInitScript(({ touch, gpu }) => {
+      if (touch) { try { Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 }); } catch (e) { /* egal */ } }
+      if (gpu) {
+        for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+          if (!C) continue;
+          const orig = C.prototype.getParameter;
+          C.prototype.getParameter = function (p) { return p === 0x9246 || p === 0x1F01 ? gpu : orig.call(this, p); };
+        }
+      }
+    }, { touch, gpu: args.gpu || null });
+  }
   // --quality low|medium|high|ultra: setzt die Qualitätsstufe samt Voreinstellung (wie die Oberfläche), vor dem Laden
-  if (args.quality) {
+  // Ohne Angabe: „medium" wie früher als Standard (vergleichbare Bilder); --quality auto prüft die automatische Stufe
+  {
     const PRE = { low: { postfx: false, ao: false, bloom: false, shadows: 'off' }, medium: { postfx: true, ao: false, bloom: true, shadows: 'low' },
-      high: { postfx: true, ao: true, bloom: true, shadows: 'high' }, ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' } };
-    const q = String(args.quality);
+      high: { postfx: true, ao: true, bloom: true, shadows: 'high' }, ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' }, auto: { postfx: true, ao: true, bloom: true, shadows: 'high' } };
+    const q = String(args.quality || 'medium');
     await page.addInitScript(({ q, pre }) => {
-      try { const s = JSON.parse(localStorage.getItem('stadtpuls.settings') || '{}'); localStorage.setItem('stadtpuls.settings', JSON.stringify({ ...s, quality: q, ...pre })); } catch (e) { /* egal */ }
+      try { const s = JSON.parse(localStorage.getItem('stadtpuls.settings') || '{}'); localStorage.setItem('stadtpuls.settings', JSON.stringify({ ...s, quality: q, qualityChosen: true, ...pre })); } catch (e) { /* egal */ }
     }, { q, pre: PRE[q] || {} });
   }
   let consoleErrors = 0;

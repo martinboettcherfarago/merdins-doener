@@ -1,5 +1,7 @@
 // Einstellungen (Vertrag 6.7): Grafik, Klang, Bedienung, Spielstand, Hilfe – im Spiel als Panel, im Menü als Fenster.
-// app.settings: quality 'low'|'medium'|'high'|'ultra', postfx, ao, bloom, shadows 'off'|'low'|'high', alwaysDay,
+// app.settings: quality 'auto'|'low'|'medium'|'high'|'ultra' (Standard „Automatisch": Gerät einschätzen und laufend
+// nachregeln, siehe render/autoquality.js; postfx/ao/bloom/shadows wirken dann als Obergrenze), qualityChosen (Stufe
+// bewusst gewählt), postfx, ao, bloom, shadows 'off'|'low'|'high', alwaysDay,
 // volume, music, sfx, muted, tutorialDone – dazu Oberflächen-Werte uiScale, minimap, advisor, tooltips,
 // confirmPlace 'auto'|'always'|'never' (Bauen bestätigen, ausgewertet von TOUCH in src/input/**),
 // dayLength 'normal'|'long'|'xlong' (Tageslänge: Spielminuten je Sekunde, gilt sofort; der Metro-Modus behält den Grundtakt).
@@ -10,12 +12,14 @@ import { icon } from './icons.js';
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export const PRESETS = {
+  auto: { postfx: true, ao: true, bloom: true, shadows: 'high' },
   low: { postfx: false, ao: false, bloom: false, shadows: 'off' },
   medium: { postfx: true, ao: true, bloom: true, shadows: 'low' },
   high: { postfx: true, ao: true, bloom: true, shadows: 'high' },
   ultra: { postfx: true, ao: true, bloom: true, shadows: 'high' },
 };
 export const QUALITY = [
+  ['auto', 'Automatisch', 'Passt sich deinem Gerät an und hält das Bild flüssig.'],
   ['low', 'Niedrig', 'Für ältere Geräte, schont den Akku.'],
   ['medium', 'Mittel', 'Für die meisten Geräte.'],
   ['high', 'Hoch', 'Für starke Grafikkarten.'],
@@ -47,7 +51,7 @@ export function applyDayLength(app) {
 
 // Fehlende Werte ergänzen (ältere Einstellungen) – vor dem Start der ersten Engine aufrufen.
 export function ensureSettings(s) {
-  if (!PRESETS[s.quality]) s.quality = 'medium';
+  if (!PRESETS[s.quality]) s.quality = 'auto';
   const p = PRESETS[s.quality];
   for (const k of ['postfx', 'ao', 'bloom', 'shadows']) if (s[k] === undefined) s[k] = p[k];
   // ältere Standardwerte (main.js) speichern Schatten als true/false
@@ -83,15 +87,16 @@ export function settingsHTML(ctx) {
   const tab = tabs.find((t) => t[0] === ctx.tab) ? ctx.tab : 'grafik';
   let body = '';
   if (tab === 'grafik') {
-    const q = QUALITY.find((x) => x[0] === s.quality) || QUALITY[1];
+    const q = QUALITY.find((x) => x[0] === s.quality) || QUALITY[0];
     const pending = gfxChanged(s, ctx.snap);
     // Die Engine übernimmt Grafikwerte sofort (G1, prüft alle 0,5 s); ältere Engines brauchen einen Neustart der Ansicht
     const eng = ctx.app.engine;
     const live = !!(eng && typeof eng.applyQuality === 'function');
     const caps = eng && eng.caps ? eng.caps : { shadows: true, postfx: true, ao: true, bloom: true };
     const noPost = eng && eng.canPost === false;
+    const autoNow = s.quality === 'auto' && eng && typeof eng.autoStatus === 'function' ? eng.autoStatus() : '';
     body = `
-<div class="sec"><h3>Qualitätsstufe</h3>${seg('quality', s.quality, QUALITY.map((x) => [x[0], x[1]]))}<p class="hint">${esc(q[2])}</p></div>
+<div class="sec"><h3>Qualitätsstufe</h3>${seg('quality', s.quality, QUALITY.map((x) => [x[0], x[1]]))}<p class="hint">${esc(q[2])}${autoNow ? `<br>${esc(autoNow)}` : ''}</p>${s.quality === 'auto' ? '<p class="hint">Schatten und Effekte unten gelten als Obergrenze.</p>' : ''}</div>
 ${caps.shadows ? `<div class="sec"><h3>Schatten</h3>${seg('shadows', s.shadows, [['off', 'Aus'], ['low', 'Weich'], ['high', 'Fein']])}</div>` : ''}
 ${caps.postfx || caps.ao || caps.bloom ? `<div class="sec"><h3>Effekte</h3>
   ${caps.postfx ? sw('postfx', s.postfx && !noPost, 'Nachbearbeitung', noPost ? 'Nicht möglich (WebGL 2 fehlt).' : '', noPost) : ''}
@@ -145,7 +150,7 @@ export function settingsClick(ctx, act, el) {
   const save = () => app.saveSettings();
   switch (act) {
     case 'settab': ctx.tab = el.dataset.v; return true;
-    case 'quality': s.quality = el.dataset.v; Object.assign(s, PRESETS[s.quality]); save(); return true;
+    case 'quality': if (PRESETS[el.dataset.v]) { s.quality = el.dataset.v; s.qualityChosen = true; Object.assign(s, PRESETS[s.quality]); save(); } return true;
     case 'shadows': s.shadows = el.dataset.v; save(); return true;
     case 'postfx': s.postfx = !s.postfx; save(); return true;
     case 'ao': if (s.postfx) { s.ao = !s.ao; save(); } return true;

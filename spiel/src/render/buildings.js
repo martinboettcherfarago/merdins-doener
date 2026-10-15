@@ -4,7 +4,10 @@
 // aus dem Baukasten, siehe unten) dargestellt:
 //  • Detailstufen: 2 = nah, 1 = mittel (instanziert pro Prototyp), 0 = fern (statisch gebündelt pro
 //    Kartenabschnitt, siehe protos.js/Batcher). Die Stufen werden alle 0,3 s nach Kameraabstand neu verteilt
-//    (mit Hysterese und Obergrenzen); teure Prototypen werden mit Zeitbudget nachgebaut.
+//    (mit Hysterese und Obergrenzen). Wechsel blenden über 0,4 s per Raster-Dithering über (FLUSS, Runde 4), höchstens
+//    ~8 beginnen je Bild. Fehlende Prototypen kommen in eine Bauliste (Zeitbudget je Bild, nächste zuerst, teure nur
+//    bei ruhender Kamera); vorausschauend gebaut wird für das Kameraziel und einen Ring knapp jenseits der Schwellen.
+//    Beim Laden hinter dem Ladebildschirm: Fernstufe in Zeitscheiben (warmBuild), dann Nahstufen am Ziel (warm).
 //  • Baustellen: Gebäude wächst Geschoss für Geschoss (Schnitthöhe im Shader) mit Betondecke, Gerüst mit
 //    Netzen (bei Hochhäusern als Klettergerüst), Bauzaun mit Tor, Baucontainer, Material, Baukran mit
 //    schwenkendem Ausleger und Staub.
@@ -33,6 +36,10 @@ const LOD_NEAR = 13, LOD_MID = 32; // Kameraabstand für Detail 2 bzw. 1 (Qualit
 const LOD_SCALE = { low: 0.65, medium: 1, high: 1.3, ultra: 1.7 };
 const MAX_D2 = 60, MAX_D1 = 160; // höchstens so viele Gebäude in Detail 2 bzw. ≥ 1
 const MAX_PROTOS = 64; // höchstens so viele verschiedene Prototypen in Detail 1/2
+const HYST_IN = 0.93, HYST_OUT = 1.1; // Hysterese der Abstandsschwellen (aufwerten unter 93 %, abwerten über 110 %)
+const PREFETCH = 1.3; // Prototypen bis 130 % der Schwelle vorab bauen (Leerlauf, Zeitbudget)
+const FADE_DUR = 0.4; // Sekunden Überblendung zwischen zwei Detailstufen
+const STICKY = 0.95; // gezeigte Nahstufen zählen bei den Obergrenzen 5 % näher (kein Tauschen am Rand, Nähe hat Vorrang)
 const DRAW_BUDGET = 300; // Draw Calls für alle Gebäude (Bündel + Baustellen + Nahdarstellung, inkl. Schatten)
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
@@ -1424,6 +1431,12 @@ export class BuildingView {
     this.lodList = [];
     this.lodPos = 0;
     this.lodT = 0; this.gcT = 3; this.siteT = 0; this.lightT = 0;
+    this.fading = new Set(); // Datensätze mit laufender Überblendung zwischen zwei Detailstufen
+    this.fadeDur = FADE_DUR;
+    this.need = new Map(); // Bauliste fehlender Prototypen (Kennung → { rec, d, pri })
+    this.ratio = [1, 2.5, 4]; // Bauzeit Detail d / Detail 0, gleitend gemessen (Schätzung fürs Zeitbudget)
+    this.camIdle = 0; // Sekunden, seit sich die Kamera nicht mehr nennenswert bewegt
+    this.ev = { switches: 0, builds: 0, buildMs: 0, maxBuildMs: 0, maxTickMs: 0 }; // Zähler für Messwerkzeuge
     this.lightsDirty = true;
     this.rng = mulberry32(4711);
     // Durchmischung: Modellwahl nach Lage (Nachbarn verschieden), Höhenstaffelung nach Bebauungsdichte
@@ -1457,11 +1470,13 @@ export class BuildingView {
     this.dustBuf.points.renderOrder = 7;
     this.root.add(this.dustBuf.points);
     this.dust = [];
-    // Beim Start steht die Kamera noch nicht: alles zuerst in Detail 0, der erste Takt verfeinert
+    // Beim Start steht die Kamera noch nicht: alles zuerst in Detail 0, der erste Takt verfeinert. Mit
+    // engine.opts.deferBuild baut die Ansicht die Fernstufe hinter dem Ladebildschirm in Zeitscheiben (warmBuild),
+    // damit der Ladebildschirm echten Fortschritt zeigt und die Seite nicht einfriert.
     this.initial = true;
     for (const b of g.buildings.values()) this.add(b);
-    this._work(Infinity);
-    this.initial = false;
+    this.initialTotal = this.queue.size;
+    if (!(engine.opts && engine.opts.deferBuild)) { this._work(Infinity); this.initial = false; }
     this.lastFrame = performance.now();
   }
 
@@ -1560,6 +1575,7 @@ export class BuildingView {
     this.queue.delete(rec);
     this.emitters.delete(b.id);
     this.constructing.delete(b.id);
+    this._endFade(rec);
     if (!rec.p0 || this.dying.size > 60 || (!rec.inst && !rec.inBatch)) { this._teardown(rec); return; }
     this._endSite(rec);
     this._animClock(rec, false);
@@ -1572,6 +1588,7 @@ export class BuildingView {
   }
 
   _teardown(rec) {
+    this._endFade(rec);
     this.queue.delete(rec); this.dying.delete(rec); this.siteRecs.delete(rec); this.animRecs.delete(rec);
     this._endSite(rec);
     this._dropInst(rec);
@@ -1622,27 +1639,55 @@ export class BuildingView {
     if (!(rec.want > 0 && this._show(rec, rec.want))) this._show(rec, 0);
     if (wasSite && puff) this._dustPuff(rec, 16);
   }
-  // Darstellung in Detailstufe d (0 = Bündel, sofern fertig)
-  _show(rec, d) {
-    if (rec.site && rec.site.detail !== (d >= 1 ? 1 : 0)) this._siteProps(rec, d >= 1 ? 1 : 0);
-    if (d === 0 && rec.inBatch) {
-      this._dropInst(rec);
-      states.setv(rec.slot, 2, 0, 1);
+  // Darstellung in Detailstufe d (0 = Bündel, sofern fertig). Wechsel zwischen zwei sichtbaren Stufen werden über einige
+  // Bilder überblendet (Raster-Dithering, siehe protos.js): die alte Darstellung löst sich genau dort auf, wo die neue
+  // erscheint – kein Aufpoppen, keine Lücke. Fehlt der Prototyp der Zielstufe noch, wird er in die Bauliste gestellt
+  // (Zeitbudget, nächster zuerst) und die bisherige Stufe bleibt stehen; force baut sofort (Einschwingen, Fotomodus).
+  _show(rec, d, force = false) {
+    const toBatch = d === 0 && rec.inBatch;
+    const proto = toBatch ? null : d === 0 ? rec.p0 : this._protoFor(rec, d, force);
+    if (!toBatch && !proto) return false;
+    if (rec.fade) this._endFade(rec);
+    const from = rec.shown;
+    const fade = !force && from >= 0 && from !== d && rec.finished && rec.dyingT < 0 && this.fadeDur > 0 && (!this.e.slow || this.fadeAlways);
+    if (toBatch) {
+      if (rec.site && rec.site.detail !== 0) this._siteProps(rec, 0);
+      if (fade && rec.inst) {
+        // Instanz läuft auf einer Kopie der Zustandszeile aus, das Bündel blendet ein
+        const fs = states.alloc();
+        states.copy(rec.slot, fs);
+        this.protoMgr.setSlot(rec.inst.proto, rec.inst.h, fs);
+        rec.fade = { t: 0, kind: 'ib', old: rec.inst, fs };
+        rec.inst = null;
+        states.setv(rec.slot, 2, 0, 0);
+        this.fading.add(rec);
+      } else { this._dropInst(rec); states.setv(rec.slot, 2, 0, 1); }
+      states.setv(rec.slot, 2, 2, 1);
       rec.shown = 0;
       this._setAnims(rec, rec.p0);
       this.lightsDirty = true;
+      if (from > 0) this.ev.switches++;
       return true;
     }
-    const proto = d === 0 ? rec.p0 : this.protoMgr.get(rec.key, rec.level, rec.variant, rec.fw, rec.fd, rec.extra, d);
-    if (!proto) return false;
+    if (rec.site && rec.site.detail !== (d >= 1 ? 1 : 0)) this._siteProps(rec, d >= 1 ? 1 : 0);
     if (!rec.inst || rec.inst.proto !== proto) {
       const h = this.protoMgr.alloc(proto, rec.slot);
       this.protoMgr.set(proto, h, rec.m4);
-      this._dropInst(rec);
+      if (fade && rec.inst) {
+        const fs = states.alloc();
+        states.copy(rec.slot, fs);
+        this.protoMgr.setSlot(rec.inst.proto, rec.inst.h, fs);
+        rec.fade = { t: 0, kind: 'ii', old: rec.inst, fs };
+        this.fading.add(rec);
+      } else if (fade && from === 0 && rec.inBatch) {
+        rec.fade = { t: 0, kind: 'bi', old: null, fs: 0 };
+        this.fading.add(rec);
+      } else this._dropInst(rec);
       rec.inst = { proto, h };
     }
-    states.setv(rec.slot, 2, 0, 0);
-    states.setv(rec.slot, 2, 2, 1);
+    if (rec.fade) { states.setv(rec.slot, 2, 0, rec.fade.kind === 'bi' ? 1 : 0); states.setv(rec.slot, 2, 2, 0); }
+    else { states.setv(rec.slot, 2, 0, 0); states.setv(rec.slot, 2, 2, 1); }
+    if (from >= 0 && from !== d) this.ev.switches++;
     rec.shown = d;
     this._setAnims(rec, proto);
     this.lightsDirty = true;
@@ -1652,6 +1697,94 @@ export class BuildingView {
     if (!rec.inst) return;
     this.protoMgr.release(rec.inst.proto, rec.inst.h);
     rec.inst = null;
+  }
+  // Überblendungen fortschreiben (Anteil f = 0 … 1); ein = sichtbar wo Raster < f, aus = Gegenmenge
+  _fadeFrame(dt) {
+    if (!this.fading.size) return;
+    const inn = (f) => (f >= 0.999 ? 1 : f <= 0.002 ? 0 : f);
+    const out = (f) => (f <= 0.002 ? 1 : f >= 0.999 ? 0 : -f);
+    const step = dt / this.fadeDur;
+    for (const rec of this.fading) {
+      const fd = rec.fade;
+      if (!fd) { this.fading.delete(rec); continue; }
+      fd.t = Math.min(1, fd.t + step);
+      if (fd.t >= 1 || (this.e.slow && !this.fadeAlways)) { this._endFade(rec); continue; }
+      const f = fd.t * fd.t * (3 - 2 * fd.t);
+      if (fd.kind === 'bi') { states.setv(rec.slot, 2, 0, out(f)); states.setv(rec.slot, 2, 2, inn(f)); }
+      else {
+        states.copy(rec.slot, fd.fs);
+        states.setv(fd.fs, 2, 0, 0);
+        states.setv(fd.fs, 2, 2, out(f));
+        if (fd.kind === 'ib') states.setv(rec.slot, 2, 0, inn(f));
+        else states.setv(rec.slot, 2, 2, inn(f));
+      }
+    }
+  }
+  _endFade(rec) {
+    const fd = rec.fade;
+    if (!fd) return;
+    rec.fade = null;
+    this.fading.delete(rec);
+    if (fd.old) this.protoMgr.release(fd.old.proto, fd.old.h);
+    if (fd.fs) states.release(fd.fs);
+    if (rec.slot <= SLOT_HIDDEN) return;
+    if (fd.kind === 'ib') { states.setv(rec.slot, 2, 0, 1); states.setv(rec.slot, 2, 2, 1); }
+    else { states.setv(rec.slot, 2, 0, 0); states.setv(rec.slot, 2, 2, 1); }
+  }
+  // Prototyp-Kennungen je Detailstufe einmal pro Datensatz (spart Zeichenketten im Takt)
+  _pid(rec, d) {
+    if (!rec.pid) rec.pid = [0, 1, 2].map((k) => this.protoMgr.idOf(rec.key, rec.level, rec.variant, rec.fw, rec.fd, k).id);
+    return rec.pid[d];
+  }
+  _protoFor(rec, d, force = false) {
+    const pm = this.protoMgr;
+    const id = this._pid(rec, d);
+    const p = pm.protos.get(id);
+    if (p) { p.idle = 0; return p; }
+    if (pm.failed.has(id)) return null;
+    if (force || this.initial) return pm.get(rec.key, rec.level, rec.variant, rec.fw, rec.fd, rec.extra, d);
+    this._request(rec, d, rec.dist);
+    return null;
+  }
+  // Bauliste: Prototyp-Kennung → { rec, d, pri } (kleinere Priorität zuerst)
+  _request(rec, d, pri) {
+    const id = this._pid(rec, d);
+    if (this.protoMgr.protos.has(id) || this.protoMgr.failed.has(id)) return;
+    const have = this.need.get(id);
+    if (have && have.pri <= pri) return;
+    this.need.set(id, { rec, d, pri, id });
+  }
+  // Geschätzte Bauzeit (ms) aus der Bauzeit der Fernstufe und dem gemessenen Verhältnis je Stufe
+  // (Wahrzeichen und große Verkehrsbauten mindestens 40 ms: die baut die Ansicht nur bei ruhender Kamera)
+  _estimate(rec, d) { const e = Math.max(0.3, (rec.p0 && rec.p0.ms) || 2) * this.ratio[d]; return heavyKey(rec) ? Math.max(40, e) : e; }
+  // Baut Prototypen aus der Bauliste, solange das Budget reicht (teure nur, wenn die Kamera ruht)
+  // soft: ein einzelner Bau bis zu so vielen ms darf das Budget überziehen (sonst blieben mittlere Modelle beim Zoomen
+  // zu lange in der Fernstufe); idleOk: Kamera ruht – dann auch ein teurer Bau
+  _buildSome(budget, idleOk = false, soft = 0) {
+    if (!this.need.size || (budget <= 0 && !soft)) return 0;
+    const t0 = performance.now();
+    if (idleOk && this._hvT > t0) idleOk = false; // nach einem teuren Bau kurz Luft lassen
+    let built = 0;
+    const list = [...this.need.values()].sort((a, b) => a.pri - b.pri);
+    for (const it of list) {
+      const left = budget - (performance.now() - t0);
+      if (left <= 0.5 && (built || !soft)) break;
+      const rec = it.rec;
+      if (rec.dead || !rec.p0 || this.protoMgr.protos.has(it.id)) { this.need.delete(it.id); continue; }
+      const est = this._estimate(rec, it.d);
+      if (est > left && !(built === 0 && (idleOk || (est <= soft && it.pri < 1e3)))) continue;
+      this.need.delete(it.id);
+      const b0 = performance.now();
+      const p = this.protoMgr.get(rec.key, rec.level, rec.variant, rec.fw, rec.fd, rec.extra, it.d);
+      const ms = performance.now() - b0;
+      built++;
+      if (ms > 20) this._hvT = performance.now() + 250;
+      this.ev.builds++; this.ev.buildMs += ms; if (ms > this.ev.maxBuildMs) this.ev.maxBuildMs = ms;
+      if (p && rec.p0 && rec.p0.ms > 0.2) this.ratio[it.d] = this.ratio[it.d] * 0.85 + clamp(ms / rec.p0.ms, 1, 30) * 0.15;
+      if (p) p.keepUntil = this.protoMgr.time + 12;
+      if (it.pri < 1e3) this.lodT = Math.min(this.lodT, 0.05); // bald zeigen
+    }
+    return built;
   }
   _setAnims(rec, proto) {
     if (rec.animProto === proto) return;
@@ -1833,12 +1966,13 @@ export class BuildingView {
   }
 
   // ------------------------------------------------------------------ Detailstufen
+  // Abstandsschwellen für Detail 2 bzw. 1: Grundwert × Qualitätsfaktor (engine.quality.lod, sonst nach Stufe)
   _thresholds() {
-    const f = LOD_SCALE[this.e.settings && this.e.settings.quality] ?? 1;
+    const q = this.e.quality;
+    const f = (q && Number.isFinite(q.lod)) ? q.lod : LOD_SCALE[q && q.name] ?? 1;
     return [LOD_NEAR * f, LOD_MID * f];
   }
-  _distance(rec) {
-    const cam = this.e.camera.position;
+  _distance(rec, cam = this.e.camera.position) {
     const dx = rec.ox - cam.x, dy = rec.height * 0.4 - cam.y, dz = rec.oz - cam.z;
     return Math.sqrt(dx * dx + dy * dy + dz * dz) - rec.radius * 0.45;
   }
@@ -1849,10 +1983,34 @@ export class BuildingView {
     rec.dist = d;
     return d < t2 ? 2 : d < t1 ? 1 : 0;
   }
+  // Wohin die Kamera gerade fährt (Ziel des Kamera-Rigs) – für vorausschauendes Bauen beim Heranzoomen
+  _goalCam() {
+    const rig = this.e.rig;
+    if (!rig || !rig.goal) return null;
+    const g = rig.goal, c = rig.cur;
+    if (Math.abs(g.dist - c.dist) < c.dist * 0.04 && Math.hypot(g.x - c.x, g.z - c.z) < c.dist * 0.05) return null;
+    const cp = Math.cos(g.pitch);
+    return (this._gc || (this._gc = new THREE.Vector3())).set(g.x + Math.sin(g.yaw) * cp * g.dist, Math.sin(g.pitch) * g.dist, g.z + Math.cos(g.yaw) * cp * g.dist);
+  }
+  // Takt in Scheiben: Große Städte (Tausende Gebäude) verteilen den Durchlauf auf einige Bilder (_lodScan), die
+  // Entscheidung (Obergrenzen, Übergänge) fällt nach einer vollen Runde. _lodTick() erledigt alles auf einmal.
   _lodTick() {
+    this._lodScanStart();
+    this._lodScan(Infinity);
+    this._lodDecide();
+  }
+  _lodScanStart() {
     const [t2, t1] = this._thresholds();
-    const arr = [];
-    for (const rec of this.recs.values()) {
+    const g = this._goalCam();
+    this._scan = { list: [...this.recs.values()], pos: 0, arr: [], ring: [], goal: g ? g.clone() : null, t2, t1 };
+  }
+  // n Datensätze weiterzählen; true, wenn die Runde fertig ist
+  _lodScan(n) {
+    const S = this._scan;
+    const { t2, t1, goal, arr, ring, list } = S;
+    const end = Math.min(list.length, S.pos + n);
+    for (; S.pos < end; S.pos++) {
+      const rec = list[S.pos];
       if (!rec.p0 || rec.dead || rec.dyingT >= 0) continue;
       if (this._changed(rec)) { this.add(rec.b); continue; }
       this._syncPhase(rec);
@@ -1860,20 +2018,36 @@ export class BuildingView {
       const d = this._distance(rec);
       rec.dist = d;
       const cur = rec.shown;
-      const a2 = cur === 2 ? t2 * 1.08 : t2 * 0.95, a1 = cur >= 1 ? t1 * 1.08 : t1 * 0.95;
+      // Hysterese: aufwerten erst deutlich unter, abwerten erst deutlich über der Schwelle (kein Flackern beim Pendeln)
+      const a2 = cur === 2 ? t2 * HYST_OUT : t2 * HYST_IN, a1 = cur >= 1 ? t1 * HYST_OUT : t1 * HYST_IN;
       rec.want = d < a2 ? 2 : d < a1 ? 1 : 0;
+      // Bereits gezeigte Nahstufen haben bei den Obergrenzen Vorrang (sonst tauschen Gebäude am Rand ständig)
+      rec.sk = d * (cur >= 1 && !this._fresh ? STICKY : 1);
       arr.push(rec);
+      if (!rec.finished) continue;
+      // Vorausschau: Stufe am Kameraziel und ein Ring knapp jenseits der Schwellen vorab bauen
+      let pre = 0, pd = d;
+      if (goal) { const dg = this._distance(rec, goal); const wg = dg < t2 ? 2 : dg < t1 ? 1 : 0; if (wg > pre) { pre = wg; pd = dg; } }
+      if (d < t2 * PREFETCH) pre = Math.max(pre, 2); else if (d < t1 * PREFETCH) pre = Math.max(pre, 1);
+      if (pre > cur && pre > 0) ring.push([rec, pre, pd]);
     }
+    return S.pos >= list.length;
+  }
+  _lodDecide() {
+    const S = this._scan;
+    this._scan = null;
+    if (!S) return;
+    const { arr, ring } = S;
+    const pm = this.protoMgr;
     // Obergrenzen: nur die nächsten Gebäude bekommen Detail 1/2 (nach Abstand sortiert). Jeder weitere Prototyp
     // kostet seine Teile (+ Schatten) aus dem Draw-Call-Budget; Gebäude mit schon gezeigtem Prototyp sind gratis.
-    const near = arr.filter((r) => r.want >= 1).sort((a, b) => a.dist - b.dist);
+    const near = arr.filter((r) => r.want >= 1).sort((a, b) => a.sk - b.sk);
     let n2 = 0, n1 = 0;
     const used = new Set();
-    const pm = this.protoMgr;
     const budget = clamp(DRAW_BUDGET - this.batch.drawEstimate() - this.sites.drawEstimate() - 8, 60, 210);
     let spent = 0;
     const fits = (rec, d) => {
-      const id = pm.idOf(rec.key, rec.level, rec.variant, rec.fw, rec.fd, d).id;
+      const id = this._pid(rec, d);
       if (used.has(id)) return true;
       const p = pm.protos.get(id);
       const cost = p ? p.parts.length + p.parts.filter((q) => q.cast).length : rec.p0.parts.length + 2;
@@ -1883,55 +2057,117 @@ export class BuildingView {
       return true;
     };
     for (const rec of near) {
+      if (rec.dead) continue;
       if (rec.want === 2 && (n2 >= MAX_D2 || !fits(rec, 2))) rec.want = 1;
       if (rec.want === 1 && (n1 >= MAX_D1 || !fits(rec, 1))) rec.want = 0;
       if (rec.want === 2) n2++;
       if (rec.want >= 1) n1++;
     }
+    // Fehlende Prototypen anfordern: zuerst, was jetzt gebraucht wird (Priorität = Abstand), dann die Vorausschau
+    for (const rec of near) if (rec.want > rec.shown && !pm.protos.has(this._pid(rec, rec.want))) this._request(rec, rec.want, rec.dist);
+    ring.sort((a, b) => a[2] - b[2]);
+    for (let i = 0; i < ring.length && i < 48; i++) {
+      const [rec, d, pd] = ring[i];
+      for (let k = Math.max(1, rec.shown + 1); k <= d; k++) {
+        const p = pm.protos.get(this._pid(rec, k));
+        if (p) p.keepUntil = pm.time + 12; else this._request(rec, k, 1e3 + pd);
+      }
+    }
     // Übergänge: nahe zuerst (Aufwerten), dann Abwerten
     this.lodList = near.filter((r) => r.want !== r.shown).concat(arr.filter((r) => r.want === 0 && r.shown !== 0));
     this.lodPos = 0;
   }
-  _work(budget) {
+  // budget: Zeit für neue Gebäude und Übergänge; maxStarts: höchstens so viele Übergänge pro Bild (verteilt Wechsel)
+  _work(budget, maxStarts = Infinity, force = false) {
     const t0 = performance.now();
     for (const rec of this.queue) {
       if (performance.now() - t0 > budget) break;
       this.queue.delete(rec);
       this._build(rec);
     }
-    while (this.lodPos < this.lodList.length && performance.now() - t0 <= budget) {
+    let starts = 0;
+    while (this.lodPos < this.lodList.length && performance.now() - t0 <= budget && starts < maxStarts) {
       const rec = this.lodList[this.lodPos++];
       if (rec.dead || rec.dyingT >= 0 || !rec.p0 || rec.want === rec.shown) continue;
-      this._show(rec, rec.want);
+      if (this._show(rec, rec.want, force)) starts++;
+      else if (rec.want === 2 && rec.shown < 1 && this._show(rec, 1, force)) starts++; // Zwischenstufe, bis Detail 2 fertig ist
     }
+    return performance.now() - t0;
   }
 
   // ------------------------------------------------------------------ Vorbauen im Leerlauf
   // Teure Modelle (Wahrzeichen, Verkehrsbauten; Bauzeit 40–200 ms) in Detailstufe 1 und 2 vorab bauen, wenn der
   // Browser Leerlauf hat – sonst ruckelt es genau beim Heranzoomen. Eines pro Leerlauf, die fertigen bleiben erhalten.
+  // Dazu die Bauliste (Vorausschau): im Leerlauf so viel, wie die Frist erlaubt.
   _prebuild(dt) {
     this.preT = (this.preT ?? 4) - dt;
     if (this.preT > 0 || this._preBusy || this.queue.size || this.lodPos < this.lodList.length) return;
     this.preT = 0.4;
     const mgr = this.protoMgr;
-    const run = () => {
+    const run = (deadline) => {
       this._preBusy = false;
-      if (this.queue.size) return;
+      if (this.queue.size || this.disposed) return;
+      const left = deadline && deadline.timeRemaining ? deadline.timeRemaining() : 6;
+      if (this.need.size) { this._buildSome(Math.max(2, left - 1), this.camIdle > 0.6); if (this.need.size) { this.preT = 0.05; return; } }
       let built = false;
       for (const rec of this.recs.values()) {
         if (rec.dead || rec.dyingT >= 0 || !rec.finished || !rec.p0 || !heavyKey(rec)) continue;
         for (const d of [1, 2]) {
-          let p = mgr.peek(rec.key, rec.level, rec.variant, rec.fw, rec.fd, d);
-          if (!p && !built) { p = mgr.get(rec.key, rec.level, rec.variant, rec.fw, rec.fd, rec.extra, d); built = true; }
+          let p = mgr.protos.get(this._pid(rec, d));
+          if (!p && !built && this.camIdle > 0.6) { p = mgr.get(rec.key, rec.level, rec.variant, rec.fw, rec.fd, rec.extra, d); built = true; }
           if (p) p.keepUntil = mgr.time + 30;
         }
       }
-      if (!built) this.preT = 6; // alles vorhanden – seltener prüfen
+      if (!built && this.camIdle > 0.6) this.preT = 6; // alles vorhanden – seltener prüfen
     };
     this._preBusy = true;
     if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 2000 });
     else setTimeout(run, 30);
   }
+
+  // Aufgeschobener Erstaufbau (deferBuild): Fernstufe aller Gebäude in Zeitscheiben. Rückgabe: Anteil fertig (0…1).
+  warmBuild(budget = 30) {
+    if (!this.initial) return 1;
+    const t0 = performance.now();
+    for (const rec of this.queue) {
+      if (performance.now() - t0 > budget) break;
+      this.queue.delete(rec);
+      this._build(rec);
+    }
+    if (!this.queue.size) { this.initial = false; this.lodT = 0; }
+    return this.initialTotal ? 1 - this.queue.size / this.initialTotal : 1;
+  }
+
+  // Vorwärmen hinter dem Ladebildschirm: Nahstufen rund um den Zielpunkt der Kamera (Ende der Einflugfahrt) bauen.
+  // Rückgabe: true, solange noch etwas zu tun ist.
+  warm(budget = 12) {
+    if (this.initial) return true;
+    const t0 = performance.now();
+    if (!this._warmList) {
+      const rig = this.e.rig, g = rig.goal, cp = Math.cos(g.pitch);
+      const cam = new THREE.Vector3(g.x + Math.sin(g.yaw) * cp * g.dist, Math.sin(g.pitch) * g.dist, g.z + Math.cos(g.yaw) * cp * g.dist);
+      const [t2, t1] = this._thresholds();
+      const list = [];
+      for (const rec of this.recs.values()) {
+        if (!rec.p0 || rec.dead || !rec.finished) continue;
+        const d = this._distance(rec, cam);
+        if (d < t2 * PREFETCH) list.push([d, rec, 2]);
+        if (d < t1 * 1.1) list.push([d, rec, 1]);
+      }
+      list.sort((a, b) => a[0] - b[0]);
+      this._warmList = list.slice(0, 160);
+      this._warmPos = 0;
+    }
+    const L = this._warmList;
+    while (this._warmPos < L.length && performance.now() - t0 < budget) {
+      const [, rec, d] = L[this._warmPos++];
+      if (rec.dead) continue;
+      const p = this._protoFor(rec, d, true);
+      if (p) p.keepUntil = this.protoMgr.time + 20;
+    }
+    return this._warmPos < L.length;
+  }
+  warmProgress() { return this._warmList ? this._warmPos / Math.max(1, this._warmList.length) : 0; }
 
   // ------------------------------------------------------------------ Abriss, Staub
   _dyingFrame(dt) {
@@ -2033,14 +2269,40 @@ export class BuildingView {
     const now = performance.now();
     const gap = now - this.lastFrame;
     this.lastFrame = now;
-    const budget = gap > 300 ? Infinity : clamp(gap * 0.3, 4, 60);
-    // Takt alle 0,3 s – sofort, wenn die Kamera seit dem letzten Takt weit gesprungen ist
+    // Erstaufbau läuft noch (hinter dem Ladebildschirm): nur weiterbauen, keine Detailstufen
+    if (this.initial) {
+      this.warmBuild(gap > 300 ? 250 : this.e.warming ? 45 : 16);
+      this.protoMgr.flush(); this.batch.flush(1); this.sites.flush(1); states.upload(this.e.renderer);
+      return;
+    }
+    // Kamera in Ruhe? (teure Prototypen nur dann bauen, Übergänge dann großzügiger)
     const cam = this.e.camera.position;
     if (!this._lastCam) this._lastCam = cam.clone();
+    if (!this._prevCam) this._prevCam = cam.clone();
+    const mv = this._prevCam.distanceTo(cam);
+    this._prevCam.copy(cam);
+    const rigDist = (this.e.rig && this.e.rig.cur && this.e.rig.cur.dist) || 30;
+    this.camIdle = mv < rigDist * 0.0015 ? this.camIdle + dt : 0;
+    // Zeitbudget pro Bild: nach langer Pause (Laden) alles, sonst ein kleiner Teil der Bildzeit
+    const budget = gap > 300 ? 250 : clamp(gap * 0.25, 3, 10);
+    // Takt alle 0,3 s – sofort, wenn die Kamera seit dem letzten Takt weit gesprungen ist
     this.lodT -= dt;
-    if (this.lodT <= 0 || this._lastCam.distanceToSquared(cam) > 9) { this.lodT = LOD_TICK; this._lastCam.copy(cam); this._lodTick(); }
-    this._work(budget);
+    // (große Städte: Durchlauf über einige Bilder verteilt, bei einem Kamerasprung sofort komplett)
+    const moved2 = this._lastCam.distanceToSquared(cam), jumped = moved2 > 9;
+    const teleport = moved2 > (20 + rigDist * 0.5) ** 2; // echter Sprung (Fokus auf einen Ort): sofort komplett
+    if (!this._scan && (this.lodT <= 0 || jumped)) { this.lodT = LOD_TICK; this._lastCam.copy(cam); this._lodScanStart(); }
+    if (this._scan) {
+      const tk = performance.now();
+      if (this._lodScan(teleport || gap > 300 ? Infinity : Math.max(400, Math.ceil(this._scan.list.length / 4)))) this._lodDecide();
+      const tm = performance.now() - tk; if (tm > this.ev.maxTickMs) this.ev.maxTickMs = tm;
+    }
+    // Übergänge zeitlich verteilen (nächste zuerst): ~8 je Bild bei 60 Bildern/s
+    const maxStarts = gap > 300 ? Infinity : Math.max(3, Math.round(dt * 480));
+    const used = this._work(budget, maxStarts);
+    // Bauliste: günstige Prototypen im Bildbudget, teure erst, wenn die Kamera ruht
+    this._buildSome(budget - used, this.camIdle > 0.6, used < 4 && gap < 40 ? 8 : 0);
     this._prebuild(dt);
+    this._fadeFrame(dt);
     this._sitesFrame(dt, time);
     this._dyingFrame(dt);
     this._animate(dt, night);
@@ -2056,8 +2318,10 @@ export class BuildingView {
 
   // Detailstufen sofort einschwingen (Fotomodus, Vorschaubilder, Messungen): Takt + alle Übergänge ohne Zeitbudget
   settle() {
-    this._lodTick();
-    this._work(Infinity);
+    for (const rec of [...this.fading]) this._endFade(rec);
+    this._fresh = true; this._lodTick(); this._fresh = false;
+    this._work(Infinity, Infinity, true);
+    this.need.clear();
     this.protoMgr.flush();
     this.batch.flush(1);
     this.sites.flush(1);
@@ -2070,10 +2334,11 @@ export class BuildingView {
   }
 
   stats() {
-    return { ...this.protoMgr.stats(), batch: this.batch.stats(), sites: this.sites.stats(), buildings: this.recs.size, queued: this.queue.size, constructing: this.constructing.size, dying: this.dying.size };
+    return { ...this.protoMgr.stats(), batch: this.batch.stats(), sites: this.sites.stats(), buildings: this.recs.size, queued: this.queue.size, constructing: this.constructing.size, dying: this.dying.size, fading: this.fading.size, need: this.need.size, ev: { ...this.ev } };
   }
 
   dispose() {
+    this.disposed = true;
     setVariantResolver(null);
     this.e.scene.remove(this.root);
     this.batch.dispose();

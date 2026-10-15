@@ -9,10 +9,14 @@
 //   engine.light              { sunDir, moonDir, sunElev, sunColor, ambient, dayLight (0..1), cloud, overcast }
 //   engine.wx                 geglättetes Wetter { season, yearT, temp, rain, snow, snowCover, cloud, fog, wind, windDir, storm, wet }
 //   engine.flash              aktueller Blitz (0..1) – wird von views/weatherfx.js gesetzt
-//   engine.quality            aufgelöstes Qualitätsprofil (siehe QUALITY)
+//   engine.quality            aufgelöstes Qualitätsprofil (siehe QUALITY); bei „Automatisch" { …, auto: true, rung }
+//   engine.device / engine.gov  Geräteeinschätzung und laufende Regelung der Stufe „Automatisch" (autoquality.js)
+//   engine.autoStatus()       kurzer Text zum aktuellen Stand der Regelung (Einstellungen)
+//   engine.settings           die Einstellungen; bei „Automatisch" liefert settings.quality die ermittelte Grundstufe
+//                             (low|medium|high), damit Ansichten mit Stufentabellen passende Mengen wählen
 //   engine.shake(stärke)      Kamerawackeln (Katastrophen)
-// Qualität: settings.quality = low|medium|high|ultra; settings.postfx/ao/bloom (bool) und settings.shadows (off|low|high)
-// überschreiben einzelne Teile. Änderungen an settings werden live übernommen.
+// Qualität: settings.quality = auto|low|medium|high|ultra; settings.postfx/ao/bloom (bool) und settings.shadows (off|low|high)
+// überschreiben einzelne Teile (bei „Automatisch" als Obergrenze). Änderungen an settings werden live übernommen.
 import * as THREE from 'three';
 import { shared, atmo } from './materials.js';
 import { CameraRig } from './camera.js';
@@ -26,15 +30,23 @@ import { OverlayView } from './overlay.js';
 import { UndergroundView } from './underground.js';
 import { EffectsView } from './effects.js';
 import { VIEWS } from '../registry.js';
+import { detectDevice, AutoGovernor } from './autoquality.js';
+import { g9Materials, g9DepthMaterial, g9Uses, g9UsesVersion } from './protos.js';
 
+// lod: Faktor der Detailabstände der Gebäude (buildings.js)
 export const QUALITY = {
-  low: { pr: 1, post: false, msaa: 0, ao: false, aoSamples: 6, aoHalf: true, bloom: false, bloomLevels: 4, shadow: 0, shadowEvery: 3, weather: 0.4 },
-  medium: { pr: 1.5, post: true, msaa: 4, ao: true, aoSamples: 10, aoHalf: true, bloom: true, bloomLevels: 5, shadow: 2048, shadowEvery: 2, weather: 0.7 },
-  high: { pr: 2, post: true, msaa: 4, ao: true, aoSamples: 12, aoHalf: true, bloom: true, bloomLevels: 6, shadow: 4096, shadowEvery: 1, weather: 1 },
-  ultra: { pr: 2, post: true, msaa: 8, ao: true, aoSamples: 16, aoHalf: false, bloom: true, bloomLevels: 6, shadow: 4096, shadowEvery: 1, weather: 1.3 },
+  low: { pr: 1, post: false, msaa: 0, ao: false, aoSamples: 6, aoHalf: true, bloom: false, bloomLevels: 4, shadow: 0, shadowEvery: 3, weather: 0.4, lod: 0.65 },
+  medium: { pr: 1.5, post: true, msaa: 4, ao: true, aoSamples: 10, aoHalf: true, bloom: true, bloomLevels: 5, shadow: 2048, shadowEvery: 2, weather: 0.7, lod: 1 },
+  high: { pr: 2, post: true, msaa: 4, ao: true, aoSamples: 12, aoHalf: true, bloom: true, bloomLevels: 6, shadow: 4096, shadowEvery: 1, weather: 1, lod: 1.3 },
+  ultra: { pr: 2, post: true, msaa: 8, ao: true, aoSamples: 16, aoHalf: false, bloom: true, bloomLevels: 6, shadow: 4096, shadowEvery: 1, weather: 1.3, lod: 1.7 },
 };
 
-export function resolveQuality(settings = {}) {
+// engine (optional): bei settings.quality = 'auto' liefert die laufende Regelung (engine.gov) das Profil
+export function resolveQuality(settings = {}, engine = null) {
+  if (settings.quality === 'auto' && engine && engine.gov) {
+    const name = engine.device.name;
+    return { ...QUALITY[name], ...engine.gov.profile(settings), name, auto: true, rung: engine.gov.rung, post: settings.postfx !== false };
+  }
   const base = QUALITY[settings.quality] || QUALITY.medium;
   const q = { ...base, name: QUALITY[settings.quality] ? settings.quality : 'medium' };
   if (settings.postfx === false) q.post = false;
@@ -62,13 +74,23 @@ function sunLightColor(elevRad, out) {
 }
 
 export class Engine {
-  constructor(canvas, game, settings) {
+  // opts: { deferBuild } – Gebäude hinter dem Ladebildschirm in Zeitscheiben aufbauen (main.js, mit warming)
+  constructor(canvas, game, settings, opts = {}) {
     this.canvas = canvas;
     this.game = game;
-    this.settings = settings;
-    this.quality = resolveQuality(settings);
+    this.opts = opts;
+    this.rawSettings = settings;
+    // Ansichten lesen settings.quality als Stufe (low…ultra): bei „Automatisch" die ermittelte Grundstufe liefern
+    this.settings = new Proxy(settings, { get: (t, k) => (k === 'quality' && t.quality === 'auto' && this.device ? this.device.name : t[k]) });
+    const autoMode = settings.quality === 'auto';
+    this.quality = autoMode ? { ...QUALITY.medium, post: settings.postfx !== false, name: 'medium' } : resolveQuality(settings);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.quality.post, powerPreference: 'high-performance', stencil: false });
+    if (autoMode) {
+      this.device = detectDevice(renderer);
+      this.gov = new AutoGovernor(this.device);
+      this.quality = resolveQuality(settings, this);
+    }
     const q = this.quality;
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: !q.post, powerPreference: 'high-performance', stencil: false });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.CustomToneMapping; // „Neutral“, siehe materials.js
     renderer.toneMappingExposure = 1.0;
@@ -76,6 +98,13 @@ export class Engine {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.shadowMap.autoUpdate = false; // gezielt aktualisiert, siehe fitShadow()
     renderer.info.autoReset = false;
+    // Shader-Fehlerprüfung fragt beim ersten Gebrauch jedes Programms synchron die Protokolle ab (getProgramInfoLog,
+    // getShaderInfoLog) – das wartet auf den Treiber und machte im Profil des Ladens ~80 % der Zeit aus. Für Spieler
+    // aus, in Prüfwerkzeugen (navigator.webdriver) und mit ?debug an, damit Shaderfehler dort weiter auffallen.
+    try {
+      const forced = typeof window !== 'undefined' ? window.STADTPULS_SHADERCHECK : undefined; // Messwerkzeuge: wie beim Spieler messen
+      renderer.debug.checkShaderErrors = typeof forced === 'boolean' ? forced : !!((typeof navigator !== 'undefined' && navigator.webdriver) || (typeof location !== 'undefined' && /[?&]debug\b/.test(location.search)));
+    } catch (e) { /* egal */ }
     renderer.setClearColor(0x0a0f1e, 1);
     this.renderer = renderer;
     this.canPost = postSupported(renderer);
@@ -118,16 +147,23 @@ export class Engine {
     this.post = null;
     this.applyQuality(true);
 
-    this.terrain = new TerrainView(this);
-    this.roads = new RoadView(this);
-    this.buildings = new BuildingView(this);
+    // Aufbauzeiten je Teil (ms) für Messwerkzeuge: engine.loadTimes
+    const lt = this.loadTimes = {};
+    let t0 = performance.now();
+    const lap = (k) => { const t = performance.now(); lt[k] = Math.round(t - t0); t0 = t; };
+    this.terrain = new TerrainView(this); lap('terrain');
+    this.roads = new RoadView(this); lap('roads');
+    this.buildings = new BuildingView(this); lap('buildings');
     this.vehicles = new VehicleView(this);
     this.transit = new TransitView(this);
     this.underground = new UndergroundView(this);
     this.overlay = new OverlayView(this);
-    this.effects = new EffectsView(this);
+    this.effects = new EffectsView(this); lap('agents+fx');
     this.views = [];
-    for (const V of VIEWS) { try { this.views.push(new V(this)); } catch (e) { console.error('Ansicht fehlgeschlagen', V.name, e); } }
+    for (const V of VIEWS) {
+      try { this.views.push(new V(this)); } catch (e) { console.error('Ansicht fehlgeschlagen', V.name, e); }
+      const t = performance.now(); if (t - t0 > 15) lt['view:' + (V.name || this.views.length)] = Math.round(t - t0); t0 = t;
+    }
 
     this.dirty = { trees: false, zones: false, roads: false, terrainColors: false, overlay: false };
     this.bindGame();
@@ -144,13 +180,24 @@ export class Engine {
   }
 
   qualityKey() {
-    const s = this.settings || {};
+    const s = this.rawSettings || {};
     return [s.quality, s.postfx, s.ao, s.bloom, s.shadows].join('|');
+  }
+
+  // Kurzbeschreibung des aktuellen Stands (Einstellungen, Stufe „Automatisch")
+  autoStatus() {
+    if (!this.gov || this.rawSettings.quality !== 'auto') return '';
+    return this.gov.describe({ ...this.quality, post: this.usePost });
   }
 
   // Qualitätsprofil anwenden (beim Start und wenn sich settings ändern).
   applyQuality(initial = false) {
-    const q = resolveQuality(this.settings);
+    if (this.rawSettings.quality === 'auto' && !this.gov) {
+      // erst zur Laufzeit auf „Automatisch" umgestellt
+      this.device = detectDevice(this.renderer);
+      this.gov = new AutoGovernor(this.device);
+    }
+    const q = resolveQuality(this.rawSettings, this);
     // Ohne Kantenglättung im Kontext auch bei „niedrig“ den schlanken HDR-Weg nehmen (MSAA im Puffer)
     const ctxAA = this.renderer.getContextAttributes ? !!(this.renderer.getContextAttributes() || {}).antialias : true;
     const usePost = this.canPost && (q.post || !ctxAA);
@@ -158,8 +205,18 @@ export class Engine {
     this.quality = q;
     this.usePost = usePost;
     const r = this.renderer;
+    // Umgebungsverdeckung und Leuchten werden weich ein- und ausgeblendet (fx.ao/fx.bloom = Stärke 0…1); beim Abschalten
+    // bleibt der Durchgang bis zum Ende der Blende aktiv (siehe fxFrame)
+    const fx = this.fx || (this.fx = { ao: 1, bloom: 1, aoT: 1, bloomT: 1 });
     if (usePost) {
-      const cfg = { msaa: q.msaa, ao: q.ao, aoSamples: q.aoSamples, aoHalf: q.aoHalf, bloom: q.bloom, bloomLevels: q.bloomLevels, dof: !!this.dofEnabled };
+      const had = this.post ? this.post.cfg : null;
+      const keepAO = !initial && had && had.ao && !q.ao;
+      const keepBloom = !initial && had && had.bloom && !q.bloom;
+      if (!initial && q.ao && !(had && had.ao)) fx.ao = 0;
+      if (!initial && q.bloom && !(had && had.bloom)) fx.bloom = 0;
+      fx.aoT = q.ao ? 1 : 0; fx.bloomT = q.bloom ? 1 : 0;
+      if (initial) { fx.ao = fx.aoT; fx.bloom = fx.bloomT; }
+      const cfg = { msaa: q.msaa, ao: q.ao || keepAO, aoSamples: keepAO ? had.aoSamples : q.aoSamples, aoHalf: q.aoHalf, bloom: q.bloom || keepBloom, bloomLevels: keepBloom ? had.bloomLevels : q.bloomLevels, dof: !!this.dofEnabled };
       if (!this.post) this.post = new PostFX(r, cfg); else this.post.configure(cfg);
     } else if (this.post) { this.post.dispose(); this.post = null; }
     const shadowsOn = q.shadow > 0;
@@ -226,6 +283,10 @@ export class Engine {
   resize() {
     const w = this.canvas.clientWidth || window.innerWidth, h = this.canvas.clientHeight || window.innerHeight;
     const pr = Math.min(window.devicePixelRatio || 1, this.quality.pr);
+    // Leinwand nur neu anlegen, wenn sich Größe oder Pixelverhältnis wirklich ändern (jede Zuweisung leert den Puffer)
+    const key = `${w}x${h}@${pr}`;
+    if (key === this._sizeKey && this.post && this.post.sceneRT) return;
+    this._sizeKey = key;
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
@@ -422,10 +483,10 @@ export class Engine {
       const snowK = (shared.uSnow && shared.uSnow.value) || 0;
       p.threshold = 1.8 - 0.4 * night + 0.35 * snowK;
       p.knee = 0.35;
-      p.bloom = (0.18 + 0.2 * night) * (1 - 0.35 * snowK) * (this.quality.name === 'ultra' ? 1.1 : 1);
+      p.bloom = (0.18 + 0.2 * night) * (1 - 0.35 * snowK) * (this.quality.name === 'ultra' ? 1.1 : 1) * (this.fx ? this.fx.bloom : 1);
       p.aoRadius = Math.min(1.1, Math.max(0.1, dist * 0.011));
       p.aoIntensity = 1.0;
-      p.aoStrength = 0.85 - 0.3 * night - 0.25 * overcast;
+      p.aoStrength = (0.85 - 0.3 * night - 0.25 * overcast) * (this.fx ? this.fx.ao : 1);
       const golden = sunUp * (1 - smooth(0.05, 0.35, s));
       p.wb.setRGB(1.0 + 0.05 * golden, 1.0 + 0.005 * golden, 0.98 - 0.06 * golden);
       if (night > 0) p.wb.lerp(_c2.setRGB(0.93, 0.98, 1.08), night);
@@ -509,15 +570,177 @@ export class Engine {
   setUnderground(on) { if (this.underground) this.underground.setActive(on); }
   get undergroundActive() { return !!(this.underground && this.underground.on); }
 
+  // Ruht die Kamera? (sichtbare Qualitätswechsel nur dann)
+  cameraCalm() {
+    const rig = this.rig, c = rig.cur, g = rig.goal;
+    if (rig.drag || rig.pinching || (rig.touches && rig.touches.size) || rig.flight || rig.keys.size) return false;
+    const tol = c.dist * 0.012;
+    return Math.abs(g.dist - c.dist) < tol && Math.hypot(g.x - c.x, g.z - c.z) < tol && Math.abs(g.yaw - c.yaw) < 0.01 && Math.abs(g.pitch - c.pitch) < 0.01;
+  }
+
+  // Laufende Regelung der Stufe „Automatisch": Bildabstand messen, Stufe nachführen
+  autoFrame(intervalMs, now) {
+    if (!this.gov || this.rawSettings.quality !== 'auto') return;
+    let skip = this.throttled || this.warming || (this.slow && !this.forceGovern) || (typeof document !== 'undefined' && document.hidden) || this.photoActive;
+    if (this._probeSkip > 0) { this._probeSkip--; skip = true; }
+    const changed = this.gov.sample(intervalMs, this.busyMs || 0, { now, calm: this.cameraCalm(), skip });
+    if (changed) { this.applyQuality(); this.settingsKey = this.qualityKey(); }
+  }
+
+  // Weiche Blenden für Umgebungsverdeckung und Leuchten; abgeschaltet wird der Durchgang erst am Ende der Blende
+  fxFrame(dt) {
+    const fx = this.fx;
+    if (!fx) return;
+    const k = this.slow ? 1 : Math.min(1, dt / 0.8);
+    fx.ao += Math.max(-k, Math.min(k, fx.aoT - fx.ao));
+    fx.bloom += Math.max(-k, Math.min(k, fx.bloomT - fx.bloom));
+    const c = this.post && this.post.cfg;
+    if (c && fx.aoT === 0 && fx.ao <= 0.001 && c.ao) this.post.configure({ ao: false });
+    if (c && fx.bloomT === 0 && fx.bloom <= 0.001 && c.bloom) this.post.configure({ bloom: false });
+  }
+
+  // Vorwärmen hinter dem Ladebildschirm (main.js setzt warming): Nahstufen rund um den Kamerazielpunkt bauen, die Kamera
+  // wartet so lange. Höchstens ~2 s; danach übernimmt das normale Zeitbudget.
+  warmFrame(now) {
+    if (!this.warming) return;
+    // nach dem Vorübersetzen noch zwei Bilder hinter dem Ladebildschirm zeichnen (Shader binden, Puffer hochladen)
+    if (this._warmTail !== undefined) {
+      if (this._pcWait && now - (this._pcT0 || now) < 4000) return; // Shader werden noch übersetzt
+      if (--this._warmTail <= 0) {
+        this.warming = false;
+        this._warmTail = undefined;
+        if (this.onWarmDone) { try { this.onWarmDone(); } catch (e) { /* egal */ } }
+      }
+      return;
+    }
+    const bv = this.buildings;
+    let p, more;
+    if (bv.initial) {
+      // Erstaufbau der Fernstufe läuft (BuildingView.frame, Zeitscheiben)
+      p = 0.8 * (bv.initialTotal ? 1 - bv.queue.size / bv.initialTotal : 1);
+      more = true;
+      if (this.onWarm) { try { this.onWarm(p, `Gebäude werden errichtet · ${bv.initialTotal - bv.queue.size} von ${bv.initialTotal}`); } catch (e) { /* egal */ } }
+      return;
+    }
+    if (!this._warm0) this._warm0 = now;
+    more = !this.slow && bv.warm(18);
+    p = 0.8 + 0.2 * bv.warmProgress();
+    if (this.onWarm) { try { this.onWarm(p, 'Gebäude in der Nähe werden fein ausgearbeitet'); } catch (e) { /* egal */ } }
+    if (!more || now - this._warm0 > 2000) {
+      this._pcT0 = now;
+      this.precompile();
+      this._warmTail = 2;
+      if (this.onWarm) { try { this.onWarm(1, 'Licht, Schatten und Leben'); } catch (e) { /* egal */ } }
+    }
+  }
+
+  // Shader vorab übersetzen: alles in der Szene sowie die Gebäudematerialien als Instanz- und Bündelvariante und die
+  // Blendmaterialien der Straßen und Pflanzen – sonst stockt das erste Bild, in dem eine neue Variante erscheint.
+  // full: zusätzlich die ganze Szene (auch ausgeblendete Meshes) – teuer, nur hinter dem Ladebildschirm
+  precompile(full = true) {
+    const t0 = performance.now();
+    const doneI = this._pcInst || (this._pcInst = new WeakSet()), doneB = this._pcBatch || (this._pcBatch = new WeakSet());
+    try {
+      const tmp = new THREE.Scene();
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0], 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 2));
+      const add = (mat, inst, color = false) => {
+        const m = inst ? new THREE.InstancedMesh(geo, mat, 1) : new THREE.Mesh(geo, mat);
+        if (inst && color) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3);
+        m.castShadow = m.receiveShadow = true;
+        tmp.add(m);
+      };
+      // Gebäudematerialien nur in den Varianten, die Prototypen tatsächlich brauchen (Instanz = Nahstufe, Bündel = fern)
+      for (const [mat, u] of g9Uses()) {
+        if (u.inst && !doneI.has(mat)) { doneI.add(mat); add(mat, true); }
+        if (u.batch && !doneB.has(mat)) { doneB.add(mat); add(mat, false); }
+      }
+      const fm = this.roads && this.roads.fadeMats;
+      if (fm) for (const m of Object.values(fm)) { add(m, true); add(m, true, true); }
+      const veg = this.terrain && this.terrain.veg;
+      if (veg && veg.lodMats) { for (const set of veg.lodMats) for (const m of Object.values(set)) add(m, true, true); if (veg.grassMat) add(veg.grassMat, true, true); }
+      // Schattenprogramme (Tiefenmaterialien) lassen sich mit compile() nicht passend vorbereiten (anderer Zustand
+      // im Schattendurchgang): stattdessen für ein Bild entartete Probe-Meshes (keine Fläche) in die Szene hängen,
+      // die echte Schattendurchgang übersetzt dann genau die richtigen Programme
+      if (this.renderer.shadowMap.enabled && !this._pcDepth) {
+        this._pcDepth = true;
+        const probe = new THREE.Group();
+        const base = g9Materials()[0];
+        const pm = (mat, depth, inst, color = false) => {
+          const m = inst ? new THREE.InstancedMesh(geo2, mat, 1) : new THREE.Mesh(geo2, mat);
+          if (inst && color) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3);
+          m.customDepthMaterial = depth; m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
+          probe.add(m);
+        };
+        const geo2 = geo.clone();
+        // Schattenprogramm hängt auch an der Seite des Farbmaterials (vorn/hinten/beidseitig): je Seite ein Probe-Mesh
+        const bySide = new Map();
+        if (base) for (const { mat } of g9Materials()) if (!bySide.has(mat.side)) bySide.set(mat.side, mat);
+        for (const mat of bySide.values()) for (const anim of [false, true]) { pm(mat, g9DepthMaterial(anim), true); pm(mat, g9DepthMaterial(anim), false); }
+        if (veg && veg.depthMats && veg.lodMats) {
+          for (const k of ['solid', 'bare', 'blade']) {
+            const dm = k === 'bare' ? veg.depthMats.bare : veg.depthMats.solid;
+            pm(veg.mats[k], dm, true, true); pm(veg.lodMats[0][k], dm, true, true); pm(veg.lodMats[1][k], dm, true, true);
+          }
+        }
+        if (this.roads && this.roads.fadeDepth) { pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true); pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true, true); }
+        this.scene.add(probe);
+        this._pcProbe = { group: probe, geo: geo2, frames: 2 };
+        this.renderer.shadowMap.needsUpdate = true;
+      }
+      const r = this.renderer, before = r.info.programs.length;
+      // Wie beim echten Zeichnen ins HDR-Ziel der Nachbearbeitung übersetzen (Tonwert und Farbraum gehören zum
+      // Programm – sonst entstünden Varianten für den Bildschirm, und beim ersten Bild würde trotzdem übersetzt)
+      const prevRT = r.getRenderTarget();
+      if (this.post) { if (!this.post.sceneRT) this.post.allocate(); r.setRenderTarget(this.post.sceneRT); }
+      else r.setRenderTarget(null);
+      // (ohne die Erweiterung würde compileAsync nur warnen und doch synchron übersetzen)
+      let par = false; try { par = !!(r.compileAsync && r.extensions.has('KHR_parallel_shader_compile')); } catch (e) { par = false; }
+      if (par) {
+        // parallel übersetzen lassen (KHR_parallel_shader_compile); hinter dem Ladebildschirm wird darauf gewartet
+        const jobs = [r.compileAsync(tmp, this.camera, this.scene)];
+        if (full) jobs.push(r.compileAsync(this.scene, this.camera));
+        const wait = Promise.all(jobs).then(() => { if (this._pcWait === wait) this._pcWait = null; }, () => { if (this._pcWait === wait) this._pcWait = null; });
+        this._pcWait = wait;
+      } else { r.compile(tmp, this.camera, this.scene); if (full) r.compile(this.scene, this.camera); }
+      r.setRenderTarget(prevRT);
+      this._pcNew = r.info.programs.length - before;
+      geo.dispose();
+    } catch (e) { console.warn('Cityscapes: Vorübersetzen der Shader fehlgeschlagen', e); }
+    const ms = performance.now() - t0;
+    if (full && this.loadTimes) this.loadTimes.precompile = Math.round(ms);
+    return ms;
+  }
+
+  // Im Spiel: neu hinzugekommene Materialien (neue Gebäudearten, Blendmaterialien) bei ruhender Kamera vorübersetzen,
+  // bevor sie zum ersten Mal ins Bild kommen
+  precompileIdle(now) {
+    if (this.warming || now < (this._pcT || 0)) return;
+    // nur, wenn neue Materialvarianten dazugekommen sind, und nur bei ruhender Kamera (kein Zusatzaufwand beim Zoomen)
+    const n = g9UsesVersion();
+    if (n === this._pcCount && this._pcDepth) { this._pcT = now + 1000; return; }
+    if (!this.cameraCalm()) { this._pcT = now + 300; return; }
+    this._pcCount = n;
+    const ms = this.precompile(false);
+    this._pcT = now + (ms > 25 ? 8000 : 1500);
+  }
+
   frame(dt, simDt) {
     this.time += dt;
     this.frameNo++;
     // Echte Bildzeit messen: sehr langsame Systeme (Software-WebGL) bekommen keine Überblendungen
     const now = performance.now();
-    if (this._lastNow) this.realDt = this.realDt * 0.7 + Math.min(5, (now - this._lastNow) / 1000) * 0.3;
+    const interval = this._lastNow ? now - this._lastNow : 0;
+    if (this._lastNow) this.realDt = this.realDt * 0.7 + Math.min(5, interval / 1000) * 0.3;
     this._lastNow = now;
     this.slow = this.realDt > 0.25;
     this.rig.slow = this.slow;
+    this.autoFrame(interval, now);
+    this.fxFrame(dt);
+    this.warmFrame(now);
+    if (this.frameNo > 30) this.precompileIdle(now);
     this.renderer.info.reset();
     shared.uTime.value = this.time;
     const g = this.game;
@@ -536,7 +759,7 @@ export class Engine {
     this.overlayTimer -= dt;
     if (d.overlay && this.overlay.mode !== 'none' && this.overlayTimer <= 0) { this.overlay.refresh(); d.overlay = false; this.overlayTimer = 0.6; }
 
-    this.rig.update(dt);
+    this.rig.update(this.warming ? 0 : dt);
     this.updateWeather(dt);
     // Wolken ziehen mit dem Wind (auch langsam, wenn das Spiel pausiert)
     const wspd = (0.15 + this.wx.wind * 0.9) * (dt * 0.35 + simDt * 0.65);
@@ -567,6 +790,12 @@ export class Engine {
     }
 
     const r = this.renderer;
+    // Während des Aufbaus hinter dem Ladebildschirm nicht zeichnen (Zeit gehört dem Aufbau; der Schirm deckt alles ab)
+    if (this.warming && this.buildings.initial) return;
+    // Messbild der Regelung „Automatisch" (etwa jede Sekunde): auf die GPU warten, dann Zeichnen + GPU-Zeit messen
+    const probe = this.gov && this.rawSettings.quality === 'auto' && !this.throttled && !this.warming && (!this.slow || this.forceGovern) && this.gov.wantProbe(now, this.cameraCalm());
+    let gl = null, pt0 = 0;
+    if (probe) { gl = r.getContext(); try { gl.finish(); } catch (e) { /* egal */ } pt0 = performance.now(); }
     // Untergrund-Ansicht (U-Bahn) als zweiter Durchgang über der Oberwelt, bei Nachbearbeitung noch vor Bloom/Tonwert
     const ug = this.underground;
     if (this.post) this.post.render(this.scene, this.camera, ug.kv > 0.002 ? this._ugPass || (this._ugPass = (rr) => ug.render(rr, this.camera)) : null);
@@ -581,6 +810,18 @@ export class Engine {
       r.render(this.hud, this.camera);
       r.toneMapping = tm;
       r.autoClear = ac;
+    }
+    if (probe) {
+      try { gl.finish(); } catch (e) { /* egal */ }
+      this.gov.probe(performance.now() - pt0);
+      this._probeSkip = 1; // den Abstand, der das Messbild enthält, nicht als Bildrate werten
+    }
+    // Probe-Meshes für Schattenprogramme nach ihren Bildern wieder entfernen
+    const pr = this._pcProbe;
+    if (pr && --pr.frames <= 0) {
+      this.scene.remove(pr.group); pr.geo.dispose();
+      for (const m of pr.group.children) if (m.dispose) m.dispose();
+      this._pcProbe = null;
     }
   }
 }

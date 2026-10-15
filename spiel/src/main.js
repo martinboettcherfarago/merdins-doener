@@ -7,7 +7,7 @@ import { UI } from './ui/ui.js';
 import { Menu } from './ui/menu.js';
 import { Audio } from './audio.js';
 import { runGallery } from './render/gallery.js';
-import { hideLoader } from './ui/loading.js';
+import { hideLoader, holdLoader, releaseLoader, loaderVisible, setLoader } from './ui/loading.js';
 import { applyDayLength } from './ui/settings.js';
 import { registerIcon } from './registry.js';
 import './sim/systems/index.js';
@@ -22,21 +22,28 @@ const LS = {
 };
 const KEY = (slot) => `stadtpuls.save.${slot}`;
 
-// Standardwerte laut Vertrag 6.7 (Stufe „medium“: Nachbearbeitung und Bloom an, AO aus, weiche Schatten niedrig)
+// Standardwerte laut Vertrag 6.7; Grafik seit Runde 4 „Automatisch" (Gerät einschätzen, laufend nachregeln).
+// Bei „Automatisch" sind postfx/ao/bloom/shadows Obergrenzen – die Regelung wählt darunter, was flüssig läuft.
 function loadSettings() {
   const def = {
-    volume: 0.7, music: 0.7, sfx: 0.8, ambience: 1, muted: false, alwaysDay: false, quality: 'medium', postfx: true, ao: false, bloom: true, shadows: 'low',
+    volume: 0.7, music: 0.7, sfx: 0.8, ambience: 1, muted: false, alwaysDay: false, quality: 'auto', postfx: true, ao: true, bloom: true, shadows: 'high',
     tutorialDone: false, uiScale: 1, minimap: true, advisor: true, tooltips: true,
   };
   let s = def;
   try {
     const raw = JSON.parse(LS.get('stadtpuls.settings') || '{}');
-    if (raw && typeof raw === 'object' && !Array.isArray(raw)) s = { ...def, ...raw };
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      s = { ...def, ...raw };
+      // Frühere Standardwerte (Mittel, AO aus, weiche Schatten, nie bewusst gewählt) → „Automatisch". Wer selbst eine
+      // Stufe gewählt oder Effekte umgestellt hat, behält seine Wahl.
+      const oldDefault = raw.quality === 'medium' && !raw.qualityChosen && raw.ao !== true && (raw.shadows === undefined || raw.shadows === 'low' || raw.shadows === true) && raw.bloom !== false && raw.postfx !== false;
+      if (raw.quality === undefined || oldDefault) Object.assign(s, { quality: 'auto', postfx: true, ao: true, bloom: true, shadows: 'high' });
+    }
   } catch (e) { s = { ...def }; }
   // Ältere Einstellungen speicherten Schatten als true/false
   if (typeof s.shadows === 'boolean') s.shadows = s.shadows ? 'low' : 'off';
   if (!['off', 'low', 'high'].includes(s.shadows)) s.shadows = 'low';
-  if (!['low', 'medium', 'high', 'ultra'].includes(s.quality)) s.quality = 'medium';
+  if (!['auto', 'low', 'medium', 'high', 'ultra'].includes(s.quality)) s.quality = 'auto';
   for (const k of ['volume', 'music', 'sfx', 'ambience', 'uiScale']) if (!Number.isFinite(s[k])) s[k] = def[k];
   return s;
 }
@@ -145,12 +152,28 @@ const app = {
     this.mode = 'game';
     this.game = g;
     const canvas = this.makeStage();
+    // Hinter einem sichtbaren Ladebildschirm baut die Ansicht die Gebäude in Zeitscheiben auf (echter Fortschritt, die
+    // Seite friert nicht ein) und danach die Nahdetails am Zielpunkt der Kamera vor; die Einflugfahrt wartet so lange.
+    const warm = loaderVisible();
     try {
-      this.engine = new Engine(canvas, g, this.settings);
+      this.engine = new Engine(canvas, g, this.settings, { deferBuild: warm });
     } catch (e) {
       console.error(e);
       document.getElementById('stage').innerHTML = '<p class="noscript">WebGL konnte nicht gestartet werden.</p>';
       return;
+    }
+    if (warm) {
+      const en = this.engine, t0 = performance.now();
+      const hk = 'warm' + (this._warmSeq = (this._warmSeq || 0) + 1); // eigener Schlüssel je Ansicht
+      holdLoader(hk);
+      en.warming = true;
+      en.onWarm = (p, text) => setLoader(0.62 + 0.38 * Math.max(0, Math.min(1, p)), text, true);
+      en.onWarmDone = () => releaseLoader(hk);
+      // Sicherung: nie länger als nötig hinter dem Ladebildschirm festhängen
+      const guard = setInterval(() => {
+        if (!en.warming || this.engine !== en) { clearInterval(guard); releaseLoader(hk); return; }
+        if (performance.now() - t0 > 30000) { en.warming = false; clearInterval(guard); releaseLoader(hk); }
+      }, 1000);
     }
     this.ui = new UI(this);
     applyDayLength(this);
@@ -260,7 +283,22 @@ const app = {
   },
 
   // ---------- Schleife
+  // Akku schonen: Im Menü und bei angehaltenem Spiel ohne Eingabe werden Bilder ausgelassen (30 bzw. 20 Bilder/s);
+  // jede Eingabe schaltet sofort zurück auf volle Bildrate.
+  frameInterval(now) {
+    if (this.mode === 'menu') return 1000 / 30;
+    if (this.mode !== 'game' || !this.game || !this.engine) return 0;
+    const idle = now - (this.lastInput || 0);
+    const en = this.engine;
+    const paused = this.game.speed === 0 && !en.warming && (!en.cameraCalm || en.cameraCalm());
+    if (!paused || idle < 2500) return 0;
+    return idle > 30000 ? 1000 / 20 : 1000 / 30;
+  },
   frame(now) {
+    const iv = this.frameInterval(now);
+    if (iv && now - this.last < iv - 2) { requestAnimationFrame((t) => this.frame(t)); return; }
+    if (this.engine) this.engine.throttled = !!iv;
+    const t0 = performance.now();
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     // Jeder Teil einzeln abgesichert: Ein Fehler in Darstellung, Oberfläche oder Klang hält die anderen nicht an.
@@ -282,6 +320,8 @@ const app = {
       const simDt = part('Vorschau', () => d.update(dt));
       part('Darstellung', () => en.frame(dt, simDt));
     }
+    // Rechenzeit dieses Bildes (Simulation + Darstellung + Oberfläche) für die Regelung „Automatisch"
+    if (this.engine) this.engine.busyMs = performance.now() - t0;
     requestAnimationFrame((t) => this.frame(t));
   },
 };
@@ -309,6 +349,10 @@ function boot(hotData) {
   const unlock = () => { app.audio.start(); if (app.audio.ctx && app.audio.ctx.state === 'suspended') app.audio.ctx.resume(); };
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', unlock);
+  // letzte Eingabe merken (Akku schonen, siehe frameInterval)
+  const seen = () => { app.lastInput = performance.now(); };
+  for (const ev of ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart']) window.addEventListener(ev, seen, { passive: true, capture: true });
+  document.addEventListener('visibilitychange', () => { app.lastInput = performance.now(); });
   if (hotData && hotData.save) {
     try { app.startGame(Game.fromSave(hotData.save)); } catch (e) { console.warn('Cityscapes: Stand nach Aktualisierung nicht ladbar', e); app.showMenu(); }
   } else app.showMenu();

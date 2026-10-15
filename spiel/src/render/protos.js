@@ -49,6 +49,8 @@ for (const name of ['windows', 'window', 'curtainWall', 'rooftopClutter']) {
 //   0: Einfärbung r, g, b, Stärke
 //   1: Fensterlicht (0 = dunkel), verwittert 0..1, verkohlt 0..1, Bauhöhe (Weltkoordinate y, 0 = aus)
 //   2: Bündel sichtbar, Absenken (Abriss), Instanz sichtbar, Wackeln
+//      Sichtbarkeit: 1 = ganz, 0 = aus, 0 < v < 1 = einblenden (Raster-Dithering, Anteil v),
+//      -1 < v < 0 = ausblenden (genau die Gegenmenge) – so überblenden zwei Detailstufen ohne Lücke und ohne Doppelung.
 //   3: Brand 0..1, untere Schnittkante (y, 0 = aus; Klettergerüst), Animationsuhr: Versatz, Rate (0 = steht)
 export const SLOT_NEUTRAL = 0;
 export const SLOT_HIDDEN = 1;
@@ -116,6 +118,12 @@ export class StateTable {
     this._row(s, 0); this._row(s, 3);
   }
   get(s, k, i) { return this.data[s * 16 + k * 4 + i]; }
+  // Ganze Zeile kopieren (Überblenden zweier Instanzen desselben Gebäudes: die auslaufende bekommt eine Kopie)
+  copy(src, dst) {
+    const d = this.data;
+    d.copyWithin(dst * 16, src * 16, src * 16 + 16);
+    this._row(dst, 0); this._row(dst, 3);
+  }
   setv(s, k, i, v) {
     const j = s * 16 + k * 4 + i;
     if (this.data[j] !== v) { this.data[j] = v; this._row(s, k); }
@@ -160,6 +168,7 @@ flat varying vec4 vG9T;
 flat varying vec4 vG9S;
 flat varying vec3 vG9X;
 flat varying float vG9V;
+flat varying float vG9F;
 varying vec3 vG9P;
 vec4 g9Fetch(int k) { int t = int(aG9id + 0.5) * ${TPS} + k; return texelFetch(uG9State, ivec2(t % ${TEXW}, t / ${TEXW}), 0); }
 #ifdef G9_ANIM
@@ -190,11 +199,12 @@ float g9vis = g9s2.z;
 #else
 float g9vis = g9s2.x;
 #endif
+vG9F = g9vis;
 vG9T = vec4(0.0);
 vG9V = fract(sin(aG9id * 12.9898 + 4.13) * 43758.5453);
 vG9S = vec4(1.0, 0.0, 0.0, 0.0);
 vG9X = vec3(0.0);
-if (g9vis > 0.5) {
+if (abs(g9vis) > 0.001) {
   vG9T = g9Fetch(0);
   vG9S = g9Fetch(1);
   vec4 g9s3 = g9Fetch(3);
@@ -209,16 +219,22 @@ vG9P = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
 vG9P = (modelMatrix * vec4(transformed, 1.0)).xyz;
 #endif`;
 const VERT_PROJECT = /* glsl */`
-if (g9vis < 0.5) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);`;
+if (abs(g9vis) <= 0.001) gl_Position = vec4(0.0, 0.0, 2.0, 1.0);`;
 const FRAG_HEAD = /* glsl */`
 uniform float uG9Time;
 flat varying vec4 vG9T;
 flat varying vec4 vG9S;
 flat varying vec3 vG9X;
 flat varying float vG9V;
+flat varying float vG9F;
 varying vec3 vG9P;
 float g9Hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }`;
 const FRAG_CLIP = /* glsl */`
+if (vG9F < 0.999) {
+  // Überblenden zwischen Detailstufen: festes Bildschirmraster (Interleaved Gradient Noise), Gegenmenge beim Ausblenden
+  float g9dt = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+  if (vG9F > 0.0 ? g9dt >= vG9F : g9dt < -vG9F) discard;
+}
 if (vG9S.w > 0.0 && vG9P.y > vG9S.w) discard;
 if (vG9X.z > 0.0 && vG9P.y < vG9X.z) discard;
 if (vG9X.y > 0.0005 && vG9P.y < -0.01) discard;`;
@@ -332,6 +348,23 @@ export function g9Material(base, glass = false, anim = false) {
   }
   return d.mat;
 }
+// Alle bisher abgeleiteten Materialien (Vorübersetzen der Shader hinter dem Ladebildschirm): [{ mat, anim }]
+export function g9Materials() {
+  const out = [];
+  for (const byGlass of derived.values()) for (const d of Object.values(byGlass)) out.push({ mat: d.mat, anim: d.anim });
+  return out;
+}
+// Welche Materialien als Instanz (Nahstufen, drehende Teile) bzw. als Bündel (Fernstufe) gebraucht werden – nur diese
+// Varianten werden vorübersetzt (jedes Programm kostet auf Tablets spürbar Zeit). uses: Material → { inst, batch }
+const uses = new Map();
+let usesVersion = 0;
+function noteUse(mat, kind) {
+  let u = uses.get(mat);
+  if (!u) { u = { inst: false, batch: false }; uses.set(mat, u); }
+  if (!u[kind]) { u[kind] = true; usesVersion++; }
+}
+export function g9Uses() { return uses; }
+export function g9UsesVersion() { return usesVersion; }
 function refreshDerived() {
   for (const byGlass of derived.values()) for (const d of Object.values(byGlass)) if (d.v !== d.base.version) syncDerived(d, d.base);
 }
@@ -697,6 +730,8 @@ export class ProtoManager {
       proto.triangles += parts.reduce((sum, p) => sum + p.src.count / 3, 0);
     }
     this.protos.set(id, proto);
+    for (const p of proto.parts) noteUse(p.material, detail >= 1 ? 'inst' : 'batch');
+    for (const a of proto.anims) for (const p of a.set.parts) noteUse(p.material, 'inst');
     proto.ms = performance.now() - t0;
     this.buildMs += proto.ms;
     return proto;
