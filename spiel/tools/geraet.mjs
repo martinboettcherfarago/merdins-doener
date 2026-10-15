@@ -21,7 +21,8 @@ export default async function geraet(page, h) {
   const secs = +(process.env.GERAET_SECS || 75);
   const trace = [];
   for (let t = 0; t < secs; t += 5) {
-    await h.wait(5000);
+    // wie ein spielender Mensch: Eingaben (sonst drosselt der Akku-Sparmodus ein angehaltenes Spiel) und laufende Zeit
+    for (let w = 0; w < 5; w++) { await page.evaluate(() => { const app = window.__stadtpuls; app.lastInput = performance.now(); if (app.game.speed === 0) app.game.speed = 1; }); await h.wait(1000); }
     const s = await page.evaluate(() => { const en = window.__stadtpuls.engine, g = en.gov; return { rung: g.rung, mean: Math.round(g.lastMean), cost: Math.round(g.lastCost), changes: g.changes, dbg: g.dbg ? { ...g.dbg } : null, thr: !!en.throttled, slow: !!en.slow, warm: !!en.warming }; });
     trace.push(s);
   }
