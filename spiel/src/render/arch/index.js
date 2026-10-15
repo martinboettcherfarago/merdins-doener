@@ -3,25 +3,37 @@
 import { Z } from '../../config.js';
 import { mulberry32 } from '../../util.js';
 import { Kit, M, FLOOR } from './kit.js';
-import { MIX_STRIDE, HEIGHT_FACTOR, decodeVariant, resolveVariant } from './mix.js';
+import { MIX_STRIDE, MIX_VARIANTS, HEIGHT_FACTOR, decodeVariant, resolveVariant, tagOf } from './mix.js';
+import { fitLot } from './fit.js';
 
-export const ARCH = {}; // key → { variants, build(ctx) [, mix, count(level, fw, fd)] }
-// mix: true → Zonen-Baustein mit Durchmischung (mix.js): variant = Modell-Nummer + 32 × Höhenklasse,
-// count(level, fw, fd) nennt die Zahl verschiedener Modelle je Stufe und Grundfläche.
+export const ARCH = {}; // key → { variants, build(ctx) [, mix, count(level, fw, fd), list(level, fw, fd)] }
+// mix: true → Zonen-Baustein mit Durchmischung (mix.js): variant = Modell-Nummer + 32 × Höhenklasse + …,
+// count(level, fw, fd) nennt die Zahl verschiedener Modelle je Stufe und Grundfläche, list(level, fw, fd) die Typliste
+// selbst (Funktionen mit Epoche und Bauweise, siehe tag() in mix.js).
 export function registerArch(key, def) {
   const d = typeof def === 'function' ? { build: def, variants: 6 } : { variants: 6, ...def };
-  if (d.mix) d.variants = MIX_STRIDE * 3;
+  if (d.mix) d.variants = MIX_VARIANTS;
   ARCH[key] = d;
 }
 // Zahl verschiedener Modelle eines Bausteins für Stufe und Grundfläche
 export function archCount(key, level, fw, fd) {
   const def = ARCH[key];
   if (!def) return 1;
+  if (def.list) return Math.max(1, Math.min(MIX_STRIDE, def.list(level, fw, fd).length));
   if (def.count) return Math.max(1, Math.min(MIX_STRIDE, def.count(level, fw, fd) | 0));
   return Math.max(1, Math.min(MIX_STRIDE, def.variants || 6));
 }
+// Epoche und Bauweise aller Modelle einer Typliste (ohne Liste: neutral, Solitär)
+export function archTags(key, level, fw, fd) {
+  const def = ARCH[key];
+  const n = archCount(key, level, fw, fd);
+  if (!def || !def.list) return Array.from({ length: n }, () => ({ era: 1.5, typ: 'S' }));
+  const list = def.list(level, fw, fd);
+  return Array.from({ length: n }, (_, i) => tagOf(list[i % list.length]));
+}
 
 const ZONE_KEY = { [Z.RES]: 'res', [Z.COM]: 'com', [Z.IND]: 'ind', [Z.OFF]: 'off' };
+const NO_FIT = new Set(['oil', 'mine']); // Pumpenböcke und Fördertürme drehen (res.anim)
 
 // Schlüssel für ein Gebäude der Simulation: Zonen nach Zone/Spezialisierung, sonst der Gebäudeschlüssel
 export function archKeyFor(b) {
@@ -41,16 +53,26 @@ export function buildArch(key, level, variant, fw, fd, extra = {}, detail = 2) {
   if (!def) return null;
   if (def.mix) variant = resolveVariant(key, level, variant, fw, fd, extra);
   const v = ((variant % def.variants) + def.variants) % def.variants;
-  const rng = mulberry32((v + 1) * 7919 + level * 104729 + fw * 13 + fd * 131 + key.length * 977);
+  const dv = def.mix ? decodeVariant(v) : null;
+  // Zufall nur aus Modell und Höhenklasse: Ecklage und Farbfamilie ändern nur, was der Baustein ausdrücklich liest
+  const sv = dv ? dv.base : v;
+  const rng = mulberry32((sv + 1) * 7919 + level * 104729 + fw * 13 + fd * 131 + key.length * 977);
   const kit = new Kit(rng, detail);
   const ctx = { key, level, variant: v, fw, fd, W: fw, D: fd, rng, kit, M, FLOOR, detail, ...extra };
-  if (def.mix) {
+  if (dv) {
     // Modell-Nummer und Höhenklasse; hf = Faktor für die Geschosszahl (Türme im dichten Zentrum höher)
-    const { idx, hc } = decodeVariant(v);
-    ctx.variant = idx; ctx.hc = hc; ctx.hf = HEIGHT_FACTOR[hc];
+    ctx.variant = dv.idx; ctx.hc = dv.hc; ctx.hf = HEIGHT_FACTOR[dv.hc];
     ctx.count = archCount(key, level, fw, fd);
+    // Ecklage: 1 = linke, 2 = rechte Seite grenzt an eine Straße (von der Straße aus gesehen); pal = Farbfamilie
+    ctx.cornerL = !!(dv.corner & 1); ctx.cornerR = !!(dv.corner & 2); ctx.pal = dv.pal;
+    const t = archTags(key, level, fw, fd)[dv.idx % ctx.count];
+    ctx.typ = t.typ; ctx.era = t.era;
+    // Grundstücks-Einpassung (fit.js): Abstände, Bauflucht, keine Überstände ins Nachbargrundstück
+    // (nicht bei Bausteinen mit drehenden Teilen – deren Drehpunkte liegen außerhalb des Baukastens)
+    if (extra.fit !== false && !NO_FIT.has(key)) kit.fitCfg = { W: fw, D: fd, typ: t.typ, level, id: `${key}|${level}|${v}|${fw}x${fd}` };
   }
   const res = def.build(ctx);
   if (!res) return null;
   return res.meshes ? res : kit.build();
 }
+export { fitLot };

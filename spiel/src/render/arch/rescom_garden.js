@@ -94,6 +94,11 @@ export function garden(g, plot, h, o = {}) {
   }
   // Seitlicher Baum, wenn Platz
   const sideFree = Math.min(h.x - h.w / 2 - left, right - (h.x + h.w / 2));
-  if (o.sideTree !== false && sideFree > 1.6 * M && driveX === null) tree(g, h.x > 0 ? left + sideFree / 2 : right - sideFree / 2, h.z - h.d * 0.2, rr(rng, 0.7, 0.95));
+  // Seitlicher Abstand zum Nachbarn: schmaler Baum oder Säulenbaum, damit die Krone auf dem Grundstück bleibt
+  if (o.sideTree !== false && sideFree > 1.3 * M && driveX === null) {
+    const tx = h.x > 0 ? left + sideFree / 2 : right - sideFree / 2, tz = h.z - h.d * 0.2;
+    if (sideFree < 2.2 * M || chance(rng, 0.4)) conifer(g, tx, tz, rr(rng, 0.55, 0.7), { r: 1.0 });
+    else tree(g, tx, tz, rr(rng, 0.55, 0.7));
+  }
   return { driveX };
 }

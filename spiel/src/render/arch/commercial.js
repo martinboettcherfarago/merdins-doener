@@ -17,6 +17,7 @@ import { stack, rows, entranceOp, gruenderzeit, punkthaus, towerGround, firewall
 import { signBand, awning, bladeSign, logoDisc, display, pylon, flags, text, textWidth } from './rescom_signs.js';
 import { NAMES, AWNINGS, NEON, shopDecor, curtain, glassBox, fuelCanopy, greenhouse, cartShelter, roofSign } from './rescom_shop.js';
 import { COM_NEW } from './rescom_com2.js';
+import { tag } from './mix.js';
 
 const winT = (o) => ({ kind: 'win', ...o });
 const name = (rng, k) => rpick(rng, NAMES[k]);
@@ -972,14 +973,37 @@ const COM = {
 
 // Ergänzungen (rescom_com2.js) an die Listen anhängen
 for (const l of [1, 2, 3, 4, 5]) for (const fp of Object.keys(COM_NEW[l])) COM[l][fp].push(...COM_NEW[l][fp]);
-function comCount(level, fw, fd) {
+// Epoche (0 historisch … 3 zeitgenössisch) und Bauweise ('D' offen, 'A' geschlossen, 'S' Solitär, 'P' Turm mit Sockel) je
+// Listenplatz (mix.js, fit.js); AC = geschlossen mit Eckfassade, E = Eckhaus (nur an Straßenecken)
+const D_ = (e) => [e, 'D'], A_ = (e) => [e, 'A'], S_ = (e) => [e, 'S'], P_ = (e) => [e, 'P'], E_ = (e) => [e, 'E'], AC = (e) => [e, 'A', true];
+const COM_TAGS = {
+  1: {
+    '1x1': [D_(1), D_(1), D_(1), D_(2), D_(1), D_(3), D_(3), D_(1), D_(2.5), D_(0)],
+    '2x1': [D_(2), S_(2), D_(0.5), D_(1), S_(2), S_(2), S_(1), D_(3), D_(2.5)],
+    '1x2': [D_(1), D_(1), D_(1), D_(2), S_(1), D_(3), D_(3), D_(1), D_(0)],
+    '2x2': [S_(2), S_(2), S_(1), S_(2), S_(2), D_(2), S_(1), D_(3), D_(2.5)],
+  },
+  2: {
+    '1x1': [A_(1), A_(0.6), D_(1), D_(2), D_(2.6), D_(1), E_(1.3), A_(3), D_(0)],
+    '2x1': [D_(2), D_(0.5), A_(1), S_(2), S_(2), S_(2), S_(0.3), D_(3)],
+    '1x2': [A_(1), A_(0.6), D_(1), D_(2), D_(2.6), D_(1), E_(1.3), A_(3)],
+    '2x2': [S_(2), D_(2), S_(2), D_(0.5), S_(2), A_(1), S_(0.3), E_(1.3)],
+  },
+  3: { '*': [A_(2), AC(0), A_(2), A_(0.3), A_(1.5), A_(3), S_(0.3), E_(1.3), A_(0.7), A_(0.3)] },
+  4: { '*': [A_(2), A_(2), S_(2.6), A_(3), A_(2), AC(0), A_(0.6), S_(2.4), S_(3), A_(0.3)] },
+  5: { '*': [P_(3), S_(2.4), S_(3), P_(3), S_(3), P_(3), S_(3), P_(3), S_(3), P_(2.2)] },
+};
+for (const l of [1, 2, 3, 4, 5]) for (const fp of Object.keys(COM[l])) COM[l][fp].forEach((fn, i) => { const t = (COM_TAGS[l][fp] || [])[i] || [1.5, 'D']; tag(fn, t[0], t[1], t[2]); });
+function comList(level, fw, fd) {
   const lv = COM[Math.min(5, Math.max(1, level))];
-  return (lv[`${fw}x${fd}`] || lv['*'] || lv['1x1']).length;
+  return lv[`${fw}x${fd}`] || lv['*'] || lv['1x1'];
 }
+function comCount(level, fw, fd) { return comList(level, fw, fd).length; }
 
 registerArch('com', {
   mix: true,
   count: comCount,
+  list: comList,
   build(ctx) {
     const { kit, level, fw, fd, variant } = ctx;
     const g = new Geo(kit);

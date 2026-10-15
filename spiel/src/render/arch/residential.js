@@ -9,29 +9,46 @@ import { registerArch } from './index.js';
 import { Geo, F, NB, rr, rpick, chance } from './rescom_geo.js';
 import { mframe, massWalls, bays, railing, band } from './rescom_facade.js';
 import { flatRoof } from './rescom_roofs.js';
-import { carport, ground } from './rescom_site.js';
+import { carport, ground, tree } from './rescom_site.js';
 import { house, winStyle, PAL } from './rescom_house.js';
 import { garden } from './rescom_garden.js';
 import { buildResHigh, HIGH } from './rescom_block.js';
 import { RES_NEW } from './rescom_neu.js';
+import { tag } from './mix.js';
+
+// ---------- Farbfamilien einer Straße (ctx.pal, mix.js): Dachdeckung und Putz passen zusammen; 3 = freie Mischung
+const ROOF_PAL = [
+  ['roof_tiles_red', 'roof_tiles_red', 'roof_tiles_brown', 'roof_tiles_red', 'roof_tiles_brown'],
+  ['roof_tiles_anthracite', 'roof_slate', 'roof_tiles_anthracite', 'roof_tiles_anthracite', 'roof_slate'],
+  ['roof_tiles_brown', 'roof_tiles_red', 'roof_tiles_brown', 'roof_tiles_brown', 'roof_tiles_red'],
+];
+const WALL_PAL = [
+  ['plaster_white', 'plaster_cream', 'plaster_yellow', 'plaster_ochre', 'plaster_cream', 'plaster_white', 'plaster_yellow', 'plaster_cream', 'plaster_white'],
+  ['plaster_white', 'plaster_grey', 'plaster_blue', 'plaster_white', 'plaster_cream', 'plaster_grey', 'plaster_white', 'plaster_green', 'plaster_white'],
+  ['plaster_ochre', 'plaster_pink', 'plaster_cream', 'plaster_red', 'plaster_ochre', 'plaster_yellow', 'plaster_cream', 'plaster_pink', 'plaster_white'],
+];
+export function palette(pal) {
+  return pal >= 0 && pal < 3 ? { roofTiles: ROOF_PAL[pal], plaster: WALL_PAL[pal] } : { roofTiles: PAL.roofTiles, plaster: PAL.plaster };
+}
 
 // ---------- Hausstile (Stufe 1–2)
 // Liefert Maße (m) und Hausoptionen. Maße werden später auf das Grundstück begrenzt.
-function style(name, rng) {
+function style(name, rng, pal = 3) {
   const M = 0.1;
-  const tiles = rpick(rng, PAL.roofTiles);
+  const FP = palette(pal);
+  const tiles = rpick(rng, FP.roofTiles);
   const fr = rpick(rng, PAL.frame);
   switch (name) {
     case 'trauf': return {
       w: rr(rng, 8.0, 8.8), d: rr(rng, 6.6, 7.4),
-      o: { floors: 1, knee: rr(rng, 0.9, 1.2) * M, wall: rpick(rng, PAL.plaster), roof: { type: 'gable', pitch: rr(rng, 38, 46), mat: tiles },
+      o: { floors: 1, knee: rr(rng, 0.9, 1.2) * M, wall: rpick(rng, FP.plaster), roof: { type: 'gable', pitch: rr(rng, 38, 46), mat: tiles },
         win: { ...winStyle('casement', { frame: fr }), shutters: chance(rng, 0.35) ? rpick(rng, PAL.shutter) : null },
         door: { at: chance(rng, 0.5) ? 'center' : 'left', canopy: rpick(rng, ['roof_metal_grey', 'concrete', 'wood_dark']), mat: rpick(rng, PAL.door) },
         dormers: { n: chance(rng, 0.5) ? 1 : 2, type: rpick(rng, ['gable', 'shed', 'gable']) }, chimney: {}, bays: { front: 3 } },
     };
     case 'giebel': return {
       w: rr(rng, 7.0, 7.8), d: rr(rng, 7.6, 8.6),
-      o: { floors: chance(rng, 0.5) ? 2 : 1, knee: rr(rng, 0.4, 0.8) * M, wall: rpick(rng, PAL.plaster), roof: { type: 'gableF', pitch: rr(rng, 42, 50), mat: tiles },
+      o: { floors: chance(rng, 0.5) ? 2 : 1, knee: rr(rng, 0.4, 0.8) * M, wall: rpick(rng, FP.plaster), roof: { type: 'gableF', pitch: rr(rng, 42, 50), mat: tiles },
         win: { ...winStyle('casement', { frame: fr }), shutters: chance(rng, 0.4) ? rpick(rng, PAL.shutter) : null, flowers: chance(rng, 0.3) ? ['paint_red', 'leaves_green'] : null },
         door: { at: 'right', canopy: 'roof_metal_grey', mat: rpick(rng, PAL.door) }, bays: { front: 2, side: 2 }, chimney: { z: 0.3 } },
     };
@@ -63,13 +80,13 @@ function style(name, rng) {
     };
     case 'krueppel': return {
       w: rr(rng, 8.2, 8.8), d: rr(rng, 6.8, 7.4),
-      o: { floors: 1, knee: rr(rng, 1.0, 1.3) * M, wall: rpick(rng, PAL.plaster), roof: { type: 'halfhip', k: rr(rng, 0.3, 0.42), pitch: rr(rng, 42, 48), mat: tiles },
+      o: { floors: 1, knee: rr(rng, 1.0, 1.3) * M, wall: rpick(rng, FP.plaster), roof: { type: 'halfhip', k: rr(rng, 0.3, 0.42), pitch: rr(rng, 42, 48), mat: tiles },
         win: { ...winStyle('casement', { frame: fr }), shutters: chance(rng, 0.4) ? rpick(rng, PAL.shutter) : null }, door: { at: 'center', canopy: 'roof_metal_grey', mat: rpick(rng, PAL.door) },
         dormers: { n: 1, type: 'shed', w: 2.6 * M }, chimney: {}, bays: { front: 3 } },
     };
     case 'zwerch': return {
       w: rr(rng, 8.6, 9.2), d: rr(rng, 7.0, 7.6),
-      o: { floors: 1, knee: rr(rng, 0.8, 1.0) * M, wall: rpick(rng, PAL.plaster), roof: { type: 'gable', pitch: rr(rng, 40, 45), mat: tiles },
+      o: { floors: 1, knee: rr(rng, 0.8, 1.0) * M, wall: rpick(rng, FP.plaster), roof: { type: 'gable', pitch: rr(rng, 40, 45), mat: tiles },
         win: winStyle('casement', { frame: fr }), door: { at: 'left', canopy: 'roof_metal_grey', mat: rpick(rng, PAL.door) }, cross: { w: 3.4 * M, out: chance(rng, 0.5) ? 0.8 * M : 0, balcony: chance(rng, 0.4) }, bays: { front: 3 }, chimney: { x: -2.5 * M } },
     };
     case 'pult': return {
@@ -85,7 +102,7 @@ function style(name, rng) {
     };
     case 'zweifam': return {
       w: rr(rng, 8.8, 9.4), d: rr(rng, 7.8, 8.6),
-      o: { floors: 2, knee: 0.5 * M, wall: rpick(rng, PAL.plaster), roof: { type: chance(rng, 0.6) ? 'gable' : 'halfhip', k: 0.3, pitch: rr(rng, 40, 46), mat: tiles },
+      o: { floors: 2, knee: 0.5 * M, wall: rpick(rng, FP.plaster), roof: { type: chance(rng, 0.6) ? 'gable' : 'halfhip', k: 0.3, pitch: rr(rng, 40, 46), mat: tiles },
         win: { ...winStyle('casement', { frame: fr }), shutters: chance(rng, 0.3) ? rpick(rng, PAL.shutter) : null }, door: { at: 'center', canopy: 'concrete', mat: rpick(rng, PAL.door), glazed: true },
         dormers: { n: 2, type: rpick(rng, ['gable', 'shed']), side: 'both' }, bays: { front: 3 }, chimney: {}, floorBand: chance(rng, 0.5), balconyFront: chance(rng, 0.5) ? { w: 2.8 * M, d: 1.3 * M } : null },
     };
@@ -125,7 +142,7 @@ function style(name, rng) {
         cross: { w: 3.0 * M, out: chance(rng, 0.5) ? 0.6 * M : 0, balcony: false }, bays: { front: 4 }, chimney: { mat: 'chimney_brick' } },
     };
   }
-  return style('trauf', rng);
+  return style('trauf', rng, pal);
 }
 
 // Moderner Kubus: verputztes Erdgeschoss, auskragendes, verkleidetes Obergeschoss, große Verglasung, Dachterrasse
@@ -216,14 +233,16 @@ function plotHouse(ctx, g, name, opt = {}) {
   const { rng, fw, fd } = ctx;
   const M = 0.1;
   const W = fw, D = fd;
-  const st = style(name, rng);
-  const sideMin = opt.sideMin ?? 0.9 * M;
-  const frontY = opt.frontYard ?? rr(rng, 1.4, 2.2) * M;
+  const st = style(name, rng, ctx.pal);
+  // Abstände (offene Bauweise): seitlich je mindestens 1,6 m (zwischen zwei Häusern gut 3 m Garten), Vorgarten
+  // mindestens 2,5 m, hinten mindestens 1,5 m – das Haus wird notfalls schmaler bzw. flacher, nicht das Grundstück voller
+  const sideMin = Math.max(opt.sideMin ?? 0, (W > 1.5 ? 1.8 : 1.6) * M);
+  const frontY = Math.max(opt.frontYard ?? 0, rr(rng, 2.5, 3.2) * M);
   let w = st.w * M, d = st.d * M;
   if (opt.wScale) w *= opt.wScale;
   if (opt.dScale) d *= opt.dScale;
   w = Math.min(w, W - sideMin * 2 - (opt.reserve || 0));
-  d = Math.min(d, D - frontY - (opt.backMin ?? 1.4 * M));
+  d = Math.min(d, D - frontY - Math.max(opt.backMin ?? 0, 1.5 * M));
   let x = opt.x ?? 0;
   const rside = opt.reserveSide ?? (rng() < 0.5 ? 1 : -1);
   if (opt.reserve) x = rside > 0 ? -W / 2 + sideMin + w / 2 : W / 2 - sideMin - w / 2;
@@ -240,13 +259,15 @@ function doubleHouse(ctx, g, o = {}) {
   const { rng, fw, fd } = ctx;
   const M = 0.1;
   const W = fw, D = fd;
-  const frontY = rr(rng, 1.6, 2.4) * M;
-  const halfW = Math.min(o.halfW ?? (W > 1.5 ? 6.8 : 4.4) * M, W / 2 - 0.5 * M);
-  const d = Math.min(o.d ?? rr(rng, 8.0, 9.0) * M, D - frontY - 1.4 * M);
+  const frontY = rr(rng, 2.5, 3.1) * M;
+  // Doppelhaus steht frei: seitlich je gut 1,3 m Abstand zur Grenze
+  const halfW = Math.min(o.halfW ?? (W > 1.5 ? 6.8 : 4.4) * M, W / 2 - (W > 1.5 ? 1.8 : 1.3) * M);
+  const d = Math.min(o.d ?? rr(rng, 8.0, 9.0) * M, D - frontY - 1.5 * M);
   const z = D / 2 - frontY - d / 2;
-  const tiles = rpick(rng, PAL.roofTiles);
+  const FP = palette(ctx.pal);
+  const tiles = rpick(rng, FP.roofTiles);
   const rtype = o.roof || rpick(rng, ['gable', 'gable', 'halfhip', 'hip']);
-  const walls = chance(rng, 0.5) ? [rpick(rng, PAL.plaster), rpick(rng, PAL.plaster)] : (() => { const w0 = rpick(rng, PAL.plaster); return [w0, w0]; })();
+  const walls = chance(rng, 0.5) ? [rpick(rng, FP.plaster), rpick(rng, FP.plaster)] : (() => { const w0 = rpick(rng, FP.plaster); return [w0, w0]; })();
   const pitch = rr(rng, 38, 45);
   const floors = o.floors ?? 1;
   for (const s of [-1, 1]) {
@@ -274,20 +295,23 @@ function rowHouses(ctx, g, o = {}) {
   const { rng, fw, fd } = ctx;
   const M = 0.1;
   const W = fw, D = fd;
-  const n = o.n ?? Math.max(2, Math.round((W - 0.6 * M) / (5.2 * M)));
-  const uw = (W - 0.4 * M) / n;
-  const d = Math.min(o.d ?? rr(rng, 8.4, 9.6) * M, D - 2.6 * M);
+  // Reihe mit Endhäusern: an beiden Enden 1,4 m Abstand zur Grenze (Weg zum Garten), Häuser mindestens 4,2 m breit
+  const side = 1.4 * M;
+  const n = Math.max(2, Math.min(o.n ?? Math.round((W - 2 * side) / (5.2 * M)), Math.floor((W - 2 * side) / (4.2 * M))));
+  const uw = (W - 2 * side) / n;
+  const d = Math.min(o.d ?? rr(rng, 8.4, 9.6) * M, D - 3.0 * M - 1.5 * M);
   const modern = o.modern ?? chance(rng, 0.35);
-  const tiles = rpick(rng, PAL.roofTiles);
+  const FP = palette(ctx.pal);
+  const tiles = rpick(rng, FP.roofTiles);
   const pitch = rr(rng, 36, 44);
-  const baseWall = modern ? rpick(rng, ['brick_red', 'brick_dark', 'plaster_white', 'brick_yellow']) : rpick(rng, PAL.plaster);
+  const baseWall = modern ? rpick(rng, ['brick_red', 'brick_dark', 'plaster_white', 'brick_yellow']) : rpick(rng, FP.plaster);
   const floors = o.floors ?? (modern ? 2 : (chance(rng, 0.5) ? 2 : 1));
   for (let k = 0; k < n; k++) {
-    const x = -W / 2 + 0.2 * M + uw * (k + 0.5);
+    const x = -W / 2 + side + uw * (k + 0.5);
     const stagger = o.stagger ?? (chance(rng, 0.5) ? 0.6 * M : 0);
-    const frontY = 2.2 * M + (k % 2) * stagger;
+    const frontY = 2.8 * M + (k % 2) * stagger;
     const z = D / 2 - frontY - d / 2;
-    const wall = modern ? (k % 2 ? baseWall : rpick(rng, ['plaster_white', 'wood_planks', 'plaster_grey', baseWall])) : rpick(rng, PAL.plaster);
+    const wall = modern ? (k % 2 ? baseWall : rpick(rng, ['plaster_white', 'wood_planks', 'plaster_grey', baseWall])) : rpick(rng, FP.plaster);
     const party = [];
     if (k > 0) party.push('left');
     if (k < n - 1) party.push('right');
@@ -317,21 +341,37 @@ function rowHouses(ctx, g, o = {}) {
     if (det >= 1 && k < n - 1) g.box('wood_planks', x + uw / 2, 0, (zb0 + zb1) / 2, 0.06 * M, 1.6 * M, zb1 - zb0, { skip: 32 });
     if (det >= 1 && zb1 - zb0 > 2.5 * M) g.box('pavers', x, 0, zb1 - 1.2 * M, uw * 0.8, 0.06 * M, 2.2 * M, { skip: 32 });
   }
+  // Abstandsflächen an den Enden der Reihe: Rasen, Weg zum Garten, Hecke an der Grenze, Baum am Giebel
+  for (const s of [-1, 1]) {
+    const cx = s * (W / 2 - side / 2);
+    ground(g, 'grass', cx, 0, side - 0.04 * M, D - 0.04 * M, 0.03 * M);
+    ground(g, 'pavers', s * (W / 2 - side + 0.6 * M), D / 4, 0.9 * M, D / 2 - 0.1 * M, 0.05 * M);
+    if (g.detail >= 1) {
+      g.box('hedge', s * (W / 2 - 0.22 * M), 0, 0, 0.4 * M, 1.1 * M, D - 0.6 * M, { skip: 32 });
+      tree(g, s * (W / 2 - side * 0.45), -D / 2 + 1.6 * M, rr(rng, 0.65, 0.85));
+    }
+  }
 }
 
 // ---------- Stufe 1–2: Typlisten je Grundfläche
+// Epoche je Hausstil (mix.js: 0 historisch, 1 traditionell, 2 Nachkriegsmoderne, 3 zeitgenössisch) – Nachbarn an einer
+// Straße kommen aus derselben Familie
+const HOUSE_ERA = { trauf: 1, giebel: 1, bungalow: 2, fachwerk: 0, kubus: 3, schweden: 1.2, krueppel: 1, zwerch: 1, pult: 3, villa: 0.5, zweifam: 1.3, mansard: 0.3, stadthaus: 2.8, klinker: 1, holzhaus: 2.6, zeltdach: 2.4, landhaus: 0.6 };
+const P = (name, opt) => tag((c, g) => plotHouse(c, g, name, opt), HOUSE_ERA[name] ?? 1, 'D');
+const DH = (opt) => tag((c, g) => doubleHouse(c, g, opt), opt && opt.roof === 'hip' ? 1.2 : 1, 'D');
+const RH = (opt = {}) => tag((c, g) => rowHouses(c, g, { modern: false, ...opt }), opt.modern ? 2.9 : 1.1, 'R');
 const LOW = {
   1: {
-    '1x1': [(c, g) => plotHouse(c, g, 'trauf', { gardenOpt: { fence: 'picket' } }), (c, g) => plotHouse(c, g, 'giebel'), (c, g) => plotHouse(c, g, 'bungalow', { frontYard: 1.2 * 0.1, gardenOpt: { fence: 'hedge' } }), (c, g) => plotHouse(c, g, 'fachwerk', { gardenOpt: { fence: 'picket', fenceMat: 'wood_planks' } }), (c, g) => plotHouse(c, g, 'kubus', { gardenOpt: { fence: 'wall' } }), (c, g) => plotHouse(c, g, 'schweden', { gardenOpt: { fence: 'picket' } })],
-    '2x1': [(c, g) => plotHouse(c, g, 'trauf', { reserve: 4.0 * 0.1, drive: 'garage', wScale: 1.15 }), (c, g) => plotHouse(c, g, 'bungalow', { reserve: 3.6 * 0.1, drive: 'carport', wScale: 1.35 }), (c, g) => plotHouse(c, g, 'zwerch', { reserve: 3.8 * 0.1, drive: 'carport', wScale: 1.2 }), (c, g) => plotHouse(c, g, 'krueppel', { reserve: 3.6 * 0.1, drive: 'garage', wScale: 1.15 }), (c, g) => plotHouse(c, g, 'pult', { reserve: 3.6 * 0.1, drive: 'open', wScale: 1.2, solar: true }), (c, g) => plotHouse(c, g, 'fachwerk', { reserve: 3.6 * 0.1, drive: 'open', wScale: 1.3 })],
-    '1x2': [(c, g) => plotHouse(c, g, 'giebel', { dScale: 1.15 }), (c, g) => plotHouse(c, g, 'trauf', { solar: true }), (c, g) => plotHouse(c, g, 'bungalow', { dScale: 1.3 }), (c, g) => plotHouse(c, g, 'schweden'), (c, g) => plotHouse(c, g, 'kubus', { dScale: 1.2 }), (c, g) => plotHouse(c, g, 'krueppel')],
-    '2x2': [(c, g) => plotHouse(c, g, 'villa', { wScale: 1.3, dScale: 1.2, drive: 'garage', reserve: 3.4 * 0.1, gardenOpt: { pool: { x: 0.25, z: -0.55, w: 0.8, d: 0.4 } } }), (c, g) => plotHouse(c, g, 'bungalow', { wScale: 1.5, dScale: 1.4, drive: 'carport', reserve: 3.4 * 0.1, gardenOpt: { pool: { x: -0.3, z: -0.6, w: 0.7, d: 0.38 } } }), (c, g) => plotHouse(c, g, 'trauf', { wScale: 1.25, dScale: 1.15, drive: 'garage', reserve: 3.6 * 0.1, solar: true }), (c, g) => plotHouse(c, g, 'fachwerk', { wScale: 1.4, dScale: 1.3, drive: 'open', reserve: 3.4 * 0.1 }), (c, g) => plotHouse(c, g, 'kubus', { wScale: 1.4, dScale: 1.3, drive: 'carport', reserve: 3.4 * 0.1, gardenOpt: { pool: { x: 0.2, z: -0.6, w: 0.9, d: 0.35 } } }), (c, g) => plotHouse(c, g, 'zwerch', { wScale: 1.3, dScale: 1.2, drive: 'garage', reserve: 3.4 * 0.1 })],
+    '1x1': [P('trauf', { gardenOpt: { fence: 'picket' } }), P('giebel'), P('bungalow', { frontYard: 1.2 * 0.1, gardenOpt: { fence: 'hedge' } }), P('fachwerk', { gardenOpt: { fence: 'picket', fenceMat: 'wood_planks' } }), P('kubus', { gardenOpt: { fence: 'wall' } }), P('schweden', { gardenOpt: { fence: 'picket' } })],
+    '2x1': [P('trauf', { reserve: 4.0 * 0.1, drive: 'garage', wScale: 1.15 }), P('bungalow', { reserve: 3.6 * 0.1, drive: 'carport', wScale: 1.35 }), P('zwerch', { reserve: 3.8 * 0.1, drive: 'carport', wScale: 1.2 }), P('krueppel', { reserve: 3.6 * 0.1, drive: 'garage', wScale: 1.15 }), P('pult', { reserve: 3.6 * 0.1, drive: 'open', wScale: 1.2, solar: true }), P('fachwerk', { reserve: 3.6 * 0.1, drive: 'open', wScale: 1.3 })],
+    '1x2': [P('giebel', { dScale: 1.15 }), P('trauf', { solar: true }), P('bungalow', { dScale: 1.3 }), P('schweden'), P('kubus', { dScale: 1.2 }), P('krueppel')],
+    '2x2': [P('villa', { wScale: 1.3, dScale: 1.2, drive: 'garage', reserve: 3.4 * 0.1, gardenOpt: { pool: { x: 0.25, z: -0.55, w: 0.8, d: 0.4 } } }), P('bungalow', { wScale: 1.5, dScale: 1.4, drive: 'carport', reserve: 3.4 * 0.1, gardenOpt: { pool: { x: -0.3, z: -0.6, w: 0.7, d: 0.38 } } }), P('trauf', { wScale: 1.25, dScale: 1.15, drive: 'garage', reserve: 3.6 * 0.1, solar: true }), P('fachwerk', { wScale: 1.4, dScale: 1.3, drive: 'open', reserve: 3.4 * 0.1 }), P('kubus', { wScale: 1.4, dScale: 1.3, drive: 'carport', reserve: 3.4 * 0.1, gardenOpt: { pool: { x: 0.2, z: -0.6, w: 0.9, d: 0.35 } } }), P('zwerch', { wScale: 1.3, dScale: 1.2, drive: 'garage', reserve: 3.4 * 0.1 })],
   },
   2: {
-    '1x1': [(c, g) => plotHouse(c, g, 'villa'), (c, g) => doubleHouse(c, g), (c, g) => plotHouse(c, g, 'zweifam', { frontYard: 1.2 * 0.1, backMin: 0.8 * 0.1 }), (c, g) => plotHouse(c, g, 'mansard', { frontYard: 1.1 * 0.1, backMin: 0.8 * 0.1 }), (c, g) => plotHouse(c, g, 'fachwerk', { house: { floors: 3, fh: 2.6 * 0.1 }, frontYard: 1.0 * 0.1 }), (c, g) => plotHouse(c, g, 'stadthaus', { wScale: 1.3, frontYard: 1.0 * 0.1, backMin: 0.5 * 0.1 })],
-    '2x1': [(c, g) => rowHouses(c, g, { n: 4 }), (c, g) => doubleHouse(c, g, { floors: 2 }), (c, g) => plotHouse(c, g, 'villa', { reserve: 3.4 * 0.1, drive: 'garage', wScale: 1.2 }), (c, g) => rowHouses(c, g, { n: 3, modern: true }), (c, g) => plotHouse(c, g, 'zweifam', { wScale: 1.5, drive: null }), (c, g) => plotHouse(c, g, 'mansard', { reserve: 3.4 * 0.1, drive: 'open', wScale: 1.15 })],
-    '1x2': [(c, g) => plotHouse(c, g, 'villa', { dScale: 1.15 }), (c, g) => plotHouse(c, g, 'zweifam', { dScale: 1.3, house: { floors: 2 } }), (c, g) => plotHouse(c, g, 'stadthaus', { wScale: 1.3, dScale: 1.4 }), (c, g) => doubleHouse(c, g, { floors: 2, d: 1.1 }), (c, g) => plotHouse(c, g, 'mansard', { dScale: 1.2 }), (c, g) => plotHouse(c, g, 'giebel', { house: { floors: 2 }, dScale: 1.3 })],
-    '2x2': [(c, g) => rowHouses(c, g, { n: 4, d: 1.0 }), (c, g) => plotHouse(c, g, 'villa', { wScale: 1.5, dScale: 1.5, drive: 'garage', reserve: 3.6 * 0.1 }), (c, g) => doubleHouse(c, g, { floors: 2, d: 1.0 }), (c, g) => rowHouses(c, g, { n: 3, modern: true, d: 1.1 }), (c, g) => plotHouse(c, g, 'mansard', { wScale: 1.5, dScale: 1.4, drive: 'open', reserve: 3.4 * 0.1 }), (c, g) => plotHouse(c, g, 'zweifam', { wScale: 1.6, dScale: 1.4, drive: 'carport', reserve: 3.4 * 0.1 })],
+    '1x1': [P('villa'), DH(), P('zweifam', { frontYard: 1.2 * 0.1, backMin: 0.8 * 0.1 }), P('mansard', { frontYard: 1.1 * 0.1, backMin: 0.8 * 0.1 }), P('fachwerk', { house: { floors: 3, fh: 2.6 * 0.1 }, frontYard: 1.0 * 0.1 }), P('stadthaus', { wScale: 1.3, frontYard: 1.0 * 0.1, backMin: 0.5 * 0.1 })],
+    '2x1': [RH({ n: 4 }), DH({ floors: 2 }), P('villa', { reserve: 3.4 * 0.1, drive: 'garage', wScale: 1.2 }), RH({ n: 3, modern: true }), P('zweifam', { wScale: 1.5, drive: null }), P('mansard', { reserve: 3.4 * 0.1, drive: 'open', wScale: 1.15 })],
+    '1x2': [P('villa', { dScale: 1.15 }), P('zweifam', { dScale: 1.3, house: { floors: 2 } }), P('stadthaus', { wScale: 1.3, dScale: 1.4 }), DH({ floors: 2, d: 1.1 }), P('mansard', { dScale: 1.2 }), P('giebel', { house: { floors: 2 }, dScale: 1.3 })],
+    '2x2': [RH({ n: 4, d: 1.0 }), P('villa', { wScale: 1.5, dScale: 1.5, drive: 'garage', reserve: 3.6 * 0.1 }), DH({ floors: 2, d: 1.0 }), RH({ n: 3, modern: true, d: 1.1 }), P('mansard', { wScale: 1.5, dScale: 1.4, drive: 'open', reserve: 3.4 * 0.1 }), P('zweifam', { wScale: 1.6, dScale: 1.4, drive: 'carport', reserve: 3.4 * 0.1 })],
   },
 };
 
@@ -339,20 +379,28 @@ const LOW = {
 const C = 0.1;
 const LOW_NEW = {
   1: {
-    '1x1': [(c, g) => plotHouse(c, g, 'klinker', { gardenOpt: { fence: 'hedge' } }), (c, g) => plotHouse(c, g, 'holzhaus', { gardenOpt: { fence: 'picket', fenceMat: 'wood_planks' } }), (c, g) => plotHouse(c, g, 'zeltdach', { frontYard: 1.4 * C, gardenOpt: { fence: 'wall' } }), (c, g) => plotHouse(c, g, 'landhaus', { gardenOpt: { fence: 'picket' } })],
-    '2x1': [(c, g) => plotHouse(c, g, 'klinker', { reserve: 3.6 * C, drive: 'garage', wScale: 1.2 }), (c, g) => plotHouse(c, g, 'holzhaus', { reserve: 3.6 * C, drive: 'carport', wScale: 1.3 }), (c, g) => plotHouse(c, g, 'zeltdach', { reserve: 3.6 * C, drive: 'garage', wScale: 1.15, solar: true }), (c, g) => plotHouse(c, g, 'landhaus', { reserve: 3.4 * C, drive: 'open', wScale: 1.3 })],
-    '1x2': [(c, g) => plotHouse(c, g, 'klinker', { dScale: 1.15 }), (c, g) => plotHouse(c, g, 'holzhaus', { dScale: 1.25 }), (c, g) => plotHouse(c, g, 'zeltdach', { dScale: 1.1 }), (c, g) => plotHouse(c, g, 'landhaus', { dScale: 1.2 })],
-    '2x2': [(c, g) => plotHouse(c, g, 'klinker', { wScale: 1.35, dScale: 1.25, drive: 'garage', reserve: 3.4 * C, gardenOpt: { pool: { x: 0.25, z: -0.55, w: 0.7, d: 0.35 } } }), (c, g) => plotHouse(c, g, 'holzhaus', { wScale: 1.5, dScale: 1.4, drive: 'carport', reserve: 3.4 * C }), (c, g) => plotHouse(c, g, 'zeltdach', { wScale: 1.4, dScale: 1.3, drive: 'garage', reserve: 3.4 * C, gardenOpt: { pool: { x: -0.25, z: -0.6, w: 0.8, d: 0.36 } } }), (c, g) => plotHouse(c, g, 'landhaus', { wScale: 1.5, dScale: 1.3, drive: 'open', reserve: 3.4 * C })],
+    '1x1': [P('klinker', { gardenOpt: { fence: 'hedge' } }), P('holzhaus', { gardenOpt: { fence: 'picket', fenceMat: 'wood_planks' } }), P('zeltdach', { frontYard: 1.4 * C, gardenOpt: { fence: 'wall' } }), P('landhaus', { gardenOpt: { fence: 'picket' } })],
+    '2x1': [P('klinker', { reserve: 3.6 * C, drive: 'garage', wScale: 1.2 }), P('holzhaus', { reserve: 3.6 * C, drive: 'carport', wScale: 1.3 }), P('zeltdach', { reserve: 3.6 * C, drive: 'garage', wScale: 1.15, solar: true }), P('landhaus', { reserve: 3.4 * C, drive: 'open', wScale: 1.3 })],
+    '1x2': [P('klinker', { dScale: 1.15 }), P('holzhaus', { dScale: 1.25 }), P('zeltdach', { dScale: 1.1 }), P('landhaus', { dScale: 1.2 })],
+    '2x2': [P('klinker', { wScale: 1.35, dScale: 1.25, drive: 'garage', reserve: 3.4 * C, gardenOpt: { pool: { x: 0.25, z: -0.55, w: 0.7, d: 0.35 } } }), P('holzhaus', { wScale: 1.5, dScale: 1.4, drive: 'carport', reserve: 3.4 * C }), P('zeltdach', { wScale: 1.4, dScale: 1.3, drive: 'garage', reserve: 3.4 * C, gardenOpt: { pool: { x: -0.25, z: -0.6, w: 0.8, d: 0.36 } } }), P('landhaus', { wScale: 1.5, dScale: 1.3, drive: 'open', reserve: 3.4 * C })],
   },
   2: {
-    '1x1': [(c, g) => plotHouse(c, g, 'zeltdach', { frontYard: 1.2 * C, backMin: 0.8 * C }), (c, g) => plotHouse(c, g, 'klinker', { house: { floors: 2, knee: 0.4 * C }, frontYard: 1.2 * C }), (c, g) => plotHouse(c, g, 'holzhaus', { house: { floors: 2 }, frontYard: 2.2 * C, backMin: 0.8 * C }), (c, g) => doubleHouse(c, g, { floors: 2, roof: 'hip' })],
-    '2x1': [(c, g) => rowHouses(c, g, { n: 4, modern: false, stagger: 0.8 * C }), (c, g) => plotHouse(c, g, 'zeltdach', { reserve: 3.4 * C, drive: 'garage', wScale: 1.25 }), (c, g) => rowHouses(c, g, { n: 5, modern: true, floors: 3 }), (c, g) => plotHouse(c, g, 'landhaus', { house: { floors: 2, knee: 0.5 * C }, wScale: 1.5, drive: null })],
-    '1x2': [(c, g) => plotHouse(c, g, 'zeltdach', { dScale: 1.15 }), (c, g) => plotHouse(c, g, 'klinker', { house: { floors: 2 }, dScale: 1.2 }), (c, g) => plotHouse(c, g, 'holzhaus', { house: { floors: 2 }, dScale: 1.3 }), (c, g) => doubleHouse(c, g, { floors: 2, roof: 'hip', d: 1.1 })],
-    '2x2': [(c, g) => rowHouses(c, g, { n: 5, modern: true, floors: 3, d: 1.0 }), (c, g) => plotHouse(c, g, 'zeltdach', { wScale: 1.5, dScale: 1.4, drive: 'garage', reserve: 3.6 * C }), (c, g) => rowHouses(c, g, { n: 4, modern: false, stagger: 0.8 * C, d: 1.0 }), (c, g) => plotHouse(c, g, 'klinker', { house: { floors: 2 }, wScale: 1.5, dScale: 1.4, drive: 'carport', reserve: 3.4 * C })],
+    '1x1': [P('zeltdach', { frontYard: 1.2 * C, backMin: 0.8 * C }), P('klinker', { house: { floors: 2, knee: 0.4 * C }, frontYard: 1.2 * C }), P('holzhaus', { house: { floors: 2 }, frontYard: 2.2 * C, backMin: 0.8 * C }), DH({ floors: 2, roof: 'hip' })],
+    '2x1': [RH({ n: 4, modern: false, stagger: 0.8 * C }), P('zeltdach', { reserve: 3.4 * C, drive: 'garage', wScale: 1.25 }), RH({ n: 5, modern: true, floors: 3 }), P('landhaus', { house: { floors: 2, knee: 0.5 * C }, wScale: 1.5, drive: null })],
+    '1x2': [P('zeltdach', { dScale: 1.15 }), P('klinker', { house: { floors: 2 }, dScale: 1.2 }), P('holzhaus', { house: { floors: 2 }, dScale: 1.3 }), DH({ floors: 2, roof: 'hip', d: 1.1 })],
+    '2x2': [RH({ n: 5, modern: true, floors: 3, d: 1.0 }), P('zeltdach', { wScale: 1.5, dScale: 1.4, drive: 'garage', reserve: 3.6 * C }), RH({ n: 4, modern: false, stagger: 0.8 * C, d: 1.0 }), P('klinker', { house: { floors: 2 }, wScale: 1.5, dScale: 1.4, drive: 'carport', reserve: 3.4 * C })],
   },
 };
 for (const l of [1, 2]) for (const fp of Object.keys(LOW_NEW[l])) LOW[l][fp].push(...LOW_NEW[l][fp]);
 for (const l of [3, 4, 5]) HIGH[l].push(...RES_NEW[l]);
+// Epoche und Bauweise der Mehrfamilienhäuser (Reihenfolge wie HIGH in rescom_block.js, dann RES_NEW):
+// 'A' = geschlossene Bauweise (Blockrand, Brandwände auf der Grenze), 'D' = offen (Zeile, Stadtvilla), 'S' = Turm
+const HIGH_TAGS = {
+  3: [[0, 'A', true], [0.5, 'A', true], [1.8, 'D'], [3, 'D'], [2.2, 'D'], [0.9, 'A'], [0.4, 'A'], [2.9, 'D'], [2.5, 'D'], [2.8, 'D']],
+  4: [[2.2, 'D'], [3, 'D'], [0, 'A', true], [1, 'A'], [3, 'D'], [2, 'D'], [1, 'A'], [2.6, 'D'], [1.4, 'E'], [2.6, 'S']],
+  5: [[2.6, 'P'], [2, 'S'], [2, 'S'], [2.2, 'S'], [3, 'S'], [3, 'S'], [3, 'P'], [3, 'S'], [3, 'S'], [1.3, 'S']],
+};
+for (const l of [3, 4, 5]) HIGH[l].forEach((fn, i) => { const t = HIGH_TAGS[l][i] || [1.5, 'D']; tag(fn, t[0], t[1], t[2]); });
 
 // Zahl der Modelle je Stufe und Grundfläche (für die Durchmischung)
 function resCount(level, fw, fd) {
@@ -360,9 +408,15 @@ function resCount(level, fw, fd) {
   return HIGH[Math.min(5, level)].length;
 }
 
+function resList(level, fw, fd) {
+  if (level <= 2) { const lv = LOW[Math.max(1, level)]; return lv[`${fw}x${fd}`] || lv['1x1']; }
+  return HIGH[Math.min(5, level)];
+}
+
 registerArch('res', {
   mix: true,
   count: resCount,
+  list: resList,
   build(ctx) {
     const { kit, level, fw, fd, variant } = ctx;
     const g = new Geo(kit);

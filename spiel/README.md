@@ -94,7 +94,8 @@ Weitere Werkzeuge:
 - `node build.mjs --artifact <datei.html>` erzeugt eine eigenständige Einzelseite mit eingebettetem CSS und JavaScript.
 - `node tools/shot.mjs --scenario city|closeup|street|night|overview|winter|rain|mobile|menu|gallery --out bild.png` macht Screenshots im kopflosen Chromium und gibt Draw Calls und Dreiecke aus. Mit `--strict` endet es bei Konsolenfehlern mit Code 1.
 - `index.html?gallery=res&fp=1x1,2x1` zeigt alle Stufen und Varianten eines Architektur-Bausteins.
-  Mit `variants=10&v0=6` erscheinen weitere Modelle (Wohnen, Gewerbe und Büro haben je Stufe 8 bis 13). Welches Modell ein Zonengebäude in der Stadt bekommt, wählt die Ansicht nach Lage (`src/render/arch/mix.js`): Nachbarn sehen verschieden aus, dicht bebaute Viertel bekommen höhere Türme.
+  Mit `variants=10&v0=6` erscheinen weitere Modelle (Wohnen, Gewerbe und Büro haben je Stufe 8 bis 13). Welches Modell ein Zonengebäude in der Stadt bekommt, wählt die Ansicht nach Lage (`src/render/arch/mix.js`): Jede Straße hat eine Stilfamilie (historisch, traditionell, Nachkriegsmoderne, zeitgenössisch) und eine Farbfamilie für Dächer und Putz, Nachbarn sind verschiedene Modelle derselben Familie, dicht bebaute Viertel bekommen höhere Türme, neben niedriger Bebauung stehen niedrigere Türme mit Sockel.
+- Jedes Zonenmodell wird auf sein Grundstück eingepasst (`src/render/arch/fit.js`): Einzelhäuser und kleine Bauten halten seitlich und zur Straße Abstand (Gärten, Vorgärten), Blockrandbauten stehen mit Brandwänden bündig auf der Grenze, in gemeinsamer Bauflucht und Traufhöhe; nichts ragt ins Nachbargrundstück. `index.html?gallery=street&key=res&level=3` zeigt Straßenzeilen je Stilfamilie (Parameter `fp`, `n`, `eras`, `pal`).
 - `node tools/bench.mjs` misst die Rechenzeit der Simulation auf einer großen Karte.
 
 ### Aufbau
