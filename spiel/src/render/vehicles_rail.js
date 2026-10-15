@@ -372,6 +372,52 @@ function tramSection(k, d, L2, cabF) {
     }
   } else if (d >= 2) k.box(-0.05, 0.305, -0.08, 0.05, 0.322, 0.08, 0xc9cdd1, P.PLASTIC);
 }
+// Gliederzug-Module der Straßenbahn (Niederflur): kurze Glieder, die einzeln der Spur folgen (sim/traffic.js
+// poseSegments) und sich so in die engen Kurven des Rasters legen. tram_cab: Führerstand (+z), Faltenbalg hinten;
+// tram_link / tram_link_p: Mittelglied mit Tür, Faltenbälgen an beiden Enden (_p mit Stromabnehmer).
+function tramModule(k, d, L2, cab, pant) {
+  const WH = 0xf1efe8;
+  const zf = cab ? L2 - 0.07 : L2 - 0.012, zb = -L2 + 0.012;
+  k.extrudeZ(TSEC, zb, zf, WH, P.GLOSS, { edge: (i) => (i === 0 ? false : i >= 3 && i <= 5 ? { c: 0xd5d8db, p: P.PLASTIC } : undefined), capF: { c: 0x3a3e44, p: P.PLASTIC }, capB: { c: 0x3a3e44, p: P.PLASTIC } });
+  if (cab) {
+    const zA = zf, zE = L2;
+    k.prism([[zA, 0.04], [zE, 0.04], [zE, 0.12], [zA + 0.035, 0.29], [zA, 0.305]], TW, 0.09, 0xffffff, P.PAINT, {
+      yb: 0.262, yt: 0.305,
+      edge: (i, nz, ny, a, b) => {
+        if (Math.abs(a[0] - zA) < 1e-6 && Math.abs(b[0] - zA) < 1e-6) return false;
+        if (ny < -0.9) return false;
+        if (Math.min(a[1], b[1]) >= 0.119) return Math.max(a[1], b[1]) > 0.3 ? undefined : { c: C.GLASS, p: P.GLASS };
+        return undefined;
+      },
+    });
+    for (const s of [1, -1]) {
+      k.rectZ(1, zE + 0.0015, s > 0 ? 0.05 : -0.085, s > 0 ? 0.085 : -0.05, 0.06, 0.078, C.HEAD, P.HEAD);
+      k.rectZ(1, zE + 0.0015, s > 0 ? 0.09 : -0.11, s > 0 ? 0.11 : -0.09, 0.06, 0.078, C.RED, P.TAIL);
+    }
+    k.rectZ(1, zA + 0.037, -0.06, 0.06, 0.265, 0.283, C.SIGN, P.SIGN);
+  } else k.box(-0.098, 0.045, L2 - 0.012, 0.098, 0.292, L2 + 0.004, 0x2a2d31, P.PLASTIC);
+  k.box(-0.098, 0.045, -L2 - 0.004, 0.098, 0.292, -L2 + 0.012, 0x2a2d31, P.PLASTIC);
+  const dz = cab ? -0.09 : 0;
+  for (const s of [1, -1]) {
+    k.rectX(s, TW + 0.0012, 0.045, 0.1, zb, zf, 0xffffff, P.PAINT);
+    for (const [a, b] of [[zb + 0.02, dz - 0.066], [dz + 0.066, zf - 0.02]]) if (b > a + 0.01) k.rectX(s, TW + 0.0016, 0.115, 0.255, a, b, C.CABIN, P.CABIN);
+    k.rectX(s, TW + 0.002, 0.045, 0.262, dz - 0.058, dz + 0.058, 0x3a3e44, P.PLASTIC);
+    k.rectX(s, TW + 0.0026, 0.05, 0.256, dz - 0.054, dz - 0.002, C.CABIN, P.CABIN);
+    k.rectX(s, TW + 0.0026, 0.05, 0.256, dz + 0.002, dz + 0.054, C.CABIN, P.CABIN);
+  }
+  k.box(-0.11, 0.0, zb + 0.02, 0.11, 0.04, zf - 0.02, 0x30343a, P.PLASTIC, { top: false });
+  if (pant) {
+    k.box(-0.07, 0.305, -0.08, 0.07, 0.318, 0.08, 0x9aa0a6, P.PLASTIC);
+    if (d >= 2) {
+      k.group({ y: 0.318, rx: -0.5 }, () => k.box(-0.006, 0, -0.005, 0.006, 0.006, 0.12, C.DARK, P.PLASTIC));
+      k.box(-0.06, 0.37, 0.09, 0.06, 0.376, 0.1, C.DARK, P.PLASTIC);
+    }
+  } else if (d >= 2) k.box(-0.05, 0.305, -0.07, 0.05, 0.322, 0.07, 0xc9cdd1, P.PLASTIC);
+}
+def('tram_cab', { len: 0.52, wid: 0.24, hei: 0.34, far: 'box', beam: true, head: [[0.07, 0.07, 0.26]], tail: [[0.1, 0.07, 0.26]], build: (k, d) => tramModule(k, d, 0.26, true, false) });
+def('tram_link', { len: 0.44, wid: 0.24, hei: 0.31, far: 'box', build: (k, d) => tramModule(k, d, 0.22, false, false) });
+def('tram_link_p', { len: 0.44, wid: 0.24, hei: 0.38, far: 'box', build: (k, d) => tramModule(k, d, 0.22, false, true) });
+
 def('tram_head', { len: 1.15, wid: 0.24, hei: 0.34, far: 'box', beam: true, head: [[0.07, 0.07, 0.575]], tail: [[0.1, 0.07, 0.575]], build: (k, d) => tramSection(k, d, 0.575, true) });
 def('tram_mid', { len: 1.15, wid: 0.24, hei: 0.31, far: 'box', build: (k, d) => tramSection(k, d, 0.575, false) });
 

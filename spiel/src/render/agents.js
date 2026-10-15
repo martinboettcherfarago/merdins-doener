@@ -76,6 +76,12 @@ export class Fleet {
     }
     return d2;
   }
+  // grobe Sichtprüfung (Kugel um x, z auf Fahrbahnhöhe)
+  visible(x, z, r) {
+    this.sph.center.set(x, 0.12, z);
+    this.sph.radius = r;
+    return this.frustum.intersectsSphere(this.sph);
+  }
   end() { for (const b of this.list) b.finish(); }
   stats() {
     let draws = 0, tris = 0, inst = 0;
@@ -175,7 +181,6 @@ export class VehicleView {
     this.fleet = new Fleet(engine);
     this.glow = new GlowPoints(engine.scene, 9000);
     this.beams = new Batch(engine.scene, beamGeometry(), beamMaterial(), { shadow: false, receive: false, cap: 256, renderOrder: 3 });
-    this.hist = new Map();
     this.frameNo = 0;
     this.v3 = [0, 0, 0];
     this.warned = false;
@@ -227,7 +232,15 @@ export class VehicleView {
     this.fleet.begin();
     this.glow.begin();
     this.beams.begin();
-    const cars = g.traffic.cars;
+    const tr = g.traffic;
+    const cars = tr.cars;
+    // Blickpunkt für den Verkehrsfluss: fern davon entscheiden Fahrzeuge seltener (spart Rechenzeit)
+    const rig = this.e.rig;
+    if (rig && tr.lanes) {
+      const r = Math.max(16, rig.cur.dist * 0.75);
+      const f = tr.lanes.focus || (tr.lanes.focus = { x: 0, z: 0, r2: 0 });
+      f.x = rig.cur.x; f.z = rig.cur.z; f.r2 = r * r;
+    }
     for (let i = 0; i < cars.length; i++) this.drawCar(cars[i]);
     let list = null;
     try { list = g.renderables ? g.renderables() : null; } catch (e) { if (!this.warned) { console.error('renderables fehlgeschlagen', e); this.warned = true; } }
@@ -242,7 +255,6 @@ export class VehicleView {
     this.fleet.end();
     this.beams.finish();
     this.glow.end(this.e.renderer);
-    if (this.frameNo % 120 === 0) for (const [id, h] of this.hist) if (h.seen < this.frameNo - 10) this.hist.delete(id);
   }
 
   // Licht-Glanz und Lichtkegel für ein Fahrzeug
@@ -288,105 +300,46 @@ export class VehicleView {
     }
   }
 
+  // Fahrzeug aus dem Verkehrsfluss (sim/traffic.js): Lage auf dem Fahrstreifen aus Vorder- und Hinterachse, Bremslicht
+  // beim Verzögern und an Haltelinien, Blinker vor dem Abbiegen, Auflieger am Königszapfen
   drawCar(c) {
-    const g = this.g;
+    if (c.sysDraw || c.state !== 1 || c.hidden) return;
+    const g = this.g, tr = g.traffic;
+    if (!this.fleet.visible(c.x, c.z, c.len * 0.6 + 0.5)) return;
+    if (c.poseTick !== tr.lanes.tick) tr.pose(c);
     const id = c.id;
     const seed = hashf(id * 31 + 7);
-    let model, col = 0xffffff, pal = 0, flags = 0, trailer = null;
+    const model = c.model;
+    let col = 0xffffff, pal = 0, flags = 0, trailer = null;
     switch (c.type) {
-      case VT.CAR: model = carType(hashf(id * 7 + 1)); col = carPaint(hashf(id * 13 + 5)); break;
+      case VT.CAR: col = carPaint(hashf(id * 13 + 5)); break;
       case VT.TRUCK: {
         const u = hashf(id * 17 + 3);
-        if (u < 0.42) model = 'truck_box';
-        else { model = 'truck_tractor'; trailer = u < 0.72 ? 'trailer_box' : u < 0.86 ? 'trailer_tank' : 'trailer_container'; }
+        if (c.trailer) trailer = u < 0.72 ? 'trailer_box' : u < 0.86 ? 'trailer_tank' : 'trailer_container';
         col = TRUCK_CABS[Math.floor(hashf(id * 5 + 11) * TRUCK_CABS.length)];
         pal = BOX_PAL[Math.floor(hashf(id * 3 + 2) * BOX_PAL.length)];
         break;
       }
-      case VT.VAN: model = hashf(id * 19 + 4) < 0.6 ? 'van_box' : 'van'; col = hashf(id * 23) < 0.8 ? 0xf2f2ee : carPaint(hashf(id * 29)); pal = BOX_PAL[Math.floor(hashf(id * 3 + 9) * 6)]; break;
-      case VT.FIRE: model = hashf(id * 23 + 1) < 0.75 ? 'fire' : 'fire_ladder'; flags |= F.BEACON; break;
-      case VT.POLICE: model = hashf(id * 37 + 2) < 0.8 ? 'police' : 'police_van'; if (hashf(id * 41 + 3) < 0.35) flags |= F.BEACON; break;
-      case VT.GARBAGE: model = 'garbage'; break; // kein Dauer-Rundumlicht im Alltagsverkehr
-      default: model = 'car_compact';
+      case VT.VAN: col = hashf(id * 23) < 0.8 ? 0xf2f2ee : carPaint(hashf(id * 29)); pal = BOX_PAL[Math.floor(hashf(id * 3 + 9) * 6)]; break;
+      default: break;
     }
+    if (c.beacon) flags |= F.BEACON;
+    if (c.brake) flags |= F.BRAKE;
+    if (c.blink < 0) flags |= F.RIGHT; else if (c.blink > 0) flags |= F.LEFT;
+    const m = MODELS[model] || MODELS.car_compact;
     const W = g.W, H = g.H;
-    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
-    // Allee und Autobahn: zwei Spuren je Richtung (Versatz nach Fahrzeug-ID)
-    let cx = c.x, cz = c.z;
-    const p0 = c.path[Math.min(c.piece, c.path.length - 1)];
-    const rt = g.road[p0];
-    if (rt === R.AVENUE || rt === R.HIGHWAY) {
-      const lane = (hashf(id * 53 + 9) < 0.55 ? -1 : 1) * 0.09;
-      cx += -fz * lane; cz += fx * lane;
-    }
-    const gx = cx + W / 2, gz = cz + H / 2;
+    const gx = c.x + W / 2, gz = c.z + H / 2;
     const y = this.roadY(gx, gz);
-    const yA = this.roadY(gx + fx * 0.16, gz + fz * 0.16), yB = this.roadY(gx - fx * 0.16, gz - fz * 0.16);
-    const pitch = -Math.atan2(yA - yB, 0.32);
-    // Blinker vor Kurven, Bremslicht im Stau
-    const p = c.path, k = c.piece, n = p.length - 1;
-    const turnAt = (j) => {
-      if (j <= 0 || j >= n) return 0;
-      const a = p[j - 1], b = p[j], d = p[j + 1];
-      const dx1 = (b % W) - (a % W), dy1 = ((b / W) | 0) - ((a / W) | 0);
-      const dx2 = (d % W) - (b % W), dy2 = ((d / W) | 0) - ((b / W) | 0);
-      return dx1 * dy2 - dy1 * dx2;
-    };
-    let tn = turnAt(k);
-    if (!tn && c.s > 0.4) tn = turnAt(k + 1);
-    if (tn < 0) flags |= F.LEFT; else if (tn > 0) flags |= F.RIGHT;
-    const tile = p[Math.min(k, n)];
-    if ((g.congestion && g.congestion[tile] > 0.85) || (tn && c.s < 0.3)) flags |= F.BRAKE;
-    // Rot an der nächsten Ampel → Bremslicht
-    const rv = this.e.roads;
-    if (k < n && c.s > 0.35 && rv && typeof rv.signalAt === 'function') {
-      const nt = p[k + 1], sig = rv.signalAt(nt);
-      if (sig) {
-        const alongX = Math.abs(fx) > Math.abs(fz);
-        const st = alongX ? sig.ew : sig.ns;
-        if (st === 'red' || st === 'yellow' || st === 'redyellow') flags |= F.BRAKE;
-      }
+    const hl = m.len * 0.36, fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+    const pitch = -Math.atan2(this.roadY(gx + fx * hl, gz + fz * hl) - this.roadY(gx - fx * hl, gz - fz * hl), 2 * hl);
+    const d2 = this.fleet.add(model, c.x, y, c.z, c.yaw, pitch, 0, col, seed, flags, pal);
+    if (d2 >= 0) this.lightsFor(m, c.x, y, c.z, c.yaw, pitch, d2, flags, seed);
+    if (trailer) {
+      const ty = this.roadY(c.tx + W / 2, c.tz + H / 2);
+      const tm = MODELS[trailer];
+      const d3 = this.fleet.add(trailer, c.tx, ty, c.tz, c.tyaw, 0, 0, col, seed, flags & (F.BRAKE | F.LEFT | F.RIGHT), pal);
+      if (d3 >= 0) this.lightsFor(tm, c.tx, ty, c.tz, c.tyaw, 0, d3, flags & F.BRAKE, seed);
     }
-    const m = MODELS[model];
-    const d2 = this.fleet.add(model, cx, y, cz, c.yaw, pitch, 0, col, seed, flags, pal);
-    if (d2 >= 0) this.lightsFor(m, cx, y, cz, c.yaw, pitch, d2, flags, seed);
-    if (trailer) this.drawTrailer(c, cx, cz, trailer, y, col, pal, seed, flags);
-  }
-
-  // Auflieger folgt der Spur der Zugmaschine
-  drawTrailer(c, px0, pz0, trailer, y, col, pal, seed, flags) {
-    const cpos = { x: px0, z: pz0 };
-    let h = this.hist.get(c.id);
-    if (!h) { h = { xs: new Float32Array(48), zs: new Float32Array(48), n: 0, head: -1, seen: 0 }; this.hist.set(c.id, h); }
-    h.seen = this.frameNo;
-    const N = 48;
-    if (h.n === 0 || Math.hypot(cpos.x - h.xs[h.head], cpos.z - h.zs[h.head]) > 0.04) {
-      if (h.n > 0 && Math.hypot(cpos.x - h.xs[h.head], cpos.z - h.zs[h.head]) > 1.5) h.n = 0; // Sprung (neue Fahrt)
-      h.head = (h.head + 1) % N;
-      h.xs[h.head] = cpos.x; h.zs[h.head] = cpos.z;
-      h.n = Math.min(N, h.n + 1);
-    }
-    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
-    const kx = cpos.x - fx * 0.17, kz = cpos.z - fz * 0.17; // Königszapfen
-    // Punkt im Abstand S hinter der Zugmaschine entlang der Spur
-    const S = 1.2;
-    let px = cpos.x, pz = cpos.z, acc = 0, ax = 0, az = 0, found = false;
-    for (let j = 0; j < h.n; j++) {
-      const idx = (h.head - j + N) % N;
-      const qx = h.xs[idx], qz = h.zs[idx];
-      const l = Math.hypot(qx - px, qz - pz);
-      if (acc + l >= S && l > 1e-6) { const t = (S - acc) / l; ax = px + (qx - px) * t; az = pz + (qz - pz) * t; found = true; break; }
-      acc += l; px = qx; pz = qz;
-    }
-    if (!found) { const rest = S - acc; ax = px - fx * rest; az = pz - fz * rest; }
-    let dx = kx - ax, dz = kz - az;
-    const l = Math.hypot(dx, dz) || 1;
-    dx /= l; dz /= l;
-    const tyaw = Math.atan2(dx, dz);
-    const tx = kx - dx * 0.56, tz = kz - dz * 0.56;
-    const m = MODELS[trailer];
-    const d2 = this.fleet.add(trailer, tx, y, tz, tyaw, 0, 0, col, seed, flags & (F.BRAKE | F.LEFT | F.RIGHT), pal);
-    if (d2 >= 0) this.lightsFor(m, tx, y, tz, tyaw, 0, d2, flags & F.BRAKE, seed);
   }
 
   drawRenderable(r, i) {
@@ -396,8 +349,13 @@ export class VehicleView {
     let model = pickFn ? pickFn(r, u) : (MODELS[kind] ? kind : 'car_compact');
     let yaw = r.yaw || 0;
     let lead = kind === 'train_loco' || kind === 'tram' || !!r.lead;
-    // Straßenbahn aus Teilen: 0 = Kopf, letztes = gedrehter Kopf, dazwischen Mittelteile
-    if (kind === 'tram' && r.segment !== undefined) {
+    // Glieder mit eigenem Modell (Gliederzug-Straßenbahn, Gelenkbus): Führerstand hinten gedreht
+    if (r.model && MODELS[r.model]) {
+      model = r.model;
+      lead = !!r.lead;
+      if (r.flip) yaw += Math.PI;
+    } else if (kind === 'tram' && r.segment !== undefined) {
+      // ältere Darstellung aus Teilen: 0 = Kopf, letztes = gedrehter Kopf, dazwischen Mittelteile
       const last = this.tramLast.get(r.id !== undefined ? Math.floor(r.id / 4) : -1) ?? 0;
       if (r.segment === 0) model = 'tram_head';
       else if (r.segment === last) { model = 'tram_head'; yaw += Math.PI; lead = false; }
@@ -414,6 +372,7 @@ export class VehicleView {
     if (r.lights === true && this.L > 0.05) flags |= F.LIGHTS; // Wunsch-Licht der Systeme nur nachts
     if (RAILK[kind]) flags |= F.RAIL | (lead ? F.LEAD : 0);
     if (r.brake) flags |= F.BRAKE;
+    if (r.blink < 0) flags |= F.RIGHT; else if (r.blink > 0) flags |= F.LEFT;
     if (r.wreck) { _c.setHex(col).multiplyScalar(0.5); col = _c.getHex(); roll += 0.07; flags |= F.DARK; }
     let sz = 1, uni = false;
     if (r.len) {
@@ -422,8 +381,16 @@ export class VehicleView {
       if (sz > 0.85 && sz < 1.15 && !uni) sz = 1;
     }
     let y = r.y;
-    if (y === undefined || y === null) y = this.roadY(r.x + this.g.W / 2, r.z + this.g.H / 2);
-    const pitch = r.pitch || 0;
+    let pitch = r.pitch || 0;
+    if (r.road || y === undefined || y === null) {
+      // Straßenfahrzeug: Fahrbahnhöhe (Brücken, Rampen) und Neigung entlang der Fahrtrichtung
+      const gx = r.x + this.g.W / 2, gz = r.z + this.g.H / 2;
+      y = this.roadY(gx, gz);
+      if (r.road) {
+        const hl = m.len * 0.36 * sz, fx = Math.sin(r.yaw || 0), fz = Math.cos(r.yaw || 0);
+        pitch = -Math.atan2(this.roadY(gx + fx * hl, gz + fz * hl) - this.roadY(gx - fx * hl, gz - fz * hl), 2 * hl);
+      }
+    }
     const seed = hashf((r.id ?? i) * 31 + 3);
     const pal = r.pal ?? Math.floor(u * 8);
     const d2 = this.fleet.add(model, r.x, y, r.z, yaw, pitch, roll, col, seed, flags, pal, sz, uni);
@@ -434,6 +401,13 @@ export class VehicleView {
       for (const h of m.head) for (const s of [1, -1]) {
         toWorld(this.v3, h[0] * s, h[1], h[2] * sz, r.x, y, r.z, cy, sy, cp, sp);
         this.glow.add(this.v3[0], this.v3[1], this.v3[2], 0.08, 1, 0.92, 0.75, 0.5 * this.L);
+      }
+    } else if (this.L > 0.08 && r.flip && m.tail.length) {
+      // Schlusslicht am hinteren Führerstand
+      const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+      for (const t of m.tail) for (const s of [1, -1]) {
+        toWorld(this.v3, t[0] * s, t[1], t[2] * sz, r.x, y, r.z, cy, sy, cp, sp);
+        this.glow.add(this.v3[0], this.v3[1], this.v3[2], 0.03, 1.0, 0.08, 0.04, 0.35 * this.L);
       }
     }
   }

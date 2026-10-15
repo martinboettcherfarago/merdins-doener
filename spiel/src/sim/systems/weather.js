@@ -543,11 +543,37 @@ function updatePlows(g) {
   }
 }
 
+// Räumfahrzeuge fahren sichtbar im Verkehrsfluss (sim/traffic.js) – auf ihrer Spur, mit Abstand und Kurven; die
+// Einsatzdauer der Rechnung bleibt wie geplant.
+function plowFlowTick(g) {
+  const I = I_(g);
+  if (!I || !g.traffic || !g.traffic.addVisual) return;
+  if (!I.plows.length && !(I._plowVis && I._plowVis.size)) return;
+  const prev = I._plowVis || new Set(), now = new Set();
+  for (const p of I.plows) {
+    if (!p._vis && g.time >= p.t0 && g.time < p.t0 + p.dur) p._vis = g.traffic.addVisual('snowplow', p.path, { model: 'snowplow', sysDraw: true, beacon: true });
+    if (p._vis) now.add(p._vis);
+  }
+  for (const v of prev) if (!now.has(v)) v.done = true;
+  I._plowVis = now;
+}
+
 function plowRenderables(g) {
   const I = I_(g);
   if (!I.plows.length) return [];
   const out = [];
   const W = g.W, ox = -g.W / 2 + 0.5, oz = -g.H / 2 + 0.5;
+  const tr = g.traffic;
+  if (tr && tr.addVisual) {
+    for (const p of I.plows) {
+      const v = p._vis;
+      if (!v || v.done || v.state !== 1) continue;
+      if (v.poseTick !== tr.lanes.tick) tr.pose(v);
+      const t = Math.min(g.N - 1, Math.max(0, Math.floor(v.z + g.H / 2) * W + Math.floor(v.x + g.W / 2)));
+      out.push({ kind: 'snowplow', x: v.x, y: g.world.terrain[t] === T.WATER ? 0.24 : 0.012, z: v.z, yaw: v.yaw, lights: true, road: true, brake: v.brake, blink: v.blink });
+    }
+    return out;
+  }
   for (const p of I.plows) {
     const s = clamp((g.time - p.t0) * p.speed, 0, p.path.length - 1.001);
     const k = Math.floor(s), f = s - k;
@@ -771,6 +797,7 @@ registerSystem({
     exportForecast(g);
   },
   renderables(g) { return plowRenderables(g); },
+  flowTick(g) { plowFlowTick(g); },
   // Für Skripte und Werkzeuge: g.system('weather').set(g, 'snow', { snowCover: 0.8 })
   set: setWeatherNow, force: forceDay, calendar,
 });

@@ -14,6 +14,7 @@ import { BUILDINGS, ROADS, R, T as TER, Z, TRANSIT, minPerSec, DAY, MILESTONES }
 import { MinHeap, clamp, hash2, mulberry32 } from '../../util.js';
 import { forDisc } from '../services.js';
 import { findPath } from '../network.js';
+import { Route, LC, MOVE, sideOf, hashf } from '../roadnet.js';
 
 // ---------------------------------------------------------------- Daten
 
@@ -206,7 +207,8 @@ export function routeTiles(g, from, to, mode = 'bus') {
 
 // ---------------------------------------------------------------- Liniengeometrie
 
-// Glatter Linienzug durch die Feldmitten, Kurven als quadratische Bézierkurven (wie die Autos).
+// Glatter Linienzug durch die Feldmitten, Kurven als Viertelkreise mit Radius 0,5 um die Feldecke – genau der Weg,
+// den Busse und Straßenbahnen fahren (roadnet.Route) und den die Fahrbahn in roads.js zeichnet.
 function polyFromTiles(g, path) {
   const W = g.W;
   const pts = [];
@@ -231,11 +233,14 @@ function polyFromTiles(g, path) {
     const d1x = x - ax, d1y = y - ay, d2x = bx - x, d2y = by - y;
     if (d1x === d2x && d1y === d2y) { push(x, y); tileD[k] = cum[cum.length - 1]; continue; }
     if (d1x === -d2x && d1y === -d2y) { push(x, y); tileD[k] = cum[cum.length - 1]; continue; } // Wende
-    const Ax = (ax + x) / 2, Ay = (ay + y) / 2, Cx = (x + bx) / 2, Cy = (y + by) / 2;
-    for (let s = 0; s <= 4; s++) {
-      const t = s / 4, u = 1 - t;
-      push(u * u * Ax + 2 * u * t * x + t * t * Cx, u * u * Ay + 2 * u * t * y + t * t * Cy);
-      if (s === 2) tileD[k] = cum[cum.length - 1];
+    // Viertelkreis um die Ecke zwischen Einfahrt- und Ausfahrtkante
+    const ex = -d1x * 0.5, ey = -d1y * 0.5, ox = d2x * 0.5, oy = d2y * 0.5; // Kantenmitten relativ zur Feldmitte
+    const Cx = x + ex + ox, Cy = y + ey + oy;
+    for (let s = 0; s <= 6; s++) {
+      const th = (s / 6) * Math.PI / 2;
+      const c = Math.cos(th), sn = Math.sin(th);
+      push(Cx - c * ox - sn * ex, Cy - c * oy - sn * ey);
+      if (s === 3) tileD[k] = cum[cum.length - 1];
     }
   }
   return { pts: Float32Array.from(pts), cum: Float32Array.from(cum), tileD };
@@ -277,7 +282,132 @@ function buildLine(g, line) {
   line.visits = visits;
   line.segs = segs;
   line.edgeLoad = new Float32Array(segs * 2);
+  line._rev = (line._rev || 0) + 1;
+  buildVehRoutes(g, line, stopIdx);
   return true;
+}
+
+// ---------------------------------------------------------------- Fahrwege der Fahrzeuge (roadnet.Route)
+// Busse fahren eine Runde: Ringlinien wie geplant, sonst Hin- und Rückweg mit Wende an den Linienenden – um den Block
+// (so wenden Busse auch in echt), wo das nicht geht in einer Wendeschleife im Feld. Straßenbahnen sind
+// Zweirichtungswagen: Hinweg und Rückweg je eine Route, an der Endhaltestelle wechselt nur der Führerstand.
+// Jeder Halt bekommt die Stelle, an der die Front des Fahrzeugs steht (visit.S auf Route visit.r).
+const FRONT_AHEAD = { bus: 0.4, tram: 0.45 };
+const XOVER = 2.2; // Länge des Gleiswechsels hinter der Endhaltestelle (Felder; lang genug, dass die Glieder in der S-Kurve nicht über den Rand ragen)
+const pieceCenter = (r, k) => r.p(k) + r.full(k) / 2 - r.loc(k);
+function buildVehRoutes(g, line, stopIdx) {
+  const path = line.path, L = path.length;
+  line.vr = null;
+  if (L < 2 || line.broken) return;
+  const visits = line.visits, nv = visits.length;
+  const fa = FRONT_AHEAD[line.mode] || 0.4;
+  const tram = line.mode === 'tram';
+  if (tram && !line.loop) {
+    // Wenden unterwegs (Halt in einer Stichstraße: … P, E, P …): um den Block, wenn es einen gibt
+    const out = [], first = new Int32Array(L), last = new Int32Array(L);
+    for (let i = 0; i < L; i++) {
+      first[i] = out.length;
+      out.push(path[i]);
+      if (i > 0 && i < L - 1 && path[i - 1] === path[i + 1]) {
+        const loop = blockLoop(g, path[i], path[i - 1], 26) || (i + 2 < L ? blockLoop(g, path[i], path[i - 1], 40, path[i + 2]) : null);
+        if (loop) {
+          for (const t of loop) out.push(t);
+          if (loop.toP) { last[i] = first[i]; i++; first[i] = out.length; out.push(path[i]); last[i] = out.length - 1; continue; } // P liegt jetzt am Rundenende
+          out.push(path[i]);
+        }
+      }
+      last[i] = out.length - 1;
+    }
+    const Lo = out.length;
+    const f = new Route(g, Int32Array.from(out), false, { lanes: 'tram' });
+    const b = new Route(g, Int32Array.from(out).reverse(), false, { lanes: 'tram' });
+    // Gleiswechsel hinter den Endhaltestellen: dort, wo die Front nach dem Führerstandswechsel steht
+    const segs = vehSegments(VEHICLE_TYPES[line.vtype] || VEHICLE_TYPES.tram);
+    const Lb = segs ? segLen(segs) : 2.36;
+    f.setCrossover(Lb - fa, XOVER); b.setCrossover(Lb - fa, XOVER);
+    line.vr = { f, b, cyc: null };
+    for (let i = 0; i < nv; i++) {
+      const vis = visits[i], arr = visits[(i - 1 + nv) % nv].dir;
+      const pk = stopIdx[vis.k];
+      vis.r = arr > 0 ? 'f' : 'b';
+      vis.S = arr > 0 ? pieceCenter(f, first[pk]) + fa : pieceCenter(b, Lo - 1 - last[pk]) + fa;
+    }
+    return;
+  }
+  // Runde als Feldfolge; Ankunftsindex je Halt
+  let cyc;
+  const arrIdx = new Int32Array(nv);
+  if (line.loop) {
+    cyc = Array.from(path.slice(0, L - 1));
+    for (let i = 0; i < nv; i++) arrIdx[i] = stopIdx[visits[i].k] % cyc.length;
+  } else {
+    cyc = Array.from(path);
+    for (let k = L - 2; k >= 1; k--) cyc.push(path[k]);
+    for (let i = 0; i < nv; i++) {
+      const pk = stopIdx[visits[i].k], arr = visits[(i - 1 + nv) % nv].dir;
+      arrIdx[i] = arr > 0 || pk === 0 || pk === L - 1 ? pk : 2 * (L - 1) - pk;
+    }
+  }
+  // Wenden (… P, E, P …): Busse um den Block (zurück nach E oder gleich weiter über P), sonst Wendeschleife im Feld E
+  const m = cyc.length, out = [], map = new Int32Array(m);
+  for (let i = 0; i < m; i++) {
+    map[i] = out.length;
+    out.push(cyc[i]);
+    const prev = cyc[(i - 1 + m) % m], next = cyc[(i + 1) % m];
+    if (!tram && prev === next) {
+      const loop = blockLoop(g, cyc[i], prev, 26) || blockLoop(g, cyc[i], prev, 40, cyc[(i + 2) % m]);
+      if (loop) { for (const t of loop) out.push(t); if (!loop.toP) out.push(cyc[i]); }
+    }
+  }
+  const r = new Route(g, Int32Array.from(out), true, { lanes: tram ? 'tram' : 'bus' });
+  line.vr = { f: null, b: null, cyc: r };
+  for (let i = 0; i < nv; i++) {
+    const idx = map[arrIdx[i]];
+    visits[i].r = 'c';
+    visits[i].S = r.wrap(r.mv(idx) === MOVE.UTURN ? r.p(idx) + 0.3 : pieceCenter(r, idx) + fa);
+  }
+}
+
+// Kürzeste Runde von E zurück nach E ohne zu wenden, die nicht über P beginnt und nicht über P ankommt
+// (danach geht es von E weiter nach P). Liefert die Felder zwischen den beiden E oder null.
+// Mit N2 (das Feld nach P auf dem Rückweg) darf die Runde auch direkt bei P ankommen, solange es dort ohne Wende
+// nach N2 weitergeht (Stichstraße ohne eigenen Block: einmal um den Nachbarblock) – dann trägt die Liste toP.
+function blockLoop(g, E, P, maxLen, N2) {
+  const { W, H, N, road } = g;
+  const nbs = (t, out) => {
+    out.length = 0;
+    const x = t % W, y = (t / W) | 0;
+    if (y > 0 && road[t - W]) out.push(t - W);
+    if (x < W - 1 && road[t + 1]) out.push(t + 1);
+    if (y < H - 1 && road[t + W]) out.push(t + W);
+    if (x > 0 && road[t - 1]) out.push(t - 1);
+    return out;
+  };
+  const parent = new Map();
+  const qT = [], qP = [], qD = [];
+  const tmp = [];
+  for (const n1 of nbs(E, [])) if (n1 !== P && road[n1] !== R.HIGHWAY) { parent.set(n1 * N + E, -1); qT.push(n1); qP.push(E); qD.push(1); }
+  for (let h = 0; h < qT.length && h < 6000; h++) {
+    const t = qT[h], pr = qP[h], d = qD[h];
+    if (d > maxLen) continue;
+    for (const nx of nbs(t, tmp)) {
+      if (nx === pr || road[nx] === R.HIGHWAY) continue; // keine Wende, nicht über die Autobahn
+      if (nx === E || (N2 !== undefined && nx === P && t !== N2)) {
+        if (nx === E && t === P) continue;
+        const list = [t];
+        let key = t * N + pr;
+        while (parent.get(key) !== -1) { key = parent.get(key); list.push(Math.floor(key / N)); }
+        list.reverse();
+        if (nx === P) list.toP = true;
+        return list;
+      }
+      const key = nx * N + t;
+      if (parent.has(key)) continue;
+      parent.set(key, t * N + pr);
+      qT.push(nx); qP.push(t); qD.push(d + 1);
+    }
+  }
+  return null;
 }
 
 // Position auf einem Linienzug: tile-Koordinaten (x, y) und Richtung (tx, ty)
@@ -643,6 +773,7 @@ function syncTracks(g) {
 function respawnVehicles(g, line) {
   const T = TS(g);
   const old = T.vehicles.filter((v) => v.line === line.id);
+  for (const v of old) if (v.vis) { v.vis.done = true; v.vis = null; }
   T.vehicles = T.vehicles.filter((v) => v.line !== line.id);
   const nv = line.visits.length;
   for (let j = 0; j < line.nveh; j++) {
@@ -1175,6 +1306,9 @@ function taxiStep(g, dt) {
       const res = findPath(g, tx.tile, dest);
       if (!res || res.path.length < 2) { tx.wait = 0.6; continue; }
       tx.path = res.path; tx.piece = 0; tx.s = 0;
+      // sichtbares Taxi im Verkehrsfluss (die Fahrt selbst rechnet weiter wie bisher – Fahrgeld unverändert)
+      const tv = g.traffic && g.traffic.addVisual ? g.traffic.addVisual('taxi', res.path, { model: 'taxi', sysDraw: true, id: 600000 + (T.taxiSeq = ((T.taxiSeq || 0) + 1) % 90000) }) : null;
+      if (tv) (T.taxiVis || (T.taxiVis = [])).push(tv);
       continue;
     }
     // wie die Autos: Stückweise über die Felder
@@ -1255,65 +1389,220 @@ function taxiPose(g, tx, sExtra, out) {
 
 // ---------------------------------------------------------------- Fahrzeugbewegung (Busse, Straßenbahnen)
 
-function vehSpeed(g, line, tile, vt) {
-  const def = ROADS[g.road[tile]];
-  if (!def) return 0.6;
-  let v = 1.85 * def.speed * vt.speed * (line.mode === 'tram' ? 1.0 : 0.86); // etwas gemächlicher, passend zum Autoverkehr
-  const c = g.congestion[tile];
-  if (line.mode === 'tram') { if (c > 0.75) v /= 1 + (c - 0.75) * 0.8; }
-  else if (!g.policies.has('tp_buslanes')) { if (c > 0.75) v /= 1 + (c - 0.75) * 3; }
-  const w = g.ext.weather;
-  if (w && w.snowCover) v *= 1 - 0.25 * w.snowCover;
-  return v;
-}
-
+// Glieder der Fahrzeuge: Straßenbahn als Gliederzug (Führerstand vorn und hinten, kurze Mittelglieder, die sich
+// in die engen Kurven des Rasters legen), Gelenkbus aus Vorder- und Hinterwagen. front/back: Überhang vor bzw.
+// hinter dem Gelenk- oder Drehgestellpunkt; flip: Führerstand schaut nach hinten.
 const _pp = { x: 0, y: 0, tx: 0, ty: 1 };
-function tileAt(g, line, s) {
-  polyPose(line, s, _pp);
-  const x = Math.floor(_pp.x), y = Math.floor(_pp.y);
-  return clamp(y, 0, g.H - 1) * g.W + clamp(x, 0, g.W - 1);
+const SEG_CACHE = new Map();
+function vehSegments(vt) {
+  if (SEG_CACHE.has(vt.id)) return SEG_CACHE.get(vt.id);
+  let segs = null;
+  if (vt.kind === 'tram') {
+    const total = (vt.segments || 2) * vt.len + ((vt.segments || 2) - 1) * 0.06;
+    const nl = (vt.segments || 2) === 2 ? 3 : 6, cab = 0.52, link = (total - 2 * cab) / nl;
+    segs = [{ len: cab, front: 0.12, back: 0, model: 'tram_cab', flip: false }];
+    for (let i = 0; i < nl; i++) segs.push({ len: link, front: 0, back: 0, model: i === Math.floor(nl / 2) ? 'tram_link_p' : 'tram_link', flip: false });
+    segs.push({ len: cab, front: 0, back: 0.12, model: 'tram_cab', flip: true });
+  } else if (vt.len > 1.4) {
+    segs = [{ len: 0.98, front: 0.22, back: 0, model: 'bus_artic_a', flip: false }, { len: vt.len - 0.98, front: 0, back: 0.24, model: 'bus_artic_b', flip: false }];
+  }
+  SEG_CACHE.set(vt.id, segs);
+  return segs;
 }
+const segLen = (segs) => segs.reduce((a, s) => a + s.len, 0);
 
-function moveVehicles(g, dt) {
-  const T = TS(g);
-  const lm = lineMap(T);
-  const strike = g.eff('busStrike') > 0;
-  for (const v of T.vehicles) {
-    const line = lm.get(v.line);
-    if (!line || line.broken || line.visits.length < 2 || (strike && line.mode === 'bus')) { v.vs = 0; continue; }
-    const vt = VEHICLE_TYPES[line.vtype] || VEHICLE_TYPES.bus;
-    let left = dt, guard = 0;
-    while (left > 1e-6 && guard++ < 8) {
-      if (v.state === 'dwell') {
-        if (v.dwell > left) { v.dwell -= left; left = 0; v.vs = 0; break; }
-        left -= v.dwell; v.dwell = 0; v.state = 'move';
-        const tgtVisit = line.visits[v.vi];
-        const fromVisit = line.visits[(v.vi - 1 + line.visits.length) % line.visits.length];
-        v.dir = fromVisit.dir;
-        v.tgt = line.loop && v.vi === 0 ? line.len : tgtVisit.s;
-        if (line.loop && v.s >= line.len - 1e-6) v.s = 0;
-        v.sDep = v.s;
-        // Fahrgäste an Bord: Auslastung des nächsten Abschnitts
-        const k = fromVisit.k;
-        const e = v.dir > 0 ? 2 * k : 2 * (k - 1) + 1;
-        const ratio = line.edgeLoad && line.capH ? (line.edgeLoad[e] || 0) / line.capH : 0;
-        v.pax = Math.round(clamp(ratio * (0.75 + T.rng() * 0.5), 0, 1) * vt.cap);
-      } else {
-        const rem = Math.abs(v.tgt - v.s);
-        let sp = vehSpeed(g, line, tileAt(g, line, v.s), vt);
-        v.v0 = sp;
-        if (rem < 0.7) sp *= 0.3 + 0.7 * (rem / 0.7);
-        const since = Math.abs(v.s - (v.sDep ?? v.s));
-        if (since < 0.7) sp *= 0.35 + 0.65 * (since / 0.7);
-        const st = sp * left;
-        if (st >= rem) {
-          left -= rem / Math.max(0.05, sp);
-          v.s = v.tgt;
-          arriveVehicle(g, T, line, v, vt);
-        } else { v.s += v.dir * st; v.vs = v.dir * sp; left = 0; }
+// Fahrzeug der Linie im Verkehrsfluss (einmal angelegt, nach Umbau der Linie neu an der Route verankert)
+function ensureVis(g, T, line, v, vt) {
+  const vr = line.vr;
+  let vis = v.vis;
+  if (vis && !vis.done && vis.rev === line._rev) return vis;
+  const nv = line.visits.length;
+  const cur = line.visits[(v.vi - 1 + nv) % nv];
+  if (vis && !vis.done) {
+    // Linie neu berechnet, Weg gleich: an die neue Route hängen (Lage bleibt gültig)
+    const r = vis.route === vis.rF ? vr.f : vis.route === vis.rB ? vr.b : vr.cyc;
+    if (r && r.len === vis.route.len) { vis.route = r; vis.rF = vr.f; vis.rB = vr.b; vis.rev = line._rev; return vis; }
+    vis.done = true;
+  }
+  const route = cur.r === 'f' ? vr.f : cur.r === 'b' ? vr.b : vr.cyc;
+  if (!route) return null;
+  const segs = vehSegments(vt);
+  const len = segs ? segLen(segs) : vt.len;
+  // weitere Fahrzeuge am selben Halt stellen sich dahinter
+  let behind = 0;
+  for (const o of T.vehicles) if (o !== v && o.line === v.line && o.vis && !o.vis.done && o.vis.route === route && Math.abs(route.wrap(o.vis.S) - route.wrap(cur.S)) < len + 0.3) behind++;
+  let S = cur.S - behind * (len + 0.3);
+  // auch Fahrzeuge anderer Linien am selben Halt (gemeinsame Endstelle): dahinter einreihen statt ineinander
+  const cls = vt.kind === 'tram' ? LC.TRAM : LC.OUT;
+  for (let i = 0; i < 6 && placeTaken(T, v, route, S, len, cls); i++) S -= len + 0.3;
+  if (route.cyclic) S = route.wrap(S);
+  vis = g.traffic.addVisual(vt.kind, null, {
+    route, S, owned: true, sysDraw: true, id: 700000 + v.id, cls: vt.kind === 'tram' ? LC.TRAM : LC.OUT, len,
+    model: vt.kind === 'tram' ? 'tram_cab' : 'bus', segs, speed: vt.speed,
+  });
+  if (!vis) return null;
+  g.traffic.lanes.settle(vis, true);
+  vis.rev = line._rev; vis.rF = vr.f; vis.rB = vr.b;
+  vis.noCong = vt.kind === 'tram' || g.policies.has('tp_buslanes');
+  vis.stopS = vis.S;
+  v.vis = vis;
+  if (v.state === 'move') v.tgtS = targetS(line, vis, line.visits[v.vi]);
+  return vis;
+}
+// Busse biegen auf engen Kreuzungen weit ausholend rechts ab (Front über der Mitte): in die Arme, in die eine Buslinie
+// rechts hineinfährt, halten die Wartenden mit Abstand (wie eine zurückversetzte Haltelinie)
+function sweepArms(g, T) {
+  let sig = T.lines.length;
+  for (const l of T.lines) sig = (sig * 31 + l.id * 7 + (l._rev || 0) + (l.vr && l.vr.cyc ? 1 : 0)) | 0;
+  const F = g.traffic.lanes;
+  if (T._armSig === sig && F._armNet === g.netVersion) return;
+  T._armSig = sig; F._armNet = g.netVersion;
+  const keys = [];
+  for (const l of T.lines) {
+    const r = l.mode === 'bus' && l.vr && l.vr.cyc;
+    if (!r) continue;
+    for (let k = 0; k < r.n; k++) {
+      if (r.mv(k) !== MOVE.TURN || r.sg(k) >= 0) continue;
+      const t = r.tile(k), x = r.ext(k);
+      let deg = 0;
+      for (let d = 0; d < 4; d++) if (F.nbTile(t, d) >= 0) deg++;
+      if (deg >= 3) keys.push(t * 4 + x);
+    }
+  }
+  F.setSweepArms(keys);
+}
+// Liegt ein anderes Linienfahrzeug dort, wo ein neues mit der Front bei S (Länge len) stünde? (drei Punkte je Körper)
+const _pa = { k: 0 }, _pb = { k: 0 };
+function placeTaken(T, v, route, S, len, cls) {
+  for (const o of T.vehicles) {
+    const ov = o.vis;
+    if (o === v || !ov || ov.done || ov.hidden) continue;
+    for (let i = 0; i <= 2; i++) {
+      route.at(S - (len * i) / 2, cls, _pa);
+      for (let j = 0; j <= 2; j++) {
+        _pb.k = ov.k;
+        ov.route.at(ov.S - (ov.len * j) / 2, ov.cls, _pb);
+        const dx = _pa.x - _pb.x, dz = _pa.z - _pb.z;
+        if (dx * dx + dz * dz < 0.3 * 0.3) return true;
       }
     }
   }
+  return false;
+}
+// Haltepunkt (ungewickelt) eines Halts vor dem Fahrzeug
+function targetS(line, vis, visit) {
+  const r = vis.route;
+  if (!r.cyclic) return visit.S;
+  let d = visit.S - r.wrap(vis.S);
+  if (d < -1e-4) d += r.len;
+  if (d < 0.05) d += r.len;
+  return vis.S + d;
+}
+// Lage auf der Linie für Takt und Panel (0 … Umlauf)
+function linePos(line, v) {
+  const vis = v.vis, vr = line.vr;
+  if (!vis || !vr) return v.s || 0;
+  if (vr.cyc) return vr.cyc.wrap(vis.S);
+  return vis.route === vr.b ? vr.f.len + vis.S : vis.S;
+}
+function cycleLen(line) { const vr = line.vr; return !vr ? 1 : vr.cyc ? vr.cyc.len : 2 * vr.f.len; }
+
+// Je Bild (roadnet-Takt): Busse und Straßenbahnen fahren im Verkehrsfluss von Halt zu Halt, halten, fahren an.
+// Die Fahrgastrechnung (Takt, Auslastung) bleibt stündlich und unabhängig davon.
+function lineTick(g, dt) {
+  const T = TS(g);
+  if (!T) return;
+  const lm = lineMap(T);
+  const strike = g.eff('busStrike') > 0;
+  const live = T._liveVis || (T._liveVis = new Set());
+  live.clear();
+  sweepArms(g, T);
+  for (const v of T.vehicles) {
+    const line = lm.get(v.line);
+    if (!line || line.broken || !line.vr || line.visits.length < 2) { if (v.vis) v.vis.hidden = true; v.vs = 0; continue; }
+    const vt = VEHICLE_TYPES[line.vtype] || VEHICLE_TYPES.bus;
+    const vis = ensureVis(g, T, line, v, vt);
+    if (!vis) continue;
+    live.add(vis);
+    vis.hidden = strike && line.mode === 'bus';
+    if (vis.hidden) { vis.v = 0; vis.stopS = vis.S; v.vs = 0; continue; }
+    if (v.state === 'dwell') {
+      vis.stopS = vis.S; vis.vEnd = 0; v.vs = 0;
+      v.dwell -= dt;
+      // Straßenbahn an der Endhaltestelle: erst zurück, wenn der Weg auf der Ankunftsspur bis zum Gleiswechsel frei ist
+      // (der Wendebereich hält Nachfolgende fern; auch für Bahnen, die hier eingesetzt wurden)
+      if (line.vr.f && !line.loop) {
+        const nv = line.visits.length;
+        if (line.visits[v.vi].r !== line.visits[(v.vi - 1 + nv) % nv].r) {
+          const F = g.traffic.lanes, S0 = vis.S - vis.len - XOVER - 0.15;
+          if (!vis.zone) F.setZone(vis, vis.route, S0, vis.route.len);
+          if (v.dwell <= 0 && (!F.rangeFree(vis.route, S0, vis.S - 0.05, vis) || !F.zoneJunctionsFree(vis))) v.dwell = 0.25;
+        }
+      }
+      if (v.dwell <= 0) departVehicle(g, T, line, v, vt, vis);
+    } else {
+      if (v.tgtS === undefined) v.tgtS = targetS(line, vis, line.visits[v.vi]);
+      vis.stopS = v.tgtS; vis.vEnd = 0;
+      // Endhaltestelle der Straßenbahn ist ein Stumpfgleis: nur eine Bahn zugleich, die nächste wartet davor
+      if (line.vr.f && !line.loop) {
+        const tv = line.visits[v.vi], end = tv.k === 0 ? 0 : tv.k === line.stops.length - 1 ? 1 : -1;
+        if (end >= 0) {
+          const key = line.id * 2 + end, lk = T._tlock || (T._tlock = new Map());
+          const h = lk.get(key);
+          if (h && h !== v && (!h.vis || h.vis.done || (h.line !== v.line))) lk.delete(key);
+          const holder = lk.get(key);
+          if (!holder || holder === v) {
+            lk.set(key, v);
+            // Wendebereich: nach dem Führerstandswechsel fährt die Bahn hier auf der Ankunftsspur zurück –
+            // nachfolgende Fahrzeuge bleiben davor, bis sie aufs eigene Gleis gewechselt hat
+            const zs = v.tgtS - vis.len - XOVER - 0.1;
+            if (!vis.zone && vis.S >= zs - 0.3) g.traffic.lanes.setZone(vis, vis.route, zs, vis.route.len);
+          } else vis.stopS = Math.min(v.tgtS, v.tgtS - vis.len - XOVER - 0.6);
+        }
+      }
+      if (vis.xoverEnd >= 0 && vis.S >= vis.xoverEnd) {
+        vis.xoverEnd = -1;
+        if (T._tlock) for (const [key, h] of T._tlock) if (h === v) T._tlock.delete(key);
+        g.traffic.lanes.clearZone(vis);
+      }
+      v.vs = vis.v * (v.dir || 1);
+      if (vis.S >= v.tgtS - 0.02 && vis.v < 0.1) arriveVehicle(g, T, line, v, vt);
+    }
+    v.s = linePos(line, v);
+  }
+  // Fahrzeuge abgemeldeter Linien aus dem Fluss nehmen
+  for (const vis of g.traffic.cars) if (vis.owned && vis.lineVeh && !live.has(vis)) vis.done = true;
+  for (const vis of live) vis.lineVeh = true;
+}
+
+function departVehicle(g, T, line, v, vt, vis) {
+  const nv = line.visits.length;
+  v.dwell = 0; v.state = 'move';
+  const tgtVisit = line.visits[v.vi];
+  const fromVisit = line.visits[(v.vi - 1 + nv) % nv];
+  v.dir = fromVisit.dir;
+  // Zweirichtungswagen: an der Endhaltestelle nur den Führerstand wechseln – der Zug bleibt, wo er steht
+  if (line.vr.f && tgtVisit.r !== fromVisit.r) {
+    const to = tgtVisit.r === 'f' ? line.vr.f : line.vr.b;
+    if (vis.route !== to) {
+      g.traffic.lanes.releaseAll(vis);
+      vis.S = vis.route.len - vis.S + vis.len;
+      vis.route = to; vis.k = 0; vis.cs = -1e9; vis.v = 0;
+      to.setCrossover(vis.S, XOVER);
+      vis.xoverEnd = vis.S + XOVER + vis.len; // Endstelle frei, wenn das Heck den Gleiswechsel verlassen hat
+      vis.flipped = !vis.flipped; // dieselben Glieder, nur von der anderen Seite gezählt
+      g.traffic.lanes.settle(vis, false); // Kreuzungen unter dem Zug bleiben belegt
+    }
+  }
+  v.tgtS = targetS(line, vis, tgtVisit);
+  if (line.loop && v.s >= cycleLen(line) - 1e-6) v.s = 0;
+  v.sDep = v.s;
+  // Fahrgäste an Bord: Auslastung des nächsten Abschnitts (Streuung aus dem Fahrzeug, nicht aus der Zufallsfolge)
+  const k = fromVisit.k;
+  const e = v.dir > 0 ? 2 * k : 2 * (k - 1) + 1;
+  const ratio = line.edgeLoad && line.capH ? (line.edgeLoad[e] || 0) / line.capH : 0;
+  v.legs = (v.legs || 0) + 1;
+  v.pax = Math.round(clamp(ratio * (0.75 + hashf(v.id * 977 + v.legs * 31) * 0.5), 0, 1) * vt.cap);
 }
 
 function arriveVehicle(g, T, line, v, vt) {
@@ -1322,23 +1611,24 @@ function arriveVehicle(g, T, line, v, vt) {
   v.state = 'dwell';
   v.vs = 0;
   const boarding = st ? Math.min(vt.cap, st.waiting || 0) : 0;
-  v.dwell = 0.45 + boarding * 0.01 + (visit.k === 0 || visit.k === line.stops.length - 1 ? 0.35 : 0);
+  // Haltezeit in Sekunden: Türen, Ein- und Aussteigen; an der Endhaltestelle eine kurze Pause
+  v.dwell = 1.1 + boarding * 0.012 + (visit.k === 0 || visit.k === line.stops.length - 1 ? 1.6 : 0);
   // Taktausgleich: Fahrzeug direkt dahinter? Dann etwas länger warten.
   if (line.nveh > 1) {
-    const cyc = line.loop ? line.len : 2 * line.len;
+    const cyc = cycleLen(line);
     const ideal = cyc / line.nveh;
-    const pos = (x) => (line.loop ? x.s : x.dir > 0 ? x.s : 2 * line.len - x.s);
-    const me = pos(v);
+    const me = linePos(line, v);
     let ahead = Infinity;
     for (const o of T.vehicles) {
       if (o === v || o.line !== line.id) continue;
-      let d = pos(o) - me;
+      let d = linePos(line, o) - me;
       if (d <= 0) d += cyc;
       if (d < ahead) ahead = d;
     }
-    if (ahead < ideal * 0.55) v.dwell += 0.35;
+    if (ahead < ideal * 0.55) v.dwell += 0.8;
   }
   v.vi = (v.vi + 1) % line.visits.length;
+  v.tgtS = undefined;
   if (st) {
     emit('transport:arrive', { kind: line.mode, line: line.id, x: st.x, y: st.y, pax: v.pax });
     emit('busStop', { x: st.x + 0.5, y: st.y + 0.5, kind: line.mode, line: line.id, pax: v.pax });
@@ -1882,7 +2172,7 @@ function dailyReset(g, day) {
   const T = TS(g);
   const td = T.today;
   // Pulsbahn-Fahrgäste von gestern stehen in g.stats.ridersToday (vom Kern beim Tageswechsel gesetzt)
-  T.day = { ...td, d: day - 1, share: T.share, flow: g.stats.trafficFlow, cars: g.traffic.cars.length, puls: g.stats.ridersToday || 0, signals: T.signals.length };
+  T.day = { ...td, d: day - 1, share: T.share, flow: g.stats.trafficFlow, cars: (g.traffic.trips || g.traffic.cars).length, puls: g.stats.ridersToday || 0, signals: T.signals.length };
   T.hist.push({ d: day - 1, riders: Math.round(td.riders), bus: Math.round(td.bus), tram: Math.round(td.tram), puls: g.stats.ridersToday || 0, flow: Math.round((g.stats.trafficFlow || 1) * 100), share: Math.round(T.share * 1000) / 10, acc: td.accidents, trains: td.trains, flights: td.flights, ferry: Math.round(td.ferry), taxi: td.taxi, fares: Math.round(td.fares + td.long) });
   if (T.hist.length > 160) T.hist.shift();
   for (const l of T.lines) {
@@ -1934,7 +2224,6 @@ registerSystem({
     if (T.dirty.ferries) rebuildFerries(g);
     if (T.dirty.graph) { updateStopLines(g); stopTakts(g); buildGraph(g); shortestTrees(g); }
     const dt = minutes / minPerSec(g);
-    moveVehicles(g, dt);
     railStep(g, minutes);
     airStep(g);
     ferryStep(g, dt);
@@ -2045,6 +2334,8 @@ registerSystem({
   },
 
   renderables(g) { return renderables(g); },
+  // je Bild nach dem Verkehrsfluss (sim/traffic.js): Busse und Straßenbahnen von Halt zu Halt
+  flowTick(g, flow, dt) { lineTick(g, dt); },
 });
 
 // ---------------------------------------------------------------- Darstellung: bewegliche Objekte (Vertrag 6.3)
@@ -2061,52 +2352,36 @@ export function renderables(g) {
   const dtS = clamp((g.time - T.tStep) / minPerSec(g), 0, 0.3);
   const lm = lineMap(T);
   const W2 = g.W / 2, H2 = g.H / 2;
-  // Busse und Straßenbahnen
+  // Busse und Straßenbahnen (Lage aus dem Verkehrsfluss; Glieder einzeln)
+  const tr = g.traffic;
   for (const v of T.vehicles) {
     const line = lm.get(v.line);
-    if (!line || !line.cum || line.cum.length < 2) continue;
+    const vis = v.vis;
+    if (!line || !vis || vis.hidden || vis.done) continue;
     const vt = VEHICLE_TYPES[line.vtype] || VEHICLE_TYPES.bus;
-    let s = v.s;
-    if (v.state === 'move') {
-      s += v.vs * dtS;
-      if (v.dir > 0 ? s > v.tgt : s < v.tgt) s = v.tgt;
-    } else if (v.dwell < dtS && !line.broken) {
-      // fährt in diesem Moment an
-      const tgtVisit = line.visits[v.vi];
-      if (tgtVisit) {
-        const fromVisit = line.visits[(v.vi - 1 + line.visits.length) % line.visits.length];
-        const dir = fromVisit.dir;
-        let s0 = s;
-        if (line.loop && s0 >= line.len - 1e-6) s0 = 0;
-        const tgt = line.loop && v.vi === 0 ? line.len : tgtVisit.s;
-        s = s0 + dir * (v.v0 || 1) * 0.35 * (dtS - v.dwell);
-        if (dir > 0 ? s > tgt : s < tgt) s = tgt;
-      }
-    }
-    const segs = vt.segments || 1;
-    for (let k = 0; k < segs; k++) {
-      const sk = s - v.dir * k * (vt.len + 0.06);
-      const q = polyPose(line, line.loop ? ((sk % line.len) + line.len) % line.len : sk, _pp);
-      const dx = q.tx * v.dir, dy = q.ty * v.dir;
-      const tile = clamp(Math.floor(q.y), 0, g.H - 1) * g.W + clamp(Math.floor(q.x), 0, g.W - 1);
-      const r = g.road[tile];
-      const off = line.mode === 'tram' ? (r === R.AVENUE ? 0.13 : 0.15) : (LANE_OFF[r] || 0.16) + (v.state === 'dwell' ? 0.03 : 0);
+    if (tr && vis.poseTick !== tr.lanes.tick) tr.pose(vis);
+    const n = vis.mods ? vis.mods.length : 1;
+    for (let k = 0; k < n; k++) {
+      const m = vis.mods ? vis.mods[k] : vis, sg = vis.segs ? vis.segs[k] : null;
       const o = get();
       o.kind = vt.kind;
-      o.x = q.x - W2 - dy * off;
-      o.z = q.y - H2 + dx * off;
-      o.y = g.world.terrain[tile] === TER.WATER ? 0.24 : 0.012;
-      o.yaw = Math.atan2(dx, dy);
+      o.x = m.x; o.z = m.z; o.yaw = m.yaw;
+      o.y = g.world.terrain[clamp(Math.floor(m.z + H2), 0, g.H - 1) * g.W + clamp(Math.floor(m.x + W2), 0, g.W - 1)] === TER.WATER ? 0.24 : 0.012;
+      o.road = true;
       o.color = lineColor(line);
-      o.len = vt.len;
+      o.len = sg ? sg.len : vt.len;
+      if (sg) { o.model = sg.model; o.flip = sg.flip; o.pant = !!sg.pant; o.lead = k === 0; }
       o.lights = true;
+      o.brake = vis.brake;
       o.line = line.id;
       o.label = line.num;
       o.pax = v.pax;
       o.cap = vt.cap;
       o.vtype = line.vtype;
-      if (segs > 1) o.segment = k;
-      o.id = v.id * 4 + k;
+      // Glied-Nummer am Fahrzeug fest (nach dem Führerstandswechsel von hinten gezählt)
+      const phys = vis.flipped ? n - 1 - k : k;
+      if (n > 1) o.segment = phys;
+      o.id = v.id * 16 + phys;
     }
   }
   // Fernzüge
@@ -2174,17 +2449,27 @@ export function renderables(g) {
     o.pax = f.pax;
     o.id = 700000 + (hash2(f.a, f.b) * 1e5 | 0);
   }
-  // Taxis
-  for (const tx of T.taxis) {
-    if (!tx.path) continue;
-    taxiPose(g, tx, tx.vs * dtS, _tp);
-    const o = get();
-    o.kind = 'taxi';
-    o.x = _tp.x; o.z = _tp.z; o.y = _tp.y; o.yaw = _tp.yaw;
-    o.color = 0xf2c230;
-    o.len = 0.45;
-    o.lights = true;
-    o.id = 600000 + tx.depot * 32 + (tx.color % 32);
+  // Taxis (sichtbar im Verkehrsfluss)
+  if (T.taxiVis && T.taxiVis.length) {
+    let w = 0;
+    for (const tv of T.taxiVis) {
+      if (tv.done) continue;
+      T.taxiVis[w++] = tv;
+      if (tv.state !== 1 || tv.hidden) continue;
+      if (tr && tv.poseTick !== tr.lanes.tick) tr.pose(tv);
+      const o = get();
+      o.kind = 'taxi';
+      o.x = tv.x; o.z = tv.z; o.yaw = tv.yaw;
+      o.y = g.world.terrain[clamp(Math.floor(tv.z + H2), 0, g.H - 1) * g.W + clamp(Math.floor(tv.x + W2), 0, g.W - 1)] === TER.WATER ? 0.24 : 0.012;
+      o.road = true;
+      o.color = 0xf2c230;
+      o.len = 0.45;
+      o.lights = true;
+      o.brake = tv.brake;
+      o.blink = tv.blink;
+      o.id = tv.id;
+    }
+    T.taxiVis.length = w;
   }
   // Unfälle: zwei Unfallwagen, Polizei und Rettungswagen am Rand
   for (const a of T.accidents) {

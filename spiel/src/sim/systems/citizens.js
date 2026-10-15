@@ -922,31 +922,56 @@ registerSystem({
     computeStats(g, C, res, ctx);
     newsDaily(g, C, rnd);
   },
+  // je Bild: sichtbare Leichen- und Rettungswagen fahren im Verkehrsfluss (Ampeln, Abstand, Vorfahrt; Rettungswagen
+  // auf der Hinfahrt mit Vorrang). Die Fahrzeit der Rechnung bleibt wie bisher (Ankunft nach Plan).
+  flowTick(g) {
+    const C = state(g);
+    if (!C || !C.vehicles.length || !g.traffic || !g.traffic.addVisual) return;
+    const now = g.time;
+    for (const v of C.vehicles) {
+      if (now < v.t0 || v._vis || (now - v.t0) * v.speed >= v.total) continue;
+      if (v._prevVis && !v._prevVis.done) continue; // erst ankommen, dann zurück
+      v._vis = g.traffic.addVisual(v.kind, v.path, { model: v.kind, sysDraw: true, prio: v.kind === 'ambulance' && v.ret ? 1 : 0, beacon: v.kind === 'ambulance' && v.ret });
+    }
+  },
   renderables(g) {
     const C = state(g);
     if (!C || !C.vehicles.length) return null;
     const out = C._out || (C._out = []);
     out.length = 0;
     const now = g.time;
+    const tr = g.traffic;
     let w = 0;
     for (let k = 0; k < C.vehicles.length; k++) {
       let v = C.vehicles[k];
       let keep = true;
+      const vis = v._vis;
       if (now >= v.t0) {
         const s = (now - v.t0) * v.speed;
-        if (s >= v.total) {
+        if (s >= v.total && !(vis && !vis.done)) {
           if (v.ret) {
             // kurz halten, dann zurück zur Wache bzw. zum Friedhof
             const back = makeVehicle(v.kind, Int32Array.from(v.path).reverse(), now + 40, v.speed, false);
             back._o = v._o;
+            back._prevVis = vis || null;
             v = back;
           } else keep = false;
         } else {
           const o = v._o || (v._o = { kind: v.kind, x: 0, y: 0, z: 0, yaw: 0, lights: true });
-          poseAt(g, v, s, o);
-          // Straße abgerissen? Dann verschwindet das Fahrzeug
-          if (!g.road[v.path[Math.min(v.path.length - 1, Math.floor(s))]] && !g.road[v.path[v.path.length - 1]]) keep = false;
-          else out.push(o);
+          if (vis && !vis.done) {
+            if (vis.state === 1) {
+              if (tr && vis.poseTick !== tr.lanes.tick) tr.pose(vis);
+              o.x = vis.x; o.z = vis.z; o.yaw = vis.yaw; o.brake = vis.brake; o.blink = vis.blink; o.road = true; o.id = vis.id;
+              const t = Math.min(g.N - 1, Math.max(0, Math.floor(o.z + g.H / 2) * g.W + Math.floor(o.x + g.W / 2)));
+              o.y = g.world.terrain[t] === T.WATER ? 0.24 : 0.012;
+              out.push(o);
+            }
+          } else if (!vis && s < v.total) {
+            poseAt(g, v, s, o);
+            // Straße abgerissen? Dann verschwindet das Fahrzeug
+            if (!g.road[v.path[Math.min(v.path.length - 1, Math.floor(s))]] && !g.road[v.path[v.path.length - 1]]) keep = false;
+            else if (!tr || !tr.addVisual) out.push(o);
+          }
         }
       }
       if (keep) C.vehicles[w++] = v;

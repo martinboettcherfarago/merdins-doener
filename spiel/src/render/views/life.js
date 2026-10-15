@@ -2,8 +2,11 @@
 // Kondensstreifen und ab und zu ein Heißluftballon. Alles rein darstellend (keine Simulation nötig), instanziert,
 // mit Detailstufen und nur in der Nähe der Kamera – dort, wo man es sieht.
 //
-// Fußgänger laufen auf einem Gehweg-Graphen (vier Ecken je Straßenfeld, Zebrastreifen an Kreuzungen), entstehen und
-// verschwinden an Hauseingängen. Ihre Dichte folgt Bewohnern, Arbeitsplätzen, Geschäften und der Tageszeit.
+// Fußgänger laufen auf einem Gehweg-Graphen (vier Ecken je Straßenfeld), entstehen und verschwinden an Hauseingängen.
+// Die Fahrbahn queren sie nur an Kreuzungen, auf der Linie der Zebrastreifen im Arm-Feld: an der Bordsteinkante
+// warten, bis die Fußgängerampel grün zeigt bzw. kein Fahrzeug mehr kommt, das nicht halten kann (roadnet Flow
+// pedMayCross), und während des Querens melden sie sich an (markCrossing) – die Fahrzeuge halten davor.
+// Ihre Dichte folgt Bewohnern, Arbeitsplätzen, Geschäften und der Tageszeit.
 import * as THREE from 'three';
 import { registerView } from '../../registry.js';
 import { R, T, Z, ROAD_GEOM } from '../../config.js';
@@ -29,6 +32,8 @@ function jobCurve(h) { return 0.02 + 0.8 * gauss(h, 7.8, 1) + 0.6 * gauss(h, 12.
 // ---------------------------------------------------------------- Gehweg-Graph
 // Knoten = Feld * 4 + Ecke (0: −x−z, 1: +x−z, 2: +x+z, 3: −x+z)
 const CX = [-1, 1, 1, -1], CZ = [-1, -1, 1, 1];
+const ADX = [0, 1, 0, -1], ADZ = [-1, 0, 1, 0]; // Arme N O S W
+const XLINE = 0.5 + 0.105; // Querungslinie: Mitte des Zebrastreifens im Arm-Feld (roads.js: 0,03–0,18 hinter der Kante)
 
 class Walkways {
   constructor(view) { this.v = view; this.g = view.g; this.dirty = true; }
@@ -47,7 +52,7 @@ class Walkways {
     void W;
   }
   ok(i) { return i >= 0 && i < this.g.N && this.off[i] > 0; }
-  // Nachbarknoten von n: [[knoten, überquert?], …]
+  // Nachbarknoten von n: [[knoten, überquerter Arm + 1 oder 0], …]
   neighbors(n, out) {
     out.length = 0;
     const g = this.g, W = g.W;
@@ -61,7 +66,7 @@ class Walkways {
     // Ecke c → (Ziel-Ecke, Arm-Index)
     const pairs = { 0: [[1, 0], [3, 3]], 1: [[0, 0], [2, 1]], 2: [[3, 2], [1, 1]], 3: [[2, 2], [0, 3]] }[c];
     void intra;
-    for (const [cc, arm] of pairs) out.push([i * 4 + cc, across[arm] ? 1 : 0]);
+    for (const [cc, arm] of pairs) out.push([i * 4 + cc, across[arm] ? arm + 1 : 0]);
     // zu Nachbarfeldern entlang der Straße
     if (c === 0 || c === 1) { if (m & 1) { const j = nb(0, -1); if (j >= 0) out.push([j * 4 + (c === 0 ? 3 : 2), 0]); } }
     if (c === 2 || c === 3) { if (m & 4) { const j = nb(0, 1); if (j >= 0) out.push([j * 4 + (c === 3 ? 0 : 1), 0]); } }
@@ -96,6 +101,10 @@ class Pedestrians {
     this.steps = new Int16Array(n); this.state = new Uint8Array(n); // 0 frei, 1 kommt heraus, 2 läuft, 3 geht hinein
     this.scale = new Float32Array(n); this.kind = new Uint8Array(n); this.age = new Float32Array(n);
     this.feat = new Int32Array(n); this.amt = new Float32Array(n); this.wait = new Float32Array(n); this.gait = new Float32Array(n);
+    // Querung an einer Kreuzung: Feld, Arm, Abschnitt (0 zur Bordsteinkante, 1 hinüber, 2 zur Ecke), Zielknoten,
+    // wartet an der Kante?, Wartezeit, andere Bordsteinkante
+    this.xj = new Int32Array(n).fill(-1); this.xs = new Uint8Array(n); this.xleg = new Uint8Array(n); this.xend = new Int32Array(n);
+    this.xw = new Uint8Array(n); this.xt = new Float32Array(n); this.x1 = new Float32Array(n); this.z1 = new Float32Array(n);
     this.count = 0;
     this.free = [];
     for (let i = n - 1; i >= 0; i--) this.free.push(i);
@@ -132,6 +141,7 @@ class Pedestrians {
     this.len[k] = Math.max(0.01, Math.hypot(this.bx[k] - sx, this.bz[k] - sz));
     this.t[k] = 0;
     this.node[k] = n; this.prev[k] = -1;
+    this.xj[k] = -1; this.xw[k] = 0;
     const u = Math.random();
     this.kind[k] = u < 0.08 ? 2 : u < 0.15 ? 3 : u < 0.2 ? 4 : 0; // 2 Kind, 3 Senior, 4 Jogger
     const kd = this.kind[k];
@@ -156,21 +166,50 @@ class Pedestrians {
     let tot = 0;
     const i = n >> 2;
     const jn = wx.isJunction(i);
-    for (const q of nbs) { q[2] = q[0] === this.prev[k] ? 0.02 : q[1] ? (jn ? 0.35 : 0.03) : 1; tot += q[2]; }
+    // über die Fahrbahn nur an Kreuzungen (nicht über die Autobahn)
+    for (const q of nbs) {
+      const cross = q[1] && (!jn || this.g.road[i + ADX[q[1] - 1] + ADZ[q[1] - 1] * this.g.W] === R.HIGHWAY);
+      q[2] = cross ? 0 : q[0] === this.prev[k] ? 0.02 : q[1] ? 0.35 : 1; tot += q[2];
+    }
+    if (tot <= 0) { this.enter(k, wx); return; }
     let r = Math.random() * tot, pick = nbs[0];
-    for (const q of nbs) { r -= q[2]; if (r <= 0) { pick = q; break; } }
+    for (const q of nbs) { if (q[2] <= 0) continue; pick = q; r -= q[2]; if (r <= 0) break; }
     this.ax[k] = this.bx[k]; this.az[k] = this.bz[k];
+    if (pick[1]) { this.speed[k] = Math.max(this.speed[k], this.kind[k] === 4 ? 0.24 : 0.13); this.startCrossing(k, i, pick[1] - 1, pick[0], wx); return; }
     wx.pos(pick[0], this.tmp);
     this.bx[k] = this.tmp[0]; this.bz[k] = this.tmp[1];
     this.len[k] = Math.max(0.01, Math.hypot(this.bx[k] - this.ax[k], this.bz[k] - this.az[k]));
     this.t[k] = 0;
     this.prev[k] = n; this.node[k] = pick[0];
-    if (pick[1]) this.speed[k] = Math.max(this.speed[k], this.kind[k] === 4 ? 0.24 : 0.13);
-    // kurz stehen bleiben: vor dem Überqueren (Ampel/Verkehr), sonst ab und zu (Schaufenster, Gespräch)
-    if (this.kind[k] !== 4) {
-      if (pick[1] && jn && Math.random() < 0.55) this.wait[k] = 1.5 + Math.random() * 4;
-      else if (!pick[1] && Math.random() < 0.07) this.wait[k] = 2 + Math.random() * 6;
-    }
+    // ab und zu kurz stehen bleiben (Schaufenster, Gespräch)
+    if (this.kind[k] !== 4 && Math.random() < 0.07) this.wait[k] = 2 + Math.random() * 6;
+  }
+
+  // Querung des Arms arm der Kreuzung J (Ecke node[k] → Ecke end): zur Bordsteinkante an der Zebrastreifen-Linie,
+  // dort warten, hinüber, zur Ecke auf der anderen Seite
+  startCrossing(k, J, arm, end, wx) {
+    const g = this.g, W = g.W;
+    const cx = (J % W) + 0.5 - W / 2, cz = ((J / W) | 0) + 0.5 - g.H / 2;
+    const dx = ADX[arm], dz = ADZ[arm], px = -dz, pz = dx;
+    const A = J + dx + dz * W;
+    const o = wx.off[A] > 0 ? wx.off[A] : wx.off[J];
+    const s0 = (this.ax[k] - cx) * px + (this.az[k] - cz) * pz >= 0 ? 1 : -1;
+    this.bx[k] = cx + dx * XLINE + px * s0 * o; this.bz[k] = cz + dz * XLINE + pz * s0 * o;
+    this.x1[k] = cx + dx * XLINE - px * s0 * o; this.z1[k] = cz + dz * XLINE - pz * s0 * o;
+    this.len[k] = Math.max(0.01, Math.hypot(this.bx[k] - this.ax[k], this.bz[k] - this.az[k]));
+    this.t[k] = 0;
+    this.xj[k] = J; this.xs[k] = arm; this.xleg[k] = 0; this.xend[k] = end; this.xw[k] = 0; this.xt[k] = 0;
+  }
+  // nächster Abschnitt der Querung; false, wenn sie vorbei ist
+  crossingStep(k, wx) {
+    const leg = this.xleg[k];
+    this.ax[k] = this.bx[k]; this.az[k] = this.bz[k];
+    this.t[k] = 0;
+    if (leg === 0) { this.bx[k] = this.x1[k]; this.bz[k] = this.z1[k]; this.xleg[k] = 1; this.xw[k] = 1; this.xt[k] = 0; }
+    else if (leg === 1) { wx.pos(this.xend[k], this.tmp); this.bx[k] = this.tmp[0]; this.bz[k] = this.tmp[1]; this.xleg[k] = 2; }
+    else { this.prev[k] = this.node[k]; this.node[k] = this.xend[k]; this.xj[k] = -1; return false; }
+    this.len[k] = Math.max(0.01, Math.hypot(this.bx[k] - this.ax[k], this.bz[k] - this.az[k]));
+    return true;
   }
 
   // ins Haus gehen: vom Knoten zum Feldrand
@@ -189,7 +228,7 @@ class Pedestrians {
     this.state[k] = 3;
   }
 
-  kill(k) { this.state[k] = 0; this.free.push(k); }
+  kill(k) { this.state[k] = 0; this.xj[k] = -1; this.xw[k] = 0; this.free.push(k); }
 
   update(dt, ctx) {
     const wx = this.v.walk;
@@ -207,6 +246,7 @@ class Pedestrians {
       }
     } else this.spawnAcc = 0;
     const tooMany = live > target * 1.15 + 5;
+    const F = g.traffic && g.traffic.lanes;
     const R2 = ctx.radius * ctx.radius;
     const cx = ctx.cx, cz = ctx.cz;
     for (let k = 0; k < this.max; k++) {
@@ -216,6 +256,22 @@ class Pedestrians {
       // Warten: auslaufen lassen (Gangstärke → 0), dann wieder anlaufen
       let go = 1;
       if (this.wait[k] > 0 && st === 2) { this.wait[k] -= dt; go = 0; }
+      // an der Bordsteinkante: auf Grün bzw. eine Lücke warten; beim Queren angemeldet bleiben
+      const J = this.xj[k];
+      if (J >= 0 && this.xleg[k] === 1) {
+        if (this.xw[k]) {
+          go = 0;
+          this.xt[k] += dt;
+          if (!F || F.pedMayCross(J, this.xs[k], this.len[k] / Math.max(0.05, this.speed[k]) + 0.5)) { this.xw[k] = 0; go = 1; }
+          else if (this.xt[k] > 30) { // zu lange: doch nicht hinüber, zurück zur Ecke
+            this.xj[k] = -1; this.xw[k] = 0;
+            wx.pos(this.node[k], this.tmp); this.bx[k] = this.tmp[0]; this.bz[k] = this.tmp[1];
+            this.len[k] = Math.max(0.01, Math.hypot(this.bx[k] - this.ax[k], this.bz[k] - this.az[k])); this.t[k] = 0;
+            this.prev[k] = this.xend[k];
+          }
+        }
+        if (!this.xw[k] && this.xj[k] >= 0 && F) F.markCrossing(J, this.xs[k]);
+      }
       const want = go ? this.gait[k] : 0;
       const a0 = this.amt[k];
       this.amt[k] = a0 + (want - a0) * Math.min(1, dt * (want > a0 ? 5 : 7));
@@ -229,6 +285,7 @@ class Pedestrians {
       while (this.t[k] >= 1) {
         if (st === 3) { this.kill(k); break; }
         this.state[k] = 2;
+        if (this.xj[k] >= 0 && this.crossingStep(k, wx)) break;
         if (--this.steps[k] <= 0 || (tooMany && Math.random() < 0.3)) { this.enter(k, wx); break; }
         if (!wx.ok(this.node[k] >> 2)) { this.kill(k); break; }
         this.advance(k, wx);

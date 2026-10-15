@@ -719,7 +719,76 @@ def('bus', {
   },
 });
 
-// Gelenkbus-Hinterwagen wird nicht gebraucht – Busse sind 12 m.
+// ---------------------------------------------------------------- Gelenkbus (18 m): Vorder- und Hinterwagen
+// Zwei Glieder, die die Fahrt einzeln der Spur folgen (sim/traffic.js poseSegments) – kein starrer langer Kasten.
+// front/rear: Bugform bzw. Heckform, sonst gerader Abschluss mit Faltenbalg am Gelenk.
+function busSection(k, d, L, front, rear, axles) {
+  const z1 = L / 2, z0 = -L / 2;
+  const hw = 0.1275, hwT = 0.122, CR = 0xf0ebdc;
+  const S = { wr: 0.048, yb: 0.035, axF: axles[0], axR: axles[axles.length - 1] };
+  const prof = [];
+  if (rear) prof.push([z0, 0.045], [z0 + 0.005, 0.035]); else prof.push([z0, 0.035]);
+  if (axles.length > 1) prof.push('R', 'F'); else prof.push(axles[0] < 0 ? 'R' : 'F');
+  if (front) prof.push([z1 - 0.005, 0.035], [z1, 0.05], [z1, 0.11], [z1 - 0.004, 0.17], [z1 - 0.012, 0.272], [z1 - 0.022, 0.298], [z1 - 0.05, 0.306]);
+  else prof.push([z1, 0.035], [z1, 0.306]);
+  if (rear) prof.push([z0 + 0.015, 0.306], [z0 + 0.002, 0.292], [z0, 0.27]); else prof.push([z0, 0.306]);
+  const { pts, kinds } = withArches(prof, S, d);
+  const sideHw = k.prism(pts, hw, hwT, 0xffffff, P.PAINT, {
+    edge: (i, nz, ny, a, b) => {
+      if (kinds[i] === 'a' && kinds[(i + 1) % kinds.length] === 'a') return { c: C.DARK, p: P.PLASTIC };
+      if (front && ((same(a, [z1, 0.11]) && same(b, [z1 - 0.004, 0.17])) || (same(a, [z1 - 0.004, 0.17]) && same(b, [z1 - 0.012, 0.272])))) return { c: C.GLASS, p: P.GLASS };
+      if (front && same(a, [z1 - 0.012, 0.272])) return { c: C.DARK, p: P.PLASTIC };
+      if (ny > 0.9) return { c: CR, p: P.GLOSS };
+      if (!front && Math.abs(a[0] - z1) < 1e-6 && Math.abs(b[0] - z1) < 1e-6) return { c: 0x2a2d31, p: P.PLASTIC };
+      if (!rear && Math.abs(a[0] - z0) < 1e-6 && Math.abs(b[0] - z0) < 1e-6) return { c: 0x2a2d31, p: P.PLASTIC };
+      return undefined;
+    },
+  });
+  const yW0 = 0.128, yW1 = 0.272;
+  const doors = front ? [[z1 - 0.155, z1 - 0.045], [z0 + 0.08, z0 + 0.2]] : [[-0.06, 0.06]];
+  const wa = z0 + (rear ? 0.03 : 0.012), wb = z1 - (front ? 0.03 : 0.012);
+  for (const s of [1, -1]) {
+    k.sidePoly(sideHw, [[z0 + 0.002, yW1], [z1 - (front ? 0.014 : 0.002), yW1], [z1 - (front ? 0.022 : 0.002), 0.298], [z0 + 0.002, 0.298]], s, CR, P.GLOSS, 0.0012);
+    const segs = [];
+    if (s > 0) segs.push([wa, wb]);
+    else {
+      let z = wa;
+      for (const [a, b] of doors.slice().sort((p, q) => p[0] - q[0])) { if (a > z) segs.push([z, a - 0.008]); z = b + 0.008; }
+      if (wb > z) segs.push([z, wb]);
+    }
+    for (const [za, zb] of segs) k.sidePoly(sideHw, [[za, yW0], [zb, yW0], [zb, yW1 - 0.004], [za, yW1 - 0.004]], s, C.CABIN, P.CABIN, 0.0016);
+    if (s < 0) for (const [a, b] of doors) {
+      k.sidePoly(sideHw, [[a - 0.006, 0.042], [b + 0.006, 0.042], [b + 0.006, yW1 + 0.004], [a - 0.006, yW1 + 0.004]], s, C.DARK, P.PLASTIC, 0.0014);
+      const m = (a + b) / 2;
+      k.sidePoly(sideHw, [[a, 0.048], [m - 0.002, 0.048], [m - 0.002, yW1 - 0.002], [a, yW1 - 0.002]], s, C.CABIN, P.CABIN, 0.0024);
+      k.sidePoly(sideHw, [[m + 0.002, 0.048], [b, 0.048], [b, yW1 - 0.002], [m + 0.002, yW1 - 0.002]], s, C.CABIN, P.CABIN, 0.0024);
+    }
+  }
+  if (front) {
+    k.box(-0.1, 0.276, z1 - 0.018, 0.1, 0.293, z1 - 0.0145, C.SIGN, P.SIGN);
+    k.box(-0.118, 0.06, z1 - 0.006, -0.082, 0.086, z1 + 0.0015, C.HEAD, P.HEAD);
+    k.box(0.082, 0.06, z1 - 0.006, 0.118, 0.086, z1 + 0.0015, C.HEAD, P.HEAD);
+    if (d >= 2) { k.box(-0.11, 0.035, z1 - 0.01, 0.11, 0.055, z1 + 0.003, C.TRIM, P.PLASTIC); plate(k, z1 + 0.0025, 0.039); }
+  } else k.box(-0.105, 0.04, z1 - 0.004, 0.105, 0.29, z1 + 0.02, 0x2a2d31, P.PLASTIC); // Faltenbalg
+  if (rear) {
+    k.rectZ(-1, z0 - 0.0012, -0.1, 0.1, 0.17, 0.262, C.GLASS, P.GLASS);
+    k.rectZ(-1, z0 - 0.0014, -0.06, 0.06, 0.244, 0.258, C.SIGN, P.SIGN);
+    for (const s of [1, -1]) k.box(s > 0 ? 0.104 : -0.124, 0.05, z0 - 0.0015, s > 0 ? 0.124 : -0.104, 0.2, z0 + 0.006, C.RED, P.TAIL);
+    if (d >= 2) plate(k, z0 - 0.0025, 0.06);
+  } else k.box(-0.105, 0.04, z0 - 0.02, 0.105, 0.29, z0 + 0.004, 0x2a2d31, P.PLASTIC);
+  k.box(-0.085, 0.306, -0.12, 0.085, 0.328, 0.12, 0xd6d9dc, P.PLASTIC);
+  wheels(k, d, axles, hw - 0.002, S.wr, 0.03, { twin: true });
+}
+def('bus_artic_a', {
+  len: 0.98, wid: 0.255, hei: 0.31, far: 'box',
+  head: [[0.1, 0.073, 0.49]], tail: [],
+  build: (k, d) => busSection(k, d, 0.98, true, false, [0.27, -0.37]),
+});
+def('bus_artic_b', {
+  len: 0.82, wid: 0.255, hei: 0.31, far: 'box', beam: false,
+  head: [], tail: [[0.112, 0.12, -0.41]],
+  build: (k, d) => busSection(k, d, 0.82, false, true, [-0.17]),
+});
 
 // ---------------------------------------------------------------- Fernansicht-Kästen (Detail 0)
 // Einheitsgröße 1×1×1, werden pro Instanz auf Breite × Höhe × Länge skaliert.

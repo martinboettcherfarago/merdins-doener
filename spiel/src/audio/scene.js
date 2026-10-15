@@ -128,7 +128,7 @@ export class Listener {
     // Stadtgröße
     s.pop = g.stats.pop || 0;
     s.cityScale = clamp(Math.log10(s.pop + 1) / 4.8);
-    s.carsTotal = g.traffic.cars.length;
+    s.carsTotal = (g.traffic.trips || g.traffic.cars).length;
     s.trafficCity = clamp(s.carsTotal / 500);
 
     // Rechts-Vektor der Kamera in Weltkoordinaten

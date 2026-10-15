@@ -426,7 +426,7 @@ function areaVerkehr(ui, ctx) {
     id: 'roads', title: 'Straßen', icon: 'car', color: '#5d6470', view: 'traffic', build: 'roads',
     more: { panel: 'transport', act: 'tab', key: 'k', v: 'roads', desc: 'Verkehr & ÖPNV → Straße & Ampeln: Staus, Unfälle und Ampeln.' },
     big: Math.round(fl * 100), unit: '% Verkehrsfluss', bigSev: fl < 0.7 ? 'bad' : fl < 0.85 ? 'warn' : 'good',
-    sub: `${fmt(g.traffic.cars.length)} Autos unterwegs`,
+    sub: `${fmt((g.traffic.trips || g.traffic.cars).length)} Autos unterwegs`,
     body: facts([['Stau-Abschnitte', fmt(jams), jams > 20 ? 'neg' : ''], ctx.D.commuteAvg > 0 && ['Ø Pendelzeit', `${Math.round(ctx.D.commuteAvg)} Min.`], T && T.today && ['Unfälle heute', fmt(T.today.accidents || 0), T.today.accidents ? 'neg' : ''], T && T.signals && ['Ampeln', fmt(T.signals.length)]]),
   }, ctx));
   if (T) {
