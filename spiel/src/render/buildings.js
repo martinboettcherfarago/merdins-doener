@@ -1755,7 +1755,8 @@ export class BuildingView {
     this.need.set(id, { rec, d, pri, id });
   }
   // Geschätzte Bauzeit (ms) aus der Bauzeit der Fernstufe und dem gemessenen Verhältnis je Stufe
-  _estimate(rec, d) { return Math.max(0.3, (rec.p0 && rec.p0.ms) || 2) * this.ratio[d]; }
+  // (Wahrzeichen und große Verkehrsbauten mindestens 40 ms: die baut die Ansicht nur bei ruhender Kamera)
+  _estimate(rec, d) { const e = Math.max(0.3, (rec.p0 && rec.p0.ms) || 2) * this.ratio[d]; return heavyKey(rec) ? Math.max(40, e) : e; }
   // Baut Prototypen aus der Bauliste, solange das Budget reicht (teure nur, wenn die Kamera ruht)
   // soft: ein einzelner Bau bis zu so vielen ms darf das Budget überziehen (sonst blieben mittlere Modelle beim Zoomen
   // zu lange in der Fernstufe); idleOk: Kamera ruht – dann auch ein teurer Bau
