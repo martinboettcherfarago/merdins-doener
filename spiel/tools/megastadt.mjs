@@ -89,8 +89,8 @@ function bigWater() {
   if (bot.shorePlace(key, cx, cy, { maxDist: 70 })) log(`baut ${BUILDINGS[key].name} (Bedarf ${Math.round(u.waterDemand)} m³)`);
 }
 // Großbauten mit viel Platzbedarf (Flughafen): die ganze Karte nach einem passenden Grundstück am Straßennetz absuchen
-function placeAnywhere(key, dmin = 10, dmax = 140) {
-  if (!g.isUnlocked(key) || g.hasBuilt(key)) return false;
+function placeAnywhere(key, dmin = 10, dmax = 140, more = false) {
+  if (!g.isUnlocked(key) || (g.hasBuilt(key) && !more)) return false;
   const [cx, cy] = center(), cands = [];
   for (let y = 2; y < g.H - 2; y++) for (let x = 2; x < g.W - 2; x++) {
     const d = Math.hypot(x - cx, y - cy);
@@ -194,9 +194,23 @@ function landmarks() {
 function trams() {
   const TS = g.ext.transport;
   if (!TS || !g.isUnlocked('tram_depot') || !bot.count.tram_depot) return;
+  const W = g.W, [cx, cy] = center();
+  // Depots nach Bedarf: jede Linie mit vier Bahnen, vorhandene Linien auffüllen
+  const fleet = () => TPS.fleetInfo(g, 'tram');
+  const tramDepot = () => {
+    const k = bot.count.tram_depot || 0; if (k >= 8) return false;
+    // während des Wachsens nur in der Nähe; am Ende (tramTopUp) auch am Stadtrand, damit kein Bauland im Zentrum verloren geht
+    const ok = bot.placeNear('tram_depot', cx + (k * 11) % 23 - 11, cy + (k * 7) % 17 - 8, 30) || (trams.edge && placeAnywhere('tram_depot', 20, 140, true));
+    if (ok) log('baut Straßenbahndepot');
+    return ok;
+  };
+  for (const l of TS.lines) if (l.mode === 'tram' && l.nveh < 4) {
+    if (fleet().cap - fleet().used < 4 - l.nveh) tramDepot();
+    TPS.setVehicles(g, l.id, Math.min(4, l.nveh + Math.max(0, fleet().cap - fleet().used)));
+  }
   const have = TS.lines.filter((l) => l.mode === 'tram').length;
   if (have >= 4) return;
-  const W = g.W, [cx, cy] = center();
+  if (fleet().cap - fleet().used < 4) tramDepot();
   const cand = [];
   for (let i = 0; i < g.N; i++) {
     if (!g.road[i] || g.road[i] === R.HIGHWAY || TPS.canStop(g, i, 'tram')) continue;
@@ -258,6 +272,9 @@ for (let d = 1; d <= days; d++) {
 }
 landmarks();
 metroGrid();
+// Straßenbahnen: fehlende Depots am Stadtrand, alle Linien mit vier Bahnen
+trams.edge = true;
+for (let k = 0; k < 2; k++) trams();
 runDay(g);
 busCoverage();
 
