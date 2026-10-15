@@ -92,7 +92,9 @@ function forDisc(g, cx, cy, r, fn) {
 }
 export { forDisc };
 
-export function computeCoverage(g) {
+export function computeCoverage(g) { for (const _ of computeCoverageSteps(g)) { /* alles sofort */ } }
+// Als Folge von Schritten (je Dienstart einer, yield dazwischen) für die Zeitscheiben der Simulation (game.js)
+export function* computeCoverageSteps(g) {
   const { N } = g;
   const bestD = g._bestD || (g._bestD = new Float32Array(N));
   const bestF = g._bestF || (g._bestF = new Int32Array(N));
@@ -108,6 +110,7 @@ export function computeCoverage(g) {
   }
 
   for (const type of allServiceTypes()) {
+    yield;
     const cov = g.cov[type] || (g.cov[type] = new Float32Array(N));
     cov.fill(0);
     const facs = byType.get(type) || [];
@@ -171,6 +174,7 @@ export function computeCoverage(g) {
     }
   }
 
+  yield;
   // Parks, Wahrzeichen und andere Flächeneffekte
   const { park, lvBonus, happyBonus, comBoost, resBoost } = g.cov;
   park.fill(0); lvBonus.fill(0); happyBonus.fill(0); comBoost.fill(0); resBoost.fill(0);
@@ -216,7 +220,9 @@ function boxBlur(src, dst, W, H, r, tmp) {
   }
 }
 
-export function computeFields(g) {
+export function computeFields(g) { for (const _ of computeFieldsSteps(g)) { /* alles sofort */ } }
+// Als Folge von Schritten (Verschmutzung, Lärm, Kriminalität, Bodenwert) für die Zeitscheiben (game.js)
+export function* computeFieldsSteps(g) {
   const { W, H, N, road } = g;
   const em = g._em || (g._em = new Float32Array(N));
   const tmp = g._tmp || (g._tmp = new Float32Array(N));
@@ -246,6 +252,7 @@ export function computeFields(g) {
   const pol = g.fields.pollution;
   for (let i = 0; i < N; i++) pol[i] = clamp(em[i] * 1.5, 0, 1);
 
+  yield;
   // Lärm
   em.fill(0);
   const noiseMul = (g.policies.has('tempo30') ? 0.6 : 1) * (g.policies.has('nightquiet') ? 0.75 : 1);
@@ -267,6 +274,7 @@ export function computeFields(g) {
   const noise = g.fields.noise;
   for (let i = 0; i < N; i++) noise[i] = clamp(tmp2[i] * 1.1 * noiseMul, 0, 1);
 
+  yield;
   // Kriminalität
   em.fill(0);
   for (const b of g.buildings.values()) if (b.zone && b.crime) em[b.y * W + b.x] = b.crime;
@@ -274,6 +282,7 @@ export function computeFields(g) {
   const crime = g.fields.crime;
   for (let i = 0; i < N; i++) crime[i] = clamp(tmp2[i] * 1.6, 0, 1);
 
+  yield;
   // Bodenwert
   const lv = g.fields.landValue;
   const { park, police, health, edu, garbage, transit, lvBonus } = g.cov;
@@ -381,8 +390,10 @@ export function happinessFactors(g, b, out, ctx) {
 
 // Glück aller Zonengebäude. Mit `part` (0 oder 1) nur die Hälfte mit passender ID-Parität – der Kern ruft das
 // stündlich abwechselnd auf (halbe Rechenzeit); die Glättung ist so gewählt, dass sie zwei Stundenschritten entspricht.
-export function computeHappiness(g, part) {
-  let sum = 0, w = 0;
+export function computeHappiness(g, part) { for (const _ of computeHappinessSteps(g, part)) { /* alles sofort */ } }
+// In Schritten (yield nach je 1000 Gebäuden) für die Zeitscheiben der Simulation (game.js); Ergebnis wie am Stück
+export function* computeHappinessSteps(g, part) {
+  let sum = 0, w = 0, n = 0;
   const ctx = happyCtx(g);
   const unemp = g.stats.unemployment;
   const half = part === 0 || part === 1;
@@ -390,6 +401,7 @@ export function computeHappiness(g, part) {
   const bigCity = g.stats.pop > 1500 ? 0.06 : 0, garb = g.stats.pop > 300;
   const W = g.W, police = g.cov.police, garbage = g.cov.garbage;
   for (const b of g.buildings.values()) {
+    if (++n % 1000 === 0) yield;
     if (!b.zone || b.construct < 1) continue;
     if (!half || (b.id & 1) === part) {
       const i = b.y * W + b.x;

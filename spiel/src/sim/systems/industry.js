@@ -352,7 +352,9 @@ function chamfer(D, W, H) {
   }
 }
 
-function tick(g, st) {
+function tick(g, st) { for (const _ of tickSteps(g, st)) { /* alles sofort */ } }
+// In Schritten (yield = hier darf ein Bild dazwischen, siehe game.js sliceMs); ohne Eingriff Ergebnis wie am Stück
+function* tickSteps(g, st) {
   const s = g.stats;
   const cyc = st.cycle.value;
   const logEff = logFactor(budgetOf(g, 'industry')) * st.perm.proc;
@@ -367,7 +369,9 @@ function tick(g, st) {
   const seasonMul = seasonFactor(g);
 
   // --- 1) Gebäude einsammeln
+  let nb = 0;
   for (const b of g.buildings.values()) {
+    if (++nb % 1500 === 0) yield;
     const ok = b.construct >= 1 && !b.abandoned;
     if (b.zone) {
       // Steuern für Konjunktur und Dichte-Zuschläge
@@ -512,6 +516,7 @@ function tick(g, st) {
     P.goods.prod += f.r.out;
   }
 
+  yield;
   // --- 4) Läden: Konsumgüter und Lebensmittel
   let needSum = 0;
   for (const sh of shops) needSum += sh.r.need;
@@ -732,6 +737,7 @@ function tick(g, st) {
   a.export += exportRev * DT; a.local += localRev * DT; a.rawbuy += rawBuy * DT; a.market += marketRev * DT;
   a.exportT += E * DT; a.importT += I * DT; a.unsoldT += t.unsoldT * DT; a.hours++;
 
+  yield;
   // --- 8) Lieferverkehr planen
   buildTruckPlan(g, st, { raws, facs, shops, procs, W, cargos, P, iT, iR, iH, eT, eR, eH });
 }
@@ -1175,11 +1181,13 @@ registerSystem({
     }
     if (st.truckAcc > 4) st.truckAcc = 4;
   },
-  hourly(g, h) {
+  hourly(g, h) { for (const _ of this.hourlySteps(g, h)) { /* alles sofort */ } },
+  // Stundenarbeit in Abschnitten (game.js _sysGen): in der Megastadt sonst bis 25 ms am Stück
+  *hourlySteps(g, h) {
     const st = g.ext.industry;
     applyBudgetMods(g);
     if (h === 0) closeDay(st);
-    tick(g, st);
+    yield* tickSteps(g, st);
     // Der Lieferverkehr dieses Systems ersetzt den pauschalen Lkw-Anteil des Kerns.
     // Kern-Schnittstelle (Q4): pauschalen Lkw-Anteil abschalten, solange der eigene Lieferplan fährt
     if (g.traffic) g.traffic.freightShare = st.plan && st.plan.total > 0 ? 0 : 0.28;
