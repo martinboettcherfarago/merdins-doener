@@ -696,13 +696,15 @@ export class Engine {
       const prevRT = r.getRenderTarget();
       if (this.post) { if (!this.post.sceneRT) this.post.allocate(); r.setRenderTarget(this.post.sceneRT); }
       else r.setRenderTarget(null);
-      if (r.compileAsync) {
+      // (ohne die Erweiterung würde compileAsync nur warnen und doch synchron übersetzen)
+      let par = false; try { par = !!(r.compileAsync && r.extensions.has('KHR_parallel_shader_compile')); } catch (e) { par = false; }
+      if (par) {
         // parallel übersetzen lassen (KHR_parallel_shader_compile); hinter dem Ladebildschirm wird darauf gewartet
         const jobs = [r.compileAsync(tmp, this.camera, this.scene)];
         if (full) jobs.push(r.compileAsync(this.scene, this.camera));
         const wait = Promise.all(jobs).then(() => { if (this._pcWait === wait) this._pcWait = null; }, () => { if (this._pcWait === wait) this._pcWait = null; });
         this._pcWait = wait;
-      } else r.compile(tmp, this.camera, this.scene);
+      } else { r.compile(tmp, this.camera, this.scene); if (full) r.compile(this.scene, this.camera); }
       r.setRenderTarget(prevRT);
       this._pcNew = r.info.programs.length - before;
       geo.dispose();
