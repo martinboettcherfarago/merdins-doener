@@ -10,6 +10,7 @@ import { runGallery } from './render/gallery.js';
 import { hideLoader, holdLoader, releaseLoader, loaderVisible, setLoader } from './ui/loading.js';
 import { applyDayLength } from './ui/settings.js';
 import { registerIcon } from './registry.js';
+import { startProtoWorker } from './render/protoworker.js';
 import './sim/systems/index.js';
 import './render/views/index.js';
 import './ui/panels/index.js';
@@ -368,10 +369,15 @@ function boot(hotData) {
   requestAnimationFrame((t) => { app.last = t; app.frame(t); });
 }
 
-// Artifact-Viewer: Spielstand bei Updates behalten
-const hot = typeof window !== 'undefined' && window.claude && window.claude.hot;
-if (hot && hot.snapshot) {
-  try { hot.snapshot(() => (app.game ? { save: app.game.serialize() } : {})); } catch (e) { /* optional */ }
+// Als Bau-Worker gestartet (render/protoworker.js lädt dasselbe Bündel)? Dann nur Gebäude-Prototypen bauen.
+const inWorker = typeof document === 'undefined' && typeof self !== 'undefined' && typeof self.postMessage === 'function' && typeof importScripts === 'function';
+if (inWorker) startProtoWorker();
+else {
+  // Artifact-Viewer: Spielstand bei Updates behalten
+  const hot = typeof window !== 'undefined' && window.claude && window.claude.hot;
+  if (hot && hot.snapshot) {
+    try { hot.snapshot(() => (app.game ? { save: app.game.serialize() } : {})); } catch (e) { /* optional */ }
+  }
+  if (hot && hot.ready) hot.ready(boot);
+  else boot(hot && hot.data ? hot.data : {});
 }
-if (hot && hot.ready) hot.ready(boot);
-else boot(hot && hot.data ? hot.data : {});

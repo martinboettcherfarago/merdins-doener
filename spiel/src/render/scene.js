@@ -20,6 +20,7 @@
 import * as THREE from 'three';
 import { shared, atmo } from './materials.js';
 import { getPeopleMaterial, getPeopleDepthMaterial } from './vehicles_people.js';
+import { getVehicleMaterial } from './vehicles_kit.js';
 import { CameraRig } from './camera.js';
 import { SkySystem } from './sky.js';
 import { PostFX, postSupported } from './post.js';
@@ -32,7 +33,7 @@ import { UndergroundView } from './underground.js';
 import { EffectsView } from './effects.js';
 import { VIEWS } from '../registry.js';
 import { detectDevice, AutoGovernor } from './autoquality.js';
-import { g9Materials, g9DepthMaterial, g9Uses, g9UsesVersion } from './protos.js';
+import { g9Materials, g9DepthMaterial, g9Uses, g9UsesVersion, g9InstVariants } from './protos.js';
 
 // lod: Faktor der Detailabstände der Gebäude (buildings.js)
 export const QUALITY = {
@@ -658,6 +659,9 @@ export class Engine {
         if (u.inst && !doneI.has(mat)) { doneI.add(mat); add(mat, true); }
         if (u.batch && !doneB.has(mat)) { doneB.add(mat); add(mat, false); }
       }
+      // hinter dem Ladebildschirm auch die Nahstufen-Varianten aller Baustoffe der Stadt (sonst übersetzt das erste
+      // Heranzoomen ein Programm nach dem anderen)
+      if (full) for (const mat of g9InstVariants()) if (!doneI.has(mat)) { doneI.add(mat); add(mat, true); }
       const fm = this.roads && this.roads.fadeMats;
       if (fm) for (const m of Object.values(fm)) { add(m, true); add(m, true, true); }
       const veg = this.terrain && this.terrain.veg;
@@ -679,13 +683,17 @@ export class Engine {
         };
         const geo2 = geo.clone();
         // Schattenprogramm hängt auch an der Seite des Farbmaterials (vorn/hinten/beidseitig): je Seite ein Probe-Mesh
+        // (Instanz- und Bündelvarianten haben eigene Farb- und Tiefenmaterialien, siehe protos.js g9Material)
+        // (Programme sind je Schlüssel geteilt: ein Probe-Mesh mit irgendeiner Variante übersetzt sie für alle)
         const bySide = new Map();
         if (base) for (const { mat } of g9Materials()) if (!bySide.has(mat.side)) bySide.set(mat.side, mat);
-        for (const mat of bySide.values()) for (const anim of [false, true]) { pm(mat, g9DepthMaterial(anim), true); pm(mat, g9DepthMaterial(anim), false); }
+        for (const mat of bySide.values()) for (const anim of [false, true]) { pm(mat, g9DepthMaterial(anim, true), true); pm(mat, g9DepthMaterial(anim, false), false); }
         if (veg && veg.depthMats && veg.lodMats) {
           for (const k of ['solid', 'bare', 'blade']) {
             const dm = k === 'bare' ? veg.depthMats.bare : veg.depthMats.solid;
-            pm(veg.mats[k], dm, true, true); pm(veg.lodMats[0][k], dm, true, true); pm(veg.lodMats[1][k], dm, true, true);
+            // fernes Mesh (alle Pflanzen) mit eigener Schattenblende, siehe vegetation.js depthFor
+            const df = (k === 'bare' ? veg.depthMats.bareFar : veg.depthMats.solidFar) || dm;
+            pm(veg.lodMats[0][k], dm, true, true); pm(veg.mats[k], df, true, true); pm(veg.lodMats[1][k], df, true, true);
           }
         }
         if (this.roads && this.roads.fadeDepth) { pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true); pm(this.roads.fadeMats.detail, this.roads.fadeDepth, true, true); }
@@ -702,13 +710,28 @@ export class Engine {
       else r.setRenderTarget(null);
       // (ohne die Erweiterung würde compileAsync nur warnen und doch synchron übersetzen)
       let par = false; try { par = !!(r.compileAsync && r.extensions.has('KHR_parallel_shader_compile')); } catch (e) { par = false; }
+      // Untergrund-Ansicht (eigene Szene mit eigenem Licht): beim ersten Umschalten sonst ~6 Programme auf einmal
+      const ug = full && this.underground && this.underground.scene ? this.underground : null;
+      let ugTmp = null;
+      if (ug) {
+        ugTmp = new THREE.Scene();
+        const vm = new THREE.InstancedMesh(geo, ug.fleetMat || ug.mat || getVehicleMaterial(), 1);
+        vm.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3), 3);
+        vm.castShadow = vm.receiveShadow = true;
+        ugTmp.add(vm);
+      }
       if (par) {
         // parallel übersetzen lassen (KHR_parallel_shader_compile); hinter dem Ladebildschirm wird darauf gewartet
         const jobs = [r.compileAsync(tmp, this.camera, this.scene)];
         if (full) jobs.push(r.compileAsync(this.scene, this.camera));
+        if (ug) { jobs.push(r.compileAsync(ug.scene, this.camera)); jobs.push(r.compileAsync(ugTmp, this.camera, ug.scene)); if (ug.veilScene && ug.veilCam) jobs.push(r.compileAsync(ug.veilScene, ug.veilCam)); }
         const wait = Promise.all(jobs).then(() => { if (this._pcWait === wait) this._pcWait = null; }, () => { if (this._pcWait === wait) this._pcWait = null; });
         this._pcWait = wait;
-      } else { r.compile(tmp, this.camera, this.scene); if (full) r.compile(this.scene, this.camera); }
+      } else {
+        r.compile(tmp, this.camera, this.scene);
+        if (full) r.compile(this.scene, this.camera);
+        if (ug) { r.compile(ug.scene, this.camera); r.compile(ugTmp, this.camera, ug.scene); if (ug.veilScene && ug.veilCam) r.compile(ug.veilScene, ug.veilCam); }
+      }
       r.setRenderTarget(prevRT);
       this._pcNew = r.info.programs.length - before;
       geo.dispose();
@@ -729,6 +752,61 @@ export class Engine {
     this._pcCount = n;
     const ms = this.precompile(false);
     this._pcT = now + (ms > 25 ? 8000 : 1500);
+  }
+
+  // Shader neuer Materialien rechtzeitig übersetzen, bevor ein Mesh sie zum ersten Mal zeichnet (Nahstufen der Gebäude,
+  // die beim Heranzoomen erscheinen). Übersetzen und Binden laufen im Grafikprozess bzw. -treiber nebenher; erst die
+  // erste Verwendung wartet darauf. Deshalb: sofort übersetzen lassen und das Mesh erst zeigen, wenn das Programm fertig
+  // ist (mit KHR_parallel_shader_compile abgefragt, sonst nach einer kurzen Wartezeit). true = Materialien bereit.
+  // inst: für InstancedMesh (Nahstufen) bzw. normale Meshes
+  ensureCompiled(mats, inst = true) {
+    const P = this.renderer.properties;
+    const Q = this._compQ || (this._compQ = new Map()); // Material → { t (ms), inst } in Arbeit
+    let ok = true;
+    for (const m of mats) {
+      if (!m) continue;
+      const prog = P.get(m).currentProgram;
+      const q = Q.get(m);
+      if (prog && !q) continue;
+      if (q && q.t > 0) {
+        // übersetzt: fertig, wenn der Treiber es meldet (Erweiterung) bzw. nach der Wartezeit
+        const ready = this._parCompile ? prog && prog.isReady() : performance.now() - q.t > COMPILE_WAIT;
+        if (ready) { Q.delete(m); continue; }
+      }
+      if (!q) Q.set(m, { t: 0, inst });
+      ok = false;
+    }
+    return ok;
+  }
+  // Vorgemerkte Materialien übersetzen (vor dem Zeichnen eines Bildes; ohne Erweiterung höchstens zwei je Bild)
+  compileFrame() {
+    const Q = this._compQ;
+    if (!Q || !Q.size) return;
+    const r = this.renderer;
+    if (this._parCompile === undefined) { try { this._parCompile = !!r.extensions.has('KHR_parallel_shader_compile'); } catch (e) { this._parCompile = false; } }
+    const todo = [];
+    for (const [m, q] of Q) if (q.t === 0) { todo.push([m, q]); if (!this._parCompile && todo.length >= 2) break; }
+    if (!todo.length) return;
+    try {
+      const tmp = new THREE.Scene();
+      const geo = this._compGeo || (this._compGeo = new THREE.BufferGeometry());
+      if (!geo.attributes.position) {
+        geo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0], 3));
+        geo.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 2));
+      }
+      for (const [m, q] of todo) {
+        const o = q.inst ? new THREE.InstancedMesh(geo, m, 1) : new THREE.Mesh(geo, m);
+        o.castShadow = o.receiveShadow = true;
+        tmp.add(o);
+      }
+      const prevRT = r.getRenderTarget();
+      if (this.post) { if (!this.post.sceneRT) this.post.allocate(); r.setRenderTarget(this.post.sceneRT); } else r.setRenderTarget(null);
+      r.compile(tmp, this.camera, this.scene);
+      r.setRenderTarget(prevRT);
+    } catch (e) { console.warn('Cityscapes: Shader vorab übersetzen fehlgeschlagen', e); }
+    const t = performance.now();
+    for (const [, q] of todo) q.t = t;
   }
 
   frame(dt, simDt) {
@@ -794,6 +872,8 @@ export class Engine {
     }
 
     const r = this.renderer;
+    // neue Materialien (Nahstufen) vor ihrem ersten Gebrauch übersetzen lassen (siehe ensureCompiled)
+    this.compileFrame();
     // Während des Aufbaus hinter dem Ladebildschirm nicht zeichnen (Zeit gehört dem Aufbau; der Schirm deckt alles ab)
     if (this.warming && this.buildings.initial) return;
     // Messbild der Regelung „Automatisch" (etwa jede Sekunde): auf die GPU warten, dann Zeichnen + GPU-Zeit messen
@@ -830,6 +910,8 @@ export class Engine {
   }
 }
 
+// Wartezeit nach dem Übersetzen eines Shaders, bevor ein Mesh ihn benutzt (ohne KHR_parallel_shader_compile; ms)
+const COMPILE_WAIT = 250;
 const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1], [0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]];
 const _up = new THREE.Vector3(0, 1, 0);
 const _u = new THREE.Vector3(), _v = new THREE.Vector3(), _p = new THREE.Vector3(), _p2 = new THREE.Vector3(), _p3 = new THREE.Vector3();

@@ -28,9 +28,12 @@ const smooth = (x) => x * x * (3 - 2 * x);
 
 // Material für alles unter der Erde: Fahrzeug-Shader, aber Fenster und Lampen immer an, ohne Nebel, ausblendbar
 const UGU = { uNight: { value: 1 }, uLights: { value: 1 } };
-let _ugMat = null;
-function ugMaterial() {
-  if (_ugMat) return _ugMat;
+// inst: eigenes Material für die instanzierten Züge (dasselbe Material an Mesh und InstancedMesh ließe three.js bei
+// jedem Wechsel das Programm neu wählen)
+const _ugMat = {};
+function ugMaterial(inst = false) {
+  const slot = inst ? 'i' : 'm';
+  if (_ugMat[slot]) return _ugMat[slot];
   const base = getVehicleMaterial();
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05, transparent: true, opacity: 1, fog: false });
   m.onBeforeCompile = (sh, r) => {
@@ -39,7 +42,7 @@ function ugMaterial() {
     sh.uniforms.uLights = UGU.uLights;
   };
   m.customProgramCacheKey = () => 'vehPartsUG1';
-  _ugMat = m;
+  _ugMat[slot] = m;
   return m;
 }
 
@@ -111,7 +114,8 @@ export class UndergroundView {
     this.scene.add(this.net);
     this.fleet = new Fleet(engine, { near: 13, mid: 60 });
     this.fleet.parent = this.scene;
-    this.fleet.mat = this.mat;
+    this.fleetMat = ugMaterial(true);
+    this.fleet.mat = this.fleetMat;
     this.glow = new GlowPoints(this.scene, 3000);
     // Schleier über der Oberwelt
     this.veilScene = new THREE.Scene();
@@ -462,6 +466,7 @@ void main() {
     const k = smooth(Math.max(0, Math.min(1, this.k)));
     this.kv = k;
     this.mat.opacity = k;
+    this.fleetMat.opacity = k;
     this.glassMat.opacity = k;
     this.veilMat.uniforms.uK.value = k;
     const dist = this.e.rig && this.e.rig.cur ? this.e.rig.cur.dist : 30;
