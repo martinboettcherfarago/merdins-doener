@@ -178,10 +178,11 @@ export class AutoGovernor {
   // bei ruhender Kamera (ein ausgelassenes Bild fällt dann nicht auf).
   wantProbe(now, calm = true) {
     if (this.fixed || now - (this.startT || now) < 2000) return false;
+    if ((this.sinceProbe || 0) < 6) return false; // zwischen zwei Messbildern mindestens sechs normale Bilder
     const busy = this.lastMean > 20.5 || (this.last && !this.last.checked) || now - (this.settleUntil || 0) < 8000;
     const every = busy ? 1000 : 4000;
     if (now - this.probeT < (calm ? every : every * 3)) return false;
-    this.probeT = now;
+    this.probeT = now; this.sinceProbe = 0;
     return true;
   }
   // Messwert eines Messbilds; gewertet wird der Median der letzten drei (seit dem letzten Stufenwechsel)
@@ -195,6 +196,7 @@ export class AutoGovernor {
     // Fehlmessungen: Pausen, Ladeunterbrechungen, gedrosselte Bilder, Messbilder, die ersten Sekunden nach dem Start
     const dbg = this.dbg || (this.dbg = { n: 0, skip: 0, long: 0, used: 0, lastMs: 0 });
     dbg.n++; dbg.lastMs = Math.round(ms);
+    this.sinceProbe = (this.sinceProbe || 0) + 1;
     if (ctx.skip) { dbg.skip++; return false; }
     if (!(ms > 0) || ms > (this.maxMs || 250)) { dbg.long++; return false; }
     if (now - this.startT < 2500 || now < (this.settleUntil || 0)) return false;

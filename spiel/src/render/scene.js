@@ -812,7 +812,7 @@ export class Engine {
     if (probe) {
       try { gl.finish(); } catch (e) { /* egal */ }
       this.gov.probe(performance.now() - pt0);
-      this._probeSkip = 2; // Abstand des Messbilds und des nächsten nicht als Bildrate werten
+      this._probeSkip = 1; // den Abstand, der das Messbild enthält, nicht als Bildrate werten
     }
     // Probe-Meshes für Schattenprogramme nach ihren Bildern wieder entfernen
     const pr = this._pcProbe;
