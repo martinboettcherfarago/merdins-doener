@@ -2177,7 +2177,9 @@ export class BuildingView {
     const cam = this.e.camera;
     cam.updateMatrixWorld();
     const vp = this._m3.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse).elements.slice();
-    this._scan = { list, pos: 0, arr: [], ring: [], goal: g ? g.clone() : null, t2, t1, view, viewKeep, viewReal, gview, vp, now: this.e.time || 0 };
+    this._scan = { list, pos: 0, arr: [], ring: [], goal: g ? g.clone() : null, t2, t1, view, viewKeep, viewReal, gview, vp, now: this.e.time || 0, calm: !g && !!(this.e.cameraCalm && this.e.cameraCalm()) };
+    if (this._scan.calm && !this._wasCalm) this._calmSince = this._scan.now;
+    this._wasCalm = this._scan.calm;
   }
   // n Datensätze weiterzählen; true, wenn die Runde fertig ist
   _lodScan(n) {
@@ -2204,7 +2206,9 @@ export class BuildingView {
       // den Schirm (sonst kurz hinauf und gleich wieder hinunter am Bildrand)
       if (S.gview && want > Math.max(0, cur) && !this._inView(S.gview, rec)) want = Math.max(0, cur);
       // Gerade wegen der Obergrenzen abgewertet: so bald nicht wieder hinauf (kein Hin und Her, z. B. beim Drehen)
-      if (vis && rec.swCap && S.now - (rec.swT ?? -1e9) < DWELL && want > cur) want = Math.max(0, cur);
+      // (Abwertungen aus der Fahrt gelten nicht mehr, sobald die Kamera ruht – das Bild ändert sich dann nicht mehr, sonst
+      // stünde das volle Detail erst nach DWELL; Abwertungen bei ruhender Kamera behalten die Sperre)
+      if (vis && rec.swCap && !(S.calm && (rec.swT ?? -1e9) < this._calmSince) && S.now - (rec.swT ?? -1e9) < DWELL && want > cur) want = Math.max(0, cur);
       rec.wantD = want; // Wunsch nach Abstand und Sicht, vor den Obergrenzen
       rec.capDown = false;
       rec.want = want;

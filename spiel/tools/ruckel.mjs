@@ -225,18 +225,20 @@ export default async function ruckel(page, h) {
         const L = R.swLog || (R.swLog = new Map()); const l = L.get(rec.id) || []; if (l.length < 24) l.push(`${R.n}:${b0}>${rec.shown}${rec.vis === false ? "u" : ""}@${(rec.dist || 0).toFixed(1)}[${rec.sk < 1e3 ? 'r' : rec.sk < 1e4 ? 'm' : 'x'}${rec.locked ? 'L' : ''}${rec.capDown ? 'c' : ''}${rec.wantD}]`); L.set(rec.id, l);
         if (R.cur) { R.cur.sw = (R.cur.sw || 0) + 1; if (rec.shown < b0) R.cur.swDown = (R.cur.swDown || 0) + 1; }
         // Flackern: sichtbarer Wechsel, der den vorigen (ebenfalls sichtbaren) Wechsel desselben Gebäudes binnen einer
-        // Sekunde (60 Bilder) umkehrt, und zwar gegen den Abstand – nur wegen Obergrenzen/Sicht abgewertet (wantD ≥ alte
+        // Sekunde (60 Bilder, bei gleichem Kamerazustand) umkehrt, und zwar gegen den Abstand – nur wegen Obergrenzen/Sicht abgewertet (wantD ≥ alte
         // Stufe) bzw. nach einer solchen Abwertung gleich wieder hinauf. Wechsel, die der Abstand verlangt (Kamera kreist
         // schnell um einen Punkt), zählen nicht. Sichtbar = Kugel des Gebäudes im echten Bildkegel der Kamera.
         const seen = R.inCam(R.camPlanes(), rec);
         const P = R.swPrev || (R.swPrev = new Map()), dir = rec.shown > b0 ? 1 : -1, pv = P.get(rec.id);
         const txt = `${R.n}:${b0}>${rec.shown}@${(rec.dist || 0).toFixed(1)}[${rec.sk < 1e3 ? 'r' : rec.sk < 1e4 ? 'm' : 'x'}${rec.locked ? 'L' : ''}${rec.capDown ? 'c' : ''}${rec.wantD}]`;
         const capDriven = dir < 0 && R.distLevel(rec, b0) >= b0;
-        if (pv && pv.dir !== dir && pv.seen && seen && R.n - pv.n < 60 && R.cur && (dir < 0 ? capDriven : pv.capDriven)) {
+        // (ein Wechsel während der Fahrt und einer nach dem Anhalten sind Einschwingen, kein Flackern)
+        const calm = !!(en.cameraCalm && en.cameraCalm());
+        if (pv && pv.dir !== dir && pv.seen && seen && pv.calm === calm && R.n - pv.n < 60 && R.cur && (dir < 0 ? capDriven : pv.capDriven)) {
           R.cur.flip = (R.cur.flip || 0) + 1;
           const FL = R.flipLog || (R.flipLog = []); if (FL.length < 8) FL.push(`${rec.id}: ${pv.txt} → ${txt}`);
         }
-        P.set(rec.id, { n: R.n, dir, seen, txt, capDriven });
+        P.set(rec.id, { n: R.n, dir, seen, txt, capDriven, calm });
       }
       return res;
     };
