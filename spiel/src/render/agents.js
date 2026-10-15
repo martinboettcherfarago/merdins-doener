@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { TRANSIT, T, R } from '../config.js';
 import { VT } from '../sim/traffic.js';
 import { MODELS, vehicleGeometry, carPaint, carType } from './vehicles_models.js';
-import { VKit, P, F, VU, Batch, GlowPoints, getVehicleMaterial, hashf, lin } from './vehicles_kit.js';
+import { VKit, P, F, VU, Batch, GlowPoints, getVehicleMaterial, hashf, lin, uploadUsed } from './vehicles_kit.js';
 import { buildArch } from './arch/index.js';
 import { getMaterial } from './matlib.js';
 
@@ -35,6 +35,10 @@ export class Fleet {
     const key = id + '|' + lod;
     let b = this.batches.get(key);
     if (!b) {
+      // Neue Nahmodelle (Geometrie bauen, Puffer anlegen) höchstens zwei je Bild – beim ersten Heranzoomen kämen sonst
+      // alle Fahrzeugarten im selben Bild; bis dahin zeigt die vorhandene Mittelstufe das Fahrzeug
+      if (lod === 2 && this.fresh >= 2) { const alt = this.batches.get(id + '|1'); if (alt) return alt; }
+      this.fresh = (this.fresh || 0) + 1;
       const src = vehicleGeometry(id, lod === 0 ? 2 : lod);
       if (!src) return null;
       const geo = src.clone();
@@ -52,6 +56,7 @@ export class Fleet {
     this.cam.setFromMatrixPosition(cam.matrixWorld);
     this.pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.pm);
+    this.fresh = 0;
     for (const b of this.list) b.begin();
   }
   // Gibt den quadrierten Kameraabstand zurück oder -1 (außerhalb des Bildes)
@@ -841,11 +846,15 @@ export class TransitView {
       this.rings.delete(id);
     }
     for (const k of [1, 2, 3, 4]) {
-      this.paxMesh[k].count = Math.min(counts[k], 1200);
-      this.paxMesh[k].instanceMatrix.needsUpdate = true;
+      // nur den benutzten Teil hochladen (1200 Plätze je Form, meist fast leer)
+      const pm = this.paxMesh[k], n = Math.min(counts[k], 1200);
+      pm.count = n;
+      uploadUsed(pm.instanceMatrix, n);
       const im = this.iconMesh[k];
       if (!im) continue;
-      for (const m of [im.face, im.rim]) { m.count = Math.min(ic[k], this.iconCap); m.instanceMatrix.needsUpdate = true; }
+      const c = Math.min(ic[k], this.iconCap);
+      im.face.count = c; uploadUsed(im.face.instanceMatrix, c);
+      im.rim.count = c; uploadUsed(im.rim.instanceMatrix, c);
     }
   }
 

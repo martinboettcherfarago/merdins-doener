@@ -156,7 +156,9 @@ export class RoadView {
   }
 
   // ------------------------------------------------------------ Öffentlich
-  rebuild() {
+  // soft: Anlass kommt nicht vom Spieler (Ampelautomatik, Haltestellen, Zonen) – geänderte Blöcke dann über einige
+  // Bilder verteilt neu bauen (tick, Zeitbudget) statt alle in einem Bild (Megastadt: bis 250 ms am Stück)
+  rebuild(soft = false) {
     const t0 = performance.now();
     const g = this.g, W = g.W, H = g.H, N = g.N;
     for (let i = 0; i < N; i++) this.mask[i] = g.road[i] ? roadMask(g, i) : 0;
@@ -172,9 +174,46 @@ export class RoadView {
       }
     }
     if (this.first) { for (let k = 0; k < this.chunks.length; k++) dirty.add(k); this.first = false; }
+    if (soft && dirty.size) {
+      const P = this.pendingChunks || (this.pendingChunks = new Set());
+      for (const k of dirty) P.add(k);
+      this.buildStats = { chunks: dirty.size, ms: Math.round(performance.now() - t0), queued: P.size };
+      return;
+    }
+    if (this.pendingChunks) { for (const k of this.pendingChunks) dirty.add(k); this.pendingChunks.clear(); }
+    if (this._chunkJob) { for (const _ of this._chunkJob) { /* fertig bauen */ } this._chunkJob = null; }
     for (const k of dirty) this.buildChunk(k);
     this.props.flush();
-    if (dirty.size) {
+    if (dirty.size) this.afterChunks();
+    this.buildStats = { chunks: dirty.size, ms: Math.round(performance.now() - t0) };
+    void H;
+  }
+  // Vorgemerkte Blöcke im Zeitbudget bauen – auch ein einzelner Block in Schritten (bis 120 ms am Stück in der
+  // Megastadt); die alte Fassung bleibt sichtbar, bis die neue fertig ist. Danach Lampen/Ampeln neu sammeln.
+  // Die Kleinteile (Lampen, Ampeln, Bäume …) danach ebenfalls in Scheiben: je Art werden alle Instanzen der Stadt neu
+  // gesetzt (Megastadt: Tausende).
+  buildPending(budget = 4) {
+    const P = this.pendingChunks, props = this.props;
+    if (!this._chunkJob && (!P || !P.size) && !props.pending.size) return;
+    const t0 = performance.now();
+    let done = 0;
+    while (performance.now() - t0 < budget) {
+      if (!this._chunkJob) {
+        if (!P || !P.size) break;
+        const k = P.values().next().value;
+        P.delete(k);
+        this._chunkJob = this.buildChunkSteps(k);
+      }
+      let r;
+      try { r = this._chunkJob.next(); } catch (e) { console.warn('Straßenblock', e); r = { done: true }; }
+      if (r.done) { this._chunkJob = null; done++; }
+    }
+    if (this._chunkJob || (P && P.size)) return;
+    if (done) this.afterChunks();
+    if (props.pending.size) props.flushSome(Math.max(1, budget - (performance.now() - t0)));
+  }
+  afterChunks() {
+    {
       this.lampPositions = [...this.viaductLamps];
       this.signalList = [...(this.viaductSignals || [])];
       for (const c of this.chunks) {
@@ -184,8 +223,6 @@ export class RoadView {
       }
       if (this.tintOn) this.setTrafficTint(true);
     }
-    this.buildStats = { chunks: dirty.size, ms: Math.round(performance.now() - t0) };
-    void H;
   }
 
   setTrafficTint(on) {
@@ -231,8 +268,9 @@ export class RoadView {
       if (ss !== this.stopSig) { this.stopSig = ss; this.softDirty = true; }
       const sk = g.ext && g.ext.transport && g.ext.transport._sigKey;
       if (sk !== undefined && sk !== this.sigKey) { this.sigKey = sk; this.softDirty = true; }
-      if (this.softDirty) { this.softDirty = false; this.rebuild(); }
+      if (this.softDirty) { this.softDirty = false; this.rebuild(true); }
     }
+    this.buildPending();
     this.signalGlow();
   }
 
@@ -335,10 +373,9 @@ export class RoadView {
     const deg = (m & 1) + ((m >> 1) & 1) + ((m >> 2) & 1) + ((m >> 3) & 1);
     if (deg < 3) return J_NONE;
     let maxT = g.road[i], minT = g.road[i];
-    const nbs = [i - W, i + 1, i + W, i - 1];
     for (let d = 0; d < 4; d++) {
       if (!(m & (1 << d))) continue;
-      const t = (d === 3 && i % W === 0) ? R.HIGHWAY : g.road[nbs[d]];
+      const t = (d === 3 && i % W === 0) ? R.HIGHWAY : g.road[d === 0 ? i - W : d === 1 ? i + 1 : d === 2 ? i + W : i - 1];
       if (t > maxT) maxT = t;
       if (t < minT) minT = t;
     }
@@ -376,9 +413,8 @@ export class RoadView {
     const VW = W + 1, cy = this.cornerY;
     const cbits = (cy[y * VW + x] > Y_ROAD ? 1 : 0) | (cy[y * VW + x + 1] > Y_ROAD ? 2 : 0) | (cy[(y + 1) * VW + x] > Y_ROAD ? 4 : 0) | (cy[(y + 1) * VW + x + 1] > Y_ROAD ? 8 : 0);
     h = Math.imul(h ^ (cbits << 16), 16777619);
-    const nbs = [y > 0 ? i - W : -1, x < W - 1 ? i + 1 : -1, y < g.H - 1 ? i + W : -1, x > 0 ? i - 1 : -1];
     for (let d = 0; d < 4; d++) {
-      const j = nbs[d];
+      const j = d === 0 ? (y > 0 ? i - W : -1) : d === 1 ? (x < W - 1 ? i + 1 : -1) : d === 2 ? (y < g.H - 1 ? i + W : -1) : (x > 0 ? i - 1 : -1);
       let v = 0;
       if (j >= 0) v = g.road[j] | (this.mask[j] << 3) | (g.world.terrain[j] << 7) | (this.jclass[j] << 9) | (g.zone[j] << 12);
       h = Math.imul(h ^ (v + d * 131071), 16777619);
@@ -390,21 +426,24 @@ export class RoadView {
   }
 
   // ------------------------------------------------------------ Blöcke
-  buildChunk(k) {
+  buildChunk(k) { for (const _ of this.buildChunkSteps(k)) { /* alles sofort */ } }
+  // Block als Folge von Schritten (yield nach je 48 Straßenfeldern); die alten Meshes werden erst am Ende getauscht
+  *buildChunkSteps(k) {
     const g = this.g, W = g.W;
     const cx = k % this.nCx, cy = (k / this.nCx) | 0;
-    const old = this.chunks[k];
-    if (old) { for (const m of old.meshes) { this.group.remove(m); m.geometry.dispose(); } }
-    this.chunks[k] = null;
     const ctx = this.newCtx();
     const x0 = cx * CHUNK, y0 = cy * CHUNK, x1 = Math.min(g.W, x0 + CHUNK), y1 = Math.min(g.H, y0 + CHUNK);
-    let any = false;
+    let any = false, n = 0;
     for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
       const i = y * W + x;
       if (!g.road[i]) continue;
       any = true;
       try { this.buildTile(ctx, this.describe(i)); } catch (e) { console.warn('Straßenfeld', i, e); }
+      if (++n % 48 === 0) yield;
     }
+    const old = this.chunks[k];
+    if (old) { for (const m of old.meshes) { this.group.remove(m); m.geometry.dispose(); } }
+    this.chunks[k] = null;
     if (!any) { this.props.setChunk(k, null); this.benchChunks.delete(k); return; }
     this.chunks[k] = this.finishCtx(ctx);
     if (ctx.benches.length || ctx.racks.length) this.benchChunks.set(k, { bench: ctx.benches, rack: ctx.racks }); else this.benchChunks.delete(k);
@@ -437,6 +476,8 @@ export class RoadView {
     const inst = (geo, shadow) => {
       const m = new THREE.InstancedMesh(geo, M.solid, 1);
       m.setMatrixAt(0, new THREE.Matrix4());
+      // weiße Instanzfarbe wie bei den Kleinteilen (streetprops.js): ein Programm je Material statt zwei im Wechsel
+      m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array([1, 1, 1]), 3);
       m.instanceMatrix.needsUpdate = true;
       m.castShadow = shadow; m.receiveShadow = true;
       m.computeBoundingSphere();

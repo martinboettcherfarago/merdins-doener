@@ -615,9 +615,10 @@ export class Batch {
     m.count = this.n;
     m.visible = this.n > 0;
     if (this.n > 0) {
-      m.instanceMatrix.needsUpdate = true;
-      m.instanceColor.needsUpdate = true;
-      this.geo.attributes.aInst.needsUpdate = true;
+      // nur den benutzten Teil hochladen (die Puffer sind für Spitzen ausgelegt, oft ein Vielfaches größer)
+      uploadUsed(m.instanceMatrix, this.n);
+      uploadUsed(m.instanceColor, this.n);
+      uploadUsed(this.geo.attributes.aInst, this.n);
     }
   }
   dispose() {
@@ -705,15 +706,22 @@ void main() {
     this.geo.setDrawRange(0, this.n);
     this.points.visible = this.n > 0;
     if (this.n) {
-      this.geo.attributes.position.needsUpdate = true;
-      this.geo.attributes.aColor.needsUpdate = true;
-      this.geo.attributes.aSize.needsUpdate = true;
+      uploadUsed(this.geo.attributes.position, this.n);
+      uploadUsed(this.geo.attributes.aColor, this.n);
+      uploadUsed(this.geo.attributes.aSize, this.n);
     }
   }
   dispose(parent) { parent.remove(this.points); this.geo.dispose(); this.mat.dispose(); }
 }
 
 // Hilfen
+// Puffer nur für die ersten n Elemente hochladen (statt der ganzen Kapazität);
+// n = 0: nichts hochladen – ein Bereich der Länge 0 hieße für bufferSubData „bis zum Ende"
+export function uploadUsed(attr, n) {
+  if (!attr || !(n > 0)) return;
+  if (attr.addUpdateRange) { attr.clearUpdateRanges(); attr.addUpdateRange(0, n * attr.itemSize); }
+  attr.needsUpdate = true;
+}
 export function hashf(n) {
   let t = (n | 0) + 0x6d2b79f5;
   t = Math.imul(t ^ (t >>> 15), t | 1);
