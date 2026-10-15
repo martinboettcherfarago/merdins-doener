@@ -8,7 +8,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Game } from '../src/sim/game.js';
 import { BUILDINGS, R, T as TER, DAY } from '../src/config.js';
-import { computeUtilities } from '../src/sim/services.js';
+import { computeUtilities, computeCoverage } from '../src/sim/services.js';
 import * as TPS from '../src/sim/systems/transport.js';
 import { Bot, runDay, seedMathRandom } from '../test/bot.mjs';
 import { planBusCoverage, coverageReport } from './oepnv-lib.mjs';
@@ -245,6 +245,47 @@ function busCoverage() {
 }
 const covLog = () => { const r = coverageReport(g); log(`ÖPNV-Abdeckung: Bewohner ${(r.res * 100).toFixed(1)} % · Arbeitsplätze ${(r.jobs * 100).toFixed(1)} % · ohne Anschluss ${r.uncovered}/${r.total} Gebäude`); return r; };
 
+// Müllabfuhr für Randviertel: Der Bot setzt Anlagen nur nahe dem schlechtesten Gebäude; findet er dort keinen Platz,
+// bleiben ganze Viertel am Kartenrand ohne Abfuhr. Hier: den freien Platz suchen, der die meisten Unversorgten erreicht.
+function garbageFill() {
+  computeCoverage(g);
+  const W = g.W, cov = g.cov.garbage;
+  const key = g.isUnlocked('recycling') ? 'recycling' : g.isUnlocked('incinerator') ? 'incinerator' : 'landfill';
+  // Anlagen im Bau zählen noch nicht zur Abdeckung – ihr Umkreis gilt trotzdem schon als versorgt
+  const building = [...g.buildings.values()].filter((b) => !b.zone && b.construct < 1 && BUILDINGS[b.key]?.cat === 'garbage');
+  const soon = (b) => building.some((f) => Math.hypot(b.x - f.x, b.y - f.y) <= BUILDINGS[f.key].service.radius * 0.85);
+  const unc = [...g.buildings.values()].filter((b) => b.zone && !b.abandoned && b.construct >= 1 && cov[b.y * W + b.x] < 0.3 && !soon(b));
+  if (unc.length < 3) return false;
+  const R = BUILDINGS[key].service.radius * 0.85, [sx, sy] = BUILDINGS[key].size;
+  let best = null, bv = 2;
+  const seen = new Set();
+  for (const u of unc) for (let dy = -14; dy <= 14; dy += 2) for (let dx = -14; dx <= 14; dx += 2) {
+    const x = u.x + dx, y = u.y + dy, k = y * W + x;
+    if (x < 1 || y < 1 || x >= W - 2 || y >= g.H - 2 || seen.has(k)) continue;
+    seen.add(k);
+    for (const rot of [0, 1]) {
+      if (g.checkPlace(key, x, y, rot)) continue;
+      const cx = x + (rot ? sy : sx) / 2, cy = y + (rot ? sx : sy) / 2;
+      let n = 0; for (const b of unc) if (Math.hypot(b.x + 0.5 - cx, b.y + 0.5 - cy) <= R) n++;
+      if (n > bv) { bv = n; best = [x, y, rot]; }
+    }
+  }
+  if (!best || !g.placeBuilding(key, best[0], best[1], best[2]).ok) return false;
+  bot.tally(key); computeCoverage(g);
+  log(`baut ${BUILDINGS[key].name} für ${bv} Gebäude ohne Müllabfuhr (${best[0]},${best[1]})`);
+  return true;
+}
+
+// Versorgung nachziehen, wenn die Stadt nach der Hauptphase weiterwächst
+function upkeep(k) {
+  bigPower(); bigWater();
+  for (let j = 0; j < 4 && bot.garbage(); j++);
+  for (let j = 0; j < 3 && bot.gap('garbage', g.isUnlocked('recycling') ? 'recycling' : 'incinerator', 0.6, { avoid: 3, r: 10 }); j++);
+  for (let j = 0; j < 3 && garbageFill(); j++);
+  bigSewage();
+  if (k % 3 === 0) bot.services();
+}
+
 const t0 = Date.now();
 for (let d = 1; d <= days; d++) {
   bot.daily();
@@ -257,6 +298,7 @@ for (let d = 1; d <= days; d++) {
   if (d % 10 === 0 && d >= 80) metroGrid();
   for (let k = 0; k < 3 && bot.water(); k++);
   for (let k = 0; k < 4 && bot.garbage(); k++);
+  if (d % 5 === 0 && d >= 60) for (let k = 0; k < 2 && garbageFill(); k++);
   bigSewage();
   if (d % 2 === 0) for (let k = 0; k < 3 && bot.gap('garbage', g.isUnlocked('recycling') ? 'recycling' : 'incinerator', 0.6, { avoid: 3, r: 10 }); k++);
   if (d % 5 === 0 && g.milestone >= 3) landmarks();
@@ -280,10 +322,15 @@ busCoverage();
 
 // Bis in den Sommer weiterleben lassen (schöne Ansicht beim Laden), dann auf 10:30 Uhr vorspulen
 for (let k = 0; k < 120 && !(g.ext.weather && g.ext.weather.season === 'summer' && g.ext.weather.seasonT > 0.25); k++) {
-  bot.daily(); runDay(g); if (g.money < RICH / 2) g.money = RICH;
+  bot.daily(); upkeep(k); runDay(g); if (g.money < RICH / 2) g.money = RICH;
   // neu gewachsene Viertel gleich mit anbinden
   if (k % 10 === 9) busCoverage();
 }
+busCoverage();
+// Feinschliff: bis kein Viertel mehr auf Müllabfuhr, Strom oder Wasser wartet (höchstens 12 Tage)
+for (let k = 0; k < 12 && ((g.stats.garbageProb || 0) > 2 || (g.stats.unpowered || 0) > 0); k++) { upkeep(k * 3); runDay(g); if (g.money < RICH / 2) g.money = RICH; }
+log(`Müll an ${g.stats.garbageProb || 0} Gebäuden · ohne Strom ${g.stats.unpowered || 0}`);
+// was in der Zwischenzeit gewachsen ist, auch noch anbinden
 busCoverage();
 const target = Math.floor(g.time / DAY) * DAY + DAY + 10.5 * 60;
 while (g.time < target) g.update(0.1);
