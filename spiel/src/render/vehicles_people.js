@@ -23,7 +23,7 @@ export const B = {
   UARM_L: 10, UARM_R: 11, FARM_L: 12, FARM_R: 13, WING_L: 14, WING_R: 15, CRANK: 16, WHEEL_F: 17, WHEEL_R: 18, STATIC: 19,
   BIRD_HEAD: 20,
 };
-export const MODE = { WALK: 0, CYCLE: 1, SIT: 2, BIRD_FLY: 4, BIRD_GROUND: 5 };
+export const MODE = { WALK: 0, CYCLE: 1, SIT: 2, WORK: 3, BIRD_FLY: 4, BIRD_GROUND: 5 };
 export const FEAT = {
   SKIRT: 1, LONGHAIR: 2, HAT: 4, BACKPACK: 8, BAG: 16, COAT: 32, SHORTSLEEVE: 64, SHORTS: 128,
   CHILD: 256, ELDER: 512, CANE: 1024, UMBRELLA: 2048, BALD: 4096, HELMET: 8192, PONY: 16384, SCARF: 32768,
@@ -166,6 +166,12 @@ function humanNear(k) {
   k.ell([0, 0.1632, 0.0006], [0.0094, 0.0115, 0.0103], 8, 5, W, L(B.HEAD, 2), { sq: 0.86 });
   k.ell([0, 0.1603, 0.0105], [0.0013, 0.0017, 0.0015], 4, 2, W, L(B.HEAD, 2)); // Nase
   for (const s of [1, -1]) k.ell([s * 0.0093, 0.162, -0.0004], [0.0014, 0.0026, 0.0018], 4, 2, W, L(B.HEAD, 2));
+  // Augen: zwei kleine dunkle Flächen auf der Kopfvorderseite (nur Nahstufe)
+  for (const s of [1, -1]) {
+    const ex = s * 0.0034, ey = 0.1646, n = norm([ex / 0.0094, (ey - 0.1632) / 0.0115, 0.93]);
+    const ez = 0.0006 + 0.0103 * 0.93 + 0.00025, hw = 0.00075, hh = 0.00095;
+    k.quad([ex - hw, ey - hh, ez + s * 0.0002], [ex + hw, ey - hh, ez - s * 0.0002], [ex + hw, ey + hh, ez - s * 0.0002], [ex - hw, ey + hh, ez + s * 0.0002], 0x2a2220, L(B.HEAD, 5), n);
+  }
   // Haare: Kappe (nicht bei Glatze), lang, Zopf
   off(FEAT.BALD, () => k.ell([0, 0.1652, -0.0006], [0.0101, 0.0115, 0.0108], 8, 3, W, L(B.HEAD, 3), { v0: 0.46, v1: 1, rot: 0.2 }));
   off(FEAT.BALD, () => k.ell([0, 0.1615, -0.0038], [0.0098, 0.0080, 0.0076], 8, 2, W, L(B.HEAD, 3), { v0: 0.35, v1: 0.75 }));
@@ -548,6 +554,17 @@ PX pBone(int bone, float ph, float amt, int mode, int feat, float seed) {
     fL = 1.5; fR = 1.5; kL = 1.42 + 0.12 * lg; kR = 1.42 - 0.1 * lg; aL = fL - kL; aR = fR - kR;
     sLean = -0.07 + 0.03 * sin(it * 0.25); sL = 0.42; sR = 0.36; eL = 0.95; eR = 1.05; bL = 0.1; bR = 0.1;
     hYaw = 0.55 * sin(it * 0.16 + seed * 9.0); hPit = 0.1 + 0.06 * sin(it * 0.29);
+  }
+  else if (mode == ${MODE.WORK}) {
+    // Arbeiten (Baustelle): breiter Stand, vorgebeugt, rechter Arm hämmert, linker hält
+    float hm = sin(it * 7.0 + seed * 20.0);
+    fL = 0.16; fR = -0.1; kL = 0.22; kR = 0.12; aL = fL - kL; aR = fR - kR;
+    float hl = L1 * cos(fL) + L2 * cos(fL - kL), hr = L1 * cos(fR) + L2 * cos(fR - kR);
+    rt.y = max(hl, hr) - (L1 + L2);
+    sLean = 0.32 + 0.04 * hm; sYaw = 0.1 * hm;
+    sR = 0.95 + 0.55 * hm; eR = 1.0 + 0.45 * sin(it * 7.0 + seed * 20.0 + 0.6); bR = 0.18;
+    sL = 0.75; eL = 0.95; bL = 0.12;
+    hPit = 0.42; hYaw = 0.1 * sin(it * 0.4);
   }
   if (umb) { sR = ${fl(UMB_POSE.sh)}; bR = ${fl(UMB_POSE.ab)}; eR = ${fl(UMB_POSE.el)}; }
   // --- Kette

@@ -25,6 +25,7 @@ export function peopleGallery(params, renderer, scene, sun) {
     [2, 0, MODE.WALK, 0, 0, 0, 1], [2, 1, MODE.WALK, F.SKIRT | F.LONGHAIR, 0, 0, 0.97], [2, 2, MODE.WALK, F.UMBRELLA | F.COAT, 1, 5.0, 1],
     [2, 3, MODE.WALK, F.UMBRELLA | F.SKIRT | F.LONGHAIR, 1, 5.0, 0.97], [2, 4, MODE.WALK, F.HAT | F.COAT, 0, 0, 1], [2, 5, MODE.WALK, F.CHILD, 0, 0, 0.62],
     [3, 0, MODE.SIT, 0, 0, 0, 1], [3, 1, MODE.SIT, F.SKIRT | F.LONGHAIR | F.BAG, 0, 0, 0.97], [3, 3, MODE.CYCLE, F.HELMET, 1, 4.4, 1], [3, 5, MODE.CYCLE, F.LONGHAIR | F.BACKPACK, 1, 4.4, 1],
+    [3, 2, MODE.WORK, F.HELMET, 0, 0, 1], [3, 4, MODE.WALK, F.HELMET | F.SHORTSLEEVE, 0, 0, 1.02],
   ];
   const rowsSel = (params.get('rows') || '0,1,2,3').split(',').map(Number);
   const list = cast.filter((c) => rowsSel.includes(c[0]));

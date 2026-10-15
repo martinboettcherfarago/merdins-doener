@@ -460,8 +460,8 @@ class Sitters {
           const arr = [];
           const fx = Math.sin(yaw), fz = Math.cos(yaw);
           for (let q = 0; q < n; q++) {
-            const a = Math.random() * 6.28, rr = 0.03 + Math.random() * 0.09;
-            arr.push({ x: x + fx * 0.09 + Math.cos(a) * rr, y, z: z + fz * 0.09 + Math.sin(a) * rr, cx: x + fx * 0.09, cz: z + fz * 0.09, h: Math.random() * 6.28, ph: Math.random() * 6, peck: Math.random() < 0.5 ? 1 : 0, t: Math.random() * 3, s: 0 });
+            const a = Math.random() * 6.28, rr = 0.02 + Math.random() * 0.045;
+            arr.push({ x: x + fx * 0.055 + Math.cos(a) * rr, y, z: z + fz * 0.055 + Math.sin(a) * rr, cx: x + fx * 0.055, cz: z + fz * 0.055, h: Math.random() * 6.28, ph: Math.random() * 6, peck: Math.random() < 0.5 ? 1 : 0, t: Math.random() * 3, s: 0 });
           }
           this.birds.set(pk, { list: arr, on: true, seen: true });
         } else if (this.birds.has(pk)) { const b = this.birds.get(pk); b.on = want; b.seen = true; }
@@ -485,7 +485,7 @@ class Sitters {
           const sp = 0.03 * dt;
           p.x += Math.sin(p.h) * sp; p.z += Math.cos(p.h) * sp;
           const dx = p.cx - p.x, dz = p.cz - p.z;
-          if (dx * dx + dz * dz > 0.018) p.h = Math.atan2(dx, dz) + (Math.random() - 0.5) * 0.8;
+          if (dx * dx + dz * dz > 0.0042) p.h = Math.atan2(dx, dz) + (Math.random() - 0.5) * 0.8;
           p.ph += dt * 9;
         } else p.ph += dt * 3.2;
       }
@@ -517,6 +517,72 @@ class Sitters {
       this.pigeons.push(p.x, p.y, p.z, p.h, 0, 0, sc, sc, sc, 1, 1, 1, p.ph, p.peck, 0.5, MODE.BIRD_GROUND);
     }
     this.pigeons.finish();
+  }
+}
+
+// ---------------------------------------------------------------- Bauarbeiter auf Baustellen (tagsüber, werktags)
+// Zwei bis drei Leute vor dem Gerüst: einer hämmert, einer schaut zu, manchmal geht einer auf und ab.
+class Workers {
+  constructor(view) { this.v = view; this.g = view.g; this.e = view.e; this.list = []; this.timer = 0; }
+  update(dt, ctx) {
+    this.timer -= dt;
+    for (const w of this.list) { w.t += dt; w.s = Math.max(0, Math.min(1, w.s + (w.on ? dt * 2 : -dt * 2))); }
+    if (this.timer > 0) return;
+    this.timer = 1.5;
+    const B = this.e.buildings, g = this.g;
+    const h = g.hour(), work = h >= 7 && h < 17.5 && g.weekday() < 5 && ctx.rain < 0.6;
+    const seen = new Set();
+    if (work && B && B.recs) {
+      const R2 = Math.min(ctx.radius, 24) ** 2;
+      for (const rec of B.recs.values()) {
+        if (!rec.site || rec.dead || !rec.site.box) continue;
+        const dx = rec.ox - ctx.cx, dz = rec.oz - ctx.cz;
+        if (dx * dx + dz * dz > R2) continue;
+        const [bx0, bx1, , bz1] = rec.site.box;
+        const n = 2 + (rec.id % 2);
+        for (let j = 0; j < n; j++) {
+          const key = rec.id * 4 + j;
+          seen.add(key);
+          let w = this.list.find((q) => q.key === key);
+          if (!w) {
+            const sd = hashf(rec.id * 13.7 + j * 3.1);
+            const lx = bx0 + (bx1 - bx0) * (0.2 + 0.6 * ((j + 0.5) / n)) + (sd - 0.5) * 0.05;
+            const lz = bz1 + 0.06 + sd * 0.05;
+            const yaw0 = rec.k * Math.PI / 2;
+            const c = Math.cos(yaw0), s = Math.sin(yaw0);
+            w = { key, seed: sd, x0: rec.ox + lx * c + lz * s, z0: rec.oz - lx * s + lz * c, ax: c, az: -s, span: (bx1 - bx0) * 0.3, yaw: yaw0 + Math.PI + (sd - 0.5) * 0.8, role: j === 0 ? 'work' : j === 2 ? 'walk' : 'stand', t: sd * 10, s: 0, on: true };
+            this.list.push(w);
+          }
+          w.on = true;
+        }
+      }
+    }
+    for (const w of this.list) if (!seen.has(w.key)) w.on = false;
+    this.list = this.list.filter((w) => w.on || w.s > 0);
+  }
+  draw(ctx, peds) {
+    for (const w of this.list) {
+      if (w.s <= 0.01) continue;
+      let x = w.x0, z = w.z0, yaw = w.yaw, amt = 0, ph = 0, mode = MODE.WORK;
+      if (w.role === 'stand') mode = MODE.WALK;
+      else if (w.role === 'walk') {
+        // auf und ab vor dem Gerüst, an den Enden kurz stehen
+        const T = 9, u = (w.t % T) / T;
+        const go = u < 0.4 ? u / 0.4 : u < 0.5 ? 1 : u < 0.9 ? 1 - (u - 0.5) / 0.4 : 0;
+        const moving = (u < 0.4 || (u >= 0.5 && u < 0.9));
+        x += w.ax * (go - 0.5) * w.span * 2; z += w.az * (go - 0.5) * w.span * 2;
+        yaw = Math.atan2(w.ax, w.az) + (u >= 0.5 ? Math.PI : 0);
+        amt = moving ? 1 : 0; ph = w.t * 7.2; mode = MODE.WALK;
+      }
+      const ex = x - ctx.cam.x, ey = -ctx.cam.y, ez = z - ctx.cam.z;
+      const d2 = ex * ex + ey * ey + ez * ez;
+      if (d2 > ctx.mid2) continue;
+      ctx.sph.center.set(x, 0.09, z);
+      if (!ctx.frustum.intersectsSphere(ctx.sph)) continue;
+      _c.setHex(w.seed < 0.5 ? 0xf07a1a : 0xe6d21c);
+      const sc = (0.95 + w.seed * 0.1) * w.s;
+      peds.pick(d2, ctx).push(x, 0.002, z, yaw, 0, 0, sc * 1.04, sc, sc * 1.04, _c.r, _c.g, _c.b, ph, amt, w.seed, mode + 8 * FEAT.HELMET);
+    }
   }
 }
 
@@ -951,6 +1017,7 @@ class LifeView {
     this.peds = new Pedestrians(this);
     this.bikes = new Cyclists(this);
     this.sitters = new Sitters(this);
+    this.workers = new Workers(this);
     this.birds = new Birds(this);
     this.boats = new Boats(this);
     this.sky = new Sky(this);
@@ -1078,6 +1145,7 @@ class LifeView {
     this.peds.update(ldt, ctx);
     this.bikes.update(ldt, ctx);
     this.sitters.update(ldt, ctx);
+    this.workers.update(ldt, ctx);
     this.birds.update(ldt, ctx);
     this.boats.update(ldt, ctx);
     this.sky.update(ldt, ctx);
@@ -1089,6 +1157,7 @@ class LifeView {
     this.peds.draw(ctx);
     this.bikes.draw(ctx, this.peds);
     this.sitters.draw(ctx, this.peds);
+    this.workers.draw(ctx, this.peds);
     this.peds.finish(); this.bikes.finish();
     this.birds.draw(ctx);
     this.sph.radius = 1.2;
@@ -1103,7 +1172,7 @@ class LifeView {
   }
 
   stats() {
-    return { sitting: this.sitters.seats.size, peds: this.peds.live(), bikes: this.bikes.list.length, flocks: this.birds.flocks.length, boats: this.boats.list.length, planes: this.sky.planes.length, balloon: !!this.sky.balloon, fleet: this.fleet.stats() };
+    return { workers: this.workers.list.length, sitting: this.sitters.seats.size, peds: this.peds.live(), bikes: this.bikes.list.length, flocks: this.birds.flocks.length, boats: this.boats.list.length, planes: this.sky.planes.length, balloon: !!this.sky.balloon, fleet: this.fleet.stats() };
   }
 
   dispose() { for (const u of this.unbind) u(); }
