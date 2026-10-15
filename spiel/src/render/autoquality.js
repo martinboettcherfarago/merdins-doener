@@ -193,7 +193,12 @@ export class AutoGovernor {
     if (!this.startT) this.startT = now;
     if (this.fixed) return false;
     // Fehlmessungen: Pausen, Ladeunterbrechungen, gedrosselte Bilder, Messbilder, die ersten Sekunden nach dem Start
-    if (!(ms > 0) || ms > (this.maxMs || 250) || ctx.skip || now - this.startT < 2500 || now < (this.settleUntil || 0)) return false;
+    const dbg = this.dbg || (this.dbg = { n: 0, skip: 0, long: 0, used: 0, lastMs: 0 });
+    dbg.n++; dbg.lastMs = Math.round(ms);
+    if (ctx.skip) { dbg.skip++; return false; }
+    if (!(ms > 0) || ms > (this.maxMs || 250)) { dbg.long++; return false; }
+    if (now - this.startT < 2500 || now < (this.settleUntil || 0)) return false;
+    dbg.used++;
     this.win.push(ms);
     this.winT += ms;
     if (this.winT < 1500) return false;

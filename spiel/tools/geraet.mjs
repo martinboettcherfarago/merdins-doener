@@ -22,7 +22,7 @@ export default async function geraet(page, h) {
   const trace = [];
   for (let t = 0; t < secs; t += 5) {
     await h.wait(5000);
-    const s = await page.evaluate(() => { const en = window.__stadtpuls.engine, g = en.gov; return { rung: g.rung, mean: Math.round(g.lastMean), cost: Math.round(g.lastCost), changes: g.changes }; });
+    const s = await page.evaluate(() => { const en = window.__stadtpuls.engine, g = en.gov; return { rung: g.rung, mean: Math.round(g.lastMean), cost: Math.round(g.lastCost), changes: g.changes, dbg: g.dbg ? { ...g.dbg } : null, thr: !!en.throttled, slow: !!en.slow, warm: !!en.warming }; });
     trace.push(s);
   }
   res.loop = { trace, history: await page.evaluate(() => window.__stadtpuls.engine.gov.history), after: await info() };
