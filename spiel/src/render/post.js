@@ -286,23 +286,38 @@ export class PostFX {
     }, defs);
   }
 
+  // Nur erneuern, was sich wirklich ändert: ein neues Material heißt neu übersetzen (das alte Programm wird beim
+  // Freigeben gelöscht), neue Puffer heißen neu anlegen. Stufenwechsel der Automatik ändern oft nur einen Wert.
+  // Die Puffer werden erst beim nächsten Bild angelegt (Größe und Einstellungen ändern sich oft zusammen).
   configure(cfg) {
-    const old = JSON.stringify(this.cfg);
-    this.cfg = { ...this.cfg, ...cfg };
-    if (JSON.stringify(this.cfg) === old) return;
-    for (const m of [this.aoMat, this.blurMat, this.preMat, this.downMat, this.upMat, this.compMat]) m.dispose();
-    this.makeMaterials();
-    this.allocate(true);
+    const o = this.cfg;
+    const c = { ...o, ...cfg };
+    if (JSON.stringify(c) === JSON.stringify(o)) return;
+    this.cfg = c;
+    if (c.aoSamples !== o.aoSamples) {
+      this.aoMat.dispose();
+      this.aoMat = mkMat(AO_FRAG, this.aoMat.uniforms, { AO_SAMPLES: c.aoSamples });
+    }
+    if (c.ao !== o.ao || c.bloom !== o.bloom || c.dof !== o.dof) {
+      const defs = {};
+      if (c.ao) defs.USE_AO = '';
+      if (c.bloom) defs.USE_BLOOM = '';
+      if (c.dof) defs.USE_DOF = '';
+      this.compMat.dispose();
+      this.compMat = mkMat(COMPOSITE_FRAG, this.compMat.uniforms, defs);
+    }
+    if (c.msaa !== o.msaa || c.ao !== o.ao || c.aoHalf !== o.aoHalf || c.bloom !== o.bloom || c.bloomLevels !== o.bloomLevels || c.dof !== o.dof) this.stale = true;
   }
 
   setSize(w, h) {
     w = Math.max(1, Math.floor(w)); h = Math.max(1, Math.floor(h));
     if (w === this.w && h === this.h && this.sceneRT) return;
     this.w = w; this.h = h;
-    this.allocate(true);
+    this.stale = true;
   }
 
   allocate() {
+    this.stale = false;
     for (const t of this.targets) t.dispose();
     this.targets = [];
     const { w, h } = this;
@@ -346,7 +361,7 @@ export class PostFX {
   // extra(r): optionaler zweiter Durchgang in denselben Puffer (Untergrund-Ansicht der U-Bahn)
   render(scene, camera, extra = null) {
     const r = this.r, p = this.params, c = this.cfg;
-    if (!this.sceneRT) this.allocate();
+    if (!this.sceneRT || this.stale) this.allocate();
     const proj = camera.projectionMatrix.elements;
     const projV = [1 / proj[0], 1 / proj[5], camera.near, camera.far];
     r.setRenderTarget(this.sceneRT);

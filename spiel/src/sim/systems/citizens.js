@@ -293,7 +293,7 @@ function nearest(list, x, y, radiusOf, comp) {
   let best = null, bd = 1e9;
   for (const f of list) {
     if (comp !== undefined && f.comp !== comp) continue;
-    const [fx, fy] = center(f);
+    const fx = f.x + f.w / 2, fy = f.y + f.h / 2; // wie center(f), ohne Hilfsfeld
     const d = Math.hypot(fx - x, fy - y);
     const r = radiusOf(f);
     if (d <= r && d < bd) { bd = d; best = f; }
@@ -304,7 +304,17 @@ const svcRadius = (f) => BUILDINGS[f.key].service ? BUILDINGS[f.key].service.rad
 const seatsOf = (f) => BUILDINGS[f.key].seats ?? SEATS_DEFAULT[f.key] ?? Math.round(((BUILDINGS[f.key].service || {}).capacity || 600) / 6);
 
 // Schulplätze, Kita-Plätze, Studienplätze, Pflegeplätze: Belegung und Qualität je Gebäude
-function coverageDaily(g, C, F, res) {
+// (Generator: yield = Pause zwischen Abschnitten, siehe game.js sliceMs; Ergebnis wie in einem Stück)
+const CHUNK = 400;
+// Zwischen zwei Abschnitten kann der Spieler Gebäude abreißen: abgerissene aus der Liste nehmen (die Simulation selbst
+// entfernt in diesen Abschnitten keine Gebäude – ohne Eingriff bleibt das Ergebnis gleich)
+const alive = (g, b) => g.buildings.get(b.id) === b;
+function pruneDead(g, list) {
+  let j = 0;
+  for (const b of list) if (alive(g, b)) list[j++] = b;
+  list.length = j;
+}
+function* coverageDaily(g, C, F, res) {
   const st = { };
   for (const S of STAGES) st[S.id] = { pupils: 0, seats: 0, missing: 0 };
   const seatMul = 1 + g.eff('seats');
@@ -320,7 +330,10 @@ function coverageDaily(g, C, F, res) {
   }
   const pupilsOf = (a, s) => s === 'kita' ? a[0] : s === 'school' ? a[1] + a[2] : s === 'gym' ? a[3] : s === 'uni' ? a[E4 + 2] + a[E4 + 3] : (a[EA] + a[EA + 1] + a[EA + 2] + a[EA + 3]) * 0.05;
   const assign = [];
+  let k0 = 0;
   for (const b of res) {
+    if (++k0 % CHUNK === 0) yield;
+    if (!alive(g, b)) { assign.push(null); continue; }
     const cz = b.cz;
     const [x, y] = center(b);
     const row = {};
@@ -335,6 +348,7 @@ function coverageDaily(g, C, F, res) {
   }
   res.forEach((b, k) => {
     const cz = b.cz, row = assign[k];
+    if (!row) return;
     const q = (S) => {
       const n = row[S];
       if (!n) return 0;
@@ -352,6 +366,8 @@ function coverageDaily(g, C, F, res) {
     cz.gqA += (cz.gq - cz.gqA) * 0.15;
     cz.uqA += (cz.uq - cz.uqA) * 0.18;
   });
+  yield;
+  pruneDead(g, res);
   // Seniorenheime
   let careCap = 0, careDem = 0;
   for (const f of F.care) { const cz = czOf(f); cz.residents = 0; cz.capacity = BUILDINGS[f.key].seniorCare * budget(g, BUILDINGS[f.key]) * (f.powered ? 1 : 0.6); careCap += cz.capacity; }
@@ -853,7 +869,9 @@ registerSystem({
     g.news('report', `Bevölkerung diese Woche: ${parts.join(', ')}. Durchschnittsalter ${Math.round(S.avgAge || 0)} Jahre.${tail}`, w.b >= w.d ? 'good' : 'info');
     C.week = { b: 0, d: 0, gr: 0, c: 0 };
   },
-  daily(g) {
+  daily(g) { for (const _ of this.dailySteps(g)) { /* alles sofort */ } },
+  // Tagesarbeit in Abschnitten (game.js _sysGen): bei großen Städten sonst 50–250 ms am Stück
+  *dailySteps(g) {
     const C = state(g);
     const rnd = C.rng;
     const F = collectFacilities(g);
@@ -865,7 +883,9 @@ registerSystem({
       if (b.construct < 1 && b.occ <= 0) continue;
       res.push(b);
     }
-    coverageDaily(g, C, F, res);
+    yield* coverageDaily(g, C, F, res);
+    yield;
+    pruneDead(g, res);
     // Krankenhausbetten: schwere Fälle (3 % der Kranken) gegen Betten aller Gesundheitseinrichtungen
     let beds = 0, sickNow = 0;
     for (const f of F.health) beds += bedsOf(f) * budget(g, BUILDINGS[f.key]) * (f.powered ? 1 : 0.4);
@@ -882,7 +902,10 @@ registerSystem({
       study: g.mods.czStudy || 1,
       bedQ: C.beds.q,
     };
+    let k1 = 0;
     for (const b of res) {
+      if (++k1 % CHUNK === 0) yield;
+      if (!alive(g, b)) continue;
       const cz = b.cz;
       stepPeople(g, C, b, cz, rnd, ctx);
       cz.noSew = cz.sew || !cz.sewNeed ? 0 : cz.noSew + 1;
@@ -902,6 +925,8 @@ registerSystem({
         ctx.moveOut += n;
       }
     }
+    yield;
+    pruneDead(g, res);
     deathcareDaily(g, C, F, res, rnd);
     // Rettungswagen
     let serious = 0;
@@ -917,7 +942,9 @@ registerSystem({
         if (n) scheduleTrip(g, C, 'ambulance', n[0].access, b.access, g.time + rnd() * 1100, AMB_SPEED, true);
       }
     }
-    if (C.polDirty || g.day() % 3 === 0) waterPollution(g, C);
+    if (C.polDirty || g.day() % 3 === 0) { yield; waterPollution(g, C); }
+    yield;
+    pruneDead(g, res);
     C.sewBlocked = ctx.blocked;
     computeStats(g, C, res, ctx);
     newsDaily(g, C, rnd);

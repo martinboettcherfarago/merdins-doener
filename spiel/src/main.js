@@ -10,6 +10,7 @@ import { runGallery } from './render/gallery.js';
 import { hideLoader, holdLoader, releaseLoader, loaderVisible, setLoader } from './ui/loading.js';
 import { applyDayLength } from './ui/settings.js';
 import { registerIcon } from './registry.js';
+import { startProtoWorker } from './render/protoworker.js';
 import './sim/systems/index.js';
 import './render/views/index.js';
 import './ui/panels/index.js';
@@ -175,6 +176,8 @@ const app = {
         if (performance.now() - t0 > 30000) { en.warming = false; clearInterval(guard); releaseLoader(hk); }
       }, 1000);
     }
+    // Stunden- und Tagesarbeit der Simulation in Zeitscheiben (höchstens ~5 ms je Bild, siehe sim/game.js update)
+    g.sliceMs = 5;
     this.ui = new UI(this);
     applyDayLength(this);
     this.input = new Input(this.engine, this.ui, this.audio);
@@ -191,11 +194,18 @@ const app = {
 
   // ---------- Speichern
   // Automatisch speichern nicht mitten im Tageswechsel (der ist schon teuer), sondern im nächsten ruhigen Moment
+  // (in der Megastadt kostet ein Speichern 30–40 ms: während Zoomen/Schieben bis zu 20 s auf eine ruhige Kamera warten)
   queueAutosave() {
     if (this._autoQ) return;
     this._autoQ = true;
-    const g = this.game;
-    const run = () => { this._autoQ = false; if (this.game === g && this.mode === 'game') this.save('auto'); };
+    const g = this.game, t0 = performance.now();
+    const run = () => {
+      if (this.game !== g || this.mode !== 'game') { this._autoQ = false; return; }
+      const en = this.engine;
+      if (en && en.cameraCalm && !en.cameraCalm() && performance.now() - t0 < 20000) { setTimeout(run, 500); return; }
+      this._autoQ = false;
+      this.save('auto');
+    };
     if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 3000 });
     else setTimeout(run, 60);
   },
@@ -371,10 +381,15 @@ function boot(hotData) {
   requestAnimationFrame((t) => { app.last = t; app.frame(t); });
 }
 
-// Artifact-Viewer: Spielstand bei Updates behalten
-const hot = typeof window !== 'undefined' && window.claude && window.claude.hot;
-if (hot && hot.snapshot) {
-  try { hot.snapshot(() => (app.game ? { save: app.game.serialize() } : {})); } catch (e) { /* optional */ }
+// Als Bau-Worker gestartet (render/protoworker.js lädt dasselbe Bündel)? Dann nur Gebäude-Prototypen bauen.
+const inWorker = typeof document === 'undefined' && typeof self !== 'undefined' && typeof self.postMessage === 'function' && typeof importScripts === 'function';
+if (inWorker) startProtoWorker();
+else {
+  // Artifact-Viewer: Spielstand bei Updates behalten
+  const hot = typeof window !== 'undefined' && window.claude && window.claude.hot;
+  if (hot && hot.snapshot) {
+    try { hot.snapshot(() => (app.game ? { save: app.game.serialize() } : {})); } catch (e) { /* optional */ }
+  }
+  if (hot && hot.ready) hot.ready(boot);
+  else boot(hot && hot.data ? hot.data : {});
 }
-if (hot && hot.ready) hot.ready(boot);
-else boot(hot && hot.data ? hot.data : {});

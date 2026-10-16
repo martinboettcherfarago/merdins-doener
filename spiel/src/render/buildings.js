@@ -21,7 +21,7 @@ import * as THREE from 'three';
 import { Z, R, BUILDINGS, TRANSIT } from '../config.js';
 import { mulberry32 } from '../util.js';
 import { shared, makeGlowTexture, makePointsMaterial, PointBuffer } from './materials.js';
-import { ProtoManager, Batcher, InstSet, prepareModel, states, SLOT_HIDDEN } from './protos.js';
+import { ProtoManager, Batcher, InstSet, prepareModel, states, SLOT_HIDDEN, ProtoPool } from './protos.js';
 import { ARCH, buildArch, archKeyFor, frontFootprint } from './arch/all.js';
 import { archTags } from './arch/index.js';
 import { MixGrid, encodeVariant, setVariantResolver, pickByStyle, mixHash, PALETTES } from './arch/mix.js';
@@ -39,8 +39,12 @@ const MAX_PROTOS = 64; // höchstens so viele verschiedene Prototypen in Detail 
 const HYST_IN = 0.93, HYST_OUT = 1.1; // Hysterese der Abstandsschwellen (aufwerten unter 93 %, abwerten über 110 %)
 const PREFETCH = 1.3; // Prototypen bis 130 % der Schwelle vorab bauen (Leerlauf, Zeitbudget)
 const FADE_DUR = 0.4; // Sekunden Überblendung zwischen zwei Detailstufen
-const STICKY = 0.95; // gezeigte Nahstufen zählen bei den Obergrenzen 5 % näher (kein Tauschen am Rand, Nähe hat Vorrang)
-const DRAW_BUDGET = 300; // Draw Calls für alle Gebäude (Bündel + Baustellen + Nahdarstellung, inkl. Schatten)
+const STICKY = 0.7; // gezeigte Nahstufen zählen bei den Obergrenzen 30 % näher (kein Tauschen am Rand, Nähe hat Vorrang)
+const DWELL = 1.5; // Sekunden: so lange wird ein Wechsel eines sichtbaren Gebäudes nicht wegen der Obergrenzen umgekehrt
+const VIEW_MARGIN = 1.35; // Sichtkegel für die Detailvergabe (Öffnungswinkel × Faktor): Rand wird vorbereitet, Rückseite nicht
+const EDGE = 1.6; // angeschnittene Gebäude (Mitte außerhalb des Bildes) zählen bei den Obergrenzen so viel weiter weg
+const VIEW_KEEP = 1.75; // gezeigte Nahstufen gelten erst außerhalb dieses weiteren Kegels als unsichtbar (kein Pendeln am Rand)
+const DRAW_BUDGET = 400; // Draw Calls für alle Gebäude (Bündel im Bild + Baustellen + Nahdarstellung, inkl. Schatten)
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const approach = (v, t, d) => (v < t ? Math.min(t, v + d) : Math.max(t, v - d));
 
@@ -1434,6 +1438,10 @@ export class BuildingView {
     this.fading = new Set(); // Datensätze mit laufender Überblendung zwischen zwei Detailstufen
     this.fadeDur = FADE_DUR;
     this.need = new Map(); // Bauliste fehlender Prototypen (Kennung → { rec, d, pri })
+    // Bau-Worker (protoworker.js): Nah- und Mittelstufen entstehen abseits des Hauptfadens; ohne Worker wie bisher hier
+    this.pool = ProtoPool.get();
+    this.inflight = new Map(); // Kennung → Bauauftrag beim Worker
+    this.syncOnly = new Set(); // Prototypen, die nur der Hauptfaden bauen kann (Teile mit eigenem Material)
     this.ratio = [1, 2.5, 4]; // Bauzeit Detail d / Detail 0, gleitend gemessen (Schätzung fürs Zeitbudget)
     this.camIdle = 0; // Sekunden, seit sich die Kamera nicht mehr nennenswert bewegt
     this.ev = { switches: 0, builds: 0, buildMs: 0, maxBuildMs: 0, maxTickMs: 0 }; // Zähler für Messwerkzeuge
@@ -1492,7 +1500,7 @@ export class BuildingView {
       id: b.id, b, key, level, variant: mixed ? this._mixVariant(b, key, level, fw, fd) : b.variant || 0, sv: b.variant || 0, fw, fd, k: (b.rot || 0) & 3,
       bx: b.x, by: b.y, ox, oz, extra: mixed ? { zone: b.zone, spec: b.spec, mixed: true } : { zone: b.zone, spec: b.spec },
       slot: states.alloc(), m4: new THREE.Matrix4(),
-      p0: null, height: this._estimate(b), radius: Math.max(b.w, b.h) * 0.75,
+      p0: null, height: this._estimateHeight(b), radius: Math.max(b.w, b.h) * 0.75,
       finished: false, shown: -1, inst: null, inBatch: false,
       anims: [], animProto: null, animT: this.rng() * 20, spin: 0,
       site: null, dist: 1e9, want: 0, win: -1,
@@ -1611,7 +1619,7 @@ export class BuildingView {
     const sum = S[y1 * (W + 1) + x1] - S[y0 * (W + 1) + x1] - S[y1 * (W + 1) + x0] + S[y0 * (W + 1) + x0];
     return sum / Math.max(1, (x1 - x0) * (y1 - y0));
   }
-  _estimate(b) {
+  _estimateHeight(b) {
     if (b.zone) return [0, 0.6, 0.9, 1.3, 2.4, 5][b.level] || 1;
     return 1.0;
   }
@@ -1736,11 +1744,15 @@ export class BuildingView {
       } else { this._dropInst(rec); states.setv(rec.slot, 2, 0, 1); }
       states.setv(rec.slot, 2, 2, 1);
       rec.shown = 0;
+      if (from !== 0) { rec.swT = this.e.time || 0; rec.swUp = false; rec.swCap = !!rec.capDown; }
       this._setAnims(rec, rec.p0);
       this.lightsDirty = true;
       if (from > 0) this.ev.switches++;
       return true;
     }
+    // Shader der Nahstufe noch nicht übersetzt? Erst übersetzen lassen, die bisherige Stufe bleibt so lange stehen
+    // (sonst wartet das erste Bild mit dem neuen Material auf den Treiber – auf Tablets 50–300 ms)
+    if (!force && (!rec.inst || rec.inst.proto !== proto) && this.e.ensureCompiled && !this.e.ensureCompiled(proto.mats || (proto.mats = protoMaterials(proto)))) { this.compileWait = true; return false; }
     if (rec.site && rec.site.detail !== (d >= 1 ? 1 : 0)) this._siteProps(rec, d >= 1 ? 1 : 0);
     if (!rec.inst || rec.inst.proto !== proto) {
       const h = this.protoMgr.alloc(proto, rec.slot);
@@ -1759,7 +1771,7 @@ export class BuildingView {
     }
     if (rec.fade) { states.setv(rec.slot, 2, 0, rec.fade.kind === 'bi' ? 1 : 0); states.setv(rec.slot, 2, 2, 0); }
     else { states.setv(rec.slot, 2, 0, 0); states.setv(rec.slot, 2, 2, 1); }
-    if (from >= 0 && from !== d) this.ev.switches++;
+    if (from >= 0 && from !== d) { this.ev.switches++; rec.swT = this.e.time || 0; rec.swUp = d > from; rec.swCap = d < from && !!rec.capDown; }
     rec.shown = d;
     this._setAnims(rec, proto);
     this.lightsDirty = true;
@@ -1821,7 +1833,7 @@ export class BuildingView {
   // Bauliste: Prototyp-Kennung → { rec, d, pri } (kleinere Priorität zuerst)
   _request(rec, d, pri) {
     const id = this._pid(rec, d);
-    if (this.protoMgr.protos.has(id) || this.protoMgr.failed.has(id)) return;
+    if (this.protoMgr.protos.has(id) || this.protoMgr.failed.has(id) || this.inflight.has(id)) return;
     const have = this.need.get(id);
     if (have && have.pri <= pri) return;
     this.need.set(id, { rec, d, pri, id });
@@ -1833,7 +1845,10 @@ export class BuildingView {
   // soft: ein einzelner Bau bis zu so vielen ms darf das Budget überziehen (sonst blieben mittlere Modelle beim Zoomen
   // zu lange in der Fernstufe); idleOk: Kamera ruht – dann auch ein teurer Bau
   _buildSome(budget, idleOk = false, soft = 0) {
-    if (!this.need.size || (budget <= 0 && !soft)) return 0;
+    if (!this.need.size) return 0;
+    // Mit Bau-Worker: Aufträge verteilen (wichtigste zuerst); im Hauptfaden nur, was der Worker nicht kann
+    if (this.pool && this.pool.ok) { this._dispatch(this.pool); if (!this.syncOnly.size || !idleOk) return 0; }
+    if (budget <= 0 && !soft) return 0;
     const t0 = performance.now();
     if (idleOk && this._hvT > t0) idleOk = false; // nach einem teuren Bau kurz Luft lassen
     let built = 0;
@@ -1843,6 +1858,7 @@ export class BuildingView {
       if (left <= 0.5 && (built || !soft)) break;
       const rec = it.rec;
       if (rec.dead || !rec.p0 || this.protoMgr.protos.has(it.id)) { this.need.delete(it.id); continue; }
+      if (this.pool && this.pool.ok && !this.syncOnly.has(it.id)) continue;
       const est = this._estimate(rec, it.d);
       if (est > left && !(built === 0 && (idleOk || (est <= soft && it.pri < 1e3)))) continue;
       this.need.delete(it.id);
@@ -1857,6 +1873,55 @@ export class BuildingView {
       if (it.pri < 1e3) this.lodT = Math.min(this.lodT, 0.05); // bald zeigen
     }
     return built;
+  }
+  // Bauaufträge an die Worker geben, solange sie Platz haben (je Worker einer in Arbeit, einer wartend)
+  _dispatch(pool) {
+    let free = pool.free;
+    if (!free || !this.need.size) return;
+    const pm = this.protoMgr;
+    const list = [...this.need.values()].sort((a, b) => a.pri - b.pri);
+    for (const it of list) {
+      if (free <= 0) break;
+      const rec = it.rec;
+      if (rec.dead || !rec.p0 || pm.protos.has(it.id) || pm.failed.has(it.id) || this.inflight.has(it.id)) { this.need.delete(it.id); continue; }
+      if (this.syncOnly.has(it.id)) continue;
+      const { v } = pm.idOf(rec.key, rec.level, rec.variant, rec.fw, rec.fd, it.d);
+      const job = { id: it.id, key: rec.key, level: rec.level, v, fw: rec.fw, fd: rec.fd, extra: rec.extra, detail: it.d, owner: this, it };
+      if (!pool.submit(job)) break;
+      this.need.delete(it.id);
+      this.inflight.set(it.id, job);
+      free--;
+    }
+  }
+  // Fertige Worker-Ergebnisse übernehmen (wenige je Bild: Geometrie anlegen und hochladen kostet auch etwas)
+  _adopt(maxN = 6, budget = 3) {
+    const pool = this.pool;
+    if (!pool || (!this.inflight.size && !pool.done.length)) return 0;
+    const t0 = performance.now();
+    const pm = this.protoMgr;
+    let n = 0;
+    // einzeln abholen: was abgeholt ist, muss auch übernommen werden (sonst bliebe es für immer „beim Worker")
+    for (let k = 0; k < maxN && performance.now() - t0 <= budget; k++) {
+      const r = pool.take(this, 1)[0];
+      if (!r) break;
+      const { job, out } = r;
+      this.inflight.delete(job.id);
+      const it = job.it;
+      if (out.retry) { this._request(it.rec, it.d, it.pri); continue; }
+      if (out.sync) { this.syncOnly.add(job.id); this._request(it.rec, it.d, it.pri); continue; }
+      if (out.error) { if (!this._wErr) { this._wErr = true; console.warn('Cityscapes: Bau-Worker-Fehler', job.id, out.error); } pm.failed.add(job.id); continue; }
+      let p = null;
+      try { p = pm.adopt(job, out, r.ms); } catch (e) {
+        // unbrauchbares Ergebnis: dann baut der Hauptfaden diesen Prototyp
+        if (!this._wErr) { this._wErr = true; console.warn('Cityscapes: Prototyp aus dem Worker unbrauchbar', job.id, e); }
+        this.syncOnly.add(job.id); this._request(it.rec, it.d, it.pri); continue;
+      }
+      n++;
+      this.ev.async = (this.ev.async || 0) + 1; this.ev.asyncMs = (this.ev.asyncMs || 0) + r.ms;
+      if (p) p.keepUntil = pm.time + 12;
+      if (it.pri < 1e3) this.lodT = Math.min(this.lodT, 0.05); // bald zeigen
+    }
+    return n;
   }
   _setAnims(rec, proto) {
     if (rec.animProto === proto) return;
@@ -2071,10 +2136,50 @@ export class BuildingView {
     this._lodScan(Infinity);
     this._lodDecide();
   }
+  // Sichtkegel (etwas weiter als das Bild) für die Kamera bzw. deren Ziel: Nahstufen nur für Gebäude, die man sehen
+  // kann – die nächsten Gebäude liegen sonst oft hinter oder unter der Kamera und verbrauchen die Obergrenzen.
+  _viewFrustum(slot, pos, target, margin = VIEW_MARGIN) {
+    const cam = this.e.camera;
+    const fc = this._fcam || (this._fcam = new THREE.PerspectiveCamera());
+    fc.fov = Math.min(150, cam.fov * margin); fc.aspect = cam.aspect; fc.near = cam.near; fc.far = cam.far;
+    fc.updateProjectionMatrix();
+    if (pos) { fc.position.copy(pos); fc.up.set(0, 1, 0); fc.lookAt(target); } else { fc.position.copy(cam.position); fc.quaternion.copy(cam.quaternion); }
+    fc.updateMatrixWorld(true);
+    const F = this[slot] || (this[slot] = new THREE.Frustum());
+    F.setFromProjectionMatrix(this._m.multiplyMatrices(fc.projectionMatrix, fc.matrixWorldInverse));
+    return F;
+  }
+  // Mitte des Gebäudes (halbe Höhe) innerhalb des Bildes? vp = Elemente der Matrix Projektion × Ansicht
+  _onScreen(m, rec) {
+    const x = rec.ox, y = rec.height * 0.5, z = rec.oz;
+    const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+    if (w <= 0.01) return false;
+    const nx = (m[0] * x + m[4] * y + m[8] * z + m[12]) / w, ny = (m[1] * x + m[5] * y + m[9] * z + m[13]) / w;
+    return nx > -1 && nx < 1 && ny > -1 && ny < 1;
+  }
+  _inView(F, rec) {
+    const sp = this._sph || (this._sph = new THREE.Sphere());
+    sp.center.set(rec.ox, rec.height * 0.5, rec.oz);
+    sp.radius = Math.max(rec.radius, rec.height * 0.6) + 0.3;
+    return F.intersectsSphere(sp);
+  }
   _lodScanStart() {
     const [t2, t1] = this._thresholds();
     const g = this._goalCam();
-    this._scan = { list: [...this.recs.values()], pos: 0, arr: [], ring: [], goal: g ? g.clone() : null, t2, t1 };
+    const view = this._viewFrustum('_frus');
+    const viewKeep = this._viewFrustum('_frusK', null, null, VIEW_KEEP);
+    const viewReal = this._viewFrustum('_frusR', null, null, 1.04);
+    let gview = null;
+    if (g) { const rig = this.e.rig; gview = this._viewFrustum('_gfrus', g, this._v.set(rig.goal.x, 0, rig.goal.z)); }
+    const list = this._scanList || (this._scanList = []);
+    list.length = 0;
+    for (const rec of this.recs.values()) list.push(rec);
+    const cam = this.e.camera;
+    cam.updateMatrixWorld();
+    const vp = this._m3.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse).elements.slice();
+    this._scan = { list, pos: 0, arr: [], ring: [], goal: g ? g.clone() : null, t2, t1, view, viewKeep, viewReal, gview, vp, now: this.e.time || 0, calm: !g && !!(this.e.cameraCalm && this.e.cameraCalm()) };
+    if (this._scan.calm && !this._wasCalm) this._calmSince = this._scan.now;
+    this._wasCalm = this._scan.calm;
   }
   // n Datensätze weiterzählen; true, wenn die Runde fertig ist
   _lodScan(n) {
@@ -2092,15 +2197,38 @@ export class BuildingView {
       const cur = rec.shown;
       // Hysterese: aufwerten erst deutlich unter, abwerten erst deutlich über der Schwelle (kein Flackern beim Pendeln)
       const a2 = cur === 2 ? t2 * HYST_OUT : t2 * HYST_IN, a1 = cur >= 1 ? t1 * HYST_OUT : t1 * HYST_IN;
-      rec.want = d < a2 ? 2 : d < a1 ? 1 : 0;
-      // Bereits gezeigte Nahstufen haben bei den Obergrenzen Vorrang (sonst tauschen Gebäude am Rand ständig)
-      rec.sk = d * (cur >= 1 && !this._fresh ? STICKY : 1);
+      let want = d < a2 ? 2 : d < a1 ? 1 : 0;
+      // Außerhalb des Sichtkegels: nicht aufwerten (sieht niemand), Gezeigtes darf bleiben, solange Platz ist
+      const vis = d < t1 * 1.2 ? this._inView(S.view, rec) || (cur >= 1 && this._inView(S.viewKeep, rec)) : true;
+      rec.vis = vis;
+      if (!vis && want > Math.max(0, cur)) want = Math.max(0, cur);
+      // Kamera unterwegs (Zoomen, Schwenken): nicht mehr aufwerten, was am Ziel nicht im Bild ist – das verlässt gleich
+      // den Schirm (sonst kurz hinauf und gleich wieder hinunter am Bildrand)
+      if (S.gview && want > Math.max(0, cur) && !this._inView(S.gview, rec)) want = Math.max(0, cur);
+      // Gerade wegen der Obergrenzen abgewertet: so bald nicht wieder hinauf (kein Hin und Her, z. B. beim Drehen)
+      // (Abwertungen aus der Fahrt gelten nicht mehr, sobald die Kamera ruht – das Bild ändert sich dann nicht mehr, sonst
+      // stünde das volle Detail erst nach DWELL; Abwertungen bei ruhender Kamera behalten die Sperre)
+      if (vis && rec.swCap && !(S.calm && (rec.swT ?? -1e9) < this._calmSince) && S.now - (rec.swT ?? -1e9) < DWELL && want > cur) want = Math.max(0, cur);
+      rec.wantD = want; // Wunsch nach Abstand und Sicht, vor den Obergrenzen
+      rec.capDown = false;
+      rec.want = want;
+      // Obergrenzen: was wirklich im Bild ist zuerst, dann der vorbereitete Rand, zuletzt Unsichtbares; bereits Gezeigtes
+      // hat Vorrang (sonst tauschen Gebäude am Rand ständig)
+      const real = vis && d < t1 * 1.2 && this._inView(S.viewReal, rec);
+      // Im Bild: Mitte auf dem Schirm zählt voll, nur angeschnitten (Mitte am Rand, unter oder neben der Kamera) halb so
+      // nah – in der dichten Megastadt liegen sonst Dutzende angeschnittene Nachbarn vor dem, was man anschaut
+      rec.sk = real ? d * (cur >= 1 && !this._fresh ? STICKY : 1) * (this._onScreen(S.vp, rec) ? 1 : EDGE) : vis ? 1e3 + d : 1e4 + d;
       arr.push(rec);
       if (!rec.finished) continue;
-      // Vorausschau: Stufe am Kameraziel und ein Ring knapp jenseits der Schwellen vorab bauen
+      // Vorausschau: Stufe am Kameraziel und ein Ring knapp jenseits der Schwellen vorab bauen (nur, was im Bild ist
+      // oder am Ziel ins Bild kommt)
       let pre = 0, pd = d;
-      if (goal) { const dg = this._distance(rec, goal); const wg = dg < t2 ? 2 : dg < t1 ? 1 : 0; if (wg > pre) { pre = wg; pd = dg; } }
-      if (d < t2 * PREFETCH) pre = Math.max(pre, 2); else if (d < t1 * PREFETCH) pre = Math.max(pre, 1);
+      if (goal) {
+        const dg = this._distance(rec, goal);
+        const wg = dg < t2 ? 2 : dg < t1 ? 1 : 0;
+        if (wg > pre && (!S.gview || this._inView(S.gview, rec))) { pre = wg; pd = dg; }
+      }
+      if (vis) { if (d < t2 * PREFETCH) pre = Math.max(pre, 2); else if (d < t1 * PREFETCH) pre = Math.max(pre, 1); }
       if (pre > cur && pre > 0) ring.push([rec, pre, pd]);
     }
     return S.pos >= list.length;
@@ -2116,27 +2244,47 @@ export class BuildingView {
     const near = arr.filter((r) => r.want >= 1).sort((a, b) => a.sk - b.sk);
     let n2 = 0, n1 = 0;
     const used = new Set();
-    const budget = clamp(DRAW_BUDGET - this.batch.drawEstimate() - this.sites.drawEstimate() - 8, 60, 210);
+    // Budget nach dem, was vom Bündel tatsächlich im Bild ist (Abschnitte außerhalb des Sichtkegels kosten nichts)
+    const fr = this._drawFrus || (this._drawFrus = new THREE.Frustum());
+    const cam = this.e.camera;
+    cam.updateMatrixWorld();
+    fr.setFromProjectionMatrix(this._m2.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    const budget = clamp(DRAW_BUDGET - this.batch.drawEstimate(fr) - this.sites.drawEstimate(fr) - 8, 80, 300);
     let spent = 0;
-    const fits = (rec, d) => {
+    // soft: frisch gewechselte, sichtbare Gebäude dürfen die Grenzen um ein Viertel überziehen (kein Hin und Her)
+    const fits = (rec, d, soft) => {
       const id = this._pid(rec, d);
       if (used.has(id)) return true;
       const p = pm.protos.get(id);
-      const cost = p ? p.parts.length + p.parts.filter((q) => q.cast).length : rec.p0.parts.length + 2;
-      if (used.size >= MAX_PROTOS || spent + cost > budget) return false;
+      const cost = p ? p.cost ?? (p.cost = p.parts.length + p.parts.filter((q) => q.cast).length) : rec.p0.parts.length + 2;
+      const k = soft ? 1.25 : 1;
+      if (used.size >= MAX_PROTOS * k || spent + cost > budget * k) return false;
       used.add(id);
       spent += cost;
       return true;
     };
+    const now = S.now;
+    // Zuerst, was gerade erst aufgewertet wurde und sichtbar ist: behält seine Stufe (Obergrenzen dürfen dafür kurz um ein
+    // Viertel überzogen werden) – sonst wechseln Gebäude am Rand der Obergrenze beim Drehen oder Schwenken ständig.
+    for (const rec of near) {
+      rec.locked = !rec.dead && rec.sk < 1e3 && rec.swUp && rec.shown >= 1 && rec.want >= rec.shown && now - (rec.swT ?? -1e9) < DWELL;
+      if (!rec.locked) continue;
+      const d = rec.shown;
+      if (fits(rec, d, true)) { if (d === 2) n2++; n1++; } else rec.locked = false;
+    }
     for (const rec of near) {
       if (rec.dead) continue;
+      if (rec.locked) { if (rec.want === 2 && rec.shown === 1 && n2 < MAX_D2 && fits(rec, 2)) { n2++; } else rec.want = rec.shown; continue; }
       if (rec.want === 2 && (n2 >= MAX_D2 || !fits(rec, 2))) rec.want = 1;
       if (rec.want === 1 && (n1 >= MAX_D1 || !fits(rec, 1))) rec.want = 0;
       if (rec.want === 2) n2++;
       if (rec.want >= 1) n1++;
     }
+    // Abwertung durch die Obergrenzen merken (dann eine Weile nicht wieder hinauf, siehe _lodScan)
+    for (const rec of near) rec.capDown = rec.want < rec.wantD;
     // Fehlende Prototypen anfordern: zuerst, was jetzt gebraucht wird (Priorität = Abstand), dann die Vorausschau
     for (const rec of near) if (rec.want > rec.shown && !pm.protos.has(this._pid(rec, rec.want))) this._request(rec, rec.want, rec.dist);
+    this.lastBudget = { budget, spent, protos: used.size, n1, n2 };
     ring.sort((a, b) => a[2] - b[2]);
     for (let i = 0; i < ring.length && i < 48; i++) {
       const [rec, d, pd] = ring[i];
@@ -2157,10 +2305,16 @@ export class BuildingView {
       this.queue.delete(rec);
       this._build(rec);
     }
-    let starts = 0;
+    let starts = 0, now = null;
     while (this.lodPos < this.lodList.length && performance.now() - t0 <= budget && starts < maxStarts) {
       const rec = this.lodList[this.lodPos++];
       if (rec.dead || rec.dyingT >= 0 || !rec.p0 || rec.want === rec.shown) continue;
+      // Abwertung wegen der Obergrenzen, weil das Gebäude beim Entscheiden (vor einigen Zehntelsekunden) nicht im Bild
+      // war: ist es inzwischen im Bild (schnelles Drehen), nicht jetzt abwerten – die nächste Runde entscheidet neu
+      if (rec.want < rec.shown && rec.capDown && rec.sk >= 1e3 && !force) {
+        now ||= this._viewFrustum('_frusW', null, null, 1.04);
+        if (this._inView(now, rec)) continue;
+      }
       if (this._show(rec, rec.want, force)) starts++;
       else if (rec.want === 2 && rec.shown < 1 && this._show(rec, 1, force)) starts++; // Zwischenstufe, bis Detail 2 fertig ist
     }
@@ -2182,10 +2336,13 @@ export class BuildingView {
       const left = deadline && deadline.timeRemaining ? deadline.timeRemaining() : 6;
       if (this.need.size) { this._buildSome(Math.max(2, left - 1), this.camIdle > 0.6); if (this.need.size) { this.preT = 0.05; return; } }
       let built = false;
+      const viaPool = !!(this.pool && this.pool.ok);
       for (const rec of this.recs.values()) {
         if (rec.dead || rec.dyingT >= 0 || !rec.finished || !rec.p0 || !heavyKey(rec)) continue;
         for (const d of [1, 2]) {
-          let p = mgr.protos.get(this._pid(rec, d));
+          const id = this._pid(rec, d);
+          let p = mgr.protos.get(id);
+          if (!p && viaPool && !this.syncOnly.has(id)) { if (!mgr.failed.has(id)) { this._request(rec, d, 5e3 + rec.dist); built = true; } continue; }
           if (!p && !built && this.camIdle > 0.6) { p = mgr.get(rec.key, rec.level, rec.variant, rec.fw, rec.fd, rec.extra, d); built = true; }
           if (p) p.keepUntil = mgr.time + 30;
         }
@@ -2308,32 +2465,54 @@ export class BuildingView {
     this.lightMat.uniforms.uScale.value = (this.e.renderer.domElement.clientHeight || 720) * 0.9;
     pts.visible = !this._fxLights && night > 0.04 && this.lightBuf.n > 0;
     this.lightT -= dt;
+    // Sammeln in Zeitscheiben (die Megastadt hat Tausende Gebäude: am Stück bis 40 ms, beim ersten Dämmern mehr)
+    if (this._lightsJob) { this._lightsStep(night > 0.04 ? 3 : 1.5); return; }
     if (!this.lightsDirty || this.lightT > 0) return;
-    this.lightT = 0.5;
+    // Tagsüber nur selten und in kleinen Scheiben (die Lichter sind aus; so ist beim Dämmern alles schon vorbereitet)
+    this.lightT = night > 0.04 ? 0.5 : 2;
     this.lightsDirty = false;
+    this._lightsJob = this._lightsGen();
+    // das allererste Mal am Stück (Vorschaubilder, Fotomodus erwarten die Lichter sofort)
+    this._lightsStep(this._lightsOnce ? (night > 0.04 ? 3 : 1.5) : Infinity);
+    this._lightsOnce = true;
+  }
+  _lightsStep(budget) {
+    const t0 = performance.now();
+    while (this._lightsJob) {
+      if (this._lightsJob.next().done) this._lightsJob = null;
+      else if (performance.now() - t0 > budget) break;
+    }
+  }
+  *_lightsGen() {
     const buf = this.lightBuf;
     // Bevorzugt über die gemeinsamen Nachtlichter von effects.js (HDR → Bloom, Lichtfleck am Boden, kein eigener Draw Call)
     const fx = this.e.effects;
     const shared = fx && typeof fx.addStaticLights === 'function';
-    const list = [];
-    buf.begin();
-    const col = new THREE.Color();
+    const list = this._lightList || (this._lightList = []);
+    list.length = 0;
+    const col = this._lcol || (this._lcol = new THREE.Color());
+    let n = 0;
     for (const rec of this.recs.values()) {
-      if (rec.win !== 1 || !rec.finished || rec.dyingT >= 0) continue;
+      if (++n % 300 === 0) yield;
+      if (rec.dead || rec.win !== 1 || !rec.finished || rec.dyingT >= 0) continue;
       const proto = rec.inst ? rec.inst.proto : rec.p0;
       if (!proto || !proto.lights.length) continue;
-      const c = COS[rec.k], s = SIN[rec.k];
-      for (const l of proto.lights) {
-        const x = rec.ox + l.x * c + l.z * s, z = rec.oz - l.x * s + l.z * c, size = (l.size ?? 0.4) * 0.9;
-        if (shared) { list.push({ x, y: l.y, z, color: l.color ?? 0xffd79a, size: size * 0.8, pool: l.y < 1.2 && size >= 0.15 ? Math.min(0.45, size * 1.1) : 0 }); continue; }
-        col.setHex(l.color ?? 0xffd79a);
-        buf.add(x, l.y, z, size, col.r, col.g, col.b, 0.9);
+      // Lichter je Gebäude in Weltkoordinaten zwischenspeichern (neu nur, wenn sich das Modell ändert)
+      if (rec.lightsOf !== proto) {
+        rec.lightsOf = proto;
+        const c = COS[rec.k], s = SIN[rec.k];
+        rec.lightsW = proto.lights.map((l) => {
+          const size = (l.size ?? 0.4) * 0.9;
+          col.setHex(l.color ?? 0xffd79a);
+          return { x: rec.ox + l.x * c + l.z * s, y: l.y, z: rec.oz - l.x * s + l.z * c, r: col.r, g: col.g, b: col.b, size, sz: size * 0.8, pool: l.y < 1.2 && size >= 0.15 ? Math.min(0.45, size * 1.1) : 0 };
+        });
       }
+      for (const L of rec.lightsW) list.push(L);
     }
-    buf.end();
-    if (shared) fx.addStaticLights('g9-gebaeude', list);
+    if (shared) fx.addStaticLights('g9-gebaeude', list, true);
+    else { buf.begin(); for (const L of list) buf.add(L.x, L.y, L.z, L.size, L.r, L.g, L.b, 0.9); buf.end(); }
     this._fxLights = shared;
-    pts.visible = !shared && night > 0.04 && buf.n > 0;
+    this.lightBuf.points.visible = !shared && (this.e.night || 0) > 0.04 && buf.n > 0;
   }
 
   // ------------------------------------------------------------------ Bild
@@ -2368,10 +2547,13 @@ export class BuildingView {
       if (this._lodScan(teleport || gap > 300 ? Infinity : Math.max(400, Math.ceil(this._scan.list.length / 4)))) this._lodDecide();
       const tm = performance.now() - tk; if (tm > this.ev.maxTickMs) this.ev.maxTickMs = tm;
     }
+    // warten Nahstufen auf ihre Shader: bald erneut versuchen
+    if (this.compileWait) { this.compileWait = false; this.lodT = Math.min(this.lodT, 0.1); }
     // Übergänge zeitlich verteilen (nächste zuerst): ~8 je Bild bei 60 Bildern/s
     const maxStarts = gap > 300 ? Infinity : Math.max(3, Math.round(dt * 480));
     const used = this._work(budget, maxStarts);
-    // Bauliste: günstige Prototypen im Bildbudget, teure erst, wenn die Kamera ruht
+    // Bauliste: mit Worker dorthin, sonst günstige Prototypen im Bildbudget, teure erst, wenn die Kamera ruht
+    this._adopt();
     this._buildSome(budget - used, this.camIdle > 0.6, used < 4 && gap < 40 ? 8 : 0);
     this._prebuild(dt);
     this._fadeFrame(dt);
@@ -2402,7 +2584,7 @@ export class BuildingView {
 
   heightOf(b) {
     const rec = this.recs.get(b.id);
-    return rec ? rec.height : this._estimate(b);
+    return rec ? rec.height : this._estimateHeight(b);
   }
 
   stats() {
@@ -2411,6 +2593,7 @@ export class BuildingView {
 
   dispose() {
     this.disposed = true;
+    if (this.pool) this.pool.drop(this);
     setVariantResolver(null);
     this.e.scene.remove(this.root);
     this.batch.dispose();
@@ -2465,6 +2648,13 @@ export function stationHeight() { return TRANSIT.trackHeight; }
 void Z;
 
 // Teure Modelle: Wahrzeichen und große Verkehrsbauten (Bauzeit in Detailstufe 2 oft 40–200 ms)
+// Alle Materialien, die ein Prototyp als Instanz zeichnet (Teile und eigene drehende Teile)
+function protoMaterials(proto) {
+  const out = [];
+  for (const p of proto.parts) out.push(p.material);
+  for (const a of proto.anims || []) for (const p of a.set.parts) out.push(p.material);
+  return out;
+}
 const HEAVY_CATS = new Set(['landmarks', 'transport']);
 function heavyKey(rec) {
   const def = BUILDINGS[rec.b && rec.b.key];

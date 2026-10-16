@@ -529,7 +529,12 @@ registerView(class TransportView {
   frame(dt, simDt, time, night) {
     const g = this.g, T = TPS.TS(g);
     if (!T) return;
-    if (T.version !== this.ver) this.rebuild();
+    if (T.version !== this.ver) {
+      // Nur die Ampelautomatik hat umgeschaltet (genau ein Versionsschritt, neue Ampelliste) und die Ampeln zeichnet die
+      // Straßenansicht: nichts neu bauen (der ganze Neubau aller Linienbänder kostete in der Megastadt ~100 ms)
+      const sigOnly = T.version === this.ver + 1 && T._sigKey !== this.sigSeen && this.e.roads && this.e.roads.drawsSignals;
+      if (sigOnly) { this.ver = T.version; this.sigSeen = T._sigKey; } else { this.rebuild(); this.sigSeen = T._sigKey; }
+    }
     const hl = this.toolActive || performance.now() - this.panelSeen < 2500 || (this.e.overlay && this.e.overlay.mode === 'ptransport');
     this.highlight += ((hl ? 1 : 0) - this.highlight) * Math.min(1, dt * 6);
     this.ribbonMat.opacity = 0.35 + 0.65 * this.highlight;

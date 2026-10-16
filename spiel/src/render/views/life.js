@@ -1139,21 +1139,30 @@ class LifeView {
   }
 
   // Gewichte je Straßenfeld: Bewohner, Kunden, Beschäftigte, Parks in der Nähe
-  computeWeights() {
+  computeWeights() { for (const _ of this.weightSteps()) { /* alles sofort */ } }
+  // In Schritten (yield nach je 400 Gebäuden): gerechnet wird in Zweitfelder, getauscht erst am Ende – in der
+  // Megastadt kostete der Durchlauf am Stück bis 15 ms alle 4 s
+  *weightSteps() {
     const g = this.g, N = g.N, W = g.W;
-    this.wRes = new Float32Array(N); this.wCom = new Float32Array(N); this.wJob = new Float32Array(N);
-    const addTo = (i, f, v) => { if (i >= 0 && i < N && g.road[i] && g.road[i] !== R.HIGHWAY) f[i] += v; };
+    // Felder wiederverwenden (alle 4 s neu: früher drei neue Felder und ein Hilfsfeld je Gebäude – Speicherlast)
+    if (!this.wRes2 || this.wRes2.length !== N) { this.wRes2 = new Float32Array(N); this.wCom2 = new Float32Array(N); this.wJob2 = new Float32Array(N); }
+    else { this.wRes2.fill(0); this.wCom2.fill(0); this.wJob2.fill(0); }
+    const out = { res: this.wRes2, com: this.wCom2, job: this.wJob2 };
+    this.weightsDirty = false;
+    const cells = this._cells || (this._cells = []);
+    let n = 0;
     for (const b of g.buildings.values()) {
+      if (++n % 400 === 0) yield;
       if (b.construct !== undefined && b.construct < 1) continue;
       let f = null, v = 0;
-      if (b.zone === Z.RES) { f = this.wRes; v = (b.occ || 0) * 1.0; }
-      else if (b.zone === Z.COM) { f = this.wCom; v = (b.cap || 0) * 1.6 + (b.occ || 0) * 0.5; }
-      else if (b.zone === Z.OFF || b.zone === Z.IND) { f = this.wJob; v = (b.occ || 0) * (b.zone === Z.OFF ? 0.8 : 0.35); }
-      else { f = this.wCom; v = 6; }
+      if (b.zone === Z.RES) { f = out.res; v = (b.occ || 0) * 1.0; }
+      else if (b.zone === Z.COM) { f = out.com; v = (b.cap || 0) * 1.6 + (b.occ || 0) * 0.5; }
+      else if (b.zone === Z.OFF || b.zone === Z.IND) { f = out.job; v = (b.occ || 0) * (b.zone === Z.OFF ? 0.8 : 0.35); }
+      else { f = out.com; v = 6; }
       if (b.abandoned) v *= 0.1;
       if (!v) continue;
       // auf die angrenzenden Straßenfelder verteilen
-      const cells = [];
+      cells.length = 0;
       for (let yy = b.y - 1; yy <= b.y + b.h; yy++) for (let xx = b.x - 1; xx <= b.x + b.w; xx++) {
         if (xx < 0 || yy < 0 || xx >= W || yy >= g.H) continue;
         const inside = xx >= b.x && xx < b.x + b.w && yy >= b.y && yy < b.y + b.h;
@@ -1163,9 +1172,13 @@ class LifeView {
         if (g.road[i] && g.road[i] !== R.HIGHWAY) cells.push(i);
       }
       if (!cells.length && b.access >= 0) cells.push(b.access);
-      for (const i of cells) addTo(i, f, v / cells.length);
+      const share = v / cells.length;
+      for (let k = 0; k < cells.length; k++) { const i = cells[k]; if (i >= 0 && i < N && g.road[i] && g.road[i] !== R.HIGHWAY) f[i] += share; }
     }
-    this.weightsDirty = false;
+    // fertig: Felder tauschen (die alten werden beim nächsten Durchlauf wiederverwendet)
+    [this.wRes, this.wRes2] = [out.res, this.wRes || new Float32Array(N)];
+    [this.wCom, this.wCom2] = [out.com, this.wCom || new Float32Array(N)];
+    [this.wJob, this.wJob2] = [out.job, this.wJob || new Float32Array(N)];
   }
 
   buildCandidates(cx, cz, r, h) {
@@ -1197,7 +1210,12 @@ class LifeView {
     this.time += ldt;
     if (this.walk.dirty) this.walk.rebuild();
     this.weightTimer -= dt;
-    if (this.weightsDirty || this.weightTimer <= 0 || !this.wRes) { this.computeWeights(); this.weightTimer = 4; }
+    if (!this.wRes || this.wRes.length !== g.N) { this._weightJob = null; this.computeWeights(); this.weightTimer = 4; }
+    else if (this._weightJob || this.weightsDirty || this.weightTimer <= 0) {
+      if (!this._weightJob) { this._weightJob = this.weightSteps(); this.weightTimer = 4; }
+      const t0 = performance.now();
+      while (this._weightJob && performance.now() - t0 < 1.5) if (this._weightJob.next().done) this._weightJob = null;
+    }
     const cam = e.camera;
     cam.updateMatrixWorld();
     this.cam.setFromMatrixPosition(cam.matrixWorld);

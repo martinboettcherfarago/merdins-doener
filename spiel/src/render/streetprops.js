@@ -758,7 +758,16 @@ gl_FragColor = vec4(vec3(1.0, 0.74, 0.42) * k, 1.0); }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   });
   const tint = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.82, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -8 });
-  MATS = { city: cityName, solid: MATS && MATS.solid ? MATS.solid : solidMaterial(), paint, glow, light, tint, signTex, noise, fog };
+  // Eigene Materialien für die instanzierten Kleinteile: dieselben Materialien an Mesh und InstancedMesh ließen three.js
+  // bei jedem Wechsel das Programm neu wählen (siehe protos.js g9Material)
+  const instVariant = (m) => {
+    const c = m.clone();
+    c.onBeforeCompile = m.onBeforeCompile;
+    if (Object.prototype.hasOwnProperty.call(m, 'customProgramCacheKey')) c.customProgramCacheKey = m.customProgramCacheKey;
+    if (m.isShaderMaterial) c.uniforms = m.uniforms;
+    return c;
+  };
+  MATS = { city: cityName, solid: MATS && MATS.solid ? MATS.solid : solidMaterial(), paint, glow, light, tint, signTex, noise, fog, glowI: instVariant(glow), lightI: instVariant(light) };
   return MATS;
 }
 
@@ -1337,6 +1346,16 @@ export class PropSystem {
     for (const kd of this.pending) this.commit(kd);
     this.pending.clear();
   }
+  // dasselbe in Zeitscheiben (mindestens eine Art je Aufruf); true, wenn nichts mehr offen ist
+  flushSome(budget = 3) {
+    const t0 = performance.now();
+    for (const kd of this.pending) {
+      this.pending.delete(kd);
+      this.commit(kd);
+      if (performance.now() - t0 > budget) break;
+    }
+    return !this.pending.size;
+  }
 
   makeMeshes(k, cap) {
     for (const m of k.meshes) { this.group.remove(m.mesh); m.mesh.dispose(); }
@@ -1352,14 +1371,16 @@ export class PropSystem {
       mesh.castShadow = (role === 'solid' || role === 'far') && !!(k.def && k.def.shadow);
       mesh.receiveShadow = role !== 'light';
       if (role === 'light') mesh.renderOrder = 6;
-      if (k.def && k.def.colored && (role === 'solid' || role === 'far')) mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
+      // Farbe je Instanz für alle festen Teile (weiß, wenn die Art nicht gefärbt wird): mit und ohne Instanzfarbe wären
+      // zwei Programmvarianten desselben Materials im Wechsel
+      if (role === 'solid' || role === 'far') mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
       this.group.add(mesh);
       k.meshes.push({ mesh, role });
     };
-    if (k.lightGeo) mk(k.lightGeo, M.light, 'light');
+    if (k.lightGeo) mk(k.lightGeo, M.lightI || M.light, 'light');
     if (k.solidGeo) mk(k.solidGeo, M.solid, 'solid');
     if (k.farGeo) mk(k.farGeo, M.solid, 'far');
-    if (k.glowGeo) mk(k.glowGeo, M.glow, 'glow');
+    if (k.glowGeo) mk(k.glowGeo, M.glowI || M.glow, 'glow');
     k.cap = cap;
   }
 

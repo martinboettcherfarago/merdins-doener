@@ -498,7 +498,15 @@ void main() {
   }
 
   // Dauerhafte Nachtlichter (z. B. von Gebäuden): Liste mit { x, y, z, color, size, pool }
-  addStaticLights(id, list) {
+  // ready: Einträge haben schon { x, y, z, r, g, b, sz (Größe), pool } – werden ohne Umrechnung übernommen
+  addStaticLights(id, list, ready = false) {
+    if (ready) {
+      const arr = this.staticLights.get(id) || [];
+      arr.length = 0;
+      for (const l of list || []) arr.push(l);
+      if (arr.length) this.staticLights.set(id, arr); else this.staticLights.delete(id);
+      return;
+    }
     const arr = [];
     const c = new THREE.Color();
     for (const l of list || []) {
@@ -523,39 +531,17 @@ void main() {
 
   // Problemsymbole: Kandidaten nach Schwere sammeln, dann pro Zelle (Weltraster, abhängig vom Zoom) nur das
   // wichtigste zeigen. Mehrere Probleme in einer Zelle → Stapel-Symbol. Fern entfallen leichte Probleme.
+  // Das Sammeln (alle Gebäude, Megastadt: Tausende) läuft in Zeitscheiben (iconScanSteps); beim Zoomen wird nur aus der
+  // letzten Kandidatenliste neu gebündelt (früher jedes Mal alle Gebäude, bis 40 ms am Stück).
   updateIcons(time) {
+    for (const _ of this.iconScanSteps()) { /* alles sofort */ }
+    this.bundleIcons(time);
+  }
+  // Kandidaten sammeln: je Gebäude (bzw. Station) Schlüssel, Lage, Höhe und Symbol; yield nach je 600 Gebäuden
+  *iconScanSteps() {
     const g = this.g;
-    let n = 0;
-    const seen = new Set();
-    const state = this.iconState;
-    const put = (key, x, h, z, icon) => {
-      if (n >= this.iconMax) return;
-      const sk = key + ':' + icon;
-      seen.add(sk);
-      let born = state.get(sk);
-      if (born === undefined) { born = time; state.set(sk, born); }
-      this.iconPos[n * 3] = x; this.iconPos[n * 3 + 1] = h; this.iconPos[n * 3 + 2] = z;
-      this.iconIdx[n] = icon;
-      this.iconBorn[n] = born;
-      n++;
-    };
-    this.iconLevelNow = this.iconLevel();
-    const cam = this.e.camera.position;
-    const cells = new Map();
-    const cand = (key, x, h, z, icon) => {
-      const pr = iconPrio(icon);
-      // Bündelstufe nach dem Abstand des Symbols zur Kamera (fern = größere Zellen, leichte Probleme entfallen)
-      const d = Math.hypot(x - cam.x, h - cam.y, z - cam.z);
-      const level = Math.max(0, Math.min(5, Math.round(Math.log2(Math.max(1, d * 0.22)))));
-      if (pr < (level >= 4 ? 30 : level >= 3 ? 18 : 0)) return;
-      const cellSize = 1 << level;
-      const ck = level * 1e8 + Math.floor((x + g.W / 2) / cellSize) * 4096 + Math.floor((z + g.H / 2) / cellSize);
-      const c = cells.get(ck);
-      if (!c) { cells.set(ck, { key, x, h, z, icon, pr, n: 1 }); return; }
-      c.n++;
-      if (pr > c.pr || (pr === c.pr && h > c.h)) { c.key = key; c.x = x; c.h = h; c.z = z; c.icon = icon; c.pr = pr; }
-    };
-    const putB = (b, icon) => cand(b.id, b.x + b.w / 2 - g.W / 2, this.iconHeight(b), b.y + b.h / 2 - g.H / 2, icon);
+    const C = { key: [], x: [], h: [], z: [], icon: [] };
+    const putB = (b, icon) => { C.key.push(b.id); C.x.push(b.x + b.w / 2 - g.W / 2); C.h.push(this.iconHeight(b)); C.z.push(b.y + b.h / 2 - g.H / 2); C.icon.push(icon); };
     const extraIcon = (b) => {
       for (const fn of BUILDING_PROBLEMS) {
         const id = fn(g, b);
@@ -563,9 +549,10 @@ void main() {
       }
       return -1;
     };
-    const extra = (b) => { const i = extraIcon(b); if (i >= 0) putB(b, i); };
     if (this.showIcons) {
+      let k = 0;
       for (const b of g.buildings.values()) {
+        if (++k % 600 === 0) yield;
         if (b.construct < 1) {
           if (g.isRepairing && g.isRepairing(b) && ICON_INDEX.repair !== undefined) putB(b, ICON_INDEX.repair);
           continue;
@@ -574,7 +561,7 @@ void main() {
         if (b.abandoned) { putB(b, ICON.ABANDONED); continue; }
         if (!b.zone) {
           if (b.key !== 'park' && b.comp >= 0 && !b.powered && BUILDINGS_NEED_POWER(b)) putB(b, ICON.POWER);
-          else extra(b);
+          else { const i = extraIcon(b); if (i >= 0) putB(b, i); }
           continue;
         }
         if (!b.connected) putB(b, ICON.ROAD);
@@ -589,14 +576,58 @@ void main() {
         }
       }
       for (const st of g.transit.stations.values()) {
-        if (st.waiting.length > 14) cand('st' + st.x + ',' + st.y, st.x + 0.5 - g.W / 2, 4.6, st.y + 0.5 - g.H / 2, ICON.CROWD);
+        if (st.waiting.length > 14) { C.key.push(-(st.y * g.W + st.x + 1)); C.x.push(st.x + 0.5 - g.W / 2); C.h.push(4.6); C.z.push(st.y + 0.5 - g.H / 2); C.icon.push(ICON.CROWD); }
       }
-      for (const c of cells.values()) put(c.key, c.x, c.h, c.z, c.icon + (c.n > 1 ? ICON_STACK : 0));
     }
-    for (const k of state.keys()) if (!seen.has(k)) state.delete(k);
+    this.iconCand = C;
+  }
+  // Aus den Kandidaten je Zelle das wichtigste Symbol zeigen (Bündelstufe nach dem Abstand zur Kamera)
+  bundleIcons(time) {
+    const g = this.g, C = this.iconCand;
+    const state = this.iconState;
+    const gen = (this.iconGen = (this.iconGen || 0) + 1);
+    let n = 0;
+    this.iconLevelNow = this.iconLevel();
+    const cam = this.e.camera.position;
+    const cells = this._iconCells || (this._iconCells = new Map());
+    cells.clear();
+    const m = C && this.showIcons ? C.key.length : 0;
+    for (let i = 0; i < m; i++) {
+      const x = C.x[i], h = C.h[i], z = C.z[i], icon = C.icon[i];
+      const pr = iconPrio(icon);
+      // Bündelstufe nach dem Abstand des Symbols zur Kamera (fern = größere Zellen, leichte Probleme entfallen)
+      const d = Math.hypot(x - cam.x, h - cam.y, z - cam.z);
+      const level = Math.max(0, Math.min(5, Math.round(Math.log2(Math.max(1, d * 0.22)))));
+      if (pr < (level >= 4 ? 30 : level >= 3 ? 18 : 0)) continue;
+      const cellSize = 1 << level;
+      const ck = level * 1e8 + Math.floor((x + g.W / 2) / cellSize) * 4096 + Math.floor((z + g.H / 2) / cellSize);
+      const c = cells.get(ck);
+      if (c === undefined) { cells.set(ck, i * 4096 + 1); continue; } // Kandidat × 4096 + Anzahl
+      const j = Math.floor(c / 4096), cnt = (c % 4096) + 1;
+      const pj = iconPrio(C.icon[j]);
+      cells.set(ck, (pr > pj || (pr === pj && h > C.h[j]) ? i : j) * 4096 + Math.min(4095, cnt));
+    }
+    for (const c of cells.values()) {
+      if (n >= this.iconMax) break;
+      const j = Math.floor(c / 4096), icon = C.icon[j] + (c % 4096 > 1 ? ICON_STACK : 0);
+      const sk = C.key[j] * 128 + icon;
+      let st = state.get(sk);
+      if (st === undefined) { st = { born: time, gen }; state.set(sk, st); } else st.gen = gen;
+      this.iconPos[n * 3] = C.x[j]; this.iconPos[n * 3 + 1] = C.h[j]; this.iconPos[n * 3 + 2] = C.z[j];
+      this.iconIdx[n] = icon;
+      this.iconBorn[n] = st.born;
+      n++;
+    }
+    for (const [k, st] of state) if (st.gen !== gen) state.delete(k);
     this.iconCount = n;
     this.iconGeo.setDrawRange(0, n);
-    for (const name of ['position', 'aIcon', 'aBorn']) this.iconGeo.attributes[name].needsUpdate = true;
+    for (const name of ['position', 'aIcon', 'aBorn']) {
+      const a = this.iconGeo.attributes[name];
+      if (!n && !this._iconN) continue;
+      if (a.addUpdateRange) { a.clearUpdateRanges(); a.addUpdateRange(0, Math.max(1, n) * a.itemSize); }
+      a.needsUpdate = true;
+    }
+    this._iconN = n;
   }
 
   // Licht- und Farbwerte der Szene für beleuchtete Partikel
@@ -618,7 +649,17 @@ void main() {
     const g = this.g, e = this.e;
     this.iconMat.uniforms.uTime.value = time;
     this.iconTimer -= dt;
-    if (this.iconTimer <= 0 || this.iconLevel() !== this.iconLevelNow) { this.iconTimer = 0.5; this.updateIcons(time); }
+    if (this.showIcons !== this._iconShow) {
+      // an/aus (Taste I, Fotomodus): sofort
+      this._iconShow = this.showIcons; this._iconJob = null; this.iconTimer = 0.5; this.updateIcons(time);
+    } else if (this._iconJob) {
+      // Sammeln fortsetzen (höchstens ~1,5 ms je Bild), danach bündeln
+      const t0 = performance.now();
+      while (this._iconJob && performance.now() - t0 < 1.5) if (this._iconJob.next().done) { this._iconJob = null; this.bundleIcons(time); }
+    } else if (this.iconTimer <= 0) {
+      this.iconTimer = 0.5;
+      if (!this.iconCand) this.updateIcons(time); else this._iconJob = this.iconScanSteps();
+    } else if (this.iconLevel() !== this.iconLevelNow) this.bundleIcons(time);
     this.updateLighting();
     const wx = e.wx || { wind: 0.3, windDir: 0.6 };
     const wsp = 0.08 + wx.wind * 0.55;
@@ -645,8 +686,8 @@ void main() {
           }
         }
       }
-      // Feuer
-      for (const b of g.buildings.values()) {
+      // Feuer (Liste der brennenden Gebäude, siehe burningList)
+      for (const b of this.burningList(dt)) {
         if (!b.burning) continue;
         const x = b.x + b.w / 2 - g.W / 2, z = b.y + b.h / 2 - g.H / 2;
         const h = Math.max(0.3, (this.iconHeight(b) - 0.6) * 0.9);
@@ -662,9 +703,12 @@ void main() {
     // Rauch, Dampf, Staub
     const sb = this.smokeBuf;
     sb.begin();
-    const keep = [];
+    // lebende Teilchen nach vorn schieben (kein neues Feld je Bild)
+    const keep = this.particles;
+    let nk = 0;
     const step = running ? dt : 0;
-    for (const p of this.particles) {
+    for (let pi = 0, pn = keep.length; pi < pn; pi++) {
+      const p = keep[pi];
       p.age += step;
       if (p.age > p.life) continue;
       const t = p.age / p.life;
@@ -679,16 +723,18 @@ void main() {
       const grow = 1 - Math.pow(1 - t, 2.2);
       const a = p.a * Math.min(1, t * 7) * Math.pow(1 - t, 1.4);
       sb.addR(p.x, p.y, p.z, p.s0 + (p.s1 - p.s0) * grow, p.cr, p.cg, p.cb, a, p.rot, p.v);
-      keep.push(p);
+      keep[nk++] = p;
     }
-    this.particles = keep;
+    keep.length = nk;
     sb.end();
 
     // Flammen und Funken (leuchtend, HDR)
     const fb = this.fireBuf;
     fb.begin();
-    const keepF = [];
-    for (const p of this.fireParts) {
+    const keepF = this.fireParts;
+    let nf = 0;
+    for (let pi = 0, pn = keepF.length; pi < pn; pi++) {
+      const p = keepF[pi];
       p.age += dt;
       if (p.age > p.life) continue;
       p.y += p.vy * dt;
@@ -696,11 +742,13 @@ void main() {
       const t = p.age / p.life;
       const hot = 1 - t;
       fb.add(p.x, p.y, p.z, p.s * (1 - t * 0.55), 2.6 * (0.8 + hot * 0.5), (0.55 + hot * 0.9) * 1.2, 0.12 + hot * 0.25, (1 - t) * 0.85);
-      keepF.push(p);
+      keepF[nf++] = p;
     }
-    this.fireParts = keepF;
-    const keepS = [];
-    for (const s of this.sparks) {
+    keepF.length = nf;
+    const keepS = this.sparks;
+    let ns = 0;
+    for (let si = 0, sn = keepS.length; si < sn; si++) {
+      const s = keepS[si];
       s.age += dt;
       if (s.age > s.life) continue;
       s.vy -= dt * 0.25;
@@ -709,9 +757,9 @@ void main() {
       const t = s.age / s.life;
       const fl = 0.6 + 0.4 * Math.sin(s.age * 31 + s.ph);
       fb.add(s.x, s.y, s.z, 0.05, 3.2, 1.5 - t, 0.3, (1 - t) * fl);
-      keepS.push(s);
+      keepS[ns++] = s;
     }
-    this.sparks = keepS;
+    keepS.length = ns;
     fb.end();
   }
 
@@ -723,7 +771,7 @@ void main() {
       const a = Math.min(1, (night - 0.15) * 1.6);
       for (const list of this.staticLights.values()) {
         for (const l of list) {
-          this.lights.add(l.x, l.y, l.z, l.size, l.r * 1.6, l.g * 1.6, l.b * 1.6, a * 0.8);
+          this.lights.add(l.x, l.y, l.z, l.sz ?? l.size, l.r * 1.6, l.g * 1.6, l.b * 1.6, a * 0.8);
           if (l.pool > 0) this.pools.add(l.x, 0.02, l.z, l.pool, l.r, l.g, l.b, a * 0.35 * (1 - 0.5 * ((shared.uSnow && shared.uSnow.value) || 0)));
         }
       }
@@ -740,10 +788,21 @@ void main() {
       this.lights.add(x, y, z, 0.09, 1.3, 0.95, 0.55, a * 0.5);
     }
   }
+  // Brennende Gebäude: alle 0,5 s gesucht statt jedes Bild alle Gebäude (Megastadt: Tausende) zu durchlaufen
+  burningList(dt = 0) {
+    this._burnT = (this._burnT ?? 0) - dt;
+    const L = this._burnList || (this._burnList = []);
+    if (this._burnT <= 0) {
+      this._burnT = 0.5;
+      L.length = 0;
+      for (const b of this.g.buildings.values()) if (b.burning) L.push(b);
+    }
+    return L;
+  }
   addFireLights() {
     const g = this.g;
     const t = this.e.time || 0;
-    for (const b of g.buildings.values()) {
+    for (const b of this.burningList()) {
       if (!b.burning) continue;
       const x = b.x + b.w / 2 - g.W / 2, z = b.y + b.h / 2 - g.H / 2;
       const fl = 0.75 + 0.25 * Math.sin(t * 17 + b.id) * Math.sin(t * 7.3 + b.id * 3);

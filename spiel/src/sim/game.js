@@ -9,7 +9,7 @@ import '../content/index.js';
 import './systems/index.js';
 import { generateWorld } from './world.js';
 import { rebuildNetwork, updateBuildingAccess, PathCache } from './network.js';
-import { computeUtilities, computeCoverage, computeFields, computeHappiness, allServiceTypes } from './services.js';
+import { computeUtilities, computeCoverage, computeFields, computeHappiness, allServiceTypes, computeCoverageSteps, computeFieldsSteps, computeHappinessSteps } from './services.js';
 import { SYSTEMS, BUDGET_LINES, warnOnce, emit as busEmit } from '../registry.js';
 import { aggregate, updateDemand, growthStep, constructionStep, dailyBuildings, hourlyFires, checkMilestones, capacityOf, maxLevelAt } from './city.js';
 import { computeBudget, dailyEconomy, weeklyLoans } from './economy.js';
@@ -772,11 +772,29 @@ export class Game extends Emitter {
   }
 
   // ---------- Hauptschleife
+  // Zeitscheiben (sliceMs > 0, setzt die App): Die Stunden- und Tagesarbeit einer Großstadt dauert auf einmal 30–300 ms
+  // und ließ das Bild jede Spielstunde hängen. Mit sliceMs läuft sie als Folge kleiner Schritte über mehrere Bilder
+  // (je Bild höchstens etwa sliceMs, mindestens ein Schritt). Solange sie läuft, steht die Spielzeit (Fahrzeuge,
+  // Uhr) – Reihenfolge und Ergebnis jedes Schritts bleiben genau wie im Stück; die Bilder dazwischen werden danach
+  // aufgeholt. Ohne sliceMs (Prüfstände, Werkzeuge) wie bisher alles sofort. flushJobs() erledigt den Rest sofort
+  // (vor Eingaben und vor dem Speichern).
   update(realDt) {
+    if (this._job) {
+      this._lag = Math.min(0.5, (this._lag || 0) + Math.min(realDt, 0.1));
+      this._pump();
+      return 0;
+    }
+    let dt = Math.min(realDt, 0.1);
+    // aufgelaufene Zeit nachholen, ohne die Obergrenze von 0,1 s je Bild zu überschreiten
+    if (this._lag > 0) { const add = Math.min(this._lag, 0.1 - dt); this._lag -= add; dt += add; }
     const mul = this.blocking ? 0 : SPEEDS[this.speed];
-    const simSec = Math.min(realDt, 0.1) * mul;
+    const simSec = dt * mul;
     if (simSec > 0) {
       this.time += simSec * (this.minPerSec > 0 ? this.minPerSec : GAME_MIN_PER_SEC);
+      if (this.sliceMs > 0 && this.time >= this.nextStep) {
+        this._job = this._stepsGen(simSec);
+        return this._pump() ? simSec : 0;
+      }
       let guard = 0;
       while (this.time >= this.nextStep && guard++ < 40) {
         try { this.simStep(10); } catch (e) { this.reportError('Simulation', e); }
@@ -790,7 +808,37 @@ export class Game extends Emitter {
     return simSec;
   }
 
-  simStep(minutes) {
+  // Wie die Schleife in update(), als Folge von Schritten (yield = hier darf ein Bild dazwischen)
+  *_stepsGen(simSec) {
+    let guard = 0;
+    while (this.time >= this.nextStep && guard++ < 40) {
+      try { yield* this._simStepGen(10); } catch (e) { this.reportError('Simulation', e); }
+      this.nextStep += 10;
+      if (this.blocking) break;
+    }
+    if (this.time > this.nextStep + 60) this.nextStep = this.time;
+    yield;
+    try { this.traffic.update(simSec); } catch (e) { this.reportError('Verkehr', e); }
+    try { this.transit.update(simSec); } catch (e) { this.reportError('Pulsbahn', e); }
+  }
+  // Laufende Arbeit fortsetzen (Zeitbudget sliceMs); true, wenn fertig
+  _pump(budget = this.sliceMs) {
+    const job = this._job;
+    if (!job) return true;
+    const t0 = performance.now();
+    for (;;) {
+      let r;
+      try { r = job.next(); } catch (e) { this.reportError('Simulation', e); r = { done: true }; }
+      if (r.done) { if (this._job === job) this._job = null; return true; }
+      if (performance.now() - t0 >= budget) return false;
+    }
+  }
+  // Verteilte Arbeit sofort zu Ende bringen (vor Spieleraktionen, Speichern, Laden)
+  flushJobs() { if (this._job) this._pump(Infinity); }
+  get busy() { return !!this._job; }
+
+  simStep(minutes) { for (const _ of this._simStepGen(minutes)) { /* alles sofort */ } }
+  *_simStepGen(minutes) {
     aggregate(this);
     updateDemand(this);
     growthStep(this);
@@ -801,37 +849,52 @@ export class Game extends Emitter {
     const hour = Math.floor(t / 60);
     if (hour !== this.lastHour) {
       this.lastHour = hour;
-      this.hourly(hour % 24);
+      yield;
+      yield* this._hourlyGen(hour % 24);
     }
     const day = Math.floor(t / DAY);
     if (day !== this.lastDay) {
       this.lastDay = day;
-      this.daily(day);
+      yield;
+      yield* this._dailyGen(day);
     }
     for (const s of SYSTEMS) if (s.step) this._sys(s, 'step', minutes);
     this.emit('step');
   }
 
-  hourly(h) {
+  // Systemhaken in Schritten: Systeme mit <hook>Steps (Generator) dürfen ihre Arbeit selbst teilen
+  *_sysGen(s, hook, a) {
+    const gen = s[hook + 'Steps'];
+    if (typeof gen !== 'function') { this._sys(s, hook, a); return; }
+    try { yield* gen.call(s, this, a); } catch (e) { this.reportError(`System „${s.id}“ (${hook})`, e); }
+  }
+
+  hourly(h) { for (const _ of this._hourlyGen(h)) { /* alles sofort */ } }
+  *_hourlyGen(h) {
     computeUtilities(this);
     if (this.dirty.coverage || h % 3 === 0) {
-      computeCoverage(this);
-      this.transit.applyCoverage();
+      // (vorher zurücksetzen: ändert der Spieler zwischen zwei Schritten etwas, rechnet die nächste Stunde erneut)
       this.dirty.coverage = false;
+      yield* computeCoverageSteps(this);
+      this.transit.applyCoverage();
     }
-    if (h % 2 === 0) computeFields(this);
-    computeHappiness(this, h & 1);
+    if (h % 2 === 0) { yield; yield* computeFieldsSteps(this); }
+    yield;
+    yield* computeHappinessSteps(this, h & 1);
+    yield;
     this.traffic.hourly();
     this.transit.hourly();
     hourlyFires(this);
     if (h % 6 === 0) this.pathCache.clear();
     if (this.rng() < 0.2) chatter(this);
-    for (const s of SYSTEMS) if (s.hourly) this._sys(s, 'hourly', h);
+    for (const s of SYSTEMS) if (s.hourly) { yield; yield* this._sysGen(s, 'hourly', h); }
     this.emit('hour', h);
   }
 
-  daily(day) {
+  daily(day) { for (const _ of this._dailyGen(day)) { /* alles sofort */ } }
+  *_dailyGen(day) {
     dailyBuildings(this);
+    yield;
     dailyEconomy(this);
     this.transit.daily();
     // Trümmer verschwinden
@@ -864,8 +927,8 @@ export class Game extends Emitter {
     if (this.history.length > 400) this.history.shift();
     checkMilestones(this);
     maybeEvent(this);
-    if (day % 7 === 0) this.weekly();
-    for (const s of SYSTEMS) if (s.daily) this._sys(s, 'daily', day);
+    if (day % 7 === 0) { yield; this.weekly(); }
+    for (const s of SYSTEMS) if (s.daily) { yield; yield* this._sysGen(s, 'daily', day); }
     this.emit('day', day);
   }
 
@@ -886,6 +949,7 @@ export class Game extends Emitter {
   // ---------- Speichern / Laden
   // Format v2: wie v1 (Stadtpuls 1.x) plus serviceBudget, ext (Systemdaten), rng/trng (Zufallszustand).
   serialize() {
+    this.flushJobs(); // verteilte Stunden-/Tagesarbeit erst abschließen (in sich stimmiger Stand)
     const bl = [];
     for (const b of this.buildings.values()) {
       bl.push([b.id, b.key, b.zone, b.x, b.y, b.w, b.h, b.rot, b.level, b.occ, b.variant, Math.round(fin(b.happy, 50)), int(b.age, 0), +fin(b.edu, 0).toFixed(3), Math.round(fin(b.commute, 0)), +fin(b.construct, 1).toFixed(3), b.abandoned ? 1 : 0, int(b.abandonedDays, 0), b.spec || '']);

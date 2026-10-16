@@ -174,7 +174,13 @@ void main() {
   flush() {
     const g = this.geo;
     g.setDrawRange(0, this.n);
-    g.attributes.position.needsUpdate = true; g.attributes.aColor.needsUpdate = true; g.attributes.aSize.needsUpdate = true; g.attributes.aRot.needsUpdate = true;
+    // nur den benutzten Teil hochladen – und gar nichts, solange keine Partikel da sind (meist: keine Katastrophe)
+    const n = this.n;
+    if (!n && !this.lastN) return;
+    this.lastN = n;
+    for (const a of [g.attributes.position, g.attributes.aColor, g.attributes.aSize, g.attributes.aRot]) {
+      a.clearUpdateRanges(); a.addUpdateRange(0, Math.max(1, n) * a.itemSize); a.needsUpdate = true;
+    }
   }
   // Einmalige Punkte nur für dieses Bild (Blitze, Lichter)
   addStatic(list) {

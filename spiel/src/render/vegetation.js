@@ -602,19 +602,22 @@ function makeVegMaterial(u, variant = 'solid', lod = 0) {
   return mat;
 }
 
-function makeVegDepthMaterial(u, bare) {
+// far: Schatten des einfachen Modells mit derselben Blende wie seine Farbe (lod 2) – das ferne Mesh enthält alle
+// Pflanzen, die nahen blendet der Shader aus (sonst würfen sie doppelt Schatten)
+function makeVegDepthMaterial(u, bare, far = false) {
   const mat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: bare ? THREE.DoubleSide : THREE.FrontSide });
-  if (bare) mat.defines = { G7_BARE: '' };
+  mat.defines = { ...(bare ? { G7_BARE: '' } : {}), ...(far ? { G7_LOD: 2 } : {}) };
+  const LODP = '#ifdef G7_LOD\nuniform vec2 uLodC;\nuniform float uLodR;\nuniform float uLodB;\nflat varying float vG7L;\n#endif';
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\n${VERT_PARS}`)
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_SWAY}`);
+      .replace('#include <common>', `#include <common>\n${VERT_PARS}\n${LODP}`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${VERT_SWAY}\n${LOD_VERT}`);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${FRAG_PARS}`)
-      .replace('void main() {', `void main() {\n{\n${FRAG_LEAFCUT}\n}`);
+      .replace('#include <common>', `#include <common>\n${FRAG_PARS}\n#ifdef G7_LOD\nflat varying float vG7L;\n#endif`)
+      .replace('void main() {', `void main() {\n${LOD_FRAG}\n{\n${FRAG_LEAFCUT}\n}`);
   };
-  mat.customProgramCacheKey = () => 'g7vegDepth-' + (bare ? 'bare' : 'solid');
+  mat.customProgramCacheKey = () => 'g7vegDepth-' + (bare ? 'bare' : 'solid') + (far ? '-far' : '');
   return mat;
 }
 
@@ -643,7 +646,10 @@ export class Vegetation {
     this.lodMats = [mk(this.uniforms, 1), mk(this.uniforms, 2)];
     this.grassMat = makeVegMaterial(this.grassU, 'blade', 1);
     this.lodOn = false;
-    this.depthMats = { solid: makeVegDepthMaterial(this.uniforms, false), bare: makeVegDepthMaterial(this.uniforms, true) };
+    this.depthMats = {
+      solid: makeVegDepthMaterial(this.uniforms, false), bare: makeVegDepthMaterial(this.uniforms, true),
+      solidFar: makeVegDepthMaterial(this.uniforms, false, true), bareFar: makeVegDepthMaterial(this.uniforms, true, true),
+    };
     this.bare = false;
     this.sp = {};
     for (const key of SPECIES_KEYS) {
@@ -814,6 +820,7 @@ export class Vegetation {
     }
     this.lodKey = null;
     this.nearKey = null;
+    this.farDirty = true;
     this.assignLOD(true);
   }
 
@@ -831,7 +838,7 @@ export class Vegetation {
       m.castShadow = sp.def.shadow !== false;
       m.receiveShadow = true;
       m.frustumCulled = false;
-      m.customDepthMaterial = this.depthFor(sp);
+      m.customDepthMaterial = this.depthFor(sp, l);
       m.name = `${sp.key}-${l ? 'fern' : 'nah'}`;
       m.visible = false;
       this.group.add(m);
@@ -846,13 +853,17 @@ export class Vegetation {
     const set = l === 0 ? this.lodMats[0] : this.lodOn ? this.lodMats[1] : this.mats;
     return sp.def.blade ? set.blade : (sp.def.decid && this.bare) ? set.bare : set.solid;
   }
-  depthFor(sp) { return (sp.def.decid && this.bare) ? this.depthMats.bare : this.depthMats.solid; }
+  depthFor(sp, l = 0) {
+    const bare = sp.def.decid && this.bare, D = this.depthMats;
+    if (sp.def.near || !l) return bare ? D.bare : D.solid;
+    return bare ? D.bareFar : D.solidFar;
+  }
   setBare(on) {
     if (on === this.bare) return;
     this.bare = on;
     for (const k of SPECIES_KEYS) {
       const sp = this.sp[k];
-      sp.mesh.forEach((m, l) => { if (m) { m.material = this.matFor(sp, l); m.customDepthMaterial = this.depthFor(sp); } });
+      sp.mesh.forEach((m, l) => { if (m) { m.material = this.matFor(sp, l); m.customDepthMaterial = this.depthFor(sp, l); } });
     }
   }
 
@@ -873,36 +884,52 @@ export class Vegetation {
       for (const k of SPECIES_KEYS) { const sp = this.sp[k]; if (sp.mesh[1] && !sp.def.near) sp.mesh[1].material = this.matFor(sp, 1); }
     }
     const q = Math.max(2, R * 0.25);
-    const key = on ? [Math.round(tx / q), Math.round(tz / q), Math.round(R / 3.5)].join(':') : 'aus';
+    const key = on ? `${Math.round(tx / q)}:${Math.round(tz / q)}:${Math.round(R / 3.5)}` : 'aus';
+    // Fernes Mesh: alle Pflanzen, nur nach einem Neuaufbau einmal füllen – nahe blendet der Shader aus (lod 2 verwirft
+    // innerhalb von uLodR − uLodB alles). Früher wurde bei jedem Schritt der Kamera die ganze Liste neu sortiert und
+    // hochgeladen (Megastadt: mehrere MB je Schritt, beim Schwenken fast jedes Bild).
+    if (this.farDirty) {
+      this.farDirty = false;
+      for (const k of SPECIES_KEYS) {
+        const sp = this.sp[k];
+        if (sp.def.near || !sp.mesh[1]) continue;
+        const lo = sp.mesh[1];
+        lo.instanceMatrix.array.set(sp.mats.subarray(0, sp.n * 16));
+        lo.instanceColor.array.set(sp.cols.subarray(0, sp.n * 3));
+        lo.count = sp.n; lo.visible = sp.n > 0;
+        lo.instanceMatrix.clearUpdateRanges(); lo.instanceColor.clearUpdateRanges();
+        lo.instanceMatrix.needsUpdate = true; lo.instanceColor.needsUpdate = true;
+      }
+    }
     if (!force && key === this.lodKey) return;
     this.lodKey = key;
+    // Nahes Mesh: nur der Kreis um den Blickpunkt (mit Rand für die Schritte dazwischen)
     const margin = q + 3.5;
-    const rIn = on ? R + margin : 0, rOut = on ? Math.max(0, R - B - margin) : -1;
-    const RI2 = rIn * rIn, RO2 = rOut < 0 ? -1 : rOut * rOut;
+    const rIn = on ? R + margin : 0;
+    const RI2 = rIn * rIn;
     for (const k of SPECIES_KEYS) {
       const sp = this.sp[k];
       if (sp.def.near || !sp.mesh[0]) continue;
-      const hi = sp.mesh[0], lo = sp.mesh[1];
-      const hm = hi.instanceMatrix.array, lm = lo.instanceMatrix.array, hc = hi.instanceColor.array, lc = lo.instanceColor.array;
-      let nh = 0, nl = 0;
-      for (let i = 0; i < sp.n; i++) {
-        const dx = sp.xz[i * 2] - tx, dz = sp.xz[i * 2 + 1] - tz;
-        const d2 = dx * dx + dz * dz;
-        if (d2 < RI2) {
-          hm.set(sp.mats.subarray(i * 16, i * 16 + 16), nh * 16);
-          hc.set(sp.cols.subarray(i * 3, i * 3 + 3), nh * 3);
+      const hi = sp.mesh[0];
+      const hm = hi.instanceMatrix.array, hc = hi.instanceColor.array, M = sp.mats, C = sp.cols, XZ = sp.xz;
+      let nh = 0;
+      if (on) {
+        for (let i = 0; i < sp.n; i++) {
+          const dx = XZ[i * 2] - tx, dz = XZ[i * 2 + 1] - tz;
+          if (dx * dx + dz * dz >= RI2) continue;
+          const a = i * 16, b = nh * 16;
+          for (let j = 0; j < 16; j++) hm[b + j] = M[a + j];
+          hc[nh * 3] = C[i * 3]; hc[nh * 3 + 1] = C[i * 3 + 1]; hc[nh * 3 + 2] = C[i * 3 + 2];
           nh++;
         }
-        if (d2 > RO2) {
-          lm.set(sp.mats.subarray(i * 16, i * 16 + 16), nl * 16);
-          lc.set(sp.cols.subarray(i * 3, i * 3 + 3), nl * 3);
-          nl++;
-        }
       }
-      hi.count = nh; lo.count = nl;
-      hi.visible = nh > 0; lo.visible = nl > 0;
-      hi.instanceMatrix.needsUpdate = lo.instanceMatrix.needsUpdate = true;
-      hi.instanceColor.needsUpdate = lo.instanceColor.needsUpdate = true;
+      const changed = nh > 0 || hi.count > 0;
+      hi.count = nh;
+      hi.visible = nh > 0;
+      if (changed && nh > 0) {
+        hi.instanceMatrix.clearUpdateRanges(); hi.instanceMatrix.addUpdateRange(0, nh * 16); hi.instanceMatrix.needsUpdate = true;
+        hi.instanceColor.clearUpdateRanges(); hi.instanceColor.addUpdateRange(0, nh * 3); hi.instanceColor.needsUpdate = true;
+      }
     }
   }
 
@@ -931,7 +958,8 @@ export class Vegetation {
     this.ensureMeshes(sp, est);
     const mesh = sp.mesh[0];
     const ma = mesh.instanceMatrix.array, ca = mesh.instanceColor.array;
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), yA = new THREE.Vector3(0, 1, 0);
+    const m4 = this._gm4 || (this._gm4 = new THREE.Matrix4()), q = this._gq || (this._gq = new THREE.Quaternion());
+    const sc = this._gs || (this._gs = new THREE.Vector3()), p = this._gp || (this._gp = new THREE.Vector3()), yA = this._gy || (this._gy = new THREE.Vector3(0, 1, 0));
     const pal = sp.pal;
     let n = 0;
     for (let y = Math.max(0, cz - Rn); y <= Math.min(H - 1, cz + Rn); y++) for (let x = Math.max(0, cx - Rn); x <= Math.min(W - 1, cx + Rn); x++) {
@@ -963,8 +991,10 @@ export class Vegetation {
     }
     mesh.count = n;
     mesh.visible = n > 0;
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.instanceColor.needsUpdate = true;
+    if (n > 0) {
+      mesh.instanceMatrix.clearUpdateRanges(); mesh.instanceMatrix.addUpdateRange(0, n * 16); mesh.instanceMatrix.needsUpdate = true;
+      mesh.instanceColor.clearUpdateRanges(); mesh.instanceColor.addUpdateRange(0, n * 3); mesh.instanceColor.needsUpdate = true;
+    }
   }
 
   frame(dt, time, night, s) {

@@ -74,6 +74,7 @@ export class StateTable {
     if (this.data) data.set(this.data);
     const old = this.cap;
     this.data = data;
+    this.rowDirty = new Uint8Array(rows);
     this.cap = Math.floor((TEXW * rows) / TPS);
     for (let s = old; s < this.cap; s++) this.reset(s);
     const tex = new THREE.DataTexture(data, TEXW, rows, THREE.RGBAFormat, THREE.FloatType);
@@ -88,7 +89,14 @@ export class StateTable {
     this.fresh = true; // nächster Upload komplett
     this.rlo = Infinity; this.rhi = -1;
   }
-  _row(s, k) { const r = (s * TPS + k) >> 10; if (r < this.rlo) this.rlo = r; if (r > this.rhi) this.rhi = r; this.dirty = true; }
+  // Geänderte Zeilen einzeln merken: Zustandswechsel verteilen sich über die ganze Tabelle (Überblendungen, Fenster,
+  // Abriss) – ein Bereich von der ersten bis zur letzten geänderten Zeile wäre fast immer die ganze Textur
+  _row(s, k) {
+    const r = (s * TPS + k) >> 10;
+    if (r < this.rlo) this.rlo = r; if (r > this.rhi) this.rhi = r;
+    if (this.rowDirty && r < this.rowDirty.length) this.rowDirty[r] = 1;
+    this.dirty = true;
+  }
   // Neue Ansicht (neues Spiel, neue Leinwand): alle Plätze freigeben, beim nächsten Upload alles laden
   clear() {
     this.top = 2;
@@ -140,13 +148,22 @@ export class StateTable {
     if (this.fresh || !renderer || !renderer.copyTextureToTexture) {
       this.tex.needsUpdate = true; // komplett (erstes Mal, neue Größe oder ohne Renderer)
     } else if (this.rhi >= this.rlo) {
-      const rows = this.rhi - this.rlo + 1;
       this._src = this._src || { isDataTexture: true, image: { data: null, width: TEXW, height: 1 } };
-      this._src.image.data = this.data.subarray(this.rlo * TEXW * 4, (this.rhi + 1) * TEXW * 4);
-      this._src.image.height = rows;
       this._pos = this._pos || new THREE.Vector2();
-      renderer.copyTextureToTexture(this._pos.set(0, this.rlo), this._src, this.tex);
+      const D = this.rowDirty;
+      // zusammenhängende Läufe geänderter Zeilen (Lücken von einer Zeile werden mitgenommen: ein Aufruf weniger)
+      let r = this.rlo;
+      while (r <= this.rhi) {
+        if (D && !D[r]) { r++; continue; }
+        let e = r;
+        while (e + 1 <= this.rhi && (!D || D[e + 1] || (e + 2 <= this.rhi && D[e + 2]))) e++;
+        this._src.image.data = this.data.subarray(r * TEXW * 4, (e + 1) * TEXW * 4);
+        this._src.image.height = e - r + 1;
+        renderer.copyTextureToTexture(this._pos.set(0, r), this._src, this.tex);
+        r = e + 1;
+      }
     }
+    if (this.rowDirty) this.rowDirty.fill(0);
     this.fresh = false;
     this.dirty = false;
     this.rlo = Infinity; this.rhi = -1;
@@ -335,24 +352,34 @@ function syncDerived(d, base) {
   m.needsUpdate = true;
   d.v = base.version;
 }
-export function g9Material(base, glass = false, anim = false) {
+// inst: eigenes Material für instanzierte Meshes (Nahstufen) und für Bündel (Fernstufe). three.js merkt sich je Material
+// das zuletzt gewählte Programm; nutzen InstancedMesh und Mesh dasselbe Material, wählt es bei jedem Wechsel in der
+// Zeichenliste das Programm neu (getParameters + Schlüssel) – bei einer Großstadt hunderte Male je Bild.
+export function g9Material(base, glass = false, anim = false, inst = false) {
   const k = base;
   let byGlass = derived.get(k);
   if (!byGlass) { byGlass = {}; derived.set(k, byGlass); }
-  const slot = (glass ? 'g' : 'n') + (anim ? 'a' : '');
+  const slot = (glass ? 'g' : 'n') + (anim ? 'a' : '') + (inst ? 'i' : '');
   let d = byGlass[slot];
   if (!d) {
-    d = { mat: base.clone(), v: -1, glass, anim, base };
+    d = { mat: base.clone(), v: -1, glass, anim, inst, base };
     syncDerived(d, base);
     byGlass[slot] = d;
   }
   return d.mat;
 }
-// Alle bisher abgeleiteten Materialien (Vorübersetzen der Shader hinter dem Ladebildschirm): [{ mat, anim }]
+// Alle bisher abgeleiteten Materialien (Vorübersetzen der Shader hinter dem Ladebildschirm): [{ mat, anim, inst }]
 export function g9Materials() {
   const out = [];
-  for (const byGlass of derived.values()) for (const d of Object.values(byGlass)) out.push({ mat: d.mat, anim: d.anim });
+  for (const byGlass of derived.values()) for (const d of Object.values(byGlass)) out.push({ mat: d.mat, anim: d.anim, inst: d.inst });
   return out;
+}
+// Instanzvarianten aller bisher nur gebündelt (Fernstufe) benutzten Materialien – zum Vorübersetzen beim Laden: jede
+// Gebäudeart der Stadt kann beim Heranzoomen als Nahstufe erscheinen
+export function g9InstVariants() {
+  const out = [];
+  for (const byGlass of derived.values()) for (const d of Object.values(byGlass)) if (!d.inst) out.push(g9Material(d.base, d.glass, d.anim, true));
+  return [...new Set(out)];
 }
 // Welche Materialien als Instanz (Nahstufen, drehende Teile) bzw. als Bündel (Fernstufe) gebraucht werden – nur diese
 // Varianten werden vorübersetzt (jedes Programm kostet auf Tablets spürbar Zeit). uses: Material → { inst, batch }
@@ -370,13 +397,15 @@ function refreshDerived() {
 }
 
 const depthMats = {};
-export function g9DepthMaterial(anim = false) {
-  const k = anim ? 'a' : 'n';
+// Tiefenmaterial für Schatten, ebenfalls getrennt nach Instanz/Bündel (siehe g9Material)
+export function g9DepthMaterial(anim = false, inst = false) {
+  const k = (anim ? 'a' : 'n') + (inst ? 'i' : '');
   if (depthMats[k]) return depthMats[k];
   const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   if (anim) m.defines = { G9_ANIM: '' };
   m.onBeforeCompile = (shader) => patchShader(shader, false);
-  m.customProgramCacheKey = () => 'g9depth' + k;
+  const ck = 'g9depth' + (anim ? 'a' : 'n');
+  m.customProgramCacheKey = () => ck;
   depthMats[k] = m;
   return m;
 }
@@ -411,7 +440,9 @@ function readInto(attr, out, o, size) {
 // Fasst Geometrien zu einem kompakten Teil zusammen (Position float, Normale int8, UV float, aMat/aLit uint8).
 // Animierte Teile tragen zusätzlich aAnimP (Drehpunkt xyz, Schwingweite) und aAnimA (Achse 1/2/3 = x/y/z,
 // Tempo, Phase, Vorzeichen) – gedreht wird im Vertex-Shader, Takt pro Gebäude aus der Zustandstabelle.
-function compactPart(list, kind, anim = false) {
+// Zweigeteilt: compactArrays rechnet nur mit Feldern (läuft auch im Bau-Worker, Ergebnis übertragbar), partGeometry
+// macht daraus die Geometrie mit Grenzen (Hauptfaden).
+function compactArrays(list, kind, anim = false) {
   let n = 0;
   const gs = list.map(([g, mi, an]) => { const p = plain(g); n += p.attributes.position.count; return [p, mi, an]; });
   const P = new Float32Array(n * 3), N = new Int8Array(n * 3), U = new Float32Array(n * 2);
@@ -433,6 +464,13 @@ function compactPart(list, kind, anim = false) {
     o += c;
   }
   for (let i = 0; i < n * 3; i++) N[i] = Math.max(-127, Math.min(127, Math.round(tmpN[i] * 127)));
+  // Drehpunkte der animierten Eingaben (für die Hüllkugel)
+  let piv = null;
+  if (anim) { piv = new Float32Array(gs.length * 3); gs.forEach(([, , an], i) => { piv[i * 3] = an[0]; piv[i * 3 + 1] = an[1]; piv[i * 3 + 2] = an[2]; }); }
+  return { count: n, P, N, U, A, AP, AA, piv };
+}
+function partGeometry(src, kind, anim = false) {
+  const { P, N, U, A, AP, AA } = src;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(P, 3));
   geo.setAttribute('normal', new THREE.BufferAttribute(N, 3, true));
@@ -442,17 +480,20 @@ function compactPart(list, kind, anim = false) {
   if (anim) { geo.setAttribute('aAnimP', new THREE.BufferAttribute(AP, 4)); geo.setAttribute('aAnimA', new THREE.BufferAttribute(AA, 4)); }
   geo.computeBoundingBox();
   geo.computeBoundingSphere();
-  if (anim) {
+  if (anim && src.piv && src.piv.length) {
     // Drehende Teile überstreichen eine Kugel um den Drehpunkt
     let r = 0;
-    const c = geo.boundingSphere.center;
-    for (const [, , an] of gs) r = Math.max(r, Math.hypot(c.x - an[0], c.y - an[1], c.z - an[2]) + geo.boundingSphere.radius);
-    const pv = gs[0][2];
+    const c = geo.boundingSphere.center, pv = src.piv;
+    for (let i = 0; i < pv.length; i += 3) r = Math.max(r, Math.hypot(c.x - pv[i], c.y - pv[i + 1], c.z - pv[i + 2]) + geo.boundingSphere.radius);
     geo.boundingSphere.center.set(pv[0], pv[1], pv[2]);
     geo.boundingSphere.radius = r;
     geo.boundingBox.expandByPoint(new THREE.Vector3(pv[0], pv[1] + r, pv[2]));
   }
-  return { geometry: geo, src: { count: n, P, N, U, A, AP, AA } };
+  return geo;
+}
+function compactPart(list, kind, anim = false) {
+  const src = compactArrays(list, kind, anim);
+  return { geometry: partGeometry(src, kind, anim), src };
 }
 
 function groupMeshes(meshes) {
@@ -466,31 +507,99 @@ function groupMeshes(meshes) {
   return { atlas, groups };
 }
 
-// Aus dem Ergebnis von kit.build() (oder eigenem { meshes }) ein Modell mit wenigen Teilen machen.
-// animMeshes: [{ material, geometry (Modellkoordinaten), anim: Float32Array(8) }]
-export function prepareModel(res, animMeshes = null) {
+// Rechenteil von prepareModel: Teile als reine Felder (übertragbar). animMeshes siehe prepareModel.
+export function packModel(res, animMeshes = null) {
   const parts = [];
   const add = (meshes, anim) => {
     const { atlas, groups } = groupMeshes(meshes);
     const suf = anim ? '~a' : '';
-    if (atlas.length) parts.push({ name: '@atlas' + suf, kind: 'atlas', anim, base: getAtlasMaterial(), cast: true, ...compactPart(atlas, 'atlas', anim) });
+    if (atlas.length) parts.push({ name: '@atlas' + suf, mat: null, kind: 'atlas', anim, cast: true, src: compactArrays(atlas, 'atlas', anim) });
     for (const [name, list] of groups) {
       const kind = kindOf(name);
-      parts.push({ name: name + suf, kind, anim, base: getMaterial(name), cast: kind === 'other', ...compactPart(list, kind, anim) });
+      parts.push({ name: name + suf, mat: name, kind, anim, cast: kind === 'other', src: compactArrays(list, kind, anim) });
     }
   };
   add(res.meshes, false);
-  const staticBox = new THREE.Box3();
-  for (const p of parts) staticBox.union(p.geometry.boundingBox);
+  const nStatic = parts.length;
   if (animMeshes && animMeshes.length) add(animMeshes, true);
-  for (const p of parts) p.material = g9Material(p.base, p.kind === 'glass', !!p.anim);
+  return { parts, nStatic, height: res.height, hasAnim: !!(animMeshes && animMeshes.length) };
+}
+// Alle Puffer eines Pakets (zum Übertragen ohne Kopie)
+export function packBuffers(pack) {
+  const out = [];
+  for (const p of pack.parts) for (const k of ['P', 'N', 'U', 'A', 'AP', 'AA', 'piv']) if (p.src[k]) out.push(p.src[k].buffer);
+  return out;
+}
+// Darstellungsteil: aus dem Paket Geometrien, Materialien und Grenzen
+export function modelFromPack(pack) {
+  const parts = pack.parts.map((q) => ({
+    name: q.name, kind: q.kind, anim: q.anim, cast: q.cast, base: q.kind === 'atlas' ? getAtlasMaterial() : getMaterial(q.mat),
+    geometry: partGeometry(q.src, q.kind, q.anim), src: q.src,
+  }));
+  const staticBox = new THREE.Box3();
+  for (let i = 0; i < pack.nStatic; i++) staticBox.union(parts[i].geometry.boundingBox);
+  for (const p of parts) {
+    p.material = g9Material(p.base, p.kind === 'glass', !!p.anim, true);
+    p.batchMaterial = g9Material(p.base, p.kind === 'glass', !!p.anim, false);
+  }
   const box = new THREE.Box3();
   for (const p of parts) box.union(p.geometry.boundingBox);
   let tris = 0;
   for (const p of parts) tris += p.src.count / 3;
   let radius = 0;
   for (const p of parts) { const sp = p.geometry.boundingSphere; radius = Math.max(radius, sp.center.length() + sp.radius); }
-  return { parts, box: staticBox.isEmpty() ? box : staticBox, core: coreBox(parts, staticBox), top: box.max.y, radius, triangles: Math.round(tris), height: res.height ?? staticBox.max.y, hasAnim: !!(animMeshes && animMeshes.length) };
+  return { parts, box: staticBox.isEmpty() ? box : staticBox, core: coreBox(parts, staticBox), top: box.max.y, radius, triangles: Math.round(tris), height: pack.height ?? staticBox.max.y, hasAnim: pack.hasAnim };
+}
+
+// Aus dem Ergebnis von kit.build() (oder eigenem { meshes }) ein Modell mit wenigen Teilen machen.
+// animMeshes: [{ material, geometry (Modellkoordinaten), anim: Float32Array(8) }]
+export function prepareModel(res, animMeshes = null) {
+  return modelFromPack(packModel(res, animMeshes));
+}
+
+// Modell bauen (Architektur-Baustein, sonst Ersatzmodell): kit-Ergebnis oder null
+function buildRes(key, level, v, fw, fd, extra, detail, fallback, id) {
+  let res = null;
+  if (ARCH[key]) {
+    try { res = buildArch(key, level, v, fw, fd, extra, detail); } catch (e) { console.warn('Architektur-Fehler', id, e); res = null; }
+    if (res && (!res.meshes || !res.meshes.length)) res = null;
+  }
+  if (!res && fallback) {
+    try { res = fallback(key, level, v, fw, fd, extra, detail); } catch (e) { console.warn('Ersatzmodell-Fehler', id, e); res = null; }
+  }
+  return res && res.meshes && res.meshes.length ? res : null;
+}
+// res.anim: Teile mit Baustoff-Namen drehen im Shader (gebündelt wie der Rest), Teile mit eigenem
+// THREE.Material oder nightOnly laufen als eigener Instanzsatz (legacy).
+function splitAnims(res) {
+  const gpu = [], legacy = [];
+  for (const a of res.anim || []) {
+    if (!a || !a.geometry || !a.geometry.attributes || !a.geometry.attributes.position) continue;
+    const isMat = !!(a.material && a.material.isMaterial);
+    const pv = new THREE.Vector3().fromArray(a.pivot || [0, 0, 0]);
+    let geo = a.geometry;
+    if (!geo.boundingBox) geo.computeBoundingBox();
+    const c = geo.boundingBox.getCenter(new THREE.Vector3());
+    // Vertrag (G5/G6): Geometrie relativ zum Drehpunkt, pivot in Modellkoordinaten, axis dreht mit dem Gebäude,
+    // speed in rad/s. Ohne a.local gilt das auch – außer die Geometrie liegt erkennbar schon am Drehpunkt
+    // (Mitte viel näher am Drehpunkt als am Ursprung), dann wird sie als Modellkoordinaten gelesen.
+    const local = a.local ?? !(pv.lengthSq() > 1e-6 && c.distanceTo(pv) < 0.5 * c.length());
+    if (isMat || a.nightOnly) { legacy.push({ a, isMat, pv, local }); continue; }
+    if (local) { geo = geo.clone(); geo.translate(pv.x, pv.y, pv.z); }
+    const axis = a.axis === 'x' ? 1 : a.axis === 'z' ? 3 : 2;
+    gpu.push({ material: a.material || 'metal_light', geometry: geo, anim: new Float32Array([pv.x, pv.y, pv.z, a.swing || 0, axis, a.speed ?? 1, a.phase || 0, 1]) });
+  }
+  return { gpu, legacy };
+}
+// Für den Bau-Worker: Modell bauen und als übertragbares Paket liefern.
+// Rückgabe: { pack, meta } | { fail: true } | { sync: true } (Teile mit eigenem Material: nur im Hauptfaden)
+export function buildProtoPack(key, level, v, fw, fd, extra, detail, fallback) {
+  const res = buildRes(key, level, v, fw, fd, extra || {}, detail, fallback, key);
+  if (!res) return { fail: true };
+  const { gpu, legacy } = splitAnims(res);
+  if (legacy.length) return { sync: true };
+  const pack = packModel(res, gpu);
+  return { pack, meta: { height: res.height, emitters: res.emitters || [], lights: res.lights || [] } };
 }
 
 // Baukörper ohne Garten, Zaun und Bodenplatte (für Gerüst und Baustelle): aus den Fassaden (Fenster),
@@ -545,7 +654,8 @@ export class InstSet {
         const mesh = new THREE.InstancedMesh(p.geometry, p.material, 0);
         mesh.castShadow = !!p.cast;
         mesh.receiveShadow = true;
-        mesh.customDepthMaterial = g9DepthMaterial(!!p.anim);
+        mesh.customDepthMaterial = g9DepthMaterial(!!p.anim, true);
+        noteUse(p.material, 'inst');
         mesh.matrixAutoUpdate = false;
         mesh.renderOrder = this.renderOrder;
         mesh.boundingSphere = this.sphere;
@@ -677,35 +787,30 @@ export class ProtoManager {
     if (have) { have.idle = 0; return have; }
     if (this.failed.has(id)) return null;
     const t0 = performance.now();
-    let res = null;
-    if (ARCH[key]) {
-      try { res = buildArch(key, level, v, fw, fd, extra, detail); } catch (e) { console.warn('Architektur-Fehler', id, e); res = null; }
-      if (res && (!res.meshes || !res.meshes.length)) res = null;
-    }
-    if (!res && this.fallback) {
-      try { res = this.fallback(key, level, v, fw, fd, extra, detail); } catch (e) { console.warn('Ersatzmodell-Fehler', id, e); res = null; }
-    }
-    if (!res || !res.meshes || !res.meshes.length) { this.failed.add(id); this.buildMs += performance.now() - t0; return null; }
-    // res.anim: Teile mit Baustoff-Namen drehen im Shader (gebündelt wie der Rest), Teile mit eigenem
-    // THREE.Material oder nightOnly laufen als eigener Instanzsatz.
-    const gpu = [], legacy = [];
-    for (const a of res.anim || []) {
-      if (!a || !a.geometry || !a.geometry.attributes || !a.geometry.attributes.position) continue;
-      const isMat = !!(a.material && a.material.isMaterial);
-      const pv = new THREE.Vector3().fromArray(a.pivot || [0, 0, 0]);
-      let geo = a.geometry;
-      if (!geo.boundingBox) geo.computeBoundingBox();
-      const c = geo.boundingBox.getCenter(new THREE.Vector3());
-      // Vertrag (G5/G6): Geometrie relativ zum Drehpunkt, pivot in Modellkoordinaten, axis dreht mit dem Gebäude,
-      // speed in rad/s. Ohne a.local gilt das auch – außer die Geometrie liegt erkennbar schon am Drehpunkt
-      // (Mitte viel näher am Drehpunkt als am Ursprung), dann wird sie als Modellkoordinaten gelesen.
-      const local = a.local ?? !(pv.lengthSq() > 1e-6 && c.distanceTo(pv) < 0.5 * c.length());
-      if (isMat || a.nightOnly) { legacy.push({ a, isMat, pv, local }); continue; }
-      if (local) { geo = geo.clone(); geo.translate(pv.x, pv.y, pv.z); }
-      const axis = a.axis === 'x' ? 1 : a.axis === 'z' ? 3 : 2;
-      gpu.push({ material: a.material || 'metal_light', geometry: geo, anim: new Float32Array([pv.x, pv.y, pv.z, a.swing || 0, axis, a.speed ?? 1, a.phase || 0, 1]) });
-    }
+    const res = buildRes(key, level, v, fw, fd, extra, detail, this.fallback, id);
+    if (!res) { this.failed.add(id); this.buildMs += performance.now() - t0; return null; }
+    const { gpu, legacy } = splitAnims(res);
     const model = prepareModel(res, gpu);
+    const proto = this._register(id, key, level, v, fw, fd, detail, res, model, legacy);
+    proto.ms = performance.now() - t0;
+    this.buildMs += proto.ms;
+    return proto;
+  }
+
+  // Ergebnis des Bau-Workers übernehmen (job: { key, level, v, fw, fd, detail }); null, wenn schon vorhanden
+  adopt(job, out, ms = 0) {
+    const id = `${job.key}|${job.level}|${job.v}|${job.fw}x${job.fd}|${job.detail}`;
+    if (this.protos.has(id)) return this.protos.get(id);
+    if (out.fail) { this.failed.add(id); return null; }
+    const model = modelFromPack(out.pack);
+    const proto = this._register(id, job.key, job.level, job.v, job.fw, job.fd, job.detail, out.meta, model, []);
+    proto.ms = ms;
+    proto.async = true;
+    this.buildMs += ms;
+    return proto;
+  }
+
+  _register(id, key, level, v, fw, fd, detail, res, model, legacy) {
     const proto = {
       id, key, level, variant: v, fw, fd, detail,
       height: res.height || model.box.max.y, top: Math.max(model.top, res.height || 0), box: model.box, core: model.core, radius: model.radius,
@@ -730,10 +835,8 @@ export class ProtoManager {
       proto.triangles += parts.reduce((sum, p) => sum + p.src.count / 3, 0);
     }
     this.protos.set(id, proto);
-    for (const p of proto.parts) noteUse(p.material, detail >= 1 ? 'inst' : 'batch');
+    for (const p of proto.parts) { if (detail >= 1) noteUse(p.material, 'inst'); else noteUse(p.batchMaterial || p.material, 'batch'); }
     for (const a of proto.anims) for (const p of a.set.parts) noteUse(p.material, 'inst');
-    proto.ms = performance.now() - t0;
-    this.buildMs += proto.ms;
     return proto;
   }
 
@@ -802,7 +905,7 @@ class BatchGroup {
     this.mesh.matrixAutoUpdate = false;
     this.mesh.castShadow = cast;
     this.mesh.receiveShadow = true;
-    this.mesh.customDepthMaterial = g9DepthMaterial(this.anim);
+    this.mesh.customDepthMaterial = g9DepthMaterial(this.anim, false);
     this.mesh.visible = false;
     this.mesh.frustumCulled = chunk.batcher.cull;
     chunk.batcher.parent.add(this.mesh);
@@ -970,7 +1073,7 @@ export class Batcher {
       const ch = this._chunk(ox, oz, !fine);
       if (top > ch.maxH) { ch.maxH = top; this._sphere(ch); }
       let gr = ch.groups.get(part.name);
-      if (!gr) { gr = new BatchGroup(ch, part.name, part.kind, part.material, part.cast); ch.groups.set(part.name, gr); }
+      if (!gr) { gr = new BatchGroup(ch, part.name, part.kind, part.batchMaterial || part.material, part.cast); ch.groups.set(part.name, gr); }
       ranges.push([gr, gr.append(part.src, k, ox, oz, slot, litOff)]);
     }
     this.recs.set(id, { ranges });
@@ -993,10 +1096,13 @@ export class Batcher {
       gr.flush();
     }
   }
-  // Obergrenze der Draw Calls dieses Bündels (sichtbare Gruppen + Schattenwurf), ohne Sichtbarkeitstest
-  drawEstimate() {
+  // Obergrenze der Draw Calls dieses Bündels (Gruppen + Schattenwurf); mit frustum nur Abschnitte im Bild
+  drawEstimate(frustum = null) {
     let n = 0;
-    for (const ch of this.chunks.values()) for (const gr of ch.groups.values()) if (gr.used - gr.waste > 0) n += gr.mesh.castShadow ? 2 : 1;
+    for (const ch of this.chunks.values()) {
+      if (frustum && this.cull && !frustum.intersectsSphere(ch.sphere)) continue;
+      for (const gr of ch.groups.values()) if (gr.used - gr.waste > 0) n += gr.mesh.castShadow ? 2 : 1;
+    }
     return n;
   }
   stats() {
@@ -1012,5 +1118,96 @@ export class Batcher {
     for (const ch of this.chunks.values()) for (const gr of ch.groups.values()) gr.dispose();
     this.chunks.clear();
     this.recs.clear();
+  }
+}
+
+// ---------------------------------------------------------------- Bau-Worker (siehe protoworker.js)
+// Adresse des eigenen Skripts (beim Laden festhalten – später ist document.currentScript leer)
+const SCRIPT_URL = (() => {
+  try {
+    if (typeof document === 'undefined' || !document.currentScript) return null;
+    const src = document.currentScript.src;
+    return src && /^https?:/.test(src) ? src : null;
+  } catch (e) { return null; }
+})();
+
+// Gemeinsamer Pool für alle Ansichten (Menüvorschau und Spiel); Worker sind zustandslos und bleiben erhalten.
+let POOL;
+export class ProtoPool {
+  static get() {
+    if (POOL !== undefined) return POOL;
+    POOL = null;
+    try {
+      const off = typeof window !== 'undefined' && (window.STADTPULS_NOWORKER || /[?&]noworker\b/.test(location.search));
+      if (!off && SCRIPT_URL && typeof Worker === 'function') POOL = new ProtoPool(SCRIPT_URL);
+    } catch (e) { POOL = null; }
+    return POOL;
+  }
+  constructor(url) {
+    const hc = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2;
+    const n = hc >= 4 ? 2 : 1;
+    this.workers = [];
+    this.jobs = new Map(); // Kennung → Auftrag
+    this.done = []; // fertige Ergebnisse, die die Ansicht im nächsten Bild übernimmt
+    this.ok = true;
+    this.seq = 0;
+    for (let i = 0; i < n; i++) {
+      const w = new Worker(url);
+      const slot = { w, busy: 0, ready: false };
+      w.onmessage = (e) => this._msg(slot, e.data);
+      w.onerror = (e) => { this._fail(slot, e); };
+      this.workers.push(slot);
+    }
+  }
+  get depth() { return 2; } // Aufträge je Worker gleichzeitig (einer läuft, einer wartet)
+  get free() { if (!this.ok) return 0; let n = 0; for (const s of this.workers) n += Math.max(0, this.depth - s.busy); return n; }
+  // job: { id (Prototyp-Kennung), key, level, v, fw, fd, extra, detail, owner }
+  submit(job) {
+    if (!this.ok) return false;
+    let best = null;
+    for (const s of this.workers) if (s.busy < this.depth && (!best || s.busy < best.busy)) best = s;
+    if (!best) return false;
+    best.busy++;
+    job.slot = best;
+    job.t0 = performance.now();
+    job.seq = ++this.seq;
+    this.jobs.set(job.seq, job);
+    try {
+      best.w.postMessage({ type: 'build', id: job.seq, key: job.key, level: job.level, v: job.v, fw: job.fw, fd: job.fd, extra: job.extra, detail: job.detail });
+    } catch (e) { best.busy--; this.jobs.delete(job.seq); this._fail(best, e); return false; }
+    return true;
+  }
+  _msg(slot, m) {
+    if (!m) return;
+    if (m.type === 'ready') { slot.ready = true; return; }
+    if (m.type !== 'built') return;
+    const job = this.jobs.get(m.id);
+    if (!job) return;
+    this.jobs.delete(m.id);
+    slot.busy = Math.max(0, slot.busy - 1);
+    this.done.push({ job, out: m.out || { error: 'leer' }, ms: m.ms || 0, wait: performance.now() - job.t0 });
+  }
+  _fail(slot, e) {
+    // Worker kaputt (z. B. Skript nicht ladbar): Pool abschalten, offene Aufträge zurückgeben (die Ansicht baut selbst)
+    if (!this.ok) return;
+    this.ok = false;
+    try { console.warn('Cityscapes: Bau-Worker nicht verfügbar, Gebäude werden im Hauptfaden gebaut', e && (e.message || e)); } catch (err) { /* egal */ }
+    for (const job of this.jobs.values()) this.done.push({ job, out: { retry: true }, ms: 0, wait: 0 });
+    this.jobs.clear();
+    for (const s of this.workers) { try { s.w.terminate(); } catch (err) { /* egal */ } }
+    void slot;
+  }
+  // Ergebnisse für eine Ansicht abholen
+  take(owner, max = Infinity) {
+    const out = [];
+    for (let i = 0; i < this.done.length && out.length < max;) {
+      if (this.done[i].job.owner === owner) out.push(this.done.splice(i, 1)[0]); else i++;
+    }
+    return out;
+  }
+  // Aufträge einer abgebauten Ansicht vergessen
+  drop(owner) {
+    this.done = this.done.filter((d) => d.job.owner !== owner);
+    for (const job of this.jobs.values()) if (job.owner === owner) job.owner = null;
   }
 }

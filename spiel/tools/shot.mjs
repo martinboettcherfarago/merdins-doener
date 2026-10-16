@@ -81,7 +81,8 @@ const port = server.address().port;
 let failed = false;
 const browser = await chromium.launch({
   executablePath: chromePath(),
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  // SHOT_ARGS: zusätzliche Schalter für Chromium (z. B. --enable-precise-memory-info für Messungen)
+  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', ...String(process.env.SHOT_ARGS || '').split(/\s+/).filter(Boolean)],
 });
 const logs = [];
 try {

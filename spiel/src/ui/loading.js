@@ -141,7 +141,7 @@ if (typeof window !== 'undefined') window.__stadtpulsLoaderApi = { show: (...a) 
 
 // Die Seite hat keinen Loader nötig (Galerie, kein WebGL): sofort entfernen
 (function earlyExit() {
-  if (typeof location === 'undefined') return;
+  if (typeof location === 'undefined' || typeof document === 'undefined') return; // (auch im Bau-Worker, siehe render/protoworker.js)
   let ok = true;
   try {
     const c = document.createElement('canvas');
