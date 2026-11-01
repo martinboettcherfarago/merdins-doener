@@ -1,0 +1,222 @@
+"""Startpunkt: python -m vinted_bot [run|scan|test-notify|chat-id]"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+import signal
+import sys
+import time
+from typing import Any, Optional
+
+from . import __version__
+from .config import Config, ConfigError, load_config
+from .models import Item
+from .notify import Alert, DiscordNotifier, MultiNotifier, NtfyNotifier, TelegramNotifier, money
+from .scoring import DealScore, passes_filters, reference_price, score_item, suggest_offers
+from .storage import Storage
+from .vinted import VintedClient, VintedError, query_for_search
+
+log = logging.getLogger("vinted_bot")
+
+
+def build_notifiers(cfg: Config, offers_via_bot: bool) -> tuple[MultiNotifier, Optional[TelegramNotifier]]:
+    channels: list[Any] = []
+    telegram = None
+    if cfg.telegram_token and cfg.telegram_chat_id:
+        telegram = TelegramNotifier(cfg.telegram_token, cfg.telegram_chat_id, offers_via_bot=offers_via_bot)
+        channels.append(telegram)
+    if cfg.discord_webhook:
+        channels.append(DiscordNotifier(cfg.discord_webhook))
+    if cfg.ntfy_topic:
+        channels.append(NtfyNotifier(cfg.ntfy_server, cfg.ntfy_topic))
+    return MultiNotifier(channels), telegram
+
+
+def build_account(cfg: Config) -> Any:
+    if not cfg.account_enabled:
+        return None
+    from .account import VintedAccount
+
+    try:
+        return VintedAccount(cfg.domain, cfg.account_cookies, proxy=cfg.proxy)
+    except (ValueError, RuntimeError) as e:
+        log.warning("Angebote per Bot deaktiviert: %s", e)
+        return None
+
+
+# -- Befehle ------------------------------------------------------------------------
+
+def cmd_run(cfg: Config) -> int:
+    from .monitor import Monitor
+    from .telegram_bot import TelegramController
+
+    account = build_account(cfg)
+    notifier, telegram = build_notifiers(cfg, offers_via_bot=account is not None)
+    if not notifier and not cfg.telegram_token:
+        log.error("Kein Benachrichtigungs-Kanal eingerichtet (Telegram, Discord oder ntfy) – siehe README.")
+        return 2
+    storage = Storage(cfg.database)
+    monitor = Monitor(cfg, VintedClient(cfg.domain, proxy=cfg.proxy), storage, notifier)
+
+    controller = None
+    if cfg.telegram_token:
+        tg = telegram or TelegramNotifier(cfg.telegram_token, "")
+        controller = TelegramController(tg, monitor, account)
+        controller.start()
+        if not cfg.telegram_chat_id:
+            log.warning("Telegram: noch keine chat_id. Schreib deinem Bot /start – er antwortet mit deiner Chat-ID.")
+            if not notifier:
+                log.info("Warte auf /start im Telegram-Chat … (Strg+C zum Beenden)")
+                _wait_forever(controller)
+                return 0
+
+    if not monitor.all_searches():
+        log.warning("Noch keine Suchen – in der config.yaml eintragen oder per Telegram: /neu nike air max bis 40")
+
+    def _shutdown(*_a: Any) -> None:
+        log.info("Beende …")
+        monitor.stop()
+        if controller:
+            controller.stop()
+
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
+
+    names = ", ".join(s.name for s in monitor.active_searches()) or "noch keine"
+    log.info("Vinted-Bot %s gestartet (vinted.%s, alle %ss). Suchen: %s",
+             __version__, cfg.domain, cfg.interval_seconds, names)
+    notifier.send_text(
+        f"🤖 <b>Vinted-Bot läuft</b>\nSuchen: {names}\n"
+        f"Ich lerne kurz die aktuellen Preise und melde dir dann neue Treffer."
+        + ("\n💸 Angebote per Button: an" if account else "")
+        + ("\n/hilfe zeigt alle Befehle." if controller else ""))
+    monitor.run_forever()
+    storage.close()
+    return 0
+
+
+def _wait_forever(controller: Any) -> None:
+    try:
+        while controller.is_alive():
+            time.sleep(1)
+    except KeyboardInterrupt:
+        controller.stop()
+
+
+def cmd_scan(cfg: Config, top: int, send: bool) -> int:
+    """Zeigt sofort die besten aktuellen Angebote jeder Suche (ohne etwas als gesehen zu markieren)."""
+    client = VintedClient(cfg.domain, proxy=cfg.proxy)
+    storage = Storage(cfg.database)
+    notifier, _ = build_notifiers(cfg, offers_via_bot=False)
+    if not cfg.searches and not storage.custom_searches():
+        print("Keine Suchen in der config.yaml.")
+        return 2
+    now = time.time()
+    for search in cfg.searches + storage.custom_searches():
+        if not search.enabled:
+            continue
+        print(f"\n=== {search.name} ===")
+        try:
+            items = client.search(query_for_search(search, cfg.currency), per_page=cfg.per_page)
+        except VintedError as e:
+            print(f"  Fehler: {e}")
+            continue
+        history = storage.price_history(search.name) + [i.price for i in items]
+        ref = reference_price(search.market_price, history)
+        scored: list[tuple[DealScore, Item]] = []
+        for item in items:
+            ok, _ = passes_filters(item, search, cfg.global_exclude_words)
+            if ok:
+                scored.append((score_item(item, ref, cfg.top_deal_score, now), item))
+        scored.sort(key=lambda x: x[0].total, reverse=True)
+        print(f"  {len(items)} Artikel gefunden, {len(scored)} passen zu deinen Filtern"
+              + (f", Referenzpreis {money(ref, cfg.currency)}" if ref else ""))
+        for score, item in scored[:top]:
+            mark = "🔥" if score.is_top else "  "
+            print(f"  {mark} {score.total:3d}/100  {money(item.price, item.currency):>10}  {item.title[:60]}")
+            print(f"              {item.url}")
+            if send:
+                storage.save_item(item)
+                notifier.send_alert(Alert(item=item, search_name=search.name, score=score,
+                                          buy_url=item.buy_url(cfg.web_base),
+                                          offers=suggest_offers(item.price, cfg.offer_discounts)))
+        time.sleep(2)
+    storage.close()
+    return 0
+
+
+def cmd_test_notify(cfg: Config) -> int:
+    notifier, _ = build_notifiers(cfg, offers_via_bot=False)
+    if not notifier:
+        print("Kein Kanal eingerichtet. Trage Telegram, Discord oder ntfy in der config.yaml ein.")
+        return 2
+    item = Item(id=1, title="TEST – Nike Air Max 90 (Beispiel)", price=24.0, total_price=25.9,
+                brand="Nike", size="43", condition="Sehr gut", url=f"{cfg.web_base}/catalog?search_text=nike",
+                photo_url=None, favourites=4, created_ts=int(time.time()) - 120, seller_login="beispiel")
+    score = score_item(item, 45.0, cfg.top_deal_score)
+    ok = notifier.send_alert(Alert(item=item, search_name="Test", score=score, buy_url=item.url,
+                                   offers=suggest_offers(item.price, cfg.offer_discounts)))
+    print("✅ Testnachricht verschickt." if ok else "❌ Senden fehlgeschlagen – siehe Meldungen oben.")
+    return 0 if ok else 1
+
+
+def cmd_chat_id(cfg: Config) -> int:
+    if not cfg.telegram_token:
+        print("Trage zuerst den Bot-Token (von @BotFather) in der config.yaml ein.")
+        return 2
+    tg = TelegramNotifier(cfg.telegram_token, "")
+    print("Schreib deinem Bot jetzt in Telegram eine Nachricht (z. B. /start) … (Strg+C zum Abbrechen)")
+    offset = 0
+    while True:
+        try:
+            data = tg.api("getUpdates", offset=offset, timeout=25)
+        except Exception as e:  # noqa: BLE001
+            print(f"Fehler: {e}")
+            return 1
+        for upd in data.get("result", []):
+            offset = upd["update_id"] + 1
+            chat = (upd.get("message") or {}).get("chat") or {}
+            if chat.get("id"):
+                print(f"\n✅ Deine Chat-ID: {chat['id']}\nTrage sie in der config.yaml bei telegram → chat_id ein.")
+                tg.api("getUpdates", offset=offset, timeout=0)  # Nachricht als gelesen markieren
+                return 0
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    parser = argparse.ArgumentParser(prog="vinted_bot", description="Vinted-Deal-Bot")
+    parser.add_argument("-c", "--config", default=os.environ.get("VINTED_BOT_CONFIG", "config.yaml"),
+                        help="Pfad zur config.yaml")
+    parser.add_argument("-v", "--verbose", action="store_true", help="mehr Details ausgeben")
+    sub = parser.add_subparsers(dest="command")
+    sub.add_parser("run", help="Bot dauerhaft starten (Standard)")
+    p_scan = sub.add_parser("scan", help="beste aktuelle Angebote sofort anzeigen")
+    p_scan.add_argument("--top", type=int, default=5, help="wie viele pro Suche (Standard 5)")
+    p_scan.add_argument("--send", action="store_true", help="die Treffer auch als Benachrichtigung schicken")
+    sub.add_parser("test-notify", help="Testnachricht an alle Kanäle schicken")
+    sub.add_parser("chat-id", help="Telegram-Chat-ID herausfinden")
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
+                        format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
+    for noisy in ("urllib3", "curl_cffi"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+    try:
+        cfg = load_config(args.config)
+    except ConfigError as e:
+        log.error("%s", e)
+        return 2
+
+    command = args.command or "run"
+    if command == "scan":
+        return cmd_scan(cfg, args.top, args.send)
+    if command == "test-notify":
+        return cmd_test_notify(cfg)
+    if command == "chat-id":
+        return cmd_chat_id(cfg)
+    return cmd_run(cfg)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

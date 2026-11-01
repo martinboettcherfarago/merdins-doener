@@ -1,0 +1,71 @@
+# ──────────────────────────────────────────────────────────────────────
+#  Vinted-Deal-Bot – Einstellungen
+#  Kopiere diese Datei nach "config.yaml" und trage deine Daten ein.
+# ──────────────────────────────────────────────────────────────────────
+
+vinted:
+  domain: vinted.de            # oder vinted.at, vinted.fr, vinted.it, …
+  interval_seconds: 60         # alle wie viele Sekunden suchen (nicht unter 30 – sonst blockt Vinted eher)
+  max_item_age_minutes: 60     # ältere, nur "hochgeschobene" Artikel ignorieren (0 = alle melden)
+  per_page: 48                 # wie viele der neuesten Artikel pro Suche geprüft werden
+  # proxy: http://user:pass@host:port   # optional, falls Vinted deine IP blockt
+
+notifications:
+  # Telegram (empfohlen: Bilder, Kaufen-Button, Angebote, Suchen per Chat verwalten)
+  telegram:
+    token: ""                  # von @BotFather, z. B. 123456:ABC-DEF…
+    chat_id: ""                # mit "python -m vinted_bot chat-id" herausfinden
+
+  # Discord (optional): Servereinstellungen → Integrationen → Webhooks
+  discord:
+    webhook_url: ""
+
+  # ntfy (optional): Push aufs Handy ohne Konto – App "ntfy" installieren,
+  # ein geheimes Thema ausdenken (z. B. vinted-martin-8f3k2) und abonnieren.
+  ntfy:
+    topic: ""
+    server: https://ntfy.sh
+
+scoring:
+  top_deal_score: 75           # ab diesem Score gibt's 🔥 TOP-DEAL
+  price_drop_percent: 10       # Preissenkung ab x % melden
+  # Artikel mit diesen Wörtern im Titel werden nie gemeldet:
+  global_exclude_words: [fake, replica, replika, rep, nachbau, inspired, dupe, defekt, kaputt, bastler, suche, tausch]
+
+# EXPERIMENTELL: Preisangebote direkt per Telegram-Button schicken.
+# Dafür braucht der Bot die Cookies deines eingeloggten Vinted-Kontos (siehe README).
+# Diese Datei dann NIEMALS teilen oder hochladen!
+account:
+  enabled: false
+  cookies: ""                  # kompletter Cookie-Text aus dem Browser
+  offer_discounts: [10, 20]    # Buttons für -10 % und -20 % (Vinted erlaubt max. -40 %)
+
+database: vinted_bot.db
+
+# ──────────────────────────────────────────────────────────────────────
+#  Deine Suchen. Weitere kannst du jederzeit per Telegram anlegen:
+#  /neu nike air max 90 bis 40 score 60
+# ──────────────────────────────────────────────────────────────────────
+searches:
+  # Einfach: Suchbegriff + Preisrahmen
+  - name: Air Max 90
+    keywords: nike air max 90
+    max_price: 60
+    sizes: ["43", "44"]          # optional: nur diese Größen
+    exclude_words: [kinder]      # optional: zusätzlich ausschließen
+
+  # Profi: Suche im Browser auf vinted.de mit allen Filtern (Marke, Größe, Zustand, Kategorie)
+  # einstellen und den Link aus der Adresszeile hier einfügen.
+  - name: Carhartt Jacken
+    url: "https://www.vinted.de/catalog?search_text=carhartt%20jacke&order=newest_first"
+    max_price: 70
+    market_price: 80             # typischer Preis -> genauere Deal-Erkennung (optional)
+    min_score: 60                # nur wirklich gute Deals melden (0–100)
+
+  - name: Levi's 501
+    keywords: levis 501
+    brands: [levis, levi's]
+    min_price: 5
+    max_price: 30
+    must_contain: ["501"]
+    enabled: false               # vorübergehend aus

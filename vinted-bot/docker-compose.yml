@@ -1,0 +1,6 @@
+services:
+  vinted-bot:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/data   # hier liegen config.yaml und vinted_bot.db

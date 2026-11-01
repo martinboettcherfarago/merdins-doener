@@ -1,0 +1,10 @@
+# Persönliche Daten – niemals hochladen!
+config.yaml
+*.db
+*.db-journal
+data/
+
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
