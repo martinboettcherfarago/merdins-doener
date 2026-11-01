@@ -1,0 +1,20 @@
+{
+  "_hinweis": "Startwerte in EUR: grobe Schätzung typischer Vinted-Wiederverkaufspreise (gebraucht, guter Zustand). Der Bot mischt sie mit echten Preisen, die er sieht, und verlässt sich ab ca. 30 echten Vergleichspreisen nur noch auf die echten Daten. Eigene Werte: in Telegram z. B. /preis carhartt jacken 90",
+  "carhartt":     {"jacke": 75, "hoodie": 40, "pullover": 35, "tshirt": 18, "hemd": 30, "hose": 40, "shorts": 25, "weste": 50, "fleece": 40, "muetze": 15, "tasche": 30, "schuhe": 50},
+  "stussy":       {"jacke": 90, "hoodie": 65, "pullover": 55, "tshirt": 28, "hemd": 45, "hose": 55, "shorts": 40, "weste": 60, "fleece": 70, "muetze": 25, "tasche": 35},
+  "arcteryx":     {"jacke": 200, "hoodie": 70, "pullover": 80, "tshirt": 35, "hemd": 50, "hose": 80, "shorts": 45, "weste": 110, "fleece": 90, "muetze": 25, "tasche": 70, "schuhe": 90},
+  "salomon":      {"jacke": 60, "hoodie": 35, "pullover": 35, "tshirt": 18, "hose": 40, "shorts": 25, "weste": 40, "fleece": 35, "muetze": 15, "tasche": 30, "schuhe": 85},
+  "thenorthface": {"jacke": 90, "hoodie": 35, "pullover": 40, "tshirt": 15, "hemd": 25, "hose": 35, "shorts": 22, "weste": 60, "fleece": 45, "muetze": 15, "tasche": 35, "schuhe": 45},
+  "patagonia":    {"jacke": 90, "hoodie": 40, "pullover": 55, "tshirt": 20, "hemd": 30, "hose": 40, "shorts": 30, "weste": 55, "fleece": 70, "muetze": 18, "tasche": 40},
+  "ralphlauren":  {"jacke": 60, "hoodie": 35, "pullover": 40, "tshirt": 20, "hemd": 25, "hose": 30, "shorts": 22, "weste": 40, "fleece": 35, "muetze": 18, "tasche": 30, "schuhe": 35},
+  "lacoste":      {"jacke": 50, "hoodie": 35, "pullover": 35, "tshirt": 25, "hemd": 25, "hose": 30, "shorts": 22, "weste": 35, "fleece": 30, "muetze": 18, "tasche": 30, "schuhe": 35},
+  "stoneisland":  {"jacke": 220, "hoodie": 110, "pullover": 110, "tshirt": 50, "hemd": 80, "hose": 90, "shorts": 70, "weste": 150, "fleece": 100, "muetze": 50, "tasche": 70, "schuhe": 90},
+  "cpcompany":    {"jacke": 180, "hoodie": 90, "pullover": 90, "tshirt": 40, "hemd": 65, "hose": 70, "shorts": 55, "weste": 120, "fleece": 80, "muetze": 40, "tasche": 50},
+  "newbalance":   {"jacke": 40, "hoodie": 30, "pullover": 28, "tshirt": 15, "hose": 25, "shorts": 18, "muetze": 15, "schuhe": 60},
+  "asics":        {"jacke": 35, "hoodie": 25, "pullover": 25, "tshirt": 12, "hose": 20, "shorts": 15, "schuhe": 55},
+  "levis":        {"jacke": 40, "hoodie": 22, "pullover": 25, "tshirt": 12, "hemd": 20, "hose": 28, "shorts": 18, "weste": 25},
+  "dickies":      {"jacke": 35, "hoodie": 25, "pullover": 25, "tshirt": 12, "hemd": 20, "hose": 25, "shorts": 18, "weste": 30, "muetze": 12},
+  "barbour":      {"jacke": 130, "hoodie": 35, "pullover": 45, "tshirt": 20, "hemd": 30, "hose": 35, "weste": 50, "fleece": 40, "muetze": 18},
+  "nike":         {"jacke": 40, "hoodie": 30, "pullover": 25, "tshirt": 12, "hemd": 18, "hose": 25, "shorts": 15, "weste": 30, "fleece": 35, "muetze": 12, "tasche": 18, "schuhe": 50},
+  "adidas":       {"jacke": 35, "hoodie": 28, "pullover": 25, "tshirt": 12, "hemd": 18, "hose": 25, "shorts": 15, "weste": 28, "fleece": 30, "muetze": 12, "tasche": 18, "schuhe": 50}
+}

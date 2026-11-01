@@ -2,7 +2,7 @@
 config.yaml
 *.db
 *.db-journal
-data/
+/data/
 
 __pycache__/
 *.pyc
