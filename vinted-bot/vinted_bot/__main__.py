@@ -85,10 +85,10 @@ def cmd_run(cfg: Config) -> int:
     signal.signal(signal.SIGTERM, _shutdown)
 
     active = monitor.active_searches()
-    resale_brands = [s.brands[0] if s.brands else s.name for s in active if s.is_resale]
+    resale_brands = [s.keywords or s.name for s in active if s.is_resale]
     names = ", ".join(s.name for s in active if not s.is_resale) or "–"
     if resale_brands:
-        names += f"\n💰 Resale-Radar: {len(resale_brands)} Marken ({', '.join(resale_brands[:6])}" \
+        names += f"\n💰 Schnäppchen-Radar: {len(resale_brands)} Marken & Trends ({', '.join(resale_brands[:6])}" \
                  + (" …)" if len(resale_brands) > 6 else ")") \
                  + f"\n🎯 Schnäppchen-Stufe: {monitor.resale_level or 'aus config.yaml'} (/stufe)"
         f = monitor.global_filters()

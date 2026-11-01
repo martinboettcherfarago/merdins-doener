@@ -11,8 +11,11 @@ from datetime import date
 from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
-from .config import RESALE_LEVELS, TREND_BRANDS, ConfigError, SearchConfig, resale_name
-from .knowledge import LETTER_SIZES, TYPE_ALIASES, brand_key, normalize_sizes, resolve_type
+from .catalog import CATEGORIES, FAMILY_LABELS, TIER_LABELS, brand_info, resolve_type
+from .config import RESALE_LEVELS, TREND_WATCHES, ConfigError, SearchConfig, is_brand_entry, watch_name
+from .knowledge import (LETTER_SIZES, brand_key, estimate_item, normalize_sizes, rarity,
+                        trend_match)
+from .models import Item
 from .notify import TelegramNotifier, money
 from .scoring import TYPE_LABELS, normalize
 
@@ -22,15 +25,14 @@ MAX_OFFERS_PER_DAY = 25  # Limit von Vinted
 
 HELP = """<b>🤖 Vinted-Deal-Bot</b>
 
-<b>💰 Resale (frisch &amp; weit unter Marktpreis)</b>
-/marke <i>Name</i> – Marke beobachten, z. B.
-   <code>/marke stone island</code>
-   <code>/marke carhartt bis 80 rabatt 50 gewinn 20</code>
-/trends – deine Trend-Marken anzeigen
-/trends plus <i>Marke, Marke</i> – eigene Marken hinzufügen
-/trends minus <i>Marke</i> – Marke entfernen
-/trends an · /trends aus – alle Trend-Marken beobachten / stoppen
+<b>💰 Schnäppchen-Radar (frisch &amp; weit unter Wert)</b>
+/trends – deine Trend-Liste (Marken + Modelle/Styles)
+/trends plus <i>Marke oder Begriff</i> – z. B. <code>/trends plus jacquemus, vintage lederjacke</code>
+/trends minus <i>…</i> – entfernen · /trends an · /trends aus
+/marke <i>Name</i> – Marke mit eigenen Grenzen, z. B. <code>/marke carhartt bis 80 rabatt 50</code>
+/radar an – zusätzlich die neuesten Uploads auf ganz Vinted prüfen
 /stufe streng – nur die allergünstigsten (auch: normal, locker)
+/wert <i>Artikel oder Link</i> – Wert schätzen, z. B. <code>/wert carhartt detroit jacke vintage</code>
 
 <b>🎯 Was gemeldet wird</b>
 /groesse S M L – deine Größen (/groesse alle)
@@ -148,11 +150,15 @@ REMOVE_WORDS = {"minus", "weg", "entfernen", "löschen", "loeschen", "remove", "
 
 
 def _nice_brand(raw: str) -> str:
-    """'jacquemus' -> 'Jacquemus'; eigene Schreibweise mit Großbuchstaben bleibt erhalten."""
-    raw = " ".join(raw.split())[:40]
-    builtin = next((b for b in TREND_BRANDS if normalize(b) == normalize(raw)), None)
+    """'jacquemus' -> 'Jacquemus', 'stone island' -> 'Stone Island', 'vintage lederjacke' -> 'Vintage Lederjacke'."""
+    raw = " ".join(raw.split())[:50]
+    builtin = next((b for b in TREND_WATCHES if normalize(b) == normalize(raw)), None)
     if builtin:
         return builtin
+    if is_brand_entry(raw):
+        info = brand_info(raw)
+        if info and normalize(info[0]) == normalize(raw):
+            return info[0]
     return raw if any(c.isupper() for c in raw) else raw.title()
 
 
@@ -234,6 +240,8 @@ class TelegramController(threading.Thread):
             "/ohne": self.cmd_without, "/mit": self.cmd_with, "/kategorien": self.cmd_types,
             "/raritaeten": self.cmd_rare, "/raritäten": self.cmd_rare, "/rare": self.cmd_rare,
             "/vorlieben": self.cmd_prefs, "/preis": self.cmd_price, "/probelauf": self.cmd_sample,
+            "/wert": self.cmd_value, "/schaetzen": self.cmd_value, "/schätzen": self.cmd_value,
+            "/radar": self.cmd_radar,
             "/suchen": self.cmd_list, "/liste": self.cmd_list, "/list": self.cmd_list,
             "/loeschen": self.cmd_delete, "/löschen": self.cmd_delete, "/delete": self.cmd_delete,
             "/pause": self.cmd_pause, "/weiter": self.cmd_resume, "/resume": self.cmd_resume,
@@ -285,19 +293,19 @@ class TelegramController(threading.Thread):
     # -- Trend-Marken -------------------------------------------------------------
 
     def _watch(self, brand: str) -> bool:
-        """Beobachtet eine Marke (Resale). True, wenn sie neu dazukam oder wieder eingeschaltet wurde."""
-        name = resale_name(brand)
+        """Beobachtet eine Marke/einen Trend. True, wenn sie neu dazukam oder wieder eingeschaltet wurde."""
+        name = watch_name(brand)
         existing = {s.name: s for s in self._numbered()}
         if name in existing:
             if self.storage.is_disabled(name):
                 self.storage.set_disabled(name, False)
                 return True
             return False
-        self.storage.add_search(SearchConfig.resale_for_brand(brand, source="telegram"))
+        self.storage.add_search(SearchConfig.watch(brand, source="telegram"))
         return True
 
     def _unwatch(self, brand: str) -> bool:
-        name = resale_name(brand)
+        name = watch_name(brand)
         existing = {s.name: s for s in self._numbered()}
         if name not in existing:
             return False
@@ -339,6 +347,8 @@ class TelegramController(threading.Thread):
                 if brand:
                     self._unwatch(brand)
                     done.append(brand)
+                elif self._unwatch(_nice_brand(raw)):  # z. B. Marke aus der config.yaml
+                    done.append(_nice_brand(raw))
                 else:
                     missing.append(raw)
             text = f"🗑 Aus deinen Trends entfernt: <b>{html.escape(', '.join(done))}</b>" if done else ""
@@ -360,15 +370,19 @@ class TelegramController(threading.Thread):
 
         existing = {s.name for s in self.monitor.active_searches()}
         own = {normalize(b) for b in self.storage.get_list("trends_added")}
-        brands = self.monitor.trend_brands()
-        lines = [f"<b>🔥 Deine Trend-Marken ({len(brands)})</b>"]
-        for brand in brands:
-            icon = "✅" if resale_name(brand) in existing else "▫️"
-            star = " ⭐" if normalize(brand) in own else ""
-            lines.append(f"{icon} {html.escape(brand)}{star}")
+        entries = self.monitor.trend_brands()
+        lines = [f"<b>🔥 Deine Trend-Liste ({len(entries)})</b>"]
+        for title, items in (("Marken", [e for e in entries if is_brand_entry(e)]),
+                             ("Modelle & Styles", [e for e in entries if not is_brand_entry(e)])):
+            if items:
+                lines.append(f"\n<b>{html.escape(title)}</b>")
+            for entry in items:
+                icon = "✅" if watch_name(entry) in existing else "▫️"
+                star = " ⭐" if normalize(entry) in own else ""
+                lines.append(f"{icon} {html.escape(entry)}{star}")
         lines.append("\n✅ = wird beobachtet · ⭐ = von dir hinzugefügt\n"
-                     "<code>/trends plus jacquemus, ganni</code> – Marken hinzufügen\n"
-                     "<code>/trends minus nike</code> – Marke entfernen\n"
+                     "<code>/trends plus jacquemus, vintage lederjacke</code> – Marken oder Suchbegriffe\n"
+                     "<code>/trends minus nike</code> – entfernen\n"
                      "/trends an · /trends aus – alle beobachten / stoppen\n"
                      "/stufe – wie streng gefiltert wird")
         self.reply("\n".join(lines))
@@ -504,7 +518,7 @@ class TelegramController(threading.Thread):
         sizes = self.monitor.global_filters()["sizes"]
         now = ", ".join(sizes) if sizes else "alle"
         self.reply(f"📏 <b>Größen: {html.escape(now)}</b>\n"
-                   "Gilt fürs Resale-Radar. Artikel ohne Größe (Taschen, Caps, One Size) kommen immer durch.\n\n"
+                   "Gilt fürs Schnäppchen-Radar. Artikel ohne Größe (Taschen, Caps, One Size) kommen immer durch.\n\n"
                    "<code>/groesse S M L</code> · <code>/groesse M</code> · <code>/groesse M L 32</code> · "
                    "<code>/groesse alle</code>\n"
                    f"Buchstaben: {' '.join(LETTER_SIZES)} – Zahlen für Schuhe/Jeans möglich.")
@@ -532,6 +546,8 @@ class TelegramController(threading.Thread):
         if not types:
             self.reply("Was soll wieder rein? z. B. <code>/mit schuhe</code> – /kategorien zeigt alle.")
             return
+        # "/mit schuhe" holt auch einzeln ausgeblendete Sneaker/Stiefel zurück
+        types = types + [k for k, c in CATEGORIES.items() if c.family in types]
         hidden = self.monitor.global_filters()["exclude_types"]
         self.storage.set_json("filter_exclude_types", [t for t in hidden if t not in types])
         prefs = self.monitor.preferences()  # 👎-Zähler zurücksetzen, sonst wäre es gleich wieder weg
@@ -545,10 +561,18 @@ class TelegramController(threading.Thread):
 
     def _types_reply(self, unknown: list[str]) -> None:
         hidden = set(self.monitor.global_filters()["exclude_types"])
-        lines = ["<b>🗂 Kategorien im Resale-Radar</b>"]
-        for ptype in TYPE_ALIASES:
-            lines.append(f"{'🚫' if ptype in hidden else '✅'} {TYPE_LABELS.get(ptype, ptype)}")
-        lines.append("\n<code>/ohne schuhe, taschen</code> – ausblenden · <code>/mit schuhe</code> – wieder zeigen")
+        lines = ["<b>🗂 Kategorien im Schnäppchen-Radar</b>"]
+        for fam, label in FAMILY_LABELS.items():
+            members = [c for c in CATEGORIES.values() if c.family == fam]
+            off = fam in hidden
+            partly = [c.label for c in members if c.key in hidden]
+            icon = "🚫" if off else ("◐" if partly else "✅")
+            detail = ", ".join(c.label for c in members) if len(members) > 1 else ""
+            extra = f" – aus: {', '.join(partly)}" if partly and not off else ""
+            lines.append(f"{icon} <b>{html.escape(label)}</b>" + (f" ({html.escape(detail)})" if detail else "")
+                         + html.escape(extra))
+        lines.append("\n<code>/ohne schuhe, taschen</code> – ausblenden · <code>/mit schuhe</code> – wieder zeigen\n"
+                     "Auch einzeln: <code>/ohne sandalen</code> · <code>/mit sneaker</code>")
         if unknown:
             lines.append(f"Unbekannt: {html.escape(', '.join(unknown))}")
         self.reply("\n".join(lines))
@@ -613,6 +637,92 @@ class TelegramController(threading.Thread):
         self.storage.set_json("own_prices", prices)
         self.reply(f"✅ Gemerkt: {html.escape(brand.title())} {TYPE_LABELS.get(ptype, ptype)} sind ca. "
                    f"<b>{prices[key]:g} €</b> wert. Danach rechne ich Rabatt und Gewinn.")
+
+    def cmd_value(self, arg: str) -> None:
+        """/wert carhartt detroit jacke vintage · /wert <Vinted-Link> – ungefähren Wert schätzen."""
+        text = arg.strip()
+        m = re.search(r"/items/\d+-([a-z0-9-]+)", text)
+        if m:  # Titel steckt im Link: /items/123-carhartt-detroit-jacket
+            text = m.group(1).replace("-", " ")
+        if not text:
+            self.reply("Was soll ich schätzen? z. B. <code>/wert carhartt detroit jacke vintage gut</code>\n"
+                       "oder einen Vinted-Link einfügen.")
+            return
+        cond = next((c for c in ("neu mit etikett", "neu ohne etikett", "sehr gut", "zufriedenstellend", "gut")
+                     if c in text.lower()), "")
+        price_m = re.search(r"(\d+(?:[.,]\d+)?)\s*€", text)
+        item = Item(id=0, title=text, price=float(price_m.group(1).replace(",", ".")) if price_m else 0.0,
+                    condition=cond)
+        est = estimate_item(item)
+        rare, trend = rarity(item), trend_match(text)
+        own_prices = self.storage.get_json("own_prices", {}) or {}
+        value, notes = est.value, []
+        own = own_prices.get(f"{brand_key(est.brand)}|{est.ptype}") if est.brand else None
+        learned = self.storage.group_history(f"b:{brand_key(est.brand) or 'ohne'}|{est.ptype}")
+        if own:
+            value = own * est.factor
+            notes.append("dein eigener Marktpreis (/preis)")
+        elif len(learned) >= 5:
+            from statistics import median
+            n = len(learned)
+            value = ((n * median(learned) + 5 * est.base) / (n + 5) if n < 30 else median(learned)) * est.factor
+            notes.append(f"{n} echte Vergleichspreise eingerechnet")
+        if rare.level:
+            value *= rare.premium
+            notes.append(f"💎 Rarität ({' · '.join(rare.tags)}) +{rare.premium - 1:.0%}")
+        elif trend:
+            value *= 1.1
+            notes.append(f"🔥 Trend ({trend}) +10%")
+        tier = TIER_LABELS.get(est.tier or "", "unbekannt")
+        lines = [f"<b>💶 Geschätzter Wert: ca. {money(value)}</b>",
+                 f"Spanne: {money(value * est.low / est.value)} – {money(value * est.high / est.value)}",
+                 "",
+                 f"🏷 Marke: {html.escape(est.brand or 'nicht erkannt')} ({tier})",
+                 f"🗂 Kategorie: {TYPE_LABELS.get(est.ptype, est.ptype)}",
+                 f"📐 Grundlage: {html.escape(est.basis)}"
+                 + (f" · {html.escape(', '.join(est.factor_notes))}" if est.factor_notes else "")]
+        lines += [f"➕ {html.escape(n)}" for n in notes]
+        lines.append(f"🎯 Sicherheit: {'hoch' if own or len(learned) >= 15 else est.confidence}")
+        if price_m and item.price:
+            disc = 1 - item.price / value
+            lines.append(f"\nFür {money(item.price)}: " + (f"<b>{disc:.0%} unter Wert</b> 👍" if disc > 0
+                                                         else f"{-disc:.0%} über Wert"))
+        lines.append("\nWeiß du es besser? <code>/preis marke kategorie betrag</code>")
+        self.reply("\n".join(lines))
+
+    def cmd_radar(self, arg: str) -> None:
+        """Alles-Radar: neueste Uploads auf ganz Vinted (optional in einer Kategorie per Link)."""
+        a = arg.strip()
+        existing = {s.name: s for s in self._numbered()}
+        if a.lower().startswith(("an", "on", "start")):
+            link = re.search(r"https?://\S*vinted\.\S+", a)
+            if "Alles-Radar" in existing:
+                self.storage.delete_search("Alles-Radar")
+            data: dict[str, Any] = {"name": "Alles-Radar", "sweep": True, "mode": "resale"}
+            if link:
+                data["url"] = link.group(0)
+            self.storage.add_search(SearchConfig.from_dict(data, source="telegram"))
+            self.storage.set_disabled("Alles-Radar", False)
+            self.reply("📡 <b>Alles-Radar an</b> – ich schaue zusätzlich auf die neuesten Uploads "
+                       + ("in deiner Kategorie" if link else "auf ganz Vinted")
+                       + ", egal welche Suche. Gemeldet werden nur gefragte Marken, Trends und Raritäten weit "
+                       "unter Wert (deine Größen, Kategorien und /stufe gelten auch hier).\n"
+                       "Tipp: <code>/radar an https://www.vinted.de/catalog/…</code> beschränkt auf eine Kategorie.")
+            return
+        if a.lower().startswith(("aus", "off", "stop")):
+            if "Alles-Radar" in existing:
+                if existing["Alles-Radar"].source == "telegram":
+                    self.storage.delete_search("Alles-Radar")
+                    self.storage.forget_search("Alles-Radar")
+                else:
+                    self.storage.set_disabled("Alles-Radar", True)
+            self.reply("📡 Alles-Radar aus.")
+            return
+        on = "Alles-Radar" in {s.name for s in self.monitor.active_searches()}
+        self.reply(f"📡 Alles-Radar ist <b>{'an' if on else 'aus'}</b>.\n"
+                   "Es prüft bei jedem Durchlauf die neuesten Uploads auf ganz Vinted (ohne Suchbegriff) und "
+                   "meldet gefragte Marken, Trends und Raritäten weit unter Wert.\n"
+                   "<code>/radar an</code> · <code>/radar aus</code> · <code>/radar an &lt;Vinted-Link&gt;</code>")
 
     def cmd_sample(self, _arg: str = "") -> None:
         from .sample_data import run_sample

@@ -1,7 +1,7 @@
 import pytest
 
 from conftest import NOW, FakeClient, FakeNotifier, item
-from vinted_bot.config import (RESALE_LEVELS, TREND_BRANDS, ConfigError, SearchConfig, config_from_dict,
+from vinted_bot.config import (RESALE_LEVELS, TREND_BRANDS, ConfigError, SearchConfig, config_from_dict, watch_name,
                                resale_searches)
 from vinted_bot.monitor import Monitor
 from vinted_bot.notify import Alert, telegram_caption
@@ -14,7 +14,8 @@ from vinted_bot.storage import Storage
 
 def test_resale_section_trends_and_custom_brands():
     trends = resale_searches({"brands": "trends"})
-    assert [s.name for s in trends] == [f"Resale · {b}" for b in TREND_BRANDS]
+    assert [s.name for s in trends] == [watch_name(b) for b in TREND_BRANDS]
+    assert trends[0].name == "Marke · Carhartt" and watch_name("Vintage Lederjacke") == "Trend · Vintage Lederjacke"
     s = trends[0]
     assert s.is_resale and s.keywords == "Carhartt" and s.brands == ["Carhartt"]
     # Ziele stehen nicht fest in der Suche, sondern kommen zur Laufzeit aus der Stufe
@@ -26,14 +27,14 @@ def test_resale_section_trends_and_custom_brands():
     assert own_value.min_discount == 60 and own_value.max_age_minutes == 5
 
     own = resale_searches({"brands": ["Stüssy", "trends"], "max_price": 100})
-    assert own[0].name == "Resale · Stüssy" and own[0].max_price == 100
+    assert own[0].name == "Marke · Stüssy" and own[0].max_price == 100
     assert len(own) == len(TREND_BRANDS)  # Stüssy nicht doppelt
     assert resale_searches({"enabled": False, "brands": "trends"}) == []
 
 
 def test_resale_name_clash_and_bad_mode():
     with pytest.raises(ConfigError):
-        config_from_dict({"searches": [{"name": "Resale · Nike", "keywords": "x"}], "resale": {"brands": ["Nike"]}})
+        config_from_dict({"searches": [{"name": "Marke · Nike", "keywords": "x"}], "resale": {"brands": ["Nike"]}})
     with pytest.raises(ConfigError):
         SearchConfig.from_dict({"name": "x", "keywords": "x", "mode": "turbo"})
     with pytest.raises(ConfigError):
@@ -62,7 +63,7 @@ def test_normalize_and_brand_matching():
 
 def test_product_types():
     assert product_type("Carhartt WIP Detroit Jacket") == "jacke"
-    assert product_type("Nike Air Max 90 Top Zustand") == "schuhe"
+    assert product_type("Nike Air Max 90 Top Zustand") == "sneaker"
     assert product_type("Stüssy Bucket Hat") == "muetze"
     assert product_type("North Face Daunenweste") == "weste"
     assert product_type("Ralph Lauren Strickjacke") == "pullover"
@@ -173,7 +174,7 @@ def test_resale_monitor_flags_only_fresh_real_bargains(resale_monitor):
     a = notifier.alerts[0]
     # Marktpreis = 5 echte Preise (Median 80 €) gemischt mit dem Vorwissen (75 €)
     assert a.resale and a.score.reference_price == 77.5 and a.score.profit == pytest.approx(77.5 - 46.5 - 5)
-    assert "5 ähnliche Carhartt WIP Jacken + Vorwissen" in a.score.reasons[0]
+    assert "5 ähnliche Carhartt WIP Jacken + Schätzung (Preiswissen Carhartt WIP Jacken)" in a.score.reasons[0]
 
 
 def test_resale_caption_shows_profit_and_freshness():
@@ -181,7 +182,7 @@ def test_resale_caption_shows_profit_and_freshness():
     score = score_item(it, Reference(100.0, "5 ähnliche Carhartt WIP Jacken", 5), now=NOW, resale=True, shipping=5)
     cap = telegram_caption(Alert(item=it, search_name="Resale · Carhartt", score=score, buy_url="u", resale=True),
                            now=NOW)
-    assert "💰 RESALE-DEAL · 55% unter Wert" in cap
+    assert "💰 SCHNÄPPCHEN · 55% unter Wert" in cap
     assert "Gewinn-Potenzial ca. +48,50 €" in cap
     assert "⚡ vor 2 Min. hochgeladen" in cap
 

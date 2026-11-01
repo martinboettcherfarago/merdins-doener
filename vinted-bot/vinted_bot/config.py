@@ -14,13 +14,20 @@ DEFAULT_EXCLUDE_WORDS = [
 ]
 
 
-# Marken, die sich auf Vinted gerade besonders gut weiterverkaufen lassen (Streetwear, Outdoor,
-# Sneaker). Trends ändern sich – die Liste kannst du in der config.yaml überschreiben.
-TREND_BRANDS = [
-    "Carhartt", "Stüssy", "Arc'teryx", "Salomon", "The North Face", "Patagonia", "Ralph Lauren",
-    "Lacoste", "Stone Island", "C.P. Company", "New Balance", "Asics", "Levi's", "Dickies",
-    "Barbour", "Nike", "Adidas",
+# Eingebaute Trend-Liste: Marken UND angesagte Modelle/Styles, nach denen auf Vinted gesucht wird.
+# Eine Marke allein ("Carhartt") beobachtet alle neuen Artikel dieser Marke; ein Begriff
+# ("Vintage Lederjacke") sucht genau danach. Per Telegram änderbar: /trends plus … / /trends minus …
+TREND_WATCHES = [
+    # Marken, die sich gut weiterverkaufen
+    "Carhartt", "Stüssy", "Arc'teryx", "The North Face", "Patagonia", "Ralph Lauren", "Lacoste",
+    "Stone Island", "C.P. Company", "Barbour", "Levi's", "Dickies", "Moncler", "Burberry", "Miu Miu",
+    "Vivienne Westwood",
+    # angesagte Modelle & Styles
+    "Nike Tech Fleece", "Nike ACG", "Vintage Nike", "Adidas Trainingsjacke", "Ralph Lauren Strick",
+    "Polo Bear", "Longchamp Le Pliage", "Prada Nylon", "Coach Tasche", "Ed Hardy", "Diesel vintage",
+    "Vintage Lederjacke", "Vintage Trikot", "College Jacke", "Band Shirt vintage", "Harley Davidson", "Y2K",
 ]
+TREND_BRANDS = TREND_WATCHES  # alter Name, bleibt für ältere Konfigurationen gültig
 
 # Schnäppchen-Stufen für Resale-Suchen (per Telegram: /stufe streng)
 RESALE_LEVELS: dict[str, dict[str, Any]] = {
@@ -33,7 +40,7 @@ RESALE_LEVELS: dict[str, dict[str, Any]] = {
 }
 RESALE_DEFAULTS = RESALE_LEVELS["normal"]
 
-# Standard-Filter für das Resale-Radar (Marken & Trends) – per Telegram änderbar (/groesse, /ohne, /mit)
+# Standard-Filter für das Schnäppchen-Radar (Marken & Trends) – per Telegram änderbar (/groesse, /ohne, /mit)
 DEFAULT_SIZES = ["S", "M", "L"]
 DEFAULT_EXCLUDE_TYPES = ["schuhe"]
 RESALE_TARGET_KEYS = tuple(RESALE_DEFAULTS)
@@ -64,6 +71,7 @@ class SearchConfig:
     max_age_minutes: Optional[int] = None  # nur Artikel, die höchstens so alt sind
     min_condition: Optional[str] = None   # z. B. "sehr gut" -> schlechtere Zustände ignorieren
     min_cheaper_than: Optional[float] = None  # günstiger als x % aller vergleichbaren Angebote
+    sweep: bool = False                    # Alles-Radar: neueste Uploads ohne Suchbegriff
 
     @property
     def is_resale(self) -> bool:
@@ -73,10 +81,11 @@ class SearchConfig:
     def from_dict(cls, data: dict[str, Any], source: str = "config") -> "SearchConfig":
         if not isinstance(data, dict):
             raise ConfigError(f"Suche ist kein Objekt: {data!r}")
-        name = str(data.get("name") or data.get("keywords") or "").strip()
+        sweep = bool(data.get("sweep", False))
+        name = str(data.get("name") or data.get("keywords") or ("Alles-Radar" if sweep else "")).strip()
         if not name:
             raise ConfigError("Jede Suche braucht einen 'name' oder 'keywords'.")
-        if not data.get("url") and not data.get("keywords"):
+        if not data.get("url") and not data.get("keywords") and not sweep:
             raise ConfigError(f"Suche '{name}': bitte 'url' oder 'keywords' angeben.")
 
         def _list(key: str) -> list[str]:
@@ -118,15 +127,28 @@ class SearchConfig:
             max_age_minutes=int(age) if age is not None else None,
             min_condition=str(data["min_condition"]).strip() if data.get("min_condition") else None,
             min_cheaper_than=_num("min_cheaper_than"),
+            sweep=sweep,
         )
 
     @classmethod
     def resale_for_brand(cls, brand: str, source: str = "config", **overrides: Any) -> "SearchConfig":
-        """Resale-Suche für eine Marke: nur frische Artikel dieser Marke weit unter Marktpreis.
+        """Schnäppchen-Suche für eine Marke oder einen Trend-Begriff (siehe watch)."""
+        return cls.watch(brand, source=source, **overrides)
 
+    @classmethod
+    def watch(cls, entry: str, source: str = "config", **overrides: Any) -> "SearchConfig":
+        """Schnäppchen-Suche: nur frische Artikel weit unter ihrem geschätzten Wert.
+
+        "Carhartt"            -> Marke · Carhartt   (alle neuen Carhartt-Artikel, nur echte Carhartt)
+        "Vintage Lederjacke"  -> Trend · Vintage Lederjacke (genau dieser Suchbegriff)
+        "Nike Tech Fleece"    -> Trend · Nike Tech Fleece (Suchbegriff, nur echte Nike)
         Nicht angegebene Ziele (Rabatt, Frische, …) kommen zur Laufzeit aus der Schnäppchen-Stufe.
         """
-        data: dict[str, Any] = {"name": resale_name(brand), "keywords": brand, "brands": [brand], "mode": "resale"}
+        entry = " ".join(str(entry).split())
+        brand = brand_of_watch(entry)
+        data: dict[str, Any] = {"name": watch_name(entry), "keywords": entry, "mode": "resale"}
+        if brand:
+            data["brands"] = [brand]
         data.update({k: v for k, v in overrides.items() if v is not None})
         return cls.from_dict(data, source=source)
 
@@ -268,8 +290,36 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     return cfg
 
 
-def resale_name(brand: str) -> str:
-    return f"Resale · {brand}"
+def is_brand_entry(entry: str) -> bool:
+    """Ist der Eintrag genau eine Marke (und kein Suchbegriff wie 'Vintage Nike')?"""
+    from .catalog import _brand_db, brand_info
+    info = brand_info(entry)
+    if not info:
+        return False
+    _brands, aliases = _brand_db()
+    return normalize_name(info[0]) == normalize_name(entry) or entry.lower().strip() in aliases
+
+
+def brand_of_watch(entry: str) -> Optional[str]:
+    """Marke, auf die eine Suche beschränkt wird ('Nike Tech Fleece' -> 'Nike', 'Y2K' -> None)."""
+    from .catalog import brand_info, detect_brand
+    if is_brand_entry(entry):
+        return entry
+    found = detect_brand(entry)
+    return brand_info(found)[0] if found and brand_info(found) else None
+
+
+def watch_name(entry: str) -> str:
+    return f"{'Marke' if is_brand_entry(entry) else 'Trend'} · {' '.join(str(entry).split())}"
+
+
+def resale_name(brand: str) -> str:  # alter Name
+    return watch_name(brand)
+
+
+def normalize_name(text: str) -> str:
+    from .text import normalize
+    return normalize(text)
 
 
 def resale_searches(section: dict[str, Any]) -> list[SearchConfig]:
@@ -278,16 +328,24 @@ def resale_searches(section: dict[str, Any]) -> list[SearchConfig]:
         return []
     brands = section["brands"]
     if isinstance(brands, str):
-        brands = TREND_BRANDS if brands.strip().lower() in ("trends", "trend") else [brands]
+        brands = [brands]
     # Rabatt/Frische/Gewinn kommen aus der Stufe (resale_targets), hier nur Preis- und Größenfilter
     overrides = {k: section.get(k) for k in ("min_price", "max_price", "sizes", "exclude_words")}
     out = []
     for brand in brands:
         brand = str(brand).strip()
         if brand.lower() in ("trends", "trend"):
-            out += [SearchConfig.resale_for_brand(b, **overrides) for b in TREND_BRANDS]
+            out += [SearchConfig.watch(b, **overrides) for b in TREND_WATCHES]
         elif brand:
-            out.append(SearchConfig.resale_for_brand(brand, **overrides))
+            out.append(SearchConfig.watch(brand, **overrides))
+    for term in section.get("keywords") or []:  # zusätzliche Trend-Begriffe
+        if str(term).strip():
+            out.append(SearchConfig.watch(str(term), **overrides))
+    if section.get("radar"):  # Alles-Radar: neueste Uploads ohne Suchbegriff
+        radar = section["radar"]
+        out.append(SearchConfig.from_dict({"name": "Alles-Radar", "sweep": True, "mode": "resale",
+                                           "url": radar if isinstance(radar, str) else None, **{
+                                               k: v for k, v in overrides.items() if v is not None}}))
     # doppelte Marken (z. B. "trends" + "Nike") nur einmal
     unique: dict[str, SearchConfig] = {}
     for s in out:

@@ -5,14 +5,16 @@ from __future__ import annotations
 import math
 import re
 import time
-import unicodedata
 from dataclasses import dataclass, field
 from statistics import median
 from typing import Iterable, Optional, Union
 
+from .catalog import TYPE_LABELS as CATALOG_LABELS
+from .catalog import Estimate, product_type  # noqa: F401  (product_type wird von anderen Modulen importiert)
 from .config import SearchConfig
-from .knowledge import Rarity
+from .knowledge import TREND_POINTS, TREND_PREMIUM, Rarity
 from .models import Item
+from .text import normalize  # noqa: F401
 
 # Zustand -> Punkte (max. 20). Längere Schlüssel zuerst, damit "sehr gut" nicht als "gut" zählt.
 CONDITION_POINTS = [
@@ -24,67 +26,14 @@ CONDITION_POINTS = [
 ]
 UNKNOWN_CONDITION_POINTS = 8
 
-# Produkttyp aus dem Titel, damit eine Mütze nicht mit einer Jacke verglichen wird.
-# Erster Treffer gewinnt. "=wort" heißt: muss am Wortanfang stehen (sonst z. B. "cap" in "Capri").
-PRODUCT_TYPES: list[tuple[str, list[str]]] = [
-    ("shorts", ["shorts", "kurze hose", "bermuda"]),
-    ("hoodie", ["hoodie", "hoody", "kapuzen"]),
-    ("fleece", ["fleece"]),
-    ("weste", ["weste", "=vest", "gilet", "bodywarmer"]),
-    ("pullover", ["sweatjacke", "strickjacke", "cardigan"]),
-    ("jacke", ["jacke", "jacket", "parka", "mantel", "=coat", "anorak", "windbreaker", "puffer", "daunen",
-               "blouson", "bomber", "softshell", "hardshell", "overcoat"]),
-    ("pullover", ["pullover", "pulli", "sweatshirt", "sweater", "strick", "crewneck", "=knit", "quarter zip",
-                  "half zip", "troyer"]),
-    ("hemd", ["hemd", "overshirt", "flanell", "button down"]),
-    ("tshirt", ["t-shirt", "tshirt", "=tee", "=shirt", "longsleeve", "=polo", "tanktop", "trikot", "jersey"]),
-    ("hose", ["jeans", "hose", "=pants", "trousers", "cargo", "chino", "jogger", "trackpants", "=501"]),
-    ("schuhe", ["sneaker", "schuh", "=shoes", "trainers", "=boots", "stiefel", "air max", "air force", "=dunk",
-                "=samba", "gazelle", "spezial", "=campus", "yeezy", "jordan", "=gel-", "xt-6", "=990", "=2002r",
-                "=9060", "loafer", "clogs", "slides", "shox", "vomero", "p-6000", "1906r", "=574", "=327", "=530",
-                "kayano", "speedcross", "acs pro", "=sl 72", "taekwondo", "cortez", "converse", "chuck taylor",
-                "dr. martens", "doc martens", "birkenstock", "=tn", "mexico 66", "=boot", "=trainer"]),
-    ("tasche", ["tasche", "=bag", "rucksack", "backpack", "beutel", "geldbörse", "portemonnaie", "=wallet"]),
-    ("muetze", ["=cap", "mütze", "muetze", "beanie", "=hat", "=hut", "kappe", "bucket"]),
-    ("kleid", ["kleid", "=dress"]),
-    ("rock", ["=rock", "skirt"]),
-    ("schmuck", ["kette", "=ring", "armband", "ohrring", "necklace", "bracelet"]),
-    ("uhr", ["=uhr", "armbanduhr", "=watch"]),
-    ("guertel", ["gürtel", "guertel", "=belt"]),
-    ("schal", ["schal", "scarf"]),
-    ("brille", ["brille", "sunglasses"]),
-]
-TYPE_LABELS = {
-    "shorts": "Shorts", "hoodie": "Hoodies", "fleece": "Fleece", "weste": "Westen", "pullover": "Pullover",
-    "jacke": "Jacken", "hemd": "Hemden", "tshirt": "Shirts", "hose": "Hosen", "schuhe": "Schuhe",
-    "tasche": "Taschen", "muetze": "Mützen/Caps", "kleid": "Kleider", "rock": "Röcke", "schmuck": "Schmuck",
-    "uhr": "Uhren", "guertel": "Gürtel", "schal": "Schals", "brille": "Brillen", "sonstiges": "Artikel",
-}
+# Produkttypen & Namen kommen aus dem Katalog (catalog.py) – hier nur weitergereicht
+TYPE_LABELS = CATALOG_LABELS
 
 MIN_GROUP_SAMPLES = 5     # so viele Vergleichspreise braucht eine Gruppe (Marke + Produkttyp)
 MIN_SEARCH_SAMPLES = 8    # so viele Preise braucht eine ganze Suche
 PRIOR_WEIGHT = 5          # ein Startwert aus dem Vorwissen zählt wie 5 echte Preise
 PRIOR_UNTIL = 30          # ab so vielen echten Vergleichspreisen zählen nur noch echte Daten
 RARITY_POINTS = {0: 0, 1: 6, 2: 10, 3: 15}
-
-
-def normalize(text: str) -> str:
-    """'Arc'teryx' -> 'arcteryx', 'Stüssy' -> 'stussy', 'Levi's' -> 'levis'."""
-    t = unicodedata.normalize("NFKD", text or "")
-    t = "".join(c for c in t if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]", "", t.lower())
-
-
-def product_type(title: str) -> str:
-    t = (title or "").lower()
-    for ptype, words in PRODUCT_TYPES:
-        for w in words:
-            if w.startswith("="):
-                if re.search(rf"(?<![a-zäöüß0-9]){re.escape(w[1:])}", t):
-                    return ptype
-            elif w in t:
-                return ptype
-    return "sonstiges"
 
 
 def price_group(search: SearchConfig, item: Item) -> str:
@@ -95,8 +44,8 @@ def price_group(search: SearchConfig, item: Item) -> str:
     """
     ptype = product_type(item.title)
     if search.is_resale:
-        from .knowledge import brand_key
-        brand = brand_key(item.brand) or brand_key(search.brands[0] if search.brands else search.name)
+        from .knowledge import brand_key, item_brand
+        brand = brand_key(item_brand(item)) or brand_key(search.brands[0] if search.brands else "") or "ohne"
         return f"b:{brand}|{ptype}"
     return f"s:{search.name}|{ptype}"
 
@@ -121,6 +70,10 @@ class DealScore:
     cheaper_than: Optional[float] = None  # 0.95 = günstiger als 95 % der Vergleichsangebote
     rarity_level: int = 0
     rarity_tags: list[str] = field(default_factory=list)
+    value: Optional[float] = None         # geschätzter Wert dieses Artikels (inkl. Zustand, Rarität …)
+    confidence: str = "mittel"            # wie sicher die Schätzung ist: hoch / mittel / niedrig
+    trend: Optional[str] = None
+    fake_suspect: bool = False
 
 
 def _contains_word(text: str, word: str) -> bool:
@@ -239,7 +192,8 @@ def _fresh_points(age_min: Optional[float], resale: bool) -> float:
 
 def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: int = 75,
                now: Optional[float] = None, resale: bool = False, shipping: float = 0.0,
-               rare: Optional[Rarity] = None, pref_pts: float = 0.0) -> DealScore:
+               rare: Optional[Rarity] = None, pref_pts: float = 0.0, est: Optional[Estimate] = None,
+               trend: Optional[str] = None) -> DealScore:
     """Deal-Score 0-100.
 
     Standard: Preis 60 · Zustand 20 · Frische 10 · Beliebtheit 10
@@ -252,11 +206,21 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
     sym = _sym(item.currency)
     rare = rare or Rarity()
 
-    # 1) Preis im Vergleich zum Markt (Raritäten sind mehr wert als ein Durchschnittsteil)
+    # 1) Wert schätzen: Marktpreis × Zustand/Kindergröße × Rarität bzw. Trend
     discount = profit = None
-    value = ref.price * rare.premium if ref.price else None
+    notes = list(est.factor_notes) if est else []
+    factor = est.factor if est else 1.0
+    if rare.premium > 1:
+        factor *= rare.premium
+        notes.append(f"Rarität +{rare.premium - 1:.0%}")
+    elif trend:
+        factor *= TREND_PREMIUM
+        notes.append(f"Trend +{TREND_PREMIUM - 1:.0%}")
+    value = ref.price * factor if ref.price else None
     if rare.level:
         reasons.append(f"💎 Rarität: {' · '.join(rare.tags)}")
+    if trend:
+        reasons.append(f"🔥 Trend: {trend}")
     if value and value > 0:
         discount = 1 - item.price / value
         if resale:
@@ -264,9 +228,9 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
         else:
             price_pts = max(0.0, min(60.0, 20 + discount * 80))
         basis = f" · {ref.basis}" if ref.basis else ""
-        if rare.premium > 1:
-            basis += f" · +{rare.premium - 1:.0%} Raritäten-Aufschlag → Wert ca. {value:.0f} {sym}"
-        under = "Marktpreis" if rare.premium == 1 else "geschätztem Wert"
+        if notes:
+            basis += f" · {', '.join(notes)} → Wert ca. {value:.0f} {sym}"
+        under = "Marktpreis" if factor == 1 else "geschätztem Wert"
         if discount >= 0.05:
             reasons.append(f"{discount:.0%} unter {under} (Ø {ref.price:.0f} {sym}{basis})")
         elif discount <= -0.1:
@@ -280,12 +244,14 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
 
     # Preis-Rang: Wie viele vergleichbare Angebote sind teurer?
     cheaper_than = None
-    if ref.prices:
-        cheaper_than = sum(1 for p in ref.prices if p > item.price) / len(ref.prices)
+    # Ausreißer nach unten (Fakes, Fehlkategorien, "Tausch"-Angebote) zählen beim Rang nicht mit
+    comparable = [p for p in ref.prices if not ref.price or p >= 0.3 * ref.price]
+    if comparable:
+        cheaper_than = sum(1 for p in comparable if p > item.price) / len(comparable)
         if cheaper_than >= 1.0:
-            reasons.append(f"billigstes von {len(ref.prices)} vergleichbaren Angeboten 🏆")
+            reasons.append(f"billigstes von {len(comparable)} vergleichbaren Angeboten 🏆")
         elif cheaper_than >= 0.5:
-            reasons.append(f"günstiger als {cheaper_than:.0%} von {len(ref.prices)} vergleichbaren Angeboten")
+            reasons.append(f"günstiger als {cheaper_than:.0%} von {len(comparable)} vergleichbaren Angeboten")
 
     # 2) Zustand
     cond_pts = condition_points(item.condition) / (2 if resale else 1)
@@ -302,8 +268,22 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
     if pop_pts >= 6:
         reasons.append(f"schon {item.favourites} Favoriten – schnell sein!")
 
-    # 5) Raritäten-Bonus und deine Vorlieben (👍/👎)
-    rare_pts = RARITY_POINTS.get(rare.level, 0)
+    # 5) Raritäten-/Trend-Bonus und deine Vorlieben (👍/👎)
+    rare_pts = RARITY_POINTS.get(rare.level, 0) + (TREND_POINTS if trend else 0)
+
+    # 6) Fake-Verdacht: Luxus/Designer viel zu billig
+    fake = False
+    if est and est.tier in ("luxus", "designer") and discount is not None and discount >= 0.75:
+        fake = True
+        rare_pts -= 15
+        reasons.append(f"⚠️ Fake-Risiko: für {est.brand or 'diese Marke'} sehr billig – Echtheit genau prüfen!")
+
+    # Wie sicher ist die Schätzung?
+    confidence = est.confidence if est else "mittel"
+    if ref.basis == "dein Marktpreis" or ref.samples >= 15:
+        confidence = "hoch"
+    elif ref.samples >= 5 and confidence == "niedrig":
+        confidence = "mittel"
     if pref_pts >= 3:
         reasons.append("👍 passt zu deinen Vorlieben")
     elif pref_pts <= -3:
@@ -312,7 +292,8 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
     total = max(0, min(100, int(round(price_pts + cond_pts + fresh_pts + pop_pts + rare_pts + pref_pts))))
     return DealScore(total=total, reference_price=ref.price, discount=discount, is_top=total >= top_threshold,
                      reasons=reasons, profit=profit, age_minutes=age_min, cheaper_than=cheaper_than,
-                     rarity_level=rare.level, rarity_tags=list(rare.tags))
+                     rarity_level=rare.level, rarity_tags=list(rare.tags), value=value, confidence=confidence,
+                     trend=trend, fake_suspect=fake)
 
 
 def meets_targets(search: SearchConfig, score: DealScore) -> tuple[bool, str]:
@@ -322,8 +303,13 @@ def meets_targets(search: SearchConfig, score: DealScore) -> tuple[bool, str]:
     needs_price = search.min_discount is not None or search.min_profit is not None or search.is_resale
     if needs_price and score.reference_price is None:
         return False, "Marktpreis noch unbekannt"
-    if search.min_discount is not None and (score.discount or 0) * 100 < search.min_discount:
-        return False, "Rabatt zu klein"
+    if score.fake_suspect and (score.discount or 0) >= 0.85:
+        return False, "Fake-Verdacht (viel zu billig für die Marke)"
+    if search.min_discount is not None:
+        # unsichere Schätzung (No-Name, Elektronik …) -> lieber mehr Abstand zum Schätzwert verlangen
+        needed = search.min_discount + (15 if score.confidence == "niedrig" else 0)
+        if (score.discount or 0) * 100 < needed:
+            return False, "Rabatt zu klein" + (" (unsichere Schätzung)" if score.confidence == "niedrig" else "")
     if search.min_cheaper_than is not None and score.cheaper_than is not None:
         # Raritäten werden mit normalen Teilen verglichen – da reicht ein etwas schwächerer Rang
         needed = search.min_cheaper_than if not score.rarity_level else max(50.0, search.min_cheaper_than - 30)

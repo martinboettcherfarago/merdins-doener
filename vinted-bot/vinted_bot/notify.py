@@ -58,7 +58,7 @@ def headline(alert: Alert) -> str:
                 f"{money(alert.item.price, alert.item.currency)} · Score {s.total}/100")
     if alert.resale and s.discount is not None:
         fire = "🔥" if s.is_top else ""
-        kind = "💎 RARITÄT" if s.rarity_level >= 1 else "💰 RESALE-DEAL"
+        kind = "💎 RARITÄT" if s.rarity_level >= 1 else "💰 SCHNÄPPCHEN"
         return f"{fire}{kind} · {s.discount:.0%} unter Wert · Score {s.total}/100"
     if s.is_top:
         return f"🔥 TOP-DEAL · Score {s.total}/100"
@@ -77,7 +77,9 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
                      f"(Weiterverkauf zum Marktpreis, nach Käuferschutz & Versand)")
     if alert.resale and it.created_ts:
         lines.append(f"⚡ {age_text(it.created_ts, now)} hochgeladen")
-    lines += [r if r.startswith(("💎", "👍", "👎")) else f"📊 {r}" for r in alert.score.reasons]
+    lines += [r if r.startswith(("💎", "👍", "👎", "🔥", "⚠️")) else f"📊 {r}" for r in alert.score.reasons]
+    if alert.score.confidence == "niedrig":
+        lines.append("❔ Schätzung unsicher (unbekannte Marke/Kategorie) – Preis kurz selbst prüfen")
     meta = " · ".join(x for x in (it.brand, f"Gr. {it.size}" if it.size else "", it.condition) if x)
     if meta:
         lines.append(f"🏷 {meta}")

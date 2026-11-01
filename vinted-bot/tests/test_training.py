@@ -75,8 +75,9 @@ def test_size_matching():
 def test_more_shoe_models_are_recognised():
     for title in ["Nike Shox TL", "Asics Gel-Kayano 14", "New Balance 1906R", "Salomon Speedcross 6",
                   "Nike P-6000", "Adidas Samba OG"]:
-        assert product_type(title) == "schuhe", title
-    assert resolve_type("Sneaker") == "schuhe" and resolve_type("Jeans") == "hose"
+        assert product_type(title) == "sneaker", title
+    assert resolve_type("Schuhe") == "schuhe" and resolve_type("Sneaker") == "sneaker"
+    assert resolve_type("Jeans") == "jeans" and resolve_type("Taschen") == "tasche" and resolve_type("caps") == "muetze"
 
 
 @pytest.fixture
@@ -127,7 +128,8 @@ def test_size_and_category_commands(bot):
 
     ctl.handle_update(msg("/ohne taschen und caps"))
     assert mon.global_filters()["exclude_types"] == ["schuhe", "tasche", "muetze"]
-    assert "🚫 Taschen" in tg.texts()[-1] and "✅ Jacken" in tg.texts()[-1]
+    assert "🚫 <b>Taschen</b>" in tg.texts()[-1] and "✅ <b>Jacken &amp; Mäntel</b>" in tg.texts()[-1]
+    assert "◐ <b>Accessoires</b>" in tg.texts()[-1]  # nur Caps aus
     ctl.handle_update(msg("/mit schuhe"))
     assert mon.global_filters()["exclude_types"] == ["tasche", "muetze"]
 
@@ -172,12 +174,12 @@ def test_feedback_learning(bot):
     assert "Gemerkt" in vote(10, False)
     assert vote(10, False) == "Schon bewertet – danke!"
     vote(11, False)
-    assert "Mützen/Caps blende ich ab jetzt aus" in vote(12, False)  # 3× 👎 -> ausgeblendet
+    assert "Mützen & Caps blende ich ab jetzt aus" in vote(12, False)  # 3× 👎 -> ausgeblendet
     assert "muetze" in mon.global_filters()["exclude_types"]
     assert mon.preferences()["brand:carhartt"] == -3
 
     ctl.handle_update(msg("/vorlieben"))
-    assert "👎 Mützen/Caps (-3)" in tg.texts()[-1]
+    assert "👎 Mützen &amp; Caps (-3)" in tg.texts()[-1]
     ctl.handle_update(msg("/mit caps"))  # holt sie zurück und vergisst die 👎
     assert "muetze" not in mon.global_filters()["exclude_types"]
     assert "type:muetze" not in mon.preferences()
@@ -219,7 +221,7 @@ def test_probelauf_command(bot):
     ctl, tg = bot
     ctl.handle_update(msg("/probelauf"))
     texts = tg.texts()
-    assert "Echte Finds im Datensatz erkannt: 6 von 6" in texts[1]
+    assert "Echte Finds im Datensatz erkannt: 8 von 8" in texts[1]
     demo = [p for m, p in tg.calls if m == "sendMessage" and "PROBELAUF" in p["text"]]
     assert len(demo) == 3 and all("reply_markup" not in p for p in demo)  # keine echten Links/Buttons
 

@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS searches (
     name TEXT PRIMARY KEY,
     data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS alerted (
+    item_id INTEGER PRIMARY KEY,
+    ts REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -114,6 +118,7 @@ class Storage:
             self._db.execute("DELETE FROM seen WHERE first_seen < ?", (cutoff,))
             self._db.execute("DELETE FROM prices WHERE ts < ?", (cutoff,))
             self._db.execute("DELETE FROM items WHERE ts < ?", (cutoff,))
+            self._db.execute("DELETE FROM alerted WHERE ts < ?", (cutoff,))
             self._db.commit()
 
     # -- gemerkte Artikel (für Angebote per Button) ------------------------------
@@ -166,6 +171,37 @@ class Storage:
     def delete_state(self, key: str) -> None:
         with self._lock:
             self._db.execute("DELETE FROM state WHERE key=?", (key,))
+            self._db.commit()
+
+    def was_alerted(self, item_id: int) -> bool:
+        with self._lock:
+            return self._db.execute("SELECT 1 FROM alerted WHERE item_id=?", (item_id,)).fetchone() is not None
+
+    def mark_alerted(self, item_id: int) -> None:
+        with self._lock:
+            self._db.execute("INSERT OR REPLACE INTO alerted (item_id, ts) VALUES (?, ?)", (item_id, time.time()))
+            self._db.commit()
+
+    def state_keys(self, prefix: str) -> list[str]:
+        with self._lock:
+            rows = self._db.execute("SELECT key FROM state WHERE substr(key, 1, ?) = ?",
+                                    (len(prefix), prefix)).fetchall()
+        return [r[0] for r in rows]
+
+    def rename_search(self, old: str, new: str) -> None:
+        """Suche umbenennen – samt gelernten Preisen, gesehenen Artikeln und Zustand."""
+        with self._lock:
+            row = self._db.execute("SELECT data FROM searches WHERE name=?", (old,)).fetchone()
+            if row:
+                data = json.loads(row[0])
+                data["name"] = new
+                self._db.execute("DELETE FROM searches WHERE name=?", (old,))
+                self._db.execute("INSERT OR REPLACE INTO searches (name, data) VALUES (?, ?)",
+                                 (new, json.dumps(data)))
+            for table in ("seen", "prices"):
+                self._db.execute(f"UPDATE OR IGNORE {table} SET search=? WHERE search=?", (new, old))
+            for prefix in ("seeded:", "disabled:"):
+                self._db.execute("UPDATE OR IGNORE state SET key=? WHERE key=?", (prefix + new, prefix + old))
             self._db.commit()
 
     def get_json(self, key: str, default: Any = None) -> Any:

@@ -175,14 +175,14 @@ def test_brand_watch_command(bot):
     ctl, tg, storage, _ = bot
     ctl.handle_update(msg("/marke stone island bis 300 rabatt 50"))
     s = storage.custom_searches()[0]
-    assert s.name == "Resale · Stone Island" and s.is_resale and s.brands == ["Stone Island"]
+    assert s.name == "Marke · Stone Island" and s.is_resale and s.brands == ["Stone Island"]
     assert (s.max_price, s.min_discount, s.min_profit, s.max_age_minutes) == (300, 50, None, None)
     assert "Marktpreise dieser Marke" in tg.texts()[-1]
 
     ctl.handle_update(msg("/marke Stone Island"))
     assert "schon beobachtet" in tg.texts()[-1]
     ctl.handle_update(msg("/marke jacquemus"))
-    assert storage.custom_searches()[-1].name == "Resale · Jacquemus"
+    assert storage.custom_searches()[-1].name == "Marke · Jacquemus"
 
     ctl.handle_update(msg("/suchen"))
     assert ("💰 Resale · 0–300 € · ≥ 50 % unter Markt · günstiger als 90 % · ≥ 15 € Gewinn · max. 10 Min. alt"
@@ -206,33 +206,38 @@ def test_trends_command(bot):
 
 
 def test_own_trend_brands(bot):
-    from vinted_bot.config import TREND_BRANDS
+    from vinted_bot.config import TREND_WATCHES
     ctl, tg, storage, _ = bot
     mon = ctl.monitor
-    ctl.handle_update(msg("/trends plus jacquemus, Miu Miu"))
-    assert "Jacquemus, Miu Miu" in tg.texts()[-1] and "günstiger als 90 %" in tg.texts()[-1]
-    assert mon.trend_brands()[-2:] == ["Jacquemus", "Miu Miu"]
-    assert {s.name for s in storage.custom_searches()} == {"Resale · Jacquemus", "Resale · Miu Miu"}
+    ctl.handle_update(msg("/trends plus jacquemus, vintage lederjacke, Ganni Tasche"))
+    assert "Jacquemus, Vintage Lederjacke, Ganni Tasche" in tg.texts()[-1]
+    assert "günstiger als 90 %" in tg.texts()[-1]
+    assert storage.get_list("trends_added") == ["Jacquemus", "Ganni Tasche"]  # Vintage Lederjacke ist eingebaut
+    searches = {s.name: s for s in storage.custom_searches()}
+    assert set(searches) == {"Marke · Jacquemus", "Trend · Vintage Lederjacke", "Trend · Ganni Tasche"}
+    assert searches["Trend · Ganni Tasche"].brands == ["Ganni"]           # nur echte Ganni
+    assert searches["Trend · Vintage Lederjacke"].brands == []            # jede Marke
 
     ctl.handle_update(msg("/trends +JACQUEMUS"))  # kein Duplikat
     assert mon.trend_brands().count("Jacquemus") == 1
 
-    ctl.handle_update(msg("/trends minus nike, gibtsnicht"))
-    assert "Nike" not in mon.trend_brands()
+    ctl.handle_update(msg("/trends minus miu miu, gibtsnicht"))
+    assert "Miu Miu" not in mon.trend_brands()
     assert "Nicht in der Liste: gibtsnicht" in tg.texts()[-1]
     ctl.handle_update(msg("/trends -jacquemus"))
     assert "Jacquemus" not in mon.trend_brands()
-    assert [s.name for s in storage.custom_searches()] == ["Resale · Miu Miu"]
+    assert "Marke · Jacquemus" not in {s.name for s in storage.custom_searches()}
 
     ctl.handle_update(msg("/trends"))
     listing = tg.texts()[-1]
-    assert f"Deine Trend-Marken ({len(TREND_BRANDS)})" in listing  # 17 - Nike + Miu Miu
-    assert "✅ Miu Miu ⭐" in listing and "▫️ Carhartt" in listing and "Nike" not in listing
+    assert f"Deine Trend-Liste ({len(TREND_WATCHES)})" in listing  # − Miu Miu + Ganni Tasche
+    assert "<b>Marken</b>" in listing and "<b>Modelle &amp; Styles</b>" in listing
+    assert "✅ Ganni Tasche ⭐" in listing and "▫️ Carhartt" in listing and "Miu Miu" not in listing
 
     ctl.handle_update(msg("/trends an"))
-    assert len(storage.custom_searches()) == len(TREND_BRANDS)
-    ctl.handle_update(msg("/trends plus nike"))  # eingebaute Marke zurückholen
-    assert "Nike" in mon.trend_brands() and mon.storage.get_list("trends_added") == ["Miu Miu"]
+    assert len(storage.custom_searches()) == len(TREND_WATCHES)
+    ctl.handle_update(msg("/trends plus miu miu"))  # eingebaute Marke zurückholen
+    assert "Miu Miu" in mon.trend_brands() and storage.get_list("trends_added") == ["Ganni Tasche"]
 
 
 def test_trends_minus_pauses_config_brand(cfg, tmp_path, clock):
@@ -243,9 +248,9 @@ def test_trends_minus_pauses_config_brand(cfg, tmp_path, clock):
     mon = Monitor(cfg2, FakeClient(), storage, FakeNotifier(), clock=clock)
     ctl = TelegramController(FakeTelegram(), mon, None)
     ctl.handle_update(msg("/trends minus nike"))
-    assert storage.is_disabled("Resale · Nike")  # steht in der config -> nur angehalten
+    assert storage.is_disabled("Marke · Nike")  # steht in der config -> nur angehalten
     ctl.handle_update(msg("/trends plus nike"))
-    assert not storage.is_disabled("Resale · Nike")
+    assert not storage.is_disabled("Marke · Nike")
 
 
 def test_level_command(bot):

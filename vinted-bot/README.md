@@ -20,7 +20,10 @@ Nike Air Max 90
 
 | | |
 |---|---|
-| 💰 **Resale-Radar** | beobachtet ganze Marken (z. B. eingebaute Trend-Liste) und meldet nur **ganz frisch hochgeladene** Artikel, die **weit unter Marktpreis** liegen, mit geschätztem Gewinn |
+| 💶 **Preisschätzung für fast alles** | über 400 Marken in 7 Preisklassen (Fast Fashion bis Luxus) × rund 50 Kategorien (Kleidung, Schuhe, Taschen, Schmuck, Konsolen, Games, Lego, Parfum …) × Zustand × Kindergröße. Nichts wird mehr wegen „Preis unbekannt“ aussortiert |
+| 💰 **Schnäppchen-Radar** | sucht nach Marken **und** angesagten Modellen/Styles (Nike Tech Fleece, Vintage Lederjacke, Vintage Trikot, Le Pliage, Y2K …) und meldet nur **ganz frisch hochgeladene** Artikel **weit unter Wert**, mit geschätztem Gewinn |
+| 📡 **Alles-Radar** | optional: prüft zusätzlich die neuesten Uploads auf ganz Vinted, ganz ohne Suchbegriff |
+| ⚠️ **Fake-Schutz** | Luxus/Designer verdächtig billig → Warnung; extrem billig → wird aussortiert |
 | 💎 **Raritäten-Erkennung** | erkennt vintage, 90er, Made in USA/Italy/England, Deadstock und begehrte Modelle (Carhartt Detroit, Stone Island Ghost, Arc'teryx Veilance, Patagonia Retro X …) |
 | 🧠 **Lernt dazu** | 👍/👎 unter jeder Meldung, eingebautes Preis-Vorwissen, eigene Marktpreise per `/preis` |
 | 📏 **Deine Größe** | Standard S, M, L; Schuhe standardmäßig ausgeblendet. Beides änderbar |
@@ -73,9 +76,15 @@ Beim ersten Durchlauf merkt sich der Bot die Artikel, die gerade online sind, un
 
 ---
 
-## 💰 Resale-Radar: nur die günstigsten, frisch hochgeladenen Artikel
+## 💰 Schnäppchen-Radar: nur die günstigsten, frisch hochgeladenen Artikel
 
-Die besten Schnäppchen gibt es meistens in den ersten Minuten nach dem Hochladen. Der Resale-Modus beobachtet deshalb **ganze Marken** und meldet nur Artikel, die alle Bedingungen gleichzeitig erfüllen (Stufe „normal“):
+Die besten Schnäppchen gibt es meistens in den ersten Minuten nach dem Hochladen. Das Schnäppchen-Radar sucht deshalb auf Vinted nach:
+- **Marken**, z. B. „Carhartt“: alle neuen Carhartt-Artikel, aber nur echte Carhartt
+- **angesagten Modellen und Styles**, z. B. „Nike Tech Fleece“, „Vintage Lederjacke“, „Vintage Trikot“, „Longchamp Le Pliage“, „Y2K“, „College Jacke“
+
+Die Suchen heißen „Marke · …“ bzw. „Trend · …“. Gesucht wird genau der Begriff, **nicht** das Wort „Resale“. Das war in älteren Versionen nur der Name der Suche.
+
+Gemeldet wird nur, was alle Bedingungen gleichzeitig erfüllt (Stufe „normal“):
 
 1. **ganz frisch:** höchstens 10 Minuten online
 2. **weit unter Marktpreis:** mindestens 40 % billiger als der übliche Preis
@@ -83,7 +92,7 @@ Die besten Schnäppchen gibt es meistens in den ersten Minuten nach dem Hochlade
 4. **lohnt sich:** mindestens 15 € Gewinn nach Käuferschutz und Versand
 
 ```
-🔥💰 RESALE-DEAL · 62% unter Markt · Score 91/100
+🔥💰 SCHNÄPPCHEN · 62% unter Wert · Score 91/100
 Nike Air Max 90 OG
 
 💶 15,00 €  (mit Käuferschutz 16,50 €)
@@ -94,7 +103,12 @@ Nike Air Max 90 OG
 🏷 Nike · Gr. 43 · Sehr gut
 ```
 
-**Wie der Marktpreis entsteht:** Der Bot sammelt die Preise aller Artikel, die er sieht, getrennt nach **Marke und Produkttyp**. Er erkennt Jacken, Hoodies, Pullover, Shirts, Hosen, Schuhe, Mützen, Taschen und mehr am Titel. Eine Carhartt-Mütze für 20 € wird also nie mit einer Carhartt-Jacke für 100 € verglichen. Gemeldet wird erst, wenn mindestens 5 Vergleichspreise da sind. Nach dem Start braucht der Bot deshalb ein paar Durchläufe zum Lernen.
+**Wie der Wert entsteht:**
+1. **Schätzung ab dem ersten Artikel:** Kategorie (am Titel erkannt, ca. 50 Stück) × Preisklasse der Marke × Zustand × Kindergröße. Ein Beispiel: Pullover haben einen Grundpreis von 18 €, Designer-Marken den Faktor 4, „neu mit Etikett“ +35 %.
+2. **Lernen:** Jeder gesehene Preis fließt ein, getrennt nach Marke und Kategorie. Eine Carhartt-Mütze wird also nie mit einer Carhartt-Jacke verglichen. Ab ca. 30 echten Vergleichspreisen zählen nur noch die echten Daten.
+3. **Aufschläge:** 💎 Raritäten +20–60 %, 🔥 Trend-Modelle +10 %.
+
+Bei unsicheren Schätzungen (unbekannte Marke, Elektronik, Sammelkarten …) verlangt der Bot **15 % mehr Rabatt** und schreibt „❔ Schätzung unsicher“ dazu. Mit `/wert carhartt detroit jacke vintage` kannst du jederzeit selbst schätzen lassen, auch mit einem Vinted-Link.
 
 ### 🎯 Schnäppchen-Stufe: wie streng gefiltert wird
 
@@ -106,17 +120,26 @@ Nike Air Max 90 OG
 
 Per Telegram umschalten: **`/stufe streng`**. Dann kommen wenige Meldungen, aber nur die allergünstigsten. `/stufe` zeigt die aktuelle Einstellung. In der `config.yaml` geht es mit `level: streng` im Abschnitt `resale:`.
 
-### 🔥 Eigene Trend-Marken
+### 🔥 Deine Trend-Liste: Marken + Modelle/Styles
 
-Die eingebaute Liste enthält Carhartt, Stüssy, Arc'teryx, Salomon, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, New Balance, Asics, Levi's, Dickies, Barbour, Nike und Adidas. Du kannst sie jederzeit per Telegram ändern:
+Eingebaut sind:
+- **Marken:** Carhartt, Stüssy, Arc'teryx, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, Barbour, Levi's, Dickies, Moncler, Burberry, Miu Miu und Vivienne Westwood
+- **Modelle & Styles:** Nike Tech Fleece, Nike ACG, Vintage Nike, Adidas Trainingsjacke, Ralph Lauren Strick, Polo Bear, Longchamp Le Pliage, Prada Nylon, Coach Tasche, Ed Hardy, Diesel vintage, Vintage Lederjacke, Vintage Trikot, College Jacke, Band Shirt vintage, Harley Davidson und Y2K
+
+Ändern kannst du die Liste per Telegram:
 
 ```
-/trends                              deine Trend-Marken anzeigen (✅ = wird beobachtet, ⭐ = von dir)
-/trends plus jacquemus, ganni        eigene Marken hinzufügen – werden sofort beobachtet
-/trends minus nike, adidas           Marken entfernen
-/trends an   ·   /trends aus         alle Trend-Marken beobachten / stoppen
-/marke carhartt bis 80 rabatt 50     eine Marke mit eigenen Grenzen beobachten
+/trends                                    Liste anzeigen (✅ = wird beobachtet, ⭐ = von dir)
+/trends plus jacquemus, vintage lederjacke Marken ODER Suchbegriffe hinzufügen – sofort aktiv
+/trends minus nike, y2k                    entfernen
+/trends an   ·   /trends aus               alle beobachten / stoppen
+/marke carhartt bis 80 rabatt 50           eine Marke mit eigenen Grenzen beobachten
 ```
+
+Eine Marke („Ganni“) beobachtet alle neuen Artikel dieser Marke. Ein Begriff („Ganni Tasche“) sucht genau danach, und zwar nur bei echter Ganni. Ein Begriff ohne Marke („Vintage Lederjacke“) akzeptiert jede Marke.
+
+### 📡 Alles-Radar
+`/radar an` prüft bei jedem Durchlauf zusätzlich die **neuesten Uploads auf ganz Vinted**, ganz ohne Suchbegriff. Gemeldet werden nur gefragte Marken, Trend-Modelle und Raritäten weit unter Wert. Fast Fashion und No-Name werden hier ignoriert. Mit `/radar an <Vinted-Link>` beschränkst du das Radar auf eine Kategorie, z. B. Herren-Jacken. In der config geht es mit `radar: true`.
 
 Oder in der `config.yaml`:
 ```yaml
@@ -129,17 +152,18 @@ resale:
   # min_profit: 30                     # einzelne Werte der Stufe überschreiben
 ```
 
-Die Resale-Kriterien gibt es auch für normale Suchen:
+Die Schnäppchen-Kriterien gibt es auch für normale Suchen:
 `/neu salomon xt-6 bis 90 rabatt 35 günstiger 95 frisch 5` oder in der config `min_discount`, `min_cheaper_than`, `min_profit`, `max_age_minutes` und `min_condition`.
 
 **Tipps:**
-- **Weniger Marken bedeutet schnellere Meldungen.** Bei 17 Marken dauert ein Durchlauf rund eine Minute, weil der Bot zwischen den Abfragen kurz wartet. Mit 5–8 Lieblingsmarken bist du deutlich schneller.
+- **Weniger Einträge bedeuten schnellere Meldungen.** Bei den 33 eingebauten Trends dauert ein Durchlauf rund 1–1,5 Minuten, weil der Bot zwischen den Abfragen kurz wartet. Mit 10–15 Lieblingseinträgen bist du deutlich schneller.
+- Findet ein Artikel mehrere Suchen gleichzeitig, wird er trotzdem nur **einmal** gemeldet.
 - Je kleiner `interval_seconds` (z. B. 30–45), desto früher bist du dran. Zu klein führt aber zu Blockaden durch Vinted.
 - Der „Marktpreis“ ist der Median der **Angebotspreise** auf Vinted. Verkauft wird oft etwas darunter. Rechne den Gewinn deshalb lieber vorsichtig.
-- Bei Luxusmarken auf Fakes achten. Wörter wie „replica“ filtert der Bot schon raus, echte Prüfung ersetzt das nicht.
+- **Fakes:** Ist ein Luxus- oder Designerteil mehr als 75 % unter Wert, warnt der Bot „⚠️ Fake-Risiko“. Ab 85 % sortiert er es aus. Wörter wie „replica“ und „inspired“ fliegen sowieso raus. Eine echte Prüfung ersetzt das nicht.
 
 ```bash
-./start.sh scan --suche resale      # sofort die besten aktuellen Resale-Deals anzeigen
+./start.sh scan --suche trend       # sofort die besten aktuellen Deals der Trend-Suchen anzeigen
 ```
 
 ---
@@ -172,7 +196,7 @@ searches:
 | `min_score` | nur Treffer ab diesem Deal-Score melden (0 = alle) |
 | `sizes` | nur diese Größen, z. B. `["M", "L"]` oder `["43"]` |
 | `brands` | nur diese Marken (strenger Abgleich mit der Marken-Angabe des Artikels, z. B. `[Carhartt, Stüssy]`) |
-| `mode: resale` | Resale-Bewertung: Frische zählt mehr, Marktpreis je Marke + Produkttyp |
+| `mode: resale` | Schnäppchen-Bewertung: Frische zählt mehr, Wert je Marke + Kategorie |
 | `min_discount` | nur Artikel mind. x % unter Marktpreis |
 | `min_profit` | nur Artikel mit mind. x € Gewinn-Potenzial |
 | `max_age_minutes` | nur Artikel, die höchstens x Minuten online sind |
@@ -188,10 +212,11 @@ searches:
 /neu carhartt jacke ab 20 bis 60 markt 80
 /neu https://www.vinted.de/catalog?search_text=…   (Link mit Filtern)
 /neu salomon xt-6 bis 90 rabatt 35 frisch 15
-/marke stüssy    Resale-Radar für eine Marke    /trends   Trend-Marken
+/marke stüssy    Marke beobachten    /trends   Trend-Liste
 /trends plus ganni   eigene Trend-Marke    /stufe streng   nur die allergünstigsten
 /groesse S M L   Größen    /ohne schuhe   Kategorie ausblenden    /raritaeten an   nur Raritäten
 /preis carhartt jacken 90   eigener Marktpreis    /vorlieben   Gelerntes    /probelauf   Testlauf
+/wert <Artikel oder Link>   Wert schätzen    /radar an   Alles-Radar
 /suchen          alle Suchen mit Nummer
 /pause 2         Suche 2 anhalten     /weiter 2   fortsetzen
 /loeschen 2      Suche 2 löschen
@@ -210,7 +235,7 @@ searches:
 | **Frische** | bis 10 | in den letzten 5 Minuten eingestellt = 10 (wer zuerst kommt, kauft zuerst) |
 | **Beliebtheit** | bis 10 | viele Favoriten kurz nach dem Einstellen = begehrt |
 
-**Resale-Suchen** werden anders gewichtet: **Preis 55** (erst ab großen Rabatten, 60 % darunter = volle Punktzahl), **Frische 25** (≤ 2 Min. = 25, ≤ 5 Min. = 20, ≤ 10 Min. = 14), Zustand 10, Beliebtheit 10.
+**Schnäppchen-Suchen** (Marken & Trends) werden anders gewichtet: **Preis 55** (erst ab großen Rabatten, 60 % darunter = volle Punktzahl), **Frische 25** (≤ 2 Min. = 25, ≤ 5 Min. = 20, ≤ 10 Min. = 14), Zustand 10, Beliebtheit 10.
 
 Ab **75 Punkten** gibt's 🔥 **TOP-DEAL** (einstellbar mit `top_deal_score`).
 Den Marktpreis lernt der Bot aus allen Artikeln, die er sieht (Median), getrennt nach Produkttyp. Wenn du ihn kennst, trag ihn besser als `market_price` ein.
@@ -260,7 +285,7 @@ Die Datenbank `vinted_bot.db` (gesehene Artikel, Preise, per Telegram angelegte 
 ## 🧠 Training: Größe, Kategorien, Raritäten und dein Geschmack
 
 ### 📏 Größe & Kategorien
-Standardmäßig meldet das Resale-Radar nur **S, M und L** und **keine Schuhe**. Artikel ohne Größe (Taschen, Caps, One Size) kommen trotzdem durch.
+Standardmäßig meldet das Schnäppchen-Radar nur **S, M und L** und **keine Schuhe**. Artikel ohne Größe (Taschen, Caps, One Size) kommen trotzdem durch.
 
 ```
 /groesse S M L        deine Größen (auch Zahlen, z. B. /groesse M 32 für Jeans)
@@ -280,7 +305,12 @@ Raritäten werden mit **💎 RARITÄT** markiert. Sie bekommen Bonuspunkte, und 
 `/raritaeten an` → **nur noch Raritäten** melden · `/raritaeten aus` → wieder alles
 
 ### 🧠 Vorwissen & eigene Preise
-Der Bot startet mit eingebauten **Startwerten** für typische Wiederverkaufspreise (Marke × Kategorie, z. B. Carhartt-Jacken ca. 75 €, Arc'teryx-Jacken ca. 200 €). Dadurch kann er sofort vergleichen. Die Startwerte sind grobe Schätzungen. Er mischt sie mit den echten Preisen, die er sieht, und ab etwa 30 echten Vergleichspreisen zählen nur noch die echten Daten. Die Werte stehen in `vinted_bot/data/market_prices.json`.
+Der Bot startet mit eingebautem Preiswissen. Dadurch kann er vom ersten Artikel an vergleichen:
+- `vinted_bot/data/brands.json`: über 400 Marken in 7 Preisklassen (Fast Fashion, Standard, Premium, Streetwear, Outdoor, Designer, Luxus). Eigene Marken trägst du einfach in die passende Liste ein.
+- `vinted_bot/catalog.py`: ca. 50 Kategorien mit Grundpreis und den Faktoren je Preisklasse
+- `vinted_bot/data/market_prices.json`: genauere Werte für die wichtigsten Trend-Marken, z. B. Carhartt-Jacken ca. 75 €, Arc'teryx-Jacken ca. 200 €
+
+Das sind Schätzungen. Der Bot mischt sie mit den echten Preisen, die er sieht, und ab etwa 30 echten Vergleichspreisen zählen nur noch die echten Daten.
 
 Wenn du es besser weißt: `/preis carhartt jacken 90` → ab jetzt rechnet er mit 90 €. `/preis` zeigt deine Werte.
 
@@ -292,12 +322,15 @@ Unter jeder Meldung gibt es **👍 Guter Find** und **👎 Nicht mein Ding**:
 - `/vorlieben` zeigt, was er gelernt hat. `/vorlieben reset` vergisst alles.
 
 ### 🧪 Probelauf mit Musterdaten
-Ohne Vinted zu fragen zeigt der Bot, was er mit **deinen aktuellen Einstellungen** melden würde. Er nutzt dafür einen künstlichen, aber realistischen Datensatz: über 500 Angebote aus 8 Marken. Darunter sind 6 echte Finds (z. B. vintage Carhartt Detroit für 45 €) und 10 Fallen (Schuhe, Fakes, XL, Kindergröße, defekt, Normalpreis, schon lange online).
+Ohne Vinted zu fragen zeigt der Bot, was er mit **deinen aktuellen Einstellungen** melden würde. Er nutzt dafür einen künstlichen, aber realistischen Datensatz: über 600 Angebote aus 9 Marken plus eine Trend-Suche.
+
+- **8 echte Finds**, z. B. vintage Carhartt Detroit für 45 €, eine Miu-Miu-Tasche für 160 €, eine No-Name-Vintage-Lederjacke für 12 €
+- **12 Fallen**: Schuhe, Fakes, „Miu Miu“ für 35 €, XL, Kindergröße, defekt, Normalpreis, H&M ohne Gewinn, schon lange online
 
 - **Telegram:** `/probelauf`
 - **Windows:** Doppelklick auf `probelauf.bat`
 
-Mit den Standardeinstellungen erkennt er in 40 verschiedenen Zufalls-Märkten **alle Finds** und meldet **keine einzige Falle**.
+Mit den Standardeinstellungen (Stufe „normal“) erkennt er in 30 verschiedenen Zufalls-Märkten **239 von 240 Finds** und meldet **keine einzige Falle**.
 
 ---
 

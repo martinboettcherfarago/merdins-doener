@@ -39,7 +39,8 @@ def test_new_cheap_item_is_reported_as_top_deal(setup):
     alert = notifier.alerts[0]
     assert alert.item.id == 1 and alert.kind == "new"
     assert alert.score.is_top
-    assert alert.score.reference_price == 40
+    # 10 echte Preise (Median 40 €) gemischt mit der Schätzung für Nike-Sneaker (50 €)
+    assert alert.score.reference_price == pytest.approx(43.33, abs=0.01)
     assert alert.offers == [18.0, 16.0]
     assert "transaction%5Bitem_id%5D=1" in alert.buy_url
     assert storage.get_item(1)["seller_id"] == 901  # für Angebots-Buttons gemerkt

@@ -14,7 +14,12 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Iterable, Optional
 
+from .catalog import NO_BRAND, Estimate, brand_info, detect_brand, estimate, product_type
+from .catalog import resolve_type as _resolve_type
 from .models import Item
+from .text import normalize
+
+resolve_type = _resolve_type  # für ältere Importe
 
 # -- Raritäten --------------------------------------------------------------------------
 
@@ -77,19 +82,26 @@ class Rarity:
 
 
 def _norm(text: str) -> str:
-    from .scoring import normalize  # spät importieren (Kreisimport vermeiden)
     return normalize(text)
 
 
 def brand_key(brand: str) -> str:
-    """'Carhartt WIP' -> 'carhartt', 'Ralph Lauren' -> 'ralphlauren' (Schlüssel für Wissen & Vorlieben)."""
+    """'Carhartt WIP' -> 'carhartt', 'Polo Ralph Lauren' -> 'ralphlauren' (Schlüssel für Wissen & Vorlieben)."""
     b = _norm(brand)
-    if not b:
+    if not b or b in NO_BRAND:
         return ""
     for key in sorted(set(BRAND_GRAILS) | set(_priors()), key=len, reverse=True):
         if key in b or (len(b) >= 4 and b in key):
             return key
-    return b
+    info = brand_info(brand)
+    return _norm(info[0]) if info else b
+
+
+def item_brand(item: Item) -> str:
+    """Marke des Artikels – oder aus dem Titel erkannt, wenn keine angegeben ist."""
+    if _norm(item.brand) not in NO_BRAND:
+        return item.brand
+    return detect_brand(item.title) or ""
 
 
 def rarity(item: Item) -> Rarity:
@@ -104,13 +116,45 @@ def rarity(item: Item) -> Rarity:
                 label = "Made in " + (country.upper() if len(country.replace(".", "")) <= 3 else country.title())
             tags.append(label)
             points += pts
-    for grail in BRAND_GRAILS.get(brand_key(item.brand), []):
+    for grail in BRAND_GRAILS.get(brand_key(item_brand(item)), []):
         if re.search(rf"(?<![a-z0-9]){re.escape(grail)}(?![a-z0-9])", title):
             tags.append(grail.title() if len(grail) > 3 else grail.upper())
             points += 2
             break
     level = 0 if points < 2 else 1 if points < 4 else 2 if points < 6 else 3
     return Rarity(level, tags if level else [])
+
+
+# -- Trends: Modelle & Styles, die sich auf Vinted gerade gut verkaufen ----------------------
+
+TREND_MODELS: list[tuple[str, str]] = [
+    (r"\bdetroit\b", "Carhartt Detroit"), (r"double knee", "Double Knee"), (r"active jacket", "Active Jacket"),
+    (r"tech fleece", "Tech Fleece"), (r"\bacg\b", "Nike ACG"), (r"\bnocta\b", "Nocta"),
+    (r"track ?jacket|trainingsjacke|track ?top", "Trainingsjacke"), (r"\bnuptse\b", "Nuptse"),
+    (r"retro[ -]?x\b", "Retro X"), (r"synchilla", "Synchilla"), (r"polo bear", "Polo Bear"),
+    (r"polo sport", "Polo Sport"), (r"zopf|cable knit", "Zopfstrick"), (r"wachsjacke|wax jacket", "Wachsjacke"),
+    (r"harrington", "Harrington"), (r"le pliage", "Le Pliage"), (r"re-?nylon", "Re-Nylon"),
+    (r"saddle bag", "Saddle Bag"), (r"\bbaguette\b", "Baguette"), (r"k[aå]nken", "Kånken"),
+    (r"(?:vintage|retro).{0,20}trikot|trikot.{0,20}(?:vintage|retro|19[89]\d|200\d)", "Retro-Trikot"),
+    (r"college ?jacke|varsity", "College-Jacke"), (r"band ?shirt|tour ?shirt", "Band-Shirt"),
+    (r"harley[ -]davidson", "Harley Davidson"), (r"\by2k\b", "Y2K"), (r"\bjorts\b", "Jorts"),
+    (r"\bbaggy\b", "Baggy"), (r"workwear", "Workwear"), (r"8[ -]?ball", "8 Ball"), (r"world tour", "World Tour"),
+    (r"shadow project", "Shadow Project"), (r"\bghost\b", "Ghost Piece"), (r"\bgoggle\b", "Goggle"),
+    (r"veilance", "Veilance"), (r"beta (?:lt|ar|sv)", "Beta"), (r"\batom (?:lt|ar|sl|hoody)", "Atom"),
+    (r"\bbig e\b", "Big E"), (r"orange tab", "Orange Tab"), (r"ed hardy", "Ed Hardy"),
+    (r"von dutch", "Von Dutch"), (r"juicy couture", "Juicy Couture"), (r"leopard|animal print", "Leo-Print"),
+    (r"gorpcore", "Gorpcore"), (r"barrel", "Barrel Jeans"), (r"\bsamba\b", "Samba"), (r"tasman", "Tasman"),
+]
+TREND_PREMIUM = 1.1
+TREND_POINTS = 5
+
+
+def trend_match(title: str) -> Optional[str]:
+    t = (title or "").lower()
+    for pattern, label in TREND_MODELS:
+        if re.search(pattern, t):
+            return label
+    return None
 
 
 # -- Marktpreis-Startwerte --------------------------------------------------------------
@@ -126,47 +170,36 @@ def _priors() -> dict[str, dict[str, float]]:
     return {k: v for k, v in data.items() if not k.startswith("_") and isinstance(v, dict)}
 
 
+# Feinere Kategorien auf die Spalten in market_prices.json abbilden (mit kleinem Auf-/Abschlag)
+_EXPLICIT_PARENT = {"mantel": ("jacke", 1.2), "daunenjacke": ("jacke", 1.3), "lederjacke": ("jacke", 1.3),
+                    "blazer": ("jacke", 0.8), "jeans": ("hose", 1.0), "jogginghose": ("hose", 0.8),
+                    "sneaker": ("schuhe", 1.0), "stiefel": ("schuhe", 1.1), "sandalen": ("schuhe", 0.6),
+                    "rucksack": ("tasche", 1.0), "geldboerse": ("tasche", 0.6), "top": ("tshirt", 0.9),
+                    "trikot": ("tshirt", 1.3)}
+
+
 def prior_price(brand: str, ptype: str) -> Optional[float]:
-    """Geschätzter typischer Wiederverkaufspreis für Marke + Produkttyp (oder None)."""
-    table = _priors().get(brand_key(brand))
+    """Genauer Startwert aus market_prices.json für Marke + Kategorie (oder None)."""
+    b = _norm(brand)
+    if not b:
+        return None
+    key = next((k for k in sorted(_priors(), key=len, reverse=True) if k in b or (len(b) >= 4 and b in k)), None)
+    table = _priors().get(key or "")
     if not table:
         return None
-    value = table.get(ptype)
-    return float(value) if value else None
-
-
-# -- Produkttypen: Namen, die man in Telegram tippen kann --------------------------------
-
-TYPE_ALIASES: dict[str, list[str]] = {
-    "schuhe": ["schuhe", "schuh", "sneaker", "sneakers", "shoes", "turnschuhe", "boots", "stiefel"],
-    "jacke": ["jacken", "jacke", "jackets", "jacket", "mantel", "mäntel", "parka"],
-    "hoodie": ["hoodies", "hoodie", "kapuzenpullover"],
-    "pullover": ["pullover", "pulli", "pullis", "sweater", "sweatshirts", "strick"],
-    "tshirt": ["shirts", "shirt", "t-shirts", "tshirts", "t-shirt", "tshirt", "polos", "polo", "tops"],
-    "hemd": ["hemden", "hemd"],
-    "hose": ["hosen", "hose", "jeans", "pants"],
-    "shorts": ["shorts", "kurze hosen"],
-    "weste": ["westen", "weste", "vests"],
-    "fleece": ["fleece"],
-    "tasche": ["taschen", "tasche", "rucksack", "rucksäcke", "bags"],
-    "muetze": ["mützen", "mütze", "muetzen", "muetze", "caps", "cap", "beanies", "hüte", "hut"],
-    "kleid": ["kleider", "kleid"],
-    "rock": ["röcke", "rock"],
-    "schmuck": ["schmuck"],
-    "uhr": ["uhren", "uhr"],
-    "guertel": ["gürtel", "guertel"],
-    "schal": ["schals", "schal"],
-    "brille": ["brillen", "brille", "sonnenbrillen"],
-    "sonstiges": ["sonstiges", "andere", "rest"],
-}
-
-
-def resolve_type(word: str) -> Optional[str]:
-    w = _norm(word)
-    for ptype, aliases in TYPE_ALIASES.items():
-        if w == _norm(ptype) or any(w == _norm(a) for a in aliases):
-            return ptype
+    if table.get(ptype):
+        return float(table[ptype])
+    parent, factor = _EXPLICIT_PARENT.get(ptype, (None, 1.0))
+    if parent and table.get(parent):
+        return float(table[parent]) * factor
     return None
+
+
+def estimate_item(item: Item, ptype: Optional[str] = None) -> Estimate:
+    """Preisschätzung für einen Vinted-Artikel (Marke, Kategorie, Zustand, Kindergröße)."""
+    brand = item_brand(item)
+    ptype = ptype or product_type(item.title)
+    return estimate(item.title, brand, item.condition, item.size, ptype, explicit=prior_price(brand, ptype))
 
 
 # -- Größen ------------------------------------------------------------------------------

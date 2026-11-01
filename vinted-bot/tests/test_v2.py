@@ -1,0 +1,184 @@
+"""Version 2: Preisschätzung für (fast) alles, Trend-Suchen, Alles-Radar, Fake-Schutz, keine Doppelmeldungen."""
+
+import pytest
+
+from conftest import NOW, FakeClient, FakeNotifier, item
+from test_telegram import FakeTelegram, msg
+from vinted_bot.catalog import CATEGORIES, brand_info, detect_brand, estimate, product_type
+from vinted_bot.config import SearchConfig, config_from_dict, watch_name
+from vinted_bot.knowledge import estimate_item, trend_match
+from vinted_bot.monitor import Monitor
+from vinted_bot.storage import Storage
+from vinted_bot.telegram_bot import TelegramController
+
+
+# -- Preisschätzung ---------------------------------------------------------------------
+
+@pytest.mark.parametrize("title,brand,low,high", [
+    ("Carhartt WIP Detroit Jacket", "Carhartt WIP", 50, 120),
+    ("Zara Kleid", "Zara", 4, 15),
+    ("Miu Miu Tasche", "Miu Miu", 250, 800),
+    ("Moncler Daunenjacke", "Moncler", 250, 900),
+    ("Vintage Lederjacke", "", 20, 60),
+    ("Nintendo DS Lite", "", 30, 120),
+    ("Lego Star Wars Set", "", 15, 60),
+    ("Polo Ralph Lauren Pullover", "Polo Ralph Lauren", 20, 60),
+    ("Dior Sauvage Eau de Parfum", "Dior", 15, 60),
+    ("H&M T-Shirt", "H&M", 2, 8),
+])
+def test_estimates_are_plausible(title, brand, low, high):
+    e = estimate(title, brand, "Sehr gut", "M")
+    assert low <= e.value <= high, (title, e.value, e.basis)
+
+
+def test_every_category_has_an_estimate():
+    for key, cat in CATEGORIES.items():
+        e = estimate(f"Artikel {cat.label}", "", ptype=key)
+        assert e.value > 0 and e.confidence in ("mittel", "niedrig")
+
+
+def test_condition_kids_and_brand_detection():
+    new = estimate("Stüssy Hoodie", "Stüssy", "Neu mit Etikett", "M")
+    worn = estimate("Stüssy Hoodie", "Stüssy", "Zufriedenstellend", "M")
+    assert new.value / worn.value == pytest.approx(1.35 / 0.6)
+    kids = estimate("Nike Jacke", "Nike", "Sehr gut", "140")
+    adult = estimate("Nike Jacke", "Nike", "Sehr gut", "M")
+    assert kids.value == pytest.approx(adult.value * 0.45) and "Kindergröße" in kids.factor_notes[-1]
+    # ohne Markenangabe wird die Marke im Titel gesucht
+    e = estimate_item(item(1, 10, title="Vintage Stone Island Pullover", brand=""))
+    assert e.brand == "Stone Island" and e.tier == "designer"
+    assert detect_brand("tnf nuptse 700") == "The North Face"
+    assert detect_brand("jacke von only") is None  # zu allgemeine Wörter zählen nicht
+    assert brand_info("Polo Ralph Lauren")[1] == "premium" and brand_info("Unbekannt") is None
+
+
+def test_more_categories_are_recognised():
+    assert product_type("Nike Blazer Mid") == "sneaker"
+    assert product_type("Hugo Boss Sakko") == "blazer"
+    assert product_type("The North Face Nuptse") == "daunenjacke"
+    assert product_type("Pokemon Karten Sammlung") == "sammelkarten"
+    assert product_type("Mario Kart 8 Switch") == "videospiel"
+    assert product_type("iPhone 12 Hülle") == "zubehoer"
+    assert product_type("Vintage Fußballtrikot 1998") == "trikot"
+    assert product_type("Rock Band T-Shirt") == "tshirt"
+
+
+def test_trend_detection():
+    assert trend_match("Nike Tech Fleece Jacke") == "Tech Fleece"
+    assert trend_match("Vintage Bayern Trikot 1998") == "Retro-Trikot"
+    assert trend_match("Normale Jacke") is None
+
+
+# -- Monitor: nichts wird mehr wegen "Marktpreis unbekannt" aussortiert -----------------
+
+@pytest.fixture
+def mon(tmp_path):
+    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "keywords": ["Vintage Lederjacke"]}},
+                           base_dir=str(tmp_path))
+    m = Monitor(cfg, FakeClient(), Storage(str(tmp_path / "v2.db")), FakeNotifier(), clock=lambda: NOW)
+    m.pause_between_searches = (0, 0)
+    return m
+
+
+def test_no_learning_phase_needed(mon):
+    # Marke ohne eigene Preistabelle und ohne einen einzigen gelernten Preis -> trotzdem bewertet
+    s = mon.effective(SearchConfig.watch("Acne Studios"))
+    alert, why = mon.explain(s, item(1, 25, title="Acne Studios Pullover", brand="Acne Studios", size="M",
+                                     minutes_old=1), NOW)
+    assert alert is not None, why
+    assert "Schätzung: Pullover von Designer-Marken" in alert.score.reasons[0]
+    si = mon.explain(mon.effective(SearchConfig.watch("Stone Island")),
+                     item(2, 40, title="Stone Island Pullover", brand="Stone Island", size="M", minutes_old=1), NOW)[0]
+    assert "Schätzung: Preiswissen Stone Island Pullover" in si.score.reasons[0]
+
+
+def test_unknown_brand_needs_bigger_discount(mon):
+    s = mon.effective(SearchConfig.watch("Vintage Lederjacke"))
+    ok = mon.explain(s, item(1, 9, title="Vintage Lederjacke", brand="", size="M", minutes_old=1), NOW)[0]
+    meh = mon.explain(s, item(2, 18, title="Vintage Lederjacke", brand="", size="M", minutes_old=1), NOW)
+    assert ok is not None and ok.score.confidence == "niedrig"
+    assert meh[0] is None and "unsichere Schätzung" in meh[1]  # 45 % reicht bei No-Name nicht
+
+
+def test_fake_suspicion(mon):
+    s = mon.effective(SearchConfig.watch("Miu Miu"))
+    fake = mon.explain(s, item(1, 30, title="Miu Miu Tasche", brand="Miu Miu", size="", minutes_old=1), NOW)
+    assert fake == (None, "Fake-Verdacht (viel zu billig für die Marke)")
+    real = mon.explain(s, item(2, 150, title="Miu Miu Tasche", brand="Miu Miu", size="", minutes_old=1), NOW)[0]
+    assert real is not None and not real.score.fake_suspect
+
+
+def test_trend_bonus_in_alert(mon):
+    s = mon.effective(SearchConfig.watch("Carhartt"))
+    a = mon.explain(s, item(1, 30, title="Carhartt Detroit Jacket", brand="Carhartt WIP", size="M",
+                            minutes_old=1), NOW)[0]
+    assert a.score.rarity_level == 1 and "💎 Rarität: Detroit" in a.score.reasons
+    assert "🔥 Trend: Carhartt Detroit" in a.score.reasons
+
+
+def test_alles_radar_only_wanted_brands(mon):
+    radar = mon.effective(SearchConfig.from_dict({"name": "Alles-Radar", "sweep": True, "mode": "resale"}))
+    assert radar.keywords is None and radar.sweep
+    noname = mon.explain(radar, item(1, 3, title="Pullover", brand="", size="M", minutes_old=1), NOW)
+    assert noname == (None, "Alles-Radar: keine gefragte Marke")
+    hm = mon.explain(radar, item(2, 1, title="H&M Pullover", brand="H&M", size="M", minutes_old=1), NOW)
+    assert hm == (None, "Alles-Radar: keine gefragte Marke")
+    good = mon.explain(radar, item(3, 20, title="Arc'teryx Fleece", brand="Arc'teryx", size="M", minutes_old=1),
+                       NOW)[0]
+    assert good is not None
+
+
+def test_no_duplicate_alerts_across_searches(tmp_path):
+    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "keywords": ["Carhartt Jacke"]}},
+                           base_dir=str(tmp_path))
+    client, notifier = FakeClient(), FakeNotifier()
+    m = Monitor(cfg, client, Storage(str(tmp_path / "d.db")), notifier, clock=lambda: NOW)
+    m.pause_between_searches = (0, 0)
+    deal = item(1, 20, title="Carhartt Jacke", brand="Carhartt WIP", size="M", minutes_old=1)
+    client.pages = [[], [], [deal], [deal]]  # beide Suchen finden denselben Artikel
+    m.run_once()
+    m.run_once()
+    assert [a.item.id for a in notifier.alerts] == [1]
+
+
+def test_old_names_are_migrated(tmp_path, clock):
+    st = Storage(str(tmp_path / "old.db"))
+    st.add_search(SearchConfig.from_dict({"name": "Resale · Carhartt", "keywords": "Carhartt", "mode": "resale"},
+                                         source="telegram"))
+    st.set_state("seeded:Resale · Carhartt", "1")
+    st.set_state("disabled:Resale · Stüssy", "1")  # Suche aus der config.yaml
+    st.add_price("Resale · Carhartt", 50, "b:carhartt|jacke")
+    Monitor(config_from_dict({}), FakeClient(), st, FakeNotifier(), clock=clock)
+    assert [s.name for s in st.custom_searches()] == ["Marke · Carhartt"]
+    assert st.is_seeded("Marke · Carhartt") and st.is_disabled("Marke · Stüssy")
+    assert st.price_history("Marke · Carhartt") == [50]
+    assert watch_name("Vintage Lederjacke") == "Trend · Vintage Lederjacke"
+
+
+# -- Telegram: /wert und /radar ------------------------------------------------------------
+
+@pytest.fixture
+def bot(mon):
+    tg = FakeTelegram()
+    return TelegramController(tg, mon, None), tg
+
+
+def test_value_command(bot):
+    ctl, tg = bot
+    ctl.handle_update(msg("/wert vintage carhartt detroit jacke made in usa 40€"))
+    text = tg.texts()[-1]
+    assert "Geschätzter Wert: ca." in text and "Marke: Carhartt" in text
+    assert "Kategorie: Jacken" in text and "💎 Rarität" in text and "unter Wert" in text
+    ctl.handle_update(msg("/wert https://www.vinted.de/items/123456-stone-island-pullover-l"))
+    assert "Stone Island (Designer)" in tg.texts()[-1] and "Pullover" in tg.texts()[-1]
+
+
+def test_radar_command(bot):
+    ctl, tg = bot
+    ctl.handle_update(msg("/radar an"))
+    assert "Alles-Radar an" in tg.texts()[-1]
+    assert "Alles-Radar" in {s.name for s in ctl.monitor.active_searches()}
+    ctl.handle_update(msg("/radar"))
+    assert "Alles-Radar ist <b>an</b>" in tg.texts()[-1]
+    ctl.handle_update(msg("/radar aus"))
+    assert "Alles-Radar" not in {s.name for s in ctl.monitor.active_searches()}

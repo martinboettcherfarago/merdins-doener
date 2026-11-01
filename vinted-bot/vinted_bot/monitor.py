@@ -8,8 +8,9 @@ import threading
 import time
 from typing import Any, Callable, Optional
 
-from .config import RESALE_LEVELS, TREND_BRANDS, Config, SearchConfig
-from .knowledge import brand_key, prior_price, rarity, size_matches
+from .catalog import hidden_label, type_hidden
+from .config import RESALE_LEVELS, TREND_WATCHES, Config, SearchConfig, watch_name
+from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
 from .models import Item
 from .notify import Alert
 from .scoring import (TYPE_LABELS, market_reference, meets_targets, normalize, passes_filters, price_group,
@@ -29,12 +30,27 @@ class Monitor:
         self.notifier = notifier
         self.clock = clock
         self.stop_event = threading.Event()
-        self.pause_between_searches = (1.5, 4.0)
+        self.pause_between_searches = (1.0, 2.5)
         self.stats: dict[str, Any] = {"started": clock(), "cycles": 0, "checked": 0, "alerts": 0,
                                       "errors": 0, "last_error": "", "last_cycle": 0.0}
         self._blocked_notified = False
         self.reject_log: Optional[list[tuple[str, Item, str]]] = None  # für Probelauf/Fehlersuche
         self._migrate_old_resale_searches()
+        self._rename_old_searches()
+
+    def _rename_old_searches(self) -> None:
+        """Version 2: 'Resale · X' heißt jetzt 'Marke · X' bzw. 'Trend · X' (gesucht wurde nie nach 'Resale')."""
+        if self.storage.get_state("migrated:names_v2") == "1":
+            return
+        for s in self.storage.custom_searches():
+            if s.name.startswith("Resale · "):
+                self.storage.rename_search(s.name, watch_name(s.name.split(" · ", 1)[1]))
+        for key in self.storage.state_keys("disabled:Resale · ") + self.storage.state_keys("seeded:Resale · "):
+            prefix, old = key.split(":", 1)
+            value = self.storage.get_state(key)
+            self.storage.delete_state(key)
+            self.storage.set_state(f"{prefix}:{watch_name(old.split(' · ', 1)[1])}", value or "1")
+        self.storage.set_state("migrated:names_v2", "1")
 
     def _migrate_old_resale_searches(self) -> None:
         """Ältere Versionen haben die Resale-Ziele fest in jede Telegram-Suche geschrieben.
@@ -68,7 +84,7 @@ class Monitor:
     def trend_brands(self) -> list[str]:
         """Eingebaute Trend-Marken minus die, die du entfernt hast, plus deine eigenen."""
         removed = {normalize(b) for b in self.storage.get_list("trends_removed")}
-        brands = [b for b in TREND_BRANDS if normalize(b) not in removed]
+        brands = [b for b in TREND_WATCHES if normalize(b) not in removed]
         known = {normalize(b) for b in brands}
         for b in self.storage.get_list("trends_added"):
             if normalize(b) not in known:
@@ -79,7 +95,7 @@ class Monitor:
     def add_trend_brand(self, brand: str) -> str:
         """Nimmt eine Marke in die Trend-Liste auf. Gibt den verwendeten Namen zurück."""
         key = normalize(brand)
-        builtin = next((b for b in TREND_BRANDS if normalize(b) == key), None)
+        builtin = next((b for b in TREND_WATCHES if normalize(b) == key), None)
         removed = [b for b in self.storage.get_list("trends_removed") if normalize(b) != key]
         self.storage.set_list("trends_removed", removed)
         if builtin:
@@ -99,7 +115,7 @@ class Monitor:
             return None
         self.storage.set_list("trends_added", [b for b in self.storage.get_list("trends_added")
                                                if normalize(b) != key])
-        if any(normalize(b) == key for b in TREND_BRANDS):
+        if any(normalize(b) == key for b in TREND_WATCHES):
             self.storage.set_list("trends_removed", self.storage.get_list("trends_removed") + [current])
         return current
 
@@ -127,7 +143,7 @@ class Monitor:
         # Resale-Suchen über ganze Marken: mehr Artikel pro Abfrage, damit nichts Frisches durchrutscht
         return 96 if search.is_resale else self.cfg.per_page
 
-    # -- Filter fürs Resale-Radar (Größe, Kategorien, nur Raritäten) ---------------
+    # -- Filter fürs Schnäppchen-Radar (Größe, Kategorien, nur Raritäten) ---------------
 
     def global_filters(self) -> dict[str, Any]:
         """Per Telegram geänderte Filter, sonst die aus der config.yaml."""
@@ -195,11 +211,13 @@ class Monitor:
             return None, why
         ptype = product_type(item.title)
         rare = rarity(item)
+        trend = trend_match(item.title)
+        est = estimate_item(item, ptype)
         brand_votes = type_votes = 0
         if search.is_resale:
             f = self.global_filters()
-            if ptype in f["exclude_types"]:
-                return None, f"Kategorie ausgeblendet ({TYPE_LABELS.get(ptype, ptype)})"
+            if type_hidden(ptype, f["exclude_types"]):
+                return None, f"Kategorie ausgeblendet ({hidden_label(ptype, f['exclude_types'])})"
             if not search.sizes and f["sizes"] and not size_matches(item.size, f["sizes"]):
                 return None, f"Größe {item.size or '?'} passt nicht ({', '.join(f['sizes'])})"
             if f["only_rare"] and not rare.level:
@@ -207,6 +225,8 @@ class Monitor:
             brand_votes, type_votes = self._pref_votes(item, ptype)
             if brand_votes + type_votes <= -3:
                 return None, "von dir aussortiert (👎)"
+            if search.sweep and not rare.level and not trend and est.tier in (None, "budget"):
+                return None, "Alles-Radar: keine gefragte Marke"
 
         group = price_group(search, item)
         group_prices = self.storage.group_history(group)
@@ -215,17 +235,20 @@ class Monitor:
             others = [i for i in extra if i.id != item.id]
             group_prices = group_prices + [i.price for i in others if price_group(search, i) == group]
             search_prices = search_prices + [i.price for i in others]
-        prior = own = None
-        brand = ""
-        if search.is_resale:
-            brand = item.brand or (search.brands[0] if search.brands else "")
-            prior = prior_price(brand, ptype)
-            own = (self.storage.get_json("own_prices", {}) or {}).get(f"{brand_key(brand)}|{ptype}")
+        # Vorwissen: Preisschätzung aus Marke, Kategorie (und genaueren Werten für Trend-Marken)
+        brand = est.brand or (search.brands[0] if search.brands else "")
+        own_prices = self.storage.get_json("own_prices", {}) or {}
+        own = own_prices.get(f"{brand_key(brand)}|{ptype}") if brand else None
         label = f"ähnliche {brand + ' ' if brand else ''}{TYPE_LABELS.get(ptype, 'Artikel')}"
-        ref = market_reference(search, group_prices, search_prices, label, prior=prior, own_price=own)
+        ref = market_reference(search, group_prices, search_prices, label, prior=est.base, own_price=own)
+        if ref.price is not None and ref.basis.startswith("Startwert"):
+            ref.basis = f"Schätzung: {est.basis}"
+        elif ref.basis.endswith("+ Vorwissen"):
+            ref.basis = ref.basis.replace("+ Vorwissen", f"+ Schätzung ({est.basis})")
         pref_pts = max(-15.0, min(15.0, 3.0 * (brand_votes + type_votes)))
         score = score_item(item, ref, self.cfg.top_deal_score, now, resale=search.is_resale,
-                           shipping=self.cfg.shipping_estimate, rare=rare, pref_pts=pref_pts)
+                           shipping=self.cfg.shipping_estimate, rare=rare, pref_pts=pref_pts, est=est,
+                           trend=trend)
         if kind == "price_drop" and old_price:
             score.reasons.insert(0, f"Preis um {1 - item.price / old_price:.0%} gesenkt")
         ok, why = meets_targets(search, score)
@@ -305,6 +328,9 @@ class Monitor:
                 log.warning("Suche '%s' fehlgeschlagen: %s", search.name, e)
                 alerts = []
             for alert in alerts:
+                if alert.kind == "new" and self.storage.was_alerted(alert.item.id):
+                    continue  # schon von einer anderen Suche gemeldet
+                self.storage.mark_alerted(alert.item.id)
                 self.storage.save_item(alert.item, alert.ptype)
                 if self.paused:
                     continue
