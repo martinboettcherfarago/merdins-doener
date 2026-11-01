@@ -324,15 +324,15 @@ Unter jeder Meldung gibt es **👍 Guter Find** und **👎 Nicht mein Ding**:
 - `/vorlieben` zeigt, was er gelernt hat. `/vorlieben reset` vergisst alles.
 
 ### 🧪 Probelauf mit Musterdaten
-Ohne Vinted zu fragen zeigt der Bot, was er mit **deinen aktuellen Einstellungen** melden würde. Er nutzt dafür einen künstlichen, aber realistischen Datensatz: über 600 Angebote aus 9 Marken plus eine Trend-Suche.
+Ohne Vinted zu fragen zeigt der Bot, was er mit **deinen aktuellen Einstellungen** melden würde. Er nutzt dafür einen künstlichen, aber realistischen Datensatz: über 700 Angebote aus 10 Marken plus eine Trend-Suche.
 
-- **8 echte Finds**, z. B. vintage Carhartt Detroit für 45 €, eine Miu-Miu-Tasche für 160 €, eine No-Name-Vintage-Lederjacke für 12 €
-- **12 Fallen**: Schuhe, Fakes, „Miu Miu“ für 35 €, XL, Kindergröße, defekt, Normalpreis, H&M ohne Gewinn, schon lange online
+- **9 echte Finds**, z. B. vintage Carhartt Detroit für 45 €, eine Miu-Miu-Tasche für 160 €, eine No-Name-Vintage-Lederjacke für 10 €, eine Abercrombie-Y2K-Jacke mit Fellkragen für 15 €
+- **15 Fallen**: Schuhe, Fakes, „Miu Miu“ für 35 €, XL, Kindergröße, defekt, Normalpreis, H&M ohne Gewinn, schon lange online, Carhartt-Patch, Stone-Island-Buch, Abercrombie-Sticker
 
 - **Telegram:** `/probelauf`
 - **Windows:** Doppelklick auf `probelauf.bat`
 
-Mit den Standardeinstellungen (Stufe „normal“) erkennt er in 30 verschiedenen Zufalls-Märkten **239 von 240 Finds** und meldet **keine einzige Falle**.
+Mit den Standardeinstellungen (Stufe „normal“) erkennt er in 30 verschiedenen Zufalls-Märkten **269 von 270 Finds** und meldet **keine einzige Falle**.
 
 ---
 

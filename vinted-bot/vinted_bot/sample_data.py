@@ -60,7 +60,7 @@ FINDS = [
     ("Patagonia", "Patagonia Retro X Fleece", "M", 30, "Sehr gut", 6),
     ("Ralph Lauren", "Vintage Polo Sport Jacke 90s", "L", 22, "Gut", 2),
     ("Miu Miu", "Miu Miu Tasche Leder", "", 160, "Sehr gut", 2),
-    ("", "Vintage Lederjacke 90er", "L", 12, "Gut", 3),  # No-Name, gefunden über die Trend-Suche
+    ("", "Vintage Lederjacke 90er", "L", 10, "Gut", 3),  # No-Name, gefunden über die Trend-Suche
     ("Abercrombie & Fitch", "Abercrombie & Fitch Y2K Jacke mit Fellkragen", "S", 15, "Sehr gut", 2),
 ]
 # Fallen: (Marke, Titel, Größe, Preis, Zustand, Minuten online, warum nicht) – sollten NICHT gemeldet werden
