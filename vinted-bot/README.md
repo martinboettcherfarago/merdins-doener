@@ -21,6 +21,9 @@ Nike Air Max 90
 | | |
 |---|---|
 | 💰 **Resale-Radar** | beobachtet ganze Marken (z. B. eingebaute Trend-Liste) und meldet nur **ganz frisch hochgeladene** Artikel, die **weit unter Marktpreis** liegen, mit geschätztem Gewinn |
+| 💎 **Raritäten-Erkennung** | erkennt vintage, 90er, Made in USA/Italy/England, Deadstock und begehrte Modelle (Carhartt Detroit, Stone Island Ghost, Arc'teryx Veilance, Patagonia Retro X …) |
+| 🧠 **Lernt dazu** | 👍/👎 unter jeder Meldung, eingebautes Preis-Vorwissen, eigene Marktpreise per `/preis` |
+| 📏 **Deine Größe** | Standard S, M, L; Schuhe standardmäßig ausgeblendet. Beides änderbar |
 | 🏷 **Marken-Filter** | strenger Abgleich mit der Marken-Angabe des Artikels: Ein No-Name-Teil „im Carhartt-Style“ zählt nicht |
 | 🔎 **Beliebig viele Suchen** | Suchbegriff + Preis, oder einfach einen Vinted-Link mit allen Filtern (Marke, Größe, Zustand, Kategorie) einfügen |
 | ⏱ **Ständig aktuell** | prüft standardmäßig jede Minute und meldet nur **neue** Artikel |
@@ -187,6 +190,8 @@ searches:
 /neu salomon xt-6 bis 90 rabatt 35 frisch 15
 /marke stüssy    Resale-Radar für eine Marke    /trends   Trend-Marken
 /trends plus ganni   eigene Trend-Marke    /stufe streng   nur die allergünstigsten
+/groesse S M L   Größen    /ohne schuhe   Kategorie ausblenden    /raritaeten an   nur Raritäten
+/preis carhartt jacken 90   eigener Marktpreis    /vorlieben   Gelerntes    /probelauf   Testlauf
 /suchen          alle Suchen mit Nummer
 /pause 2         Suche 2 anhalten     /weiter 2   fortsetzen
 /loeschen 2      Suche 2 löschen
@@ -249,6 +254,50 @@ Der Bot meldet nur, solange er läuft. Dafür gibt es drei Möglichkeiten:
   ```
 
 Die Datenbank `vinted_bot.db` (gesehene Artikel, Preise, per Telegram angelegte Suchen) liegt neben der `config.yaml`.
+
+---
+
+## 🧠 Training: Größe, Kategorien, Raritäten und dein Geschmack
+
+### 📏 Größe & Kategorien
+Standardmäßig meldet das Resale-Radar nur **S, M und L** und **keine Schuhe**. Artikel ohne Größe (Taschen, Caps, One Size) kommen trotzdem durch.
+
+```
+/groesse S M L        deine Größen (auch Zahlen, z. B. /groesse M 32 für Jeans)
+/groesse alle         keine Größen-Einschränkung
+/ohne schuhe, caps    Kategorien ausblenden
+/mit schuhe           wieder einblenden
+/kategorien           alle Kategorien mit ✅/🚫 anzeigen
+```
+
+### 💎 Raritäten
+Der Bot erkennt seltene Stücke am Titel:
+- **allgemein:** vintage, 90er/80er, Y2K, Made in USA/Italy/England/Canada/Japan, West Germany, Deadstock, Single Stitch, Sample
+- **begehrte Modelle je Marke:** z. B. Carhartt Detroit/Santa Fe, Stüssy 8 Ball/World Tour, Arc'teryx Veilance/LEAF, Stone Island Ghost/Shadow Project, Patagonia Retro X/Deep Pile, Ralph Lauren Polo Sport/RRL, Levi's Big E, Nike ACG
+
+Raritäten werden mit **💎 RARITÄT** markiert. Sie bekommen Bonuspunkte, und ihr Wert wird je nach Seltenheit 20–60 % über dem normalen Marktpreis angesetzt. „vintage“ allein reicht nicht, das steht bei Vinted in fast jedem zweiten Titel.
+
+`/raritaeten an` → **nur noch Raritäten** melden · `/raritaeten aus` → wieder alles
+
+### 🧠 Vorwissen & eigene Preise
+Der Bot startet mit eingebauten **Startwerten** für typische Wiederverkaufspreise (Marke × Kategorie, z. B. Carhartt-Jacken ca. 75 €, Arc'teryx-Jacken ca. 200 €). Dadurch kann er sofort vergleichen. Die Startwerte sind grobe Schätzungen. Er mischt sie mit den echten Preisen, die er sieht, und ab etwa 30 echten Vergleichspreisen zählen nur noch die echten Daten. Die Werte stehen in `vinted_bot/data/market_prices.json`.
+
+Wenn du es besser weißt: `/preis carhartt jacken 90` → ab jetzt rechnet er mit 90 €. `/preis` zeigt deine Werte.
+
+### 👍 / 👎 – der Bot lernt deinen Geschmack
+Unter jeder Meldung gibt es **👍 Guter Find** und **👎 Nicht mein Ding**:
+- Marken und Kategorien, die du magst, bekommen **mehr Punkte**.
+- Nach **3× 👎** für eine Kategorie (z. B. Caps) blendet der Bot sie **automatisch aus**. Mit `/mit caps` kommt sie zurück.
+- Nach **3× 👎 für eine Marke** sortiert er Artikel dieser Marke aus. Ungeliebte Kombinationen wie „Nike-Caps“ fliegen schon nach 2× 👎 raus.
+- `/vorlieben` zeigt, was er gelernt hat. `/vorlieben reset` vergisst alles.
+
+### 🧪 Probelauf mit Musterdaten
+Ohne Vinted zu fragen zeigt der Bot, was er mit **deinen aktuellen Einstellungen** melden würde. Er nutzt dafür einen künstlichen, aber realistischen Datensatz: über 500 Angebote aus 8 Marken. Darunter sind 6 echte Finds (z. B. vintage Carhartt Detroit für 45 €) und 10 Fallen (Schuhe, Fakes, XL, Kindergröße, defekt, Normalpreis, schon lange online).
+
+- **Telegram:** `/probelauf`
+- **Windows:** Doppelklick auf `probelauf.bat`
+
+Mit den Standardeinstellungen erkennt er in 40 verschiedenen Zufalls-Märkten **alle Finds** und meldet **keine einzige Falle**.
 
 ---
 

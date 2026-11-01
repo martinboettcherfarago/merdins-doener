@@ -26,6 +26,9 @@ class Alert:
     old_price: Optional[float] = None
     offers: list[float] = field(default_factory=list)
     resale: bool = False              # aus einer Resale-Suche (Gewinn-Potenzial anzeigen)
+    ptype: str = ""                   # erkannter Produkttyp (für 👍/👎)
+    feedback: bool = True             # 👍/👎-Buttons anzeigen
+    demo: bool = False                # Probelauf: keine Buttons (die Links gibt es nicht wirklich)
 
 
 def money(value: Optional[float], currency: str = "EUR") -> str:
@@ -55,7 +58,8 @@ def headline(alert: Alert) -> str:
                 f"{money(alert.item.price, alert.item.currency)} · Score {s.total}/100")
     if alert.resale and s.discount is not None:
         fire = "🔥" if s.is_top else ""
-        return f"{fire}💰 RESALE-DEAL · {s.discount:.0%} unter Markt · Score {s.total}/100"
+        kind = "💎 RARITÄT" if s.rarity_level >= 1 else "💰 RESALE-DEAL"
+        return f"{fire}{kind} · {s.discount:.0%} unter Wert · Score {s.total}/100"
     if s.is_top:
         return f"🔥 TOP-DEAL · Score {s.total}/100"
     return f"🆕 Neu · Score {s.total}/100"
@@ -73,7 +77,7 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
                      f"(Weiterverkauf zum Marktpreis, nach Käuferschutz & Versand)")
     if alert.resale and it.created_ts:
         lines.append(f"⚡ {age_text(it.created_ts, now)} hochgeladen")
-    lines += [f"📊 {r}" for r in alert.score.reasons]
+    lines += [r if r.startswith(("💎", "👍", "👎")) else f"📊 {r}" for r in alert.score.reasons]
     meta = " · ".join(x for x in (it.brand, f"Gr. {it.size}" if it.size else "", it.condition) if x)
     if meta:
         lines.append(f"🏷 {meta}")
@@ -105,6 +109,9 @@ def telegram_keyboard(alert: Alert, offers_via_bot: bool) -> dict[str, Any]:
                      for p in alert.offers])
     else:
         rows.append([{"text": "💸 Preis vorschlagen", "url": it.url}])
+    if alert.feedback:
+        rows.append([{"text": "👍 Guter Find", "callback_data": f"fb:1:{it.id}"},
+                     {"text": "👎 Nicht mein Ding", "callback_data": f"fb:0:{it.id}"}])
     return {"inline_keyboard": rows}
 
 
@@ -131,16 +138,16 @@ class TelegramNotifier:
 
     def send_alert(self, alert: Alert) -> None:
         caption = telegram_caption(alert)
-        markup = telegram_keyboard(alert, self.offers_via_bot)
+        extra: dict[str, Any] = {} if alert.demo else {"reply_markup": telegram_keyboard(alert, self.offers_via_bot)}
         if alert.item.photo_url:
             try:
                 self.api("sendPhoto", chat_id=self.chat_id, photo=alert.item.photo_url, caption=caption,
-                         parse_mode="HTML", reply_markup=markup)
+                         parse_mode="HTML", **extra)
                 return
             except RuntimeError as e:  # z. B. Bild nicht abrufbar -> ohne Bild senden
                 log.debug("sendPhoto fehlgeschlagen, sende Text: %s", e)
         self.api("sendMessage", chat_id=self.chat_id, text=caption, parse_mode="HTML",
-                 reply_markup=markup, disable_web_page_preview=False)
+                 disable_web_page_preview=False, **extra)
 
     def send_text(self, text: str, reply_markup: Optional[dict] = None) -> None:
         payload: dict[str, Any] = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML",

@@ -73,7 +73,7 @@ def test_price_groups():
     resale = SearchConfig.resale_for_brand("Carhartt")
     normal = SearchConfig(name="Jacken", keywords="jacke")
     jacket = item(1, 50, brand="Carhartt WIP", title="Carhartt Detroit Jacket")
-    assert price_group(resale, jacket) == "b:carharttwip|jacke"
+    assert price_group(resale, jacket) == "b:carhartt|jacke"  # "Carhartt WIP" und "Carhartt" teilen Preise
     assert price_group(normal, jacket) == "s:Jacken|jacke"
 
 
@@ -146,13 +146,13 @@ def resale_monitor(tmp_path, clock):
     return mon, client, notifier
 
 
-def carhartt(i, price, title, minutes_old=30, **kw):
-    return item(i, price, title=title, brand="Carhartt WIP", minutes_old=minutes_old, **kw)
+def carhartt(i, price, title, minutes_old=30, size="M", **kw):
+    return item(i, price, title=title, brand="Carhartt WIP", minutes_old=minutes_old, size=size, **kw)
 
 
 def market():
-    # Jacken um 100 €, Mützen um 25 € -> getrennte Marktpreise
-    jackets = [carhartt(100 + k, 90 + k * 5, "Carhartt Detroit Jacket") for k in range(5)]
+    # Jacken um 80 €, Mützen um 24 € -> getrennte Marktpreise (Vorwissen: Jacken 75 €, Mützen 15 €)
+    jackets = [carhartt(100 + k, 70 + k * 5, "Carhartt Chore Jacket") for k in range(5)]
     beanies = [carhartt(200 + k, 22 + k, "Carhartt Watch Beanie") for k in range(5)]
     return jackets + beanies
 
@@ -171,7 +171,9 @@ def test_resale_monitor_flags_only_fresh_real_bargains(resale_monitor):
     mon.run_once()
     assert [a.item.id for a in notifier.alerts] == [1]
     a = notifier.alerts[0]
-    assert a.resale and a.score.reference_price == 100 and a.score.profit == pytest.approx(100 - 46.5 - 5)
+    # Marktpreis = 5 echte Preise (Median 80 €) gemischt mit dem Vorwissen (75 €)
+    assert a.resale and a.score.reference_price == 77.5 and a.score.profit == pytest.approx(77.5 - 46.5 - 5)
+    assert "5 ähnliche Carhartt WIP Jacken + Vorwissen" in a.score.reasons[0]
 
 
 def test_resale_caption_shows_profit_and_freshness():
@@ -179,7 +181,7 @@ def test_resale_caption_shows_profit_and_freshness():
     score = score_item(it, Reference(100.0, "5 ähnliche Carhartt WIP Jacken", 5), now=NOW, resale=True, shipping=5)
     cap = telegram_caption(Alert(item=it, search_name="Resale · Carhartt", score=score, buy_url="u", resale=True),
                            now=NOW)
-    assert "💰 RESALE-DEAL · 55% unter Markt" in cap
+    assert "💰 RESALE-DEAL · 55% unter Wert" in cap
     assert "Gewinn-Potenzial ca. +48,50 €" in cap
     assert "⚡ vor 2 Min. hochgeladen" in cap
 
@@ -206,9 +208,9 @@ def test_level_changes_what_gets_reported(resale_monitor, level, expected):
     mon, client, notifier = resale_monitor
     base = market()
     client.pages = [base, [
-        carhartt(1, 55, "Carhartt Michigan Jacket", minutes_old=3),   # 45 % unter Markt
-        carhartt(2, 40, "Carhartt Michigan Jacket", minutes_old=8),   # 60 % unter Markt, aber 8 Min. alt
-        carhartt(3, 35, "Carhartt Michigan Jacket", minutes_old=2),   # 65 % unter Markt, ganz frisch
+        carhartt(1, 44, "Carhartt Michigan Jacket", minutes_old=3),   # ca. 43 % unter Markt
+        carhartt(2, 32, "Carhartt Michigan Jacket", minutes_old=8),   # ca. 58 % unter Markt, aber 8 Min. alt
+        carhartt(3, 30, "Carhartt Michigan Jacket", minutes_old=2),   # 60 % unter Markt, ganz frisch
     ] + base]
     mon.storage.set_state("resale_level", level)
     mon.run_once()

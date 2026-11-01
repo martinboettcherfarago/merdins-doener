@@ -91,6 +91,10 @@ def cmd_run(cfg: Config) -> int:
         names += f"\n💰 Resale-Radar: {len(resale_brands)} Marken ({', '.join(resale_brands[:6])}" \
                  + (" …)" if len(resale_brands) > 6 else ")") \
                  + f"\n🎯 Schnäppchen-Stufe: {monitor.resale_level or 'aus config.yaml'} (/stufe)"
+        f = monitor.global_filters()
+        names += (f"\n📏 Größen: {', '.join(f['sizes']) or 'alle'} (/groesse)"
+                  f" · 🚫 ausgeblendet: {', '.join(f['exclude_types']) or 'nichts'} (/kategorien)"
+                  + (" · 💎 nur Raritäten" if f["only_rare"] else ""))
     log.info("Vinted-Bot %s gestartet (vinted.%s, alle %ss). Suchen: %s",
              __version__, cfg.domain, cfg.interval_seconds, names)
     notifier.send_text(
@@ -150,6 +154,25 @@ def cmd_scan(cfg: Config, top: int, send: bool, name_filter: str = "") -> int:
     return 0
 
 
+def cmd_sample(cfg: Config, send: bool) -> int:
+    """Testlauf mit Musterdaten: zeigt, was der Bot mit deinen Einstellungen melden würde."""
+    from .sample_data import run_sample
+
+    storage = Storage(cfg.database) if os.path.exists(cfg.database) else None
+    result = run_sample(cfg, source_storage=storage)
+    print(result.summary_text())
+    if send:
+        notifier, _ = build_notifiers(cfg, offers_via_bot=False)
+        notifier.send_text(result.summary_html())
+        for alert in result.alerts[:3]:
+            alert.demo = True
+            alert.search_name = "🧪 PROBELAUF (Musterdaten – nicht echt)"
+            notifier.send_alert(alert)
+    if storage:
+        storage.close()
+    return 0
+
+
 def cmd_test_notify(cfg: Config) -> int:
     notifier, _ = build_notifiers(cfg, offers_via_bot=False)
     if not notifier:
@@ -199,6 +222,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     p_scan.add_argument("--send", action="store_true", help="die Treffer auch als Benachrichtigung schicken")
     p_scan.add_argument("--suche", default="", help="nur Suchen, deren Name diesen Text enthält")
     sub.add_parser("test-notify", help="Testnachricht an alle Kanäle schicken")
+    p_demo = sub.add_parser("probelauf", help="Testlauf mit Musterdaten: zeigt, was gemeldet würde")
+    p_demo.add_argument("--send", action="store_true", help="Ergebnis auch per Telegram & Co. schicken")
     sub.add_parser("chat-id", help="Telegram-Chat-ID herausfinden")
     args = parser.parse_args(argv)
 
@@ -217,6 +242,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return cmd_scan(cfg, args.top, args.send, args.suche)
     if command == "test-notify":
         return cmd_test_notify(cfg)
+    if command == "probelauf":
+        return cmd_sample(cfg, args.send)
     if command == "chat-id":
         return cmd_chat_id(cfg)
     return cmd_run(cfg)

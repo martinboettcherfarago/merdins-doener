@@ -32,6 +32,10 @@ RESALE_LEVELS: dict[str, dict[str, Any]] = {
                "min_condition": "gut"},
 }
 RESALE_DEFAULTS = RESALE_LEVELS["normal"]
+
+# Standard-Filter für das Resale-Radar (Marken & Trends) – per Telegram änderbar (/groesse, /ohne, /mit)
+DEFAULT_SIZES = ["S", "M", "L"]
+DEFAULT_EXCLUDE_TYPES = ["schuhe"]
 RESALE_TARGET_KEYS = tuple(RESALE_DEFAULTS)
 
 
@@ -148,6 +152,9 @@ class Config:
     top_deal_score: int = 75
     shipping_estimate: float = 5.0       # geschätzte Versandkosten für die Gewinn-Rechnung
     resale_targets: dict[str, Any] = field(default_factory=lambda: dict(RESALE_DEFAULTS))
+    filter_sizes: list[str] = field(default_factory=lambda: list(DEFAULT_SIZES))       # [] = alle Größen
+    filter_exclude_types: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_TYPES))
+    only_rare: bool = False
     global_exclude_words: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_WORDS))
 
     telegram_token: str = ""
@@ -243,6 +250,16 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     if level not in RESALE_LEVELS:
         raise ConfigError(f"resale → level muss {', '.join(RESALE_LEVELS)} sein, nicht '{level}'.")
     cfg.resale_targets = dict(RESALE_LEVELS[level])
+    filters = data.get("filters") or {}
+    if "sizes" in filters:
+        sizes = filters.get("sizes") or []
+        sizes = [sizes] if isinstance(sizes, str) else sizes
+        cfg.filter_sizes = [] if any(str(x).lower() in ("alle", "all", "*") for x in sizes) \
+            else [str(x).strip().upper() for x in sizes if str(x).strip()]
+    if "exclude_types" in filters:
+        types = filters.get("exclude_types") or []
+        cfg.filter_exclude_types = [str(t).strip().lower() for t in ([types] if isinstance(types, str) else types)]
+    cfg.only_rare = bool(filters.get("only_rare", False))
     for key in RESALE_TARGET_KEYS:  # einzelne Werte aus der config überschreiben die Stufe
         if section.get(key) is not None:
             value = section[key]

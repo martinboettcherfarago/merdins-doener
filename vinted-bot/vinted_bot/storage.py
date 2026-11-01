@@ -6,7 +6,7 @@ import json
 import sqlite3
 import threading
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from .config import SearchConfig
 from .models import Item
@@ -118,9 +118,10 @@ class Storage:
 
     # -- gemerkte Artikel (für Angebote per Button) ------------------------------
 
-    def save_item(self, item: Item) -> None:
+    def save_item(self, item: Item, ptype: str = "") -> None:
         data = {"id": item.id, "title": item.title, "price": item.price, "currency": item.currency,
-                "url": item.url, "seller_id": item.seller_id}
+                "url": item.url, "seller_id": item.seller_id, "brand": item.brand, "size": item.size,
+                "type": ptype}
         with self._lock:
             self._db.execute("INSERT OR REPLACE INTO items (item_id, data, ts) VALUES (?, ?, ?)",
                              (item.id, json.dumps(data), time.time()))
@@ -166,6 +167,18 @@ class Storage:
         with self._lock:
             self._db.execute("DELETE FROM state WHERE key=?", (key,))
             self._db.commit()
+
+    def get_json(self, key: str, default: Any = None) -> Any:
+        raw = self.get_state(key)
+        if raw is None:
+            return default
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return default
+
+    def set_json(self, key: str, value: Any) -> None:
+        self.set_state(key, json.dumps(value, ensure_ascii=False))
 
     def get_list(self, key: str) -> list[str]:
         try:

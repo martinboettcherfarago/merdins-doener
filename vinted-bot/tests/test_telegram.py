@@ -4,7 +4,7 @@ from conftest import FakeClient, FakeNotifier, item
 from vinted_bot.account import OfferResult
 from vinted_bot.config import ConfigError, SearchConfig
 from vinted_bot.monitor import Monitor
-from vinted_bot.notify import Alert, money, telegram_caption, telegram_keyboard
+from vinted_bot.notify import Alert, TelegramNotifier, money, telegram_caption, telegram_keyboard
 from vinted_bot.scoring import score_item
 from vinted_bot.storage import Storage
 from vinted_bot.telegram_bot import TelegramController, parse_new_search
@@ -53,9 +53,11 @@ def test_caption_and_keyboard():
     assert kb[1][0]["url"] == alert.item.url
 
 
-class FakeTelegram:
+class FakeTelegram(TelegramNotifier):
+    """Echter TelegramNotifier (gleiche Formatierung), aber ohne Netzwerk."""
+
     def __init__(self):
-        self.chat_id = CHAT
+        super().__init__("TOKEN", CHAT)
         self.calls = []
 
     def api(self, method, **payload):

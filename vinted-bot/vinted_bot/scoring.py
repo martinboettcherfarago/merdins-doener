@@ -11,6 +11,7 @@ from statistics import median
 from typing import Iterable, Optional, Union
 
 from .config import SearchConfig
+from .knowledge import Rarity
 from .models import Item
 
 # Zustand -> Punkte (max. 20). Längere Schlüssel zuerst, damit "sehr gut" nicht als "gut" zählt.
@@ -40,7 +41,9 @@ PRODUCT_TYPES: list[tuple[str, list[str]]] = [
     ("hose", ["jeans", "hose", "=pants", "trousers", "cargo", "chino", "jogger", "trackpants", "=501"]),
     ("schuhe", ["sneaker", "schuh", "=shoes", "trainers", "=boots", "stiefel", "air max", "air force", "=dunk",
                 "=samba", "gazelle", "spezial", "=campus", "yeezy", "jordan", "=gel-", "xt-6", "=990", "=2002r",
-                "=9060", "loafer", "clogs", "slides"]),
+                "=9060", "loafer", "clogs", "slides", "shox", "vomero", "p-6000", "1906r", "=574", "=327", "=530",
+                "kayano", "speedcross", "acs pro", "=sl 72", "taekwondo", "cortez", "converse", "chuck taylor",
+                "dr. martens", "doc martens", "birkenstock", "=tn", "mexico 66", "=boot", "=trainer"]),
     ("tasche", ["tasche", "=bag", "rucksack", "backpack", "beutel", "geldbörse", "portemonnaie", "=wallet"]),
     ("muetze", ["=cap", "mütze", "muetze", "beanie", "=hat", "=hut", "kappe", "bucket"]),
     ("kleid", ["kleid", "=dress"]),
@@ -60,6 +63,9 @@ TYPE_LABELS = {
 
 MIN_GROUP_SAMPLES = 5     # so viele Vergleichspreise braucht eine Gruppe (Marke + Produkttyp)
 MIN_SEARCH_SAMPLES = 8    # so viele Preise braucht eine ganze Suche
+PRIOR_WEIGHT = 5          # ein Startwert aus dem Vorwissen zählt wie 5 echte Preise
+PRIOR_UNTIL = 30          # ab so vielen echten Vergleichspreisen zählen nur noch echte Daten
+RARITY_POINTS = {0: 0, 1: 6, 2: 10, 3: 15}
 
 
 def normalize(text: str) -> str:
@@ -89,7 +95,8 @@ def price_group(search: SearchConfig, item: Item) -> str:
     """
     ptype = product_type(item.title)
     if search.is_resale:
-        brand = normalize(item.brand) or normalize(search.brands[0] if search.brands else search.name)
+        from .knowledge import brand_key
+        brand = brand_key(item.brand) or brand_key(search.brands[0] if search.brands else search.name)
         return f"b:{brand}|{ptype}"
     return f"s:{search.name}|{ptype}"
 
@@ -112,6 +119,8 @@ class DealScore:
     profit: Optional[float] = None       # geschätzter Gewinn beim Weiterverkauf zum Marktpreis
     age_minutes: Optional[float] = None
     cheaper_than: Optional[float] = None  # 0.95 = günstiger als 95 % der Vergleichsangebote
+    rarity_level: int = 0
+    rarity_tags: list[str] = field(default_factory=list)
 
 
 def _contains_word(text: str, word: str) -> bool:
@@ -163,15 +172,25 @@ def passes_filters(item: Item, search: SearchConfig, global_excludes: Iterable[s
 
 
 def market_reference(search: SearchConfig, group_prices: list[float], search_prices: list[float],
-                     group_label: str = "ähnliche Angebote") -> Reference:
+                     group_label: str = "ähnliche Angebote", prior: Optional[float] = None,
+                     own_price: Optional[float] = None) -> Reference:
     """Marktpreis: deine Angabe > Median gleicher Artikel (Marke + Typ) > Median der ganzen Suche.
 
     Bei Resale-Suchen über eine ganze Marke wird nie über alle Produkttypen gemittelt –
     lieber kein Vergleich als ein falscher "Deal".
     """
+    n = len(group_prices)
+    rank_prices = list(group_prices) if n >= MIN_GROUP_SAMPLES else []
     if search.market_price:
         return Reference(float(search.market_price), "dein Marktpreis", 0)
-    if len(group_prices) >= MIN_GROUP_SAMPLES:
+    if own_price:  # per /preis beigebracht
+        return Reference(float(own_price), "dein Marktpreis", n, rank_prices)
+    if prior and n < PRIOR_UNTIL:  # Vorwissen mit echten Preisen mischen
+        if n == 0:
+            return Reference(float(prior), "Startwert aus dem Vorwissen", 0, [])
+        blended = (n * median(group_prices) + PRIOR_WEIGHT * prior) / (n + PRIOR_WEIGHT)
+        return Reference(float(blended), f"{n} {group_label} + Vorwissen", n, rank_prices)
+    if n >= MIN_GROUP_SAMPLES:
         return Reference(float(median(group_prices)), f"{len(group_prices)} {group_label}", len(group_prices),
                          list(group_prices))
     if not search.is_resale and len(search_prices) >= MIN_SEARCH_SAMPLES:
@@ -219,7 +238,8 @@ def _fresh_points(age_min: Optional[float], resale: bool) -> float:
 
 
 def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: int = 75,
-               now: Optional[float] = None, resale: bool = False, shipping: float = 0.0) -> DealScore:
+               now: Optional[float] = None, resale: bool = False, shipping: float = 0.0,
+               rare: Optional[Rarity] = None, pref_pts: float = 0.0) -> DealScore:
     """Deal-Score 0-100.
 
     Standard: Preis 60 · Zustand 20 · Frische 10 · Beliebtheit 10
@@ -230,23 +250,30 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
     now = now if now is not None else time.time()
     reasons: list[str] = []
     sym = _sym(item.currency)
+    rare = rare or Rarity()
 
-    # 1) Preis im Vergleich zum Markt
+    # 1) Preis im Vergleich zum Markt (Raritäten sind mehr wert als ein Durchschnittsteil)
     discount = profit = None
-    if ref.price and ref.price > 0:
-        discount = 1 - item.price / ref.price
+    value = ref.price * rare.premium if ref.price else None
+    if rare.level:
+        reasons.append(f"💎 Rarität: {' · '.join(rare.tags)}")
+    if value and value > 0:
+        discount = 1 - item.price / value
         if resale:
             price_pts = max(0.0, min(55.0, discount / 0.6 * 55))
         else:
             price_pts = max(0.0, min(60.0, 20 + discount * 80))
         basis = f" · {ref.basis}" if ref.basis else ""
+        if rare.premium > 1:
+            basis += f" · +{rare.premium - 1:.0%} Raritäten-Aufschlag → Wert ca. {value:.0f} {sym}"
+        under = "Marktpreis" if rare.premium == 1 else "geschätztem Wert"
         if discount >= 0.05:
-            reasons.append(f"{discount:.0%} unter Marktpreis (Ø {ref.price:.0f} {sym}{basis})")
+            reasons.append(f"{discount:.0%} unter {under} (Ø {ref.price:.0f} {sym}{basis})")
         elif discount <= -0.1:
             reasons.append(f"{-discount:.0%} über Marktpreis (Ø {ref.price:.0f} {sym}{basis})")
         else:
             reasons.append(f"fairer Preis (Ø {ref.price:.0f} {sym}{basis})")
-        profit = ref.price - (item.total_price or item.price) - shipping
+        profit = value - (item.total_price or item.price) - shipping
     else:
         price_pts = 15.0 if resale else 25.0
         reasons.append("noch zu wenig Preisdaten für einen Vergleich")
@@ -275,9 +302,17 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
     if pop_pts >= 6:
         reasons.append(f"schon {item.favourites} Favoriten – schnell sein!")
 
-    total = max(0, min(100, int(round(price_pts + cond_pts + fresh_pts + pop_pts))))
+    # 5) Raritäten-Bonus und deine Vorlieben (👍/👎)
+    rare_pts = RARITY_POINTS.get(rare.level, 0)
+    if pref_pts >= 3:
+        reasons.append("👍 passt zu deinen Vorlieben")
+    elif pref_pts <= -3:
+        reasons.append("👎 eher nicht dein Geschmack")
+
+    total = max(0, min(100, int(round(price_pts + cond_pts + fresh_pts + pop_pts + rare_pts + pref_pts))))
     return DealScore(total=total, reference_price=ref.price, discount=discount, is_top=total >= top_threshold,
-                     reasons=reasons, profit=profit, age_minutes=age_min, cheaper_than=cheaper_than)
+                     reasons=reasons, profit=profit, age_minutes=age_min, cheaper_than=cheaper_than,
+                     rarity_level=rare.level, rarity_tags=list(rare.tags))
 
 
 def meets_targets(search: SearchConfig, score: DealScore) -> tuple[bool, str]:
@@ -289,9 +324,11 @@ def meets_targets(search: SearchConfig, score: DealScore) -> tuple[bool, str]:
         return False, "Marktpreis noch unbekannt"
     if search.min_discount is not None and (score.discount or 0) * 100 < search.min_discount:
         return False, "Rabatt zu klein"
-    if search.min_cheaper_than is not None and score.cheaper_than is not None \
-            and score.cheaper_than * 100 < search.min_cheaper_than:
-        return False, "nicht günstig genug im Vergleich"
+    if search.min_cheaper_than is not None and score.cheaper_than is not None:
+        # Raritäten werden mit normalen Teilen verglichen – da reicht ein etwas schwächerer Rang
+        needed = search.min_cheaper_than if not score.rarity_level else max(50.0, search.min_cheaper_than - 30)
+        if score.cheaper_than * 100 < needed:
+            return False, "nicht günstig genug im Vergleich"
     if search.min_profit is not None and (score.profit or 0) < search.min_profit:
         return False, "Gewinn zu klein"
     return True, ""

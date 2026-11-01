@@ -69,6 +69,13 @@ resale:
   max_price: 250               # nicht mehr als 250 € ausgeben
   shipping_estimate: 5         # geschätzte Versandkosten für die Gewinn-Rechnung
 
+# 🎯 Was das Resale-Radar meldet (alles auch per Telegram änderbar)
+filters:
+  sizes: [S, M, L]             # deine Größen (/groesse S M L) – "alle" = keine Einschränkung.
+                               # Artikel ohne Größe (Taschen, Caps, One Size) kommen immer durch.
+  exclude_types: [schuhe]      # ausgeblendete Kategorien (/ohne schuhe · /mit schuhe · /kategorien)
+  only_rare: false             # true = nur Raritäten (vintage, 90er, Made in USA, Deadstock, Grails …)
+
 # ──────────────────────────────────────────────────────────────────────
 #  Deine Suchen. Weitere kannst du jederzeit per Telegram anlegen:
 #  /neu nike air max 90 bis 40 score 60

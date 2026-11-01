@@ -9,10 +9,11 @@ import time
 from typing import Any, Callable, Optional
 
 from .config import RESALE_LEVELS, TREND_BRANDS, Config, SearchConfig
+from .knowledge import brand_key, prior_price, rarity, size_matches
 from .models import Item
 from .notify import Alert
 from .scoring import (TYPE_LABELS, market_reference, meets_targets, normalize, passes_filters, price_group,
-                      score_item, suggest_offers)
+                      product_type, score_item, suggest_offers)
 from .storage import Storage
 from .vinted import VintedBlocked, VintedClient, VintedRateLimited, query_for_search
 
@@ -32,6 +33,7 @@ class Monitor:
         self.stats: dict[str, Any] = {"started": clock(), "cycles": 0, "checked": 0, "alerts": 0,
                                       "errors": 0, "last_error": "", "last_cycle": 0.0}
         self._blocked_notified = False
+        self.reject_log: Optional[list[tuple[str, Item, str]]] = None  # für Probelauf/Fehlersuche
         self._migrate_old_resale_searches()
 
     def _migrate_old_resale_searches(self) -> None:
@@ -125,33 +127,113 @@ class Monitor:
         # Resale-Suchen über ganze Marken: mehr Artikel pro Abfrage, damit nichts Frisches durchrutscht
         return 96 if search.is_resale else self.cfg.per_page
 
+    # -- Filter fürs Resale-Radar (Größe, Kategorien, nur Raritäten) ---------------
+
+    def global_filters(self) -> dict[str, Any]:
+        """Per Telegram geänderte Filter, sonst die aus der config.yaml."""
+        sizes = self.storage.get_json("filter_sizes")
+        types = self.storage.get_json("filter_exclude_types")
+        rare = self.storage.get_state("only_rare")
+        return {
+            "sizes": list(self.cfg.filter_sizes) if sizes is None else list(sizes),
+            "exclude_types": list(self.cfg.filter_exclude_types) if types is None else list(types),
+            "only_rare": self.cfg.only_rare if rare is None else rare == "1",
+        }
+
+    # -- Lernen aus 👍 / 👎 -----------------------------------------------------------
+
+    def preferences(self) -> dict[str, int]:
+        prefs = self.storage.get_json("prefs", {})
+        return prefs if isinstance(prefs, dict) else {}
+
+    def _pref_votes(self, item: Item, ptype: str) -> tuple[int, int]:
+        prefs = self.preferences()
+        return int(prefs.get(f"brand:{brand_key(item.brand)}", 0)), int(prefs.get(f"type:{ptype}", 0))
+
+    def record_feedback(self, item_id: int, positive: bool) -> str:
+        """Merkt sich 👍/👎 zu Marke und Produkttyp. Gibt eine Antwort für den Chat zurück."""
+        info = self.storage.get_item(item_id)
+        if not info:
+            return "Artikel nicht mehr gespeichert."
+        if self.storage.get_state(f"fb:{item_id}"):
+            return "Schon bewertet – danke!"
+        self.storage.set_state(f"fb:{item_id}", "1")
+        brand = brand_key(info.get("brand") or "")
+        ptype = info.get("type") or product_type(info.get("title") or "")
+        prefs = self.preferences()
+        delta = 1 if positive else -1
+        for key in (f"brand:{brand}" if brand else "", f"type:{ptype}"):
+            if key:
+                prefs[key] = int(prefs.get(key, 0)) + delta
+        self.storage.set_json("prefs", prefs)
+        label = TYPE_LABELS.get(ptype, ptype)
+        if not positive and ptype != "sonstiges" and prefs.get(f"type:{ptype}", 0) <= -3:
+            hidden = self.global_filters()["exclude_types"]
+            if ptype not in hidden:
+                self.storage.set_json("filter_exclude_types", hidden + [ptype])
+                return f"👎 Verstanden – {label} blende ich ab jetzt aus. (/mit {ptype} holt sie zurück)"
+        if not positive and brand and prefs.get(f"brand:{brand}", 0) == -3:
+            return (f"👎 Verstanden – {info.get('brand') or brand} sortiere ich ab jetzt aus. "
+                    "(/vorlieben reset macht das rückgängig)")
+        if positive:
+            return f"👍 Gemerkt – mehr wie das ({info.get('brand') or label})!"
+        return "👎 Gemerkt – davon zeige ich dir weniger."
+
+    # -- Bewertung -----------------------------------------------------------------
+
     def evaluate(self, search: SearchConfig, item: Item, now: float, kind: str = "new",
                  old_price: Optional[float] = None, extra: Optional[list[Item]] = None) -> Optional[Alert]:
         """Bewertet einen Artikel. Gibt einen Alarm zurück, wenn er alle Filter und Ziele der Suche erfüllt."""
-        ok, _why = passes_filters(item, search, self.cfg.global_exclude_words)
+        return self.explain(search, item, now, kind, old_price, extra)[0]
+
+    def explain(self, search: SearchConfig, item: Item, now: float, kind: str = "new",
+                old_price: Optional[float] = None, extra: Optional[list[Item]] = None
+                ) -> tuple[Optional[Alert], str]:
+        """Wie evaluate, liefert aber auch den Grund, warum ein Artikel NICHT gemeldet wird."""
+        ok, why = passes_filters(item, search, self.cfg.global_exclude_words)
         if not ok:
-            return None
+            return None, why
+        ptype = product_type(item.title)
+        rare = rarity(item)
+        brand_votes = type_votes = 0
+        if search.is_resale:
+            f = self.global_filters()
+            if ptype in f["exclude_types"]:
+                return None, f"Kategorie ausgeblendet ({TYPE_LABELS.get(ptype, ptype)})"
+            if not search.sizes and f["sizes"] and not size_matches(item.size, f["sizes"]):
+                return None, f"Größe {item.size or '?'} passt nicht ({', '.join(f['sizes'])})"
+            if f["only_rare"] and not rare.level:
+                return None, "keine Rarität"
+            brand_votes, type_votes = self._pref_votes(item, ptype)
+            if brand_votes + type_votes <= -3:
+                return None, "von dir aussortiert (👎)"
+
         group = price_group(search, item)
         group_prices = self.storage.group_history(group)
         search_prices = self.storage.price_history(search.name)
-        if extra is not None:  # Scan: die anderen aktuellen Treffer als Vergleich mitzählen
+        if extra is not None:  # Scan/Probelauf: die anderen aktuellen Treffer als Vergleich mitzählen
             others = [i for i in extra if i.id != item.id]
             group_prices = group_prices + [i.price for i in others if price_group(search, i) == group]
             search_prices = search_prices + [i.price for i in others]
-        ptype = group.rsplit("|", 1)[-1]
-        brand = (item.brand or (search.brands[0] if search.brands else "")) if search.is_resale else ""
+        prior = own = None
+        brand = ""
+        if search.is_resale:
+            brand = item.brand or (search.brands[0] if search.brands else "")
+            prior = prior_price(brand, ptype)
+            own = (self.storage.get_json("own_prices", {}) or {}).get(f"{brand_key(brand)}|{ptype}")
         label = f"ähnliche {brand + ' ' if brand else ''}{TYPE_LABELS.get(ptype, 'Artikel')}"
-        ref = market_reference(search, group_prices, search_prices, label)
+        ref = market_reference(search, group_prices, search_prices, label, prior=prior, own_price=own)
+        pref_pts = max(-15.0, min(15.0, 3.0 * (brand_votes + type_votes)))
         score = score_item(item, ref, self.cfg.top_deal_score, now, resale=search.is_resale,
-                           shipping=self.cfg.shipping_estimate)
+                           shipping=self.cfg.shipping_estimate, rare=rare, pref_pts=pref_pts)
         if kind == "price_drop" and old_price:
             score.reasons.insert(0, f"Preis um {1 - item.price / old_price:.0%} gesenkt")
-        ok, _why = meets_targets(search, score)
+        ok, why = meets_targets(search, score)
         if not ok:
-            return None
+            return None, why
         return Alert(item=item, search_name=search.name, score=score, buy_url=item.buy_url(self.cfg.web_base),
-                     kind=kind, old_price=old_price, resale=search.is_resale,
-                     offers=suggest_offers(item.price, self.cfg.offer_discounts))
+                     kind=kind, old_price=old_price, resale=search.is_resale, ptype=ptype,
+                     offers=suggest_offers(item.price, self.cfg.offer_discounts)), ""
 
     def check_search(self, search: SearchConfig) -> list[Alert]:
         """Fragt eine Suche ab und liefert die Treffer, die gemeldet werden sollen."""
@@ -171,7 +253,11 @@ class Monitor:
                 too_old = bool(max_age and item.created_ts and now - item.created_ts > max_age)
                 # erster Durchlauf: nur Preise lernen; alte (nur hochgeschobene) Artikel nie melden
                 if seeded and not too_old:
-                    alert = self.evaluate(search, item, now)  # bewerten, bevor der eigene Preis mitzählt
+                    alert, why = self.explain(search, item, now)  # bewerten, bevor der eigene Preis mitzählt
+                    if alert is None and self.reject_log is not None:
+                        self.reject_log.append((search.name, item, why))
+                elif seeded and self.reject_log is not None:
+                    self.reject_log.append((search.name, item, f"schon {int((now - item.created_ts) / 60)} Min. online"))
                 self.storage.mark_seen(search.name, item)
                 self.storage.add_price(search.name, item.price, price_group(search, item))
             elif item.price != prev:
@@ -219,7 +305,7 @@ class Monitor:
                 log.warning("Suche '%s' fehlgeschlagen: %s", search.name, e)
                 alerts = []
             for alert in alerts:
-                self.storage.save_item(alert.item)
+                self.storage.save_item(alert.item, alert.ptype)
                 if self.paused:
                     continue
                 log.info("%s %s – %s (%s)", "🔥" if alert.score.is_top else "🆕", alert.item.title,

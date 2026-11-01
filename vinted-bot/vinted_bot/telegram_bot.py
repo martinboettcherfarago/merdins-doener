@@ -12,8 +12,9 @@ from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
 from .config import RESALE_LEVELS, TREND_BRANDS, ConfigError, SearchConfig, resale_name
+from .knowledge import LETTER_SIZES, TYPE_ALIASES, brand_key, normalize_sizes, resolve_type
 from .notify import TelegramNotifier, money
-from .scoring import normalize
+from .scoring import TYPE_LABELS, normalize
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +31,15 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b>
 /trends minus <i>Marke</i> – Marke entfernen
 /trends an · /trends aus – alle Trend-Marken beobachten / stoppen
 /stufe streng – nur die allergünstigsten (auch: normal, locker)
+
+<b>🎯 Was gemeldet wird</b>
+/groesse S M L – deine Größen (/groesse alle)
+/ohne schuhe · /mit schuhe – Kategorien aus-/einblenden
+/kategorien – alle Kategorien
+/raritaeten an – nur seltene Stücke (vintage, 90er, Made in USA …)
+/preis carhartt jacken 90 – eigenen Marktpreis beibringen
+👍/👎 unter jeder Meldung – der Bot lernt deinen Geschmack (/vorlieben)
+/probelauf – Testlauf mit Musterdaten
 
 <b>🔎 Normale Suchen</b>
 /neu <i>Begriff</i> – neue Suche, z. B.
@@ -219,6 +229,11 @@ class TelegramController(threading.Thread):
             "/marke": self.cmd_brand, "/brand": self.cmd_brand, "/resale": self.cmd_brand,
             "/trends": self.cmd_trends, "/trend": self.cmd_trends,
             "/stufe": self.cmd_level, "/filter": self.cmd_level,
+            "/groesse": self.cmd_sizes, "/größe": self.cmd_sizes, "/groessen": self.cmd_sizes,
+            "/größen": self.cmd_sizes, "/size": self.cmd_sizes,
+            "/ohne": self.cmd_without, "/mit": self.cmd_with, "/kategorien": self.cmd_types,
+            "/raritaeten": self.cmd_rare, "/raritäten": self.cmd_rare, "/rare": self.cmd_rare,
+            "/vorlieben": self.cmd_prefs, "/preis": self.cmd_price, "/probelauf": self.cmd_sample,
             "/suchen": self.cmd_list, "/liste": self.cmd_list, "/list": self.cmd_list,
             "/loeschen": self.cmd_delete, "/löschen": self.cmd_delete, "/delete": self.cmd_delete,
             "/pause": self.cmd_pause, "/weiter": self.cmd_resume, "/resume": self.cmd_resume,
@@ -473,6 +488,143 @@ class TelegramController(threading.Thread):
             lines.append(f"Letzter Fehler: {html.escape(str(st['last_error'])[:200])}")
         self.reply("\n".join(lines))
 
+    # -- Filter: Größe, Kategorien, Raritäten ----------------------------------------
+
+    def cmd_sizes(self, arg: str) -> None:
+        a = arg.strip().lower()
+        if a in ("alle", "all", "egal", "*"):
+            self.storage.set_json("filter_sizes", [])
+            self.reply("✅ Alle Größen werden gemeldet.")
+            return
+        if a in ("standard", "reset", "config"):
+            self.storage.delete_state("filter_sizes")
+        elif a:
+            sizes = normalize_sizes(re.split(r"[\s,;]+", arg))
+            self.storage.set_json("filter_sizes", sizes)
+        sizes = self.monitor.global_filters()["sizes"]
+        now = ", ".join(sizes) if sizes else "alle"
+        self.reply(f"📏 <b>Größen: {html.escape(now)}</b>\n"
+                   "Gilt fürs Resale-Radar. Artikel ohne Größe (Taschen, Caps, One Size) kommen immer durch.\n\n"
+                   "<code>/groesse S M L</code> · <code>/groesse M</code> · <code>/groesse M L 32</code> · "
+                   "<code>/groesse alle</code>\n"
+                   f"Buchstaben: {' '.join(LETTER_SIZES)} – Zahlen für Schuhe/Jeans möglich.")
+
+    def _type_list(self, arg: str) -> tuple[list[str], list[str]]:
+        found, unknown = [], []
+        for word in re.split(r"[,;]+|\s+und\s+|\s+", arg.strip()):
+            if not word:
+                continue
+            t = resolve_type(word)
+            (found if t else unknown).append(t or word)
+        return found, unknown
+
+    def cmd_without(self, arg: str) -> None:
+        types, unknown = self._type_list(arg)
+        if not types:
+            self.reply("Was soll raus? z. B. <code>/ohne schuhe, taschen</code> – /kategorien zeigt alle.")
+            return
+        hidden = self.monitor.global_filters()["exclude_types"]
+        self.storage.set_json("filter_exclude_types", hidden + [t for t in types if t not in hidden])
+        self._types_reply(unknown)
+
+    def cmd_with(self, arg: str) -> None:
+        types, unknown = self._type_list(arg)
+        if not types:
+            self.reply("Was soll wieder rein? z. B. <code>/mit schuhe</code> – /kategorien zeigt alle.")
+            return
+        hidden = self.monitor.global_filters()["exclude_types"]
+        self.storage.set_json("filter_exclude_types", [t for t in hidden if t not in types])
+        prefs = self.monitor.preferences()  # 👎-Zähler zurücksetzen, sonst wäre es gleich wieder weg
+        for t in types:
+            prefs.pop(f"type:{t}", None)
+        self.storage.set_json("prefs", prefs)
+        self._types_reply(unknown)
+
+    def cmd_types(self, _arg: str = "") -> None:
+        self._types_reply([])
+
+    def _types_reply(self, unknown: list[str]) -> None:
+        hidden = set(self.monitor.global_filters()["exclude_types"])
+        lines = ["<b>🗂 Kategorien im Resale-Radar</b>"]
+        for ptype in TYPE_ALIASES:
+            lines.append(f"{'🚫' if ptype in hidden else '✅'} {TYPE_LABELS.get(ptype, ptype)}")
+        lines.append("\n<code>/ohne schuhe, taschen</code> – ausblenden · <code>/mit schuhe</code> – wieder zeigen")
+        if unknown:
+            lines.append(f"Unbekannt: {html.escape(', '.join(unknown))}")
+        self.reply("\n".join(lines))
+
+    def cmd_rare(self, arg: str) -> None:
+        a = arg.strip().lower()
+        if a in ("an", "on", "nur", "ja"):
+            self.storage.set_state("only_rare", "1")
+        elif a in ("aus", "off", "nein"):
+            self.storage.set_state("only_rare", "0")
+        on = self.monitor.global_filters()["only_rare"]
+        self.reply(("💎 <b>Nur Raritäten: an</b> – ich melde nur noch seltene Stücke "
+                    "(vintage, 90er, Made in USA/Italy, Deadstock, begehrte Modelle wie Carhartt Detroit, "
+                    "Stone Island Ghost, Arc'teryx Veilance …).\n/raritaeten aus – wieder alles")
+                   if on else
+                   ("💎 <b>Nur Raritäten: aus</b> – Raritäten werden markiert und höher bewertet, "
+                    "normale Schnäppchen kommen aber auch.\n/raritaeten an – nur noch Raritäten"))
+
+    def cmd_prefs(self, arg: str) -> None:
+        if arg.strip().lower() in ("reset", "löschen", "loeschen", "zurücksetzen"):
+            self.storage.set_json("prefs", {})
+            self.reply("🧹 Vorlieben zurückgesetzt.")
+            return
+        prefs = {k: v for k, v in self.monitor.preferences().items() if v}
+        if not prefs:
+            self.reply("Noch keine Vorlieben gelernt. Tippe unter Meldungen auf 👍 oder 👎 – "
+                       "dann lerne ich, was dir gefällt.")
+            return
+        lines = ["<b>🧠 Gelernte Vorlieben</b>"]
+        for key, votes in sorted(prefs.items(), key=lambda kv: -kv[1]):
+            kind, _, name = key.partition(":")
+            label = TYPE_LABELS.get(name, name) if kind == "type" else name.title()
+            lines.append(f"{'👍' if votes > 0 else '👎'} {html.escape(label)} ({votes:+d})")
+        lines.append("\nAb 3× 👎 blende ich eine Kategorie aus. /vorlieben reset – alles vergessen")
+        self.reply("\n".join(lines))
+
+    def cmd_price(self, arg: str) -> None:
+        """/preis carhartt jacken 90 – eigenen Marktpreis beibringen."""
+        prices = self.storage.get_json("own_prices", {}) or {}
+        m = re.match(r"^(.+?)\s+(\S+)\s+(\d+(?:[.,]\d+)?|weg|löschen|loeschen)\s*€?$", arg.strip(), re.IGNORECASE)
+        if not m:
+            lines = ["<b>💶 Deine Marktpreise</b>"] + [f"• {html.escape(k.replace('|', ' · '))}: {v:g} €"
+                                                       for k, v in prices.items()]
+            if len(lines) == 1:
+                lines.append("noch keine")
+            lines.append("\nBeibringen: <code>/preis carhartt jacken 90</code>\n"
+                         "Entfernen: <code>/preis carhartt jacken weg</code>")
+            self.reply("\n".join(lines))
+            return
+        brand, type_word, value = m.group(1), m.group(2), m.group(3)
+        ptype = resolve_type(type_word)
+        if not ptype:
+            self.reply(f"Kategorie '{html.escape(type_word)}' kenne ich nicht. /kategorien zeigt alle.")
+            return
+        key = f"{brand_key(brand)}|{ptype}"
+        if value.lower() in ("weg", "löschen", "loeschen"):
+            prices.pop(key, None)
+            self.storage.set_json("own_prices", prices)
+            self.reply(f"🗑 Eigener Preis für {html.escape(brand)} {TYPE_LABELS.get(ptype, ptype)} entfernt.")
+            return
+        prices[key] = float(value.replace(",", "."))
+        self.storage.set_json("own_prices", prices)
+        self.reply(f"✅ Gemerkt: {html.escape(brand.title())} {TYPE_LABELS.get(ptype, ptype)} sind ca. "
+                   f"<b>{prices[key]:g} €</b> wert. Danach rechne ich Rabatt und Gewinn.")
+
+    def cmd_sample(self, _arg: str = "") -> None:
+        from .sample_data import run_sample
+
+        self.reply("🧪 Probelauf mit Musterdaten läuft …")
+        result = run_sample(self.monitor.cfg, source_storage=self.storage)
+        self.reply(result.summary_html())
+        for alert in result.alerts[:3]:
+            alert.demo = True
+            alert.search_name = "🧪 PROBELAUF (Musterdaten – nicht echt)"
+            self.tg.send_alert(alert)
+
     # -- Buttons -----------------------------------------------------------------
 
     def _answer(self, cb: dict, text: str = "") -> None:
@@ -484,6 +636,16 @@ class TelegramController(threading.Thread):
     def handle_callback(self, cb: dict) -> None:
         data = cb.get("data") or ""
         kind, _, rest = data.partition(":")
+        if kind == "fb":
+            vote, _, item_id_s = rest.partition(":")
+            try:
+                text = self.monitor.record_feedback(int(item_id_s), vote == "1")
+            except ValueError:
+                text = "Ungültiger Button"
+            self._answer(cb, text)
+            if "ab jetzt aus" in text:
+                self.reply(html.escape(text))
+            return
         if kind == "no":
             self._answer(cb, "Abgebrochen")
             self._edit(cb, "❌ Angebot abgebrochen.")
