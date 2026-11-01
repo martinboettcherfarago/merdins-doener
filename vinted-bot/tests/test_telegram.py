@@ -160,3 +160,43 @@ def test_offer_daily_limit(bot):
     ctl.handle_update(cb("ok:1:2400"))
     assert account.offers == []
     assert "höchstens 25" in tg.texts()[-1]
+
+
+def test_extract_resale_options():
+    from vinted_bot.telegram_bot import extract_options
+    rest, opts = extract_options("nike air max 90 bis 80 rabatt 50% gewinn 20€ frisch 5 min")
+    assert rest == "nike air max 90"
+    assert opts == {"max_price": "80", "min_discount": "50", "min_profit": "20", "max_age_minutes": "5"}
+
+
+def test_brand_watch_command(bot):
+    ctl, tg, storage, _ = bot
+    ctl.handle_update(msg("/marke stone island bis 300 rabatt 50"))
+    s = storage.custom_searches()[0]
+    assert s.name == "Resale · Stone Island" and s.is_resale and s.brands == ["Stone Island"]
+    assert (s.max_price, s.min_discount, s.min_profit, s.max_age_minutes) == (300, 50, 15, 10)
+    assert "Marktpreise dieser Marke" in tg.texts()[-1]
+
+    ctl.handle_update(msg("/marke Stone Island"))
+    assert "schon beobachtet" in tg.texts()[-1]
+    ctl.handle_update(msg("/marke jacquemus"))
+    assert storage.custom_searches()[-1].name == "Resale · Jacquemus"
+
+    ctl.handle_update(msg("/suchen"))
+    assert "💰 Resale · 0–300 € · ≥ 50 % unter Markt · ≥ 15 € Gewinn · max. 10 Min. alt" in tg.texts()[-1]
+
+
+def test_trends_command(bot):
+    from vinted_bot.config import TREND_BRANDS
+    ctl, tg, storage, _ = bot
+    ctl.handle_update(msg("/trends"))
+    assert "▫️ Carhartt" in tg.texts()[-1]
+    ctl.handle_update(msg("/trends an"))
+    assert len(storage.custom_searches()) == len(TREND_BRANDS)
+    assert f"{len(TREND_BRANDS)} Trend-Marken" in tg.texts()[-1]
+    ctl.handle_update(msg("/trends an"))  # kein doppeltes Anlegen
+    assert len(storage.custom_searches()) == len(TREND_BRANDS)
+    ctl.handle_update(msg("/trends"))
+    assert "✅ Carhartt" in tg.texts()[-1]
+    ctl.handle_update(msg("/trends aus"))
+    assert storage.custom_searches() == []

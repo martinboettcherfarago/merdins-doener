@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS seen (
 CREATE TABLE IF NOT EXISTS prices (
     search TEXT NOT NULL,
     price REAL NOT NULL,
-    ts REAL NOT NULL
+    ts REAL NOT NULL,
+    grp TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS prices_search ON prices (search, ts);
 CREATE TABLE IF NOT EXISTS items (
@@ -46,6 +47,11 @@ class Storage:
         self._lock = threading.Lock()
         self._db = sqlite3.connect(path, check_same_thread=False)
         self._db.executescript(SCHEMA)
+        # ältere Datenbanken: Spalte für die Vergleichsgruppe nachrüsten
+        cols = {r[1] for r in self._db.execute("PRAGMA table_info(prices)")}
+        if "grp" not in cols:
+            self._db.execute("ALTER TABLE prices ADD COLUMN grp TEXT NOT NULL DEFAULT ''")
+        self._db.execute("CREATE INDEX IF NOT EXISTS prices_grp ON prices (grp, ts)")
         self._db.commit()
 
     def close(self) -> None:
@@ -68,10 +74,20 @@ class Storage:
                              (search, item.id, item.price, search, item.id, now))
             self._db.commit()
 
-    def add_price(self, search: str, price: float) -> None:
+    def add_price(self, search: str, price: float, group: str = "") -> None:
         with self._lock:
-            self._db.execute("INSERT INTO prices (search, price, ts) VALUES (?, ?, ?)", (search, price, time.time()))
+            self._db.execute("INSERT INTO prices (search, price, ts, grp) VALUES (?, ?, ?, ?)",
+                             (search, price, time.time(), group))
             self._db.commit()
+
+    def group_history(self, group: str, limit: int = 300) -> list[float]:
+        """Preise einer Vergleichsgruppe (z. B. alle Carhartt-Jacken), über alle Suchen hinweg."""
+        if not group:
+            return []
+        with self._lock:
+            rows = self._db.execute("SELECT price FROM prices WHERE grp=? ORDER BY ts DESC LIMIT ?",
+                                    (group, limit)).fetchall()
+        return [r[0] for r in rows]
 
     def price_history(self, search: str, limit: int = 300) -> list[float]:
         with self._lock:

@@ -14,6 +14,18 @@ DEFAULT_EXCLUDE_WORDS = [
 ]
 
 
+# Marken, die sich auf Vinted gerade besonders gut weiterverkaufen lassen (Streetwear, Outdoor,
+# Sneaker). Trends ändern sich – die Liste kannst du in der config.yaml überschreiben.
+TREND_BRANDS = [
+    "Carhartt", "Stüssy", "Arc'teryx", "Salomon", "The North Face", "Patagonia", "Ralph Lauren",
+    "Lacoste", "Stone Island", "C.P. Company", "New Balance", "Asics", "Levi's", "Dickies",
+    "Barbour", "Nike", "Adidas",
+]
+
+# Voreinstellungen für Resale-Suchen: nur ganz frische Artikel weit unter Marktpreis
+RESALE_DEFAULTS = {"max_age_minutes": 10, "min_discount": 40.0, "min_profit": 15.0, "min_condition": "gut"}
+
+
 class ConfigError(Exception):
     pass
 
@@ -33,6 +45,15 @@ class SearchConfig:
     min_score: int = 0                   # nur Deals ab diesem Score (0-100) melden
     enabled: bool = True
     source: str = "config"               # "config" oder "telegram"
+    mode: str = "standard"               # "standard" oder "resale"
+    min_discount: Optional[float] = None  # mind. x % unter Marktpreis
+    min_profit: Optional[float] = None    # mind. x € Gewinn-Potenzial beim Weiterverkauf
+    max_age_minutes: Optional[int] = None  # nur Artikel, die höchstens so alt sind
+    min_condition: Optional[str] = None   # z. B. "sehr gut" -> schlechtere Zustände ignorieren
+
+    @property
+    def is_resale(self) -> bool:
+        return self.mode == "resale"
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], source: str = "config") -> "SearchConfig":
@@ -59,6 +80,10 @@ class SearchConfig:
             except (TypeError, ValueError):
                 raise ConfigError(f"Suche '{name}': '{key}' muss eine Zahl sein, nicht {v!r}.")
 
+        mode = str(data.get("mode") or "standard").strip().lower()
+        if mode not in ("standard", "resale"):
+            raise ConfigError(f"Suche '{name}': 'mode' muss 'standard' oder 'resale' sein.")
+        age = _num("max_age_minutes")
         return cls(
             name=name,
             url=data.get("url") or None,
@@ -73,7 +98,20 @@ class SearchConfig:
             min_score=int(data.get("min_score") or 0),
             enabled=bool(data.get("enabled", True)),
             source=source,
+            mode=mode,
+            min_discount=_num("min_discount"),
+            min_profit=_num("min_profit"),
+            max_age_minutes=int(age) if age is not None else None,
+            min_condition=str(data["min_condition"]).strip() if data.get("min_condition") else None,
         )
+
+    @classmethod
+    def resale_for_brand(cls, brand: str, source: str = "config", **overrides: Any) -> "SearchConfig":
+        """Resale-Suche für eine Marke: nur frische Artikel dieser Marke weit unter Marktpreis."""
+        data: dict[str, Any] = {"name": f"Resale · {brand}", "keywords": brand, "brands": [brand],
+                                "mode": "resale", **RESALE_DEFAULTS}
+        data.update({k: v for k, v in overrides.items() if v is not None})
+        return cls.from_dict(data, source=source)
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if v not in (None, [], "") and k != "source"}
@@ -88,6 +126,7 @@ class Config:
     proxy: Optional[str] = None
     price_drop_percent: float = 10.0
     top_deal_score: int = 75
+    shipping_estimate: float = 5.0       # geschätzte Versandkosten für die Gewinn-Rechnung
     global_exclude_words: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_WORDS))
 
     telegram_token: str = ""
@@ -169,11 +208,36 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     db = str(data.get("database") or "vinted_bot.db")
     cfg.database = db if os.path.isabs(db) else os.path.join(base_dir, db)
 
+    searches = [SearchConfig.from_dict(raw) for raw in data.get("searches") or []]
+    searches += resale_searches(data.get("resale") or {})
     names = set()
-    for raw in data.get("searches") or []:
-        s = SearchConfig.from_dict(raw)
+    for s in searches:
         if s.name in names:
             raise ConfigError(f"Der Suchname '{s.name}' kommt doppelt vor.")
         names.add(s.name)
-        cfg.searches.append(s)
+    cfg.searches = searches
+    cfg.shipping_estimate = float((data.get("resale") or {}).get("shipping_estimate") or 5.0)
     return cfg
+
+
+def resale_searches(section: dict[str, Any]) -> list[SearchConfig]:
+    """Der 'resale:'-Abschnitt: eine Resale-Suche pro Marke ('trends' = eingebaute Trend-Liste)."""
+    if not isinstance(section, dict) or not section.get("enabled", True) or not section.get("brands"):
+        return []
+    brands = section["brands"]
+    if isinstance(brands, str):
+        brands = TREND_BRANDS if brands.strip().lower() in ("trends", "trend") else [brands]
+    overrides = {k: section.get(k) for k in ("max_age_minutes", "min_discount", "min_profit", "min_condition",
+                                               "min_price", "max_price", "sizes", "exclude_words")}
+    out = []
+    for brand in brands:
+        brand = str(brand).strip()
+        if brand.lower() in ("trends", "trend"):
+            out += [SearchConfig.resale_for_brand(b, **overrides) for b in TREND_BRANDS]
+        elif brand:
+            out.append(SearchConfig.resale_for_brand(brand, **overrides))
+    # doppelte Marken (z. B. "trends" + "Nike") nur einmal
+    unique: dict[str, SearchConfig] = {}
+    for s in out:
+        unique.setdefault(s.name, s)
+    return list(unique.values())

@@ -25,6 +25,7 @@ class Alert:
     kind: str = "new"                 # "new" oder "price_drop"
     old_price: Optional[float] = None
     offers: list[float] = field(default_factory=list)
+    resale: bool = False              # aus einer Resale-Suche (Gewinn-Potenzial anzeigen)
 
 
 def money(value: Optional[float], currency: str = "EUR") -> str:
@@ -52,6 +53,9 @@ def headline(alert: Alert) -> str:
     if alert.kind == "price_drop":
         return (f"📉 PREIS GESENKT · {money(alert.old_price, alert.item.currency)} → "
                 f"{money(alert.item.price, alert.item.currency)} · Score {s.total}/100")
+    if alert.resale and s.discount is not None:
+        fire = "🔥" if s.is_top else ""
+        return f"{fire}💰 RESALE-DEAL · {s.discount:.0%} unter Markt · Score {s.total}/100"
     if s.is_top:
         return f"🔥 TOP-DEAL · Score {s.total}/100"
     return f"🆕 Neu · Score {s.total}/100"
@@ -63,12 +67,18 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
     if it.total_price and it.total_price > it.price:
         price_line += f"  (mit Käuferschutz {money(it.total_price, it.currency)})"
     lines = [price_line]
+    if alert.resale and alert.score.profit is not None:
+        sign = "+" if alert.score.profit >= 0 else "−"
+        lines.append(f"💰 Gewinn-Potenzial ca. {sign}{money(abs(alert.score.profit), it.currency)} "
+                     f"(Weiterverkauf zum Marktpreis, nach Käuferschutz & Versand)")
+    if alert.resale and it.created_ts:
+        lines.append(f"⚡ {age_text(it.created_ts, now)} hochgeladen")
     lines += [f"📊 {r}" for r in alert.score.reasons]
     meta = " · ".join(x for x in (it.brand, f"Gr. {it.size}" if it.size else "", it.condition) if x)
     if meta:
         lines.append(f"🏷 {meta}")
     extra = " · ".join(x for x in (f"❤️ {it.favourites} Favoriten" if it.favourites else "",
-                                   f"⏱ {age_text(it.created_ts, now)}" if it.created_ts else "",
+                                   f"⏱ {age_text(it.created_ts, now)}" if it.created_ts and not alert.resale else "",
                                    f"👤 {it.seller_login}" if it.seller_login else "") if x)
     if extra:
         lines.append(extra)

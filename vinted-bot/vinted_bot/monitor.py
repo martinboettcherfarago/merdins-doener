@@ -11,7 +11,8 @@ from typing import Any, Callable, Optional
 from .config import Config, SearchConfig
 from .models import Item
 from .notify import Alert
-from .scoring import passes_filters, reference_price, score_item, suggest_offers
+from .scoring import (TYPE_LABELS, market_reference, meets_targets, passes_filters, price_group,
+                      score_item, suggest_offers)
 from .storage import Storage
 from .vinted import VintedBlocked, VintedClient, VintedRateLimited, query_for_search
 
@@ -48,59 +49,88 @@ class Monitor:
 
     # -- Kernlogik ---------------------------------------------------------------
 
-    def _make_alert(self, search: SearchConfig, item: Item, history: list[float], now: float,
-                    kind: str = "new", old_price: Optional[float] = None) -> Optional[Alert]:
+    def _max_age_seconds(self, search: SearchConfig) -> int:
+        minutes = search.max_age_minutes if search.max_age_minutes is not None else self.cfg.max_item_age_minutes
+        return int(minutes or 0) * 60
+
+    def _per_page(self, search: SearchConfig) -> int:
+        # Resale-Suchen über ganze Marken: mehr Artikel pro Abfrage, damit nichts Frisches durchrutscht
+        return 96 if search.is_resale else self.cfg.per_page
+
+    def evaluate(self, search: SearchConfig, item: Item, now: float, kind: str = "new",
+                 old_price: Optional[float] = None, extra: Optional[list[Item]] = None) -> Optional[Alert]:
+        """Bewertet einen Artikel. Gibt einen Alarm zurück, wenn er alle Filter und Ziele der Suche erfüllt."""
         ok, _why = passes_filters(item, search, self.cfg.global_exclude_words)
         if not ok:
             return None
-        ref = reference_price(search.market_price, history)
-        score = score_item(item, ref, self.cfg.top_deal_score, now)
-        if kind == "price_drop":
+        group = price_group(search, item)
+        group_prices = self.storage.group_history(group)
+        search_prices = self.storage.price_history(search.name)
+        if extra is not None:  # Scan: die anderen aktuellen Treffer als Vergleich mitzählen
+            others = [i for i in extra if i.id != item.id]
+            group_prices = group_prices + [i.price for i in others if price_group(search, i) == group]
+            search_prices = search_prices + [i.price for i in others]
+        ptype = group.rsplit("|", 1)[-1]
+        brand = (item.brand or (search.brands[0] if search.brands else "")) if search.is_resale else ""
+        label = f"ähnliche {brand + ' ' if brand else ''}{TYPE_LABELS.get(ptype, 'Artikel')}"
+        ref = market_reference(search, group_prices, search_prices, label)
+        score = score_item(item, ref, self.cfg.top_deal_score, now, resale=search.is_resale,
+                           shipping=self.cfg.shipping_estimate)
+        if kind == "price_drop" and old_price:
             score.reasons.insert(0, f"Preis um {1 - item.price / old_price:.0%} gesenkt")
-        if score.total < search.min_score:
+        ok, _why = meets_targets(search, score)
+        if not ok:
             return None
         return Alert(item=item, search_name=search.name, score=score, buy_url=item.buy_url(self.cfg.web_base),
-                     kind=kind, old_price=old_price,
+                     kind=kind, old_price=old_price, resale=search.is_resale,
                      offers=suggest_offers(item.price, self.cfg.offer_discounts))
 
     def check_search(self, search: SearchConfig) -> list[Alert]:
         """Fragt eine Suche ab und liefert die Treffer, die gemeldet werden sollen."""
-        items = self.client.search(query_for_search(search, self.cfg.currency), per_page=self.cfg.per_page)
+        items = self.client.search(query_for_search(search, self.cfg.currency), per_page=self._per_page(search))
         self.stats["checked"] += len(items)
         seeded = self.storage.is_seeded(search.name)
         now = self.clock()
-        max_age = self.cfg.max_item_age_minutes * 60
+        max_age = self._max_age_seconds(search)
         drop_factor = 1 - self.cfg.price_drop_percent / 100
 
-        candidates: list[tuple[Item, str, Optional[float]]] = []
+        alerts = []
         for item in items:
             prev = self.storage.seen_price(search.name, item.id)
+            alert = None
             if prev is None:
+                too_old = bool(max_age and item.created_ts and now - item.created_ts > max_age)
+                # erster Durchlauf: nur Preise lernen; alte (nur hochgeschobene) Artikel nie melden
+                if seeded and not too_old:
+                    alert = self.evaluate(search, item, now)  # bewerten, bevor der eigene Preis mitzählt
                 self.storage.mark_seen(search.name, item)
-                self.storage.add_price(search.name, item.price)
-                if not seeded:
-                    continue  # erster Durchlauf: nur Preise lernen, nicht alles Alte melden
-                if max_age and item.created_ts and now - item.created_ts > max_age:
-                    continue  # alter Artikel, der nur nach oben geschoben wurde
-                candidates.append((item, "new", None))
+                self.storage.add_price(search.name, item.price, price_group(search, item))
             elif item.price != prev:
                 self.storage.mark_seen(search.name, item)
                 if item.price <= prev * drop_factor:
-                    candidates.append((item, "price_drop", prev))
+                    alert = self.evaluate(search, item, now, "price_drop", prev)
+            if alert:
+                alerts.append(alert)
 
         if not seeded:
             self.storage.set_seeded(search.name)
             log.info("Suche '%s': %d Artikel als Ausgangsbasis gespeichert.", search.name, len(items))
-
-        alerts = []
-        if candidates:
-            history = self.storage.price_history(search.name)
-            for item, kind, old in candidates:
-                alert = self._make_alert(search, item, history, now, kind, old)
-                if alert:
-                    alerts.append(alert)
         alerts.sort(key=lambda a: a.score.total, reverse=True)
         return alerts
+
+    def rank_items(self, search: SearchConfig, items: list[Item]) -> list[Alert]:
+        """Für 'scan': alle aktuellen Treffer bewerten, ohne etwas zu speichern."""
+        now = self.clock()
+        max_age = self._max_age_seconds(search) if search.is_resale else 0
+        out = []
+        for item in items:
+            if max_age and item.created_ts and now - item.created_ts > max_age:
+                continue
+            alert = self.evaluate(search, item, now, extra=items)
+            if alert:
+                out.append(alert)
+        out.sort(key=lambda a: a.score.total, reverse=True)
+        return out
 
     def run_once(self) -> int:
         """Ein Durchlauf über alle aktiven Suchen. Gibt die Zahl der gesendeten Meldungen zurück."""

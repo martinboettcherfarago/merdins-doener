@@ -20,6 +20,8 @@ Nike Air Max 90
 
 | | |
 |---|---|
+| 💰 **Resale-Radar** | beobachtet ganze Marken (z. B. eingebaute Trend-Liste) und meldet nur **ganz frisch hochgeladene** Artikel, die **weit unter Marktpreis** liegen, mit geschätztem Gewinn |
+| 🏷 **Marken-Filter** | strenger Abgleich mit der Marken-Angabe des Artikels: Ein No-Name-Teil „im Carhartt-Style“ zählt nicht |
 | 🔎 **Beliebig viele Suchen** | Suchbegriff + Preis, oder einfach einen Vinted-Link mit allen Filtern (Marke, Größe, Zustand, Kategorie) einfügen |
 | ⏱ **Ständig aktuell** | prüft standardmäßig jede Minute und meldet nur **neue** Artikel |
 | 📊 **Findet die guten Sachen** | vergleicht jeden Preis mit dem üblichen Marktpreis, achtet auf Zustand, Frische und Beliebtheit |
@@ -68,6 +70,65 @@ Beim ersten Durchlauf merkt sich der Bot die Artikel, die gerade online sind, un
 
 ---
 
+## 💰 Resale-Radar: frische Schnäppchen zum Weiterverkaufen
+
+Der Resale-Modus ist für alle, die günstig kaufen und teurer weiterverkaufen wollen. Er beobachtet **ganze Marken** und meldet nur Artikel, die alle drei Bedingungen erfüllen:
+
+1. **ganz frisch:** höchstens 10 Minuten online
+2. **weit unter Marktpreis:** mindestens 40 % billiger
+3. **lohnt sich:** mindestens 15 € Gewinn nach Käuferschutz und Versand
+
+```
+🔥💰 RESALE-DEAL · 62% unter Markt · Score 91/100
+Nike Air Max 90 OG
+
+💶 15,00 €  (mit Käuferschutz 16,50 €)
+💰 Gewinn-Potenzial ca. +18,50 € (Weiterverkauf zum Marktpreis, nach Käuferschutz & Versand)
+⚡ vor 1 Min. hochgeladen
+📊 62% unter Marktpreis (Ø 40 € · 10 ähnliche Nike Schuhe)
+🏷 Nike · Gr. 43 · Sehr gut
+```
+
+**Wie der Marktpreis entsteht:** Der Bot sammelt die Preise aller Artikel, die er sieht, getrennt nach **Marke und Produkttyp**. Er erkennt Jacken, Hoodies, Pullover, Shirts, Hosen, Schuhe, Mützen, Taschen und mehr am Titel. Eine Carhartt-Mütze für 20 € wird also nie mit einer Carhartt-Jacke für 100 € verglichen. Gemeldet wird erst, wenn mindestens 5 Vergleichspreise da sind. Nach dem Start braucht der Bot deshalb ein paar Durchläufe zum Lernen.
+
+### Einschalten in der `config.yaml`
+```yaml
+resale:
+  enabled: true
+  brands: trends            # eingebaute Trend-Liste – oder eigene: [Carhartt, Stüssy, Arc'teryx]
+  max_age_minutes: 10       # nur Artikel, die höchstens 10 Min. online sind
+  min_discount: 40          # mind. 40 % unter Marktpreis
+  min_profit: 15            # mind. 15 € Gewinn-Potenzial
+  min_condition: gut        # "zufriedenstellend" ignorieren
+  max_price: 250
+  shipping_estimate: 5      # Versandkosten für die Gewinn-Rechnung
+```
+
+**Eingebaute Trend-Marken** (`brands: trends`): Carhartt, Stüssy, Arc'teryx, Salomon, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, New Balance, Asics, Levi's, Dickies, Barbour, Nike und Adidas. Trends ändern sich, deshalb kannst du die Liste jederzeit durch deine eigene ersetzen.
+
+### Oder per Telegram
+```
+/marke stone island                     eine Marke beobachten
+/marke carhartt bis 80 rabatt 50 gewinn 20 frisch 5
+/trends                                 Trend-Liste anzeigen
+/trends an   ·   /trends aus            alle Trend-Marken beobachten / entfernen
+```
+
+Die Resale-Kriterien gibt es auch für normale Suchen:
+`/neu salomon xt-6 bis 90 rabatt 35 frisch 15` oder in der config `min_discount`, `min_profit`, `max_age_minutes` und `min_condition`.
+
+**Tipps:**
+- Je kleiner `interval_seconds` (z. B. 30–45), desto früher bist du dran. Zu klein führt aber zu Blockaden durch Vinted.
+- Bei 17 Trend-Marken dauert ein Durchlauf rund eine Minute, weil der Bot zwischen den Abfragen kurz wartet. Weniger Marken heißt schnellere Meldungen.
+- Der „Marktpreis“ ist der Median der **Angebotspreise** auf Vinted. Verkauft wird oft etwas darunter. Rechne den Gewinn deshalb lieber vorsichtig.
+- Bei Luxusmarken auf Fakes achten. Wörter wie „replica“ filtert der Bot schon raus, echte Prüfung ersetzt das nicht.
+
+```bash
+./start.sh scan --suche resale      # sofort die besten aktuellen Resale-Deals anzeigen
+```
+
+---
+
 ## Suchen festlegen
 
 ### In der `config.yaml`
@@ -95,7 +156,12 @@ searches:
 | `market_price` | typischer Preis. Ohne Angabe lernt der Bot ihn selbst aus den Suchergebnissen |
 | `min_score` | nur Treffer ab diesem Deal-Score melden (0 = alle) |
 | `sizes` | nur diese Größen, z. B. `["M", "L"]` oder `["43"]` |
-| `brands` | nur diese Marken |
+| `brands` | nur diese Marken (strenger Abgleich mit der Marken-Angabe des Artikels, z. B. `[Carhartt, Stüssy]`) |
+| `mode: resale` | Resale-Bewertung: Frische zählt mehr, Marktpreis je Marke + Produkttyp |
+| `min_discount` | nur Artikel mind. x % unter Marktpreis |
+| `min_profit` | nur Artikel mit mind. x € Gewinn-Potenzial |
+| `max_age_minutes` | nur Artikel, die höchstens x Minuten online sind |
+| `min_condition` | Mindest-Zustand, z. B. `sehr gut` |
 | `must_contain` | diese Wörter müssen im Titel stehen |
 | `exclude_words` | diese Wörter dürfen nicht im Titel stehen |
 | `enabled: false` | Suche vorübergehend aus |
@@ -105,6 +171,8 @@ searches:
 /neu nike air max 90 bis 40 score 60
 /neu carhartt jacke ab 20 bis 60 markt 80
 /neu https://www.vinted.de/catalog?search_text=…   (Link mit Filtern)
+/neu salomon xt-6 bis 90 rabatt 35 frisch 15
+/marke stüssy    Resale-Radar für eine Marke    /trends   Trend-Marken
 /suchen          alle Suchen mit Nummer
 /pause 2         Suche 2 anhalten     /weiter 2   fortsetzen
 /loeschen 2      Suche 2 löschen
@@ -123,8 +191,10 @@ searches:
 | **Frische** | bis 10 | in den letzten 5 Minuten eingestellt = 10 (wer zuerst kommt, kauft zuerst) |
 | **Beliebtheit** | bis 10 | viele Favoriten kurz nach dem Einstellen = begehrt |
 
+**Resale-Suchen** werden anders gewichtet: **Preis 55** (erst ab großen Rabatten, 60 % darunter = volle Punktzahl), **Frische 25** (≤ 2 Min. = 25, ≤ 5 Min. = 20, ≤ 10 Min. = 14), Zustand 10, Beliebtheit 10.
+
 Ab **75 Punkten** gibt's 🔥 **TOP-DEAL** (einstellbar mit `top_deal_score`).
-Den Marktpreis lernt der Bot aus allen Artikeln, die er in einer Suche sieht (Median). Wenn du ihn kennst, trag ihn besser als `market_price` ein.
+Den Marktpreis lernt der Bot aus allen Artikeln, die er sieht (Median), getrennt nach Produkttyp. Wenn du ihn kennst, trag ihn besser als `market_price` ein.
 
 ---
 

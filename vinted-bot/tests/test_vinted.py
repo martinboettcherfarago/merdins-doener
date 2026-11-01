@@ -152,6 +152,11 @@ def test_example_config_is_valid():
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.example.yaml")
     cfg = load_config(path)
     assert cfg.domain == "de" and cfg.web_base == "https://www.vinted.de"
-    assert [s.name for s in cfg.searches] == ["Air Max 90", "Carhartt Jacken", "Levi's 501"]
+    names = [s.name for s in cfg.searches]
+    assert names[:3] == ["Air Max 90", "Carhartt Jacken", "Levi's 501"]
+    assert "Resale · Stone Island" in names and len(names) == 3 + 17
+    resale = cfg.searches[3]
+    assert resale.is_resale and resale.max_age_minutes == 10 and resale.min_discount == 40
+    assert resale.max_price == 250 and cfg.shipping_estimate == 5
     assert cfg.searches[1].min_score == 60 and cfg.searches[2].enabled is False
     assert cfg.account_enabled is False

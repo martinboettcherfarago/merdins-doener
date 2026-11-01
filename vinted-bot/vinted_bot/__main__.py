@@ -14,7 +14,7 @@ from . import __version__
 from .config import Config, ConfigError, load_config
 from .models import Item
 from .notify import Alert, DiscordNotifier, MultiNotifier, NtfyNotifier, TelegramNotifier, money
-from .scoring import DealScore, passes_filters, reference_price, score_item, suggest_offers
+from .scoring import score_item, suggest_offers
 from .storage import Storage
 from .vinted import VintedClient, VintedError, query_for_search
 
@@ -84,7 +84,12 @@ def cmd_run(cfg: Config) -> int:
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
-    names = ", ".join(s.name for s in monitor.active_searches()) or "noch keine"
+    active = monitor.active_searches()
+    resale_brands = [s.brands[0] if s.brands else s.name for s in active if s.is_resale]
+    names = ", ".join(s.name for s in active if not s.is_resale) or "–"
+    if resale_brands:
+        names += f"\n💰 Resale-Radar: {len(resale_brands)} Marken ({', '.join(resale_brands[:6])}" \
+                 + (" …)" if len(resale_brands) > 6 else ")")
     log.info("Vinted-Bot %s gestartet (vinted.%s, alle %ss). Suchen: %s",
              __version__, cfg.domain, cfg.interval_seconds, names)
     notifier.send_text(
@@ -105,43 +110,40 @@ def _wait_forever(controller: Any) -> None:
         controller.stop()
 
 
-def cmd_scan(cfg: Config, top: int, send: bool) -> int:
+def cmd_scan(cfg: Config, top: int, send: bool, name_filter: str = "") -> int:
     """Zeigt sofort die besten aktuellen Angebote jeder Suche (ohne etwas als gesehen zu markieren)."""
-    client = VintedClient(cfg.domain, proxy=cfg.proxy)
+    from .monitor import Monitor
+
     storage = Storage(cfg.database)
     notifier, _ = build_notifiers(cfg, offers_via_bot=False)
-    if not cfg.searches and not storage.custom_searches():
-        print("Keine Suchen in der config.yaml.")
+    monitor = Monitor(cfg, VintedClient(cfg.domain, proxy=cfg.proxy), storage, notifier)
+    searches = [s for s in monitor.all_searches()
+                if s.enabled and name_filter.lower() in s.name.lower()]
+    if not searches:
+        print("Keine (passenden) Suchen in der config.yaml.")
         return 2
-    now = time.time()
-    for search in cfg.searches + storage.custom_searches():
-        if not search.enabled:
-            continue
+    for search in searches:
         print(f"\n=== {search.name} ===")
         try:
-            items = client.search(query_for_search(search, cfg.currency), per_page=cfg.per_page)
+            items = monitor.client.search(query_for_search(search, cfg.currency), per_page=monitor._per_page(search))
         except VintedError as e:
             print(f"  Fehler: {e}")
             continue
-        history = storage.price_history(search.name) + [i.price for i in items]
-        ref = reference_price(search.market_price, history)
-        scored: list[tuple[DealScore, Item]] = []
-        for item in items:
-            ok, _ = passes_filters(item, search, cfg.global_exclude_words)
-            if ok:
-                scored.append((score_item(item, ref, cfg.top_deal_score, now), item))
-        scored.sort(key=lambda x: x[0].total, reverse=True)
-        print(f"  {len(items)} Artikel gefunden, {len(scored)} passen zu deinen Filtern"
-              + (f", Referenzpreis {money(ref, cfg.currency)}" if ref else ""))
-        for score, item in scored[:top]:
-            mark = "🔥" if score.is_top else "  "
-            print(f"  {mark} {score.total:3d}/100  {money(item.price, item.currency):>10}  {item.title[:60]}")
-            print(f"              {item.url}")
+        alerts = monitor.rank_items(search, items)
+        hint = " (nur frische, weit unter Marktpreis)" if search.is_resale else ""
+        print(f"  {len(items)} Artikel gefunden, {len(alerts)} erfüllen deine Kriterien{hint}")
+        for a in alerts[:top]:
+            mark = "🔥" if a.score.is_top else "  "
+            extra = ""
+            if a.score.discount is not None:
+                extra = f"  −{a.score.discount:.0%}"
+            if search.is_resale and a.score.profit is not None:
+                extra += f"  Gewinn ~{money(a.score.profit, a.item.currency)}"
+            print(f"  {mark} {a.score.total:3d}/100  {money(a.item.price, a.item.currency):>10}{extra}  {a.item.title[:50]}")
+            print(f"              {a.item.url}")
             if send:
-                storage.save_item(item)
-                notifier.send_alert(Alert(item=item, search_name=search.name, score=score,
-                                          buy_url=item.buy_url(cfg.web_base),
-                                          offers=suggest_offers(item.price, cfg.offer_discounts)))
+                storage.save_item(a.item)
+                notifier.send_alert(a)
         time.sleep(2)
     storage.close()
     return 0
@@ -194,6 +196,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     p_scan = sub.add_parser("scan", help="beste aktuelle Angebote sofort anzeigen")
     p_scan.add_argument("--top", type=int, default=5, help="wie viele pro Suche (Standard 5)")
     p_scan.add_argument("--send", action="store_true", help="die Treffer auch als Benachrichtigung schicken")
+    p_scan.add_argument("--suche", default="", help="nur Suchen, deren Name diesen Text enthält")
     sub.add_parser("test-notify", help="Testnachricht an alle Kanäle schicken")
     sub.add_parser("chat-id", help="Telegram-Chat-ID herausfinden")
     args = parser.parse_args(argv)
@@ -210,7 +213,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     command = args.command or "run"
     if command == "scan":
-        return cmd_scan(cfg, args.top, args.send)
+        return cmd_scan(cfg, args.top, args.send, args.suche)
     if command == "test-notify":
         return cmd_test_notify(cfg)
     if command == "chat-id":
