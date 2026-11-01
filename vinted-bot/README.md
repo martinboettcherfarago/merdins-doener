@@ -124,7 +124,7 @@ Per Telegram umschalten: **`/stufe streng`**. Dann kommen wenige Meldungen, aber
 
 Eingebaut sind:
 - **Marken:** Carhartt, Stüssy, Arc'teryx, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, Barbour, Levi's, Dickies, Moncler, Burberry, Miu Miu und Vivienne Westwood
-- **Modelle & Styles:** Nike Tech Fleece, Nike ACG, Vintage Nike, Adidas Trainingsjacke, Ralph Lauren Strick, Polo Bear, Longchamp Le Pliage, Prada Nylon, Coach Tasche, Ed Hardy, Diesel vintage, Vintage Lederjacke, Vintage Trikot, College Jacke, Band Shirt vintage, Harley Davidson und Y2K
+- **Modelle & Styles:** Nike Tech Fleece, Nike ACG, Vintage Nike, Adidas Trainingsjacke, Ralph Lauren Strick, Polo Bear, Longchamp Le Pliage, Prada Nylon, Coach Tasche, Ed Hardy, Diesel vintage, Vintage Lederjacke, Vintage Trikot, College Jacke, Band Shirt vintage, Harley Davidson, Y2K, Vintage Levi's und Bootcut Jeans
 
 Ändern kannst du die Liste per Telegram:
 
@@ -285,7 +285,7 @@ Die Datenbank `vinted_bot.db` (gesehene Artikel, Preise, per Telegram angelegte 
 ## 🧠 Training: Größe, Kategorien, Raritäten und dein Geschmack
 
 ### 📏 Größe & Kategorien
-Standardmäßig meldet das Schnäppchen-Radar nur **S, M und L** und **keine Schuhe**. Artikel ohne Größe (Taschen, Caps, One Size) kommen trotzdem durch.
+Standardmäßig meldet das Schnäppchen-Radar nur **S, M und L** und **keine Schuhe**. Artikel ohne Größe (Taschen, Caps, One Size) kommen trotzdem durch. Jeans- und Zahlengrößen werden umgerechnet: W30 L32 ≈ M, W28 ≈ S/M, 38 ≈ M (Damen), 48 ≈ M (Herren). Wer es genau will, gibt seine Bundweite an, z. B. `/groesse M W30 W31`.
 
 ```
 /groesse S M L        deine Größen (auch Zahlen, z. B. /groesse M 32 für Jeans)
