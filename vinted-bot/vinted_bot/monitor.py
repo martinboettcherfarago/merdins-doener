@@ -8,10 +8,10 @@ import threading
 import time
 from typing import Any, Callable, Optional
 
-from .config import Config, SearchConfig
+from .config import RESALE_LEVELS, TREND_BRANDS, Config, SearchConfig
 from .models import Item
 from .notify import Alert
-from .scoring import (TYPE_LABELS, market_reference, meets_targets, passes_filters, price_group,
+from .scoring import (TYPE_LABELS, market_reference, meets_targets, normalize, passes_filters, price_group,
                       score_item, suggest_offers)
 from .storage import Storage
 from .vinted import VintedBlocked, VintedClient, VintedRateLimited, query_for_search
@@ -32,6 +32,74 @@ class Monitor:
         self.stats: dict[str, Any] = {"started": clock(), "cycles": 0, "checked": 0, "alerts": 0,
                                       "errors": 0, "last_error": "", "last_cycle": 0.0}
         self._blocked_notified = False
+        self._migrate_old_resale_searches()
+
+    def _migrate_old_resale_searches(self) -> None:
+        """Ältere Versionen haben die Resale-Ziele fest in jede Telegram-Suche geschrieben.
+        Diese Standardwerte entfernen, damit die Schnäppchen-Stufe (/stufe) für alle gilt."""
+        if self.storage.get_state("migrated:resale_targets") == "1":
+            return
+        old = {"max_age_minutes": 10, "min_discount": 40.0, "min_profit": 15.0, "min_condition": "gut"}
+        for s in self.storage.custom_searches():
+            if s.is_resale:
+                for key, value in old.items():
+                    if getattr(s, key) == value:
+                        setattr(s, key, None)
+                self.storage.add_search(s)
+        self.storage.set_state("migrated:resale_targets", "1")
+
+    # -- Schnäppchen-Stufe & Trend-Marken --------------------------------------------
+
+    @property
+    def resale_level(self) -> Optional[str]:
+        level = self.storage.get_state("resale_level")
+        return level if level in RESALE_LEVELS else None
+
+    def resale_targets(self) -> dict[str, Any]:
+        """Ziele für Resale-Suchen: per Telegram gewählte Stufe, sonst die Werte aus der config.yaml."""
+        level = self.resale_level
+        return dict(RESALE_LEVELS[level]) if level else dict(self.cfg.resale_targets)
+
+    def effective(self, search: SearchConfig) -> SearchConfig:
+        return search.with_targets(self.resale_targets())
+
+    def trend_brands(self) -> list[str]:
+        """Eingebaute Trend-Marken minus die, die du entfernt hast, plus deine eigenen."""
+        removed = {normalize(b) for b in self.storage.get_list("trends_removed")}
+        brands = [b for b in TREND_BRANDS if normalize(b) not in removed]
+        known = {normalize(b) for b in brands}
+        for b in self.storage.get_list("trends_added"):
+            if normalize(b) not in known:
+                brands.append(b)
+                known.add(normalize(b))
+        return brands
+
+    def add_trend_brand(self, brand: str) -> str:
+        """Nimmt eine Marke in die Trend-Liste auf. Gibt den verwendeten Namen zurück."""
+        key = normalize(brand)
+        builtin = next((b for b in TREND_BRANDS if normalize(b) == key), None)
+        removed = [b for b in self.storage.get_list("trends_removed") if normalize(b) != key]
+        self.storage.set_list("trends_removed", removed)
+        if builtin:
+            return builtin
+        added = self.storage.get_list("trends_added")
+        existing = next((b for b in added if normalize(b) == key), None)
+        if existing:
+            return existing
+        self.storage.set_list("trends_added", added + [brand])
+        return brand
+
+    def remove_trend_brand(self, brand: str) -> Optional[str]:
+        """Entfernt eine Marke aus der Trend-Liste. Gibt den Namen zurück (None, wenn nicht drin)."""
+        key = normalize(brand)
+        current = next((b for b in self.trend_brands() if normalize(b) == key), None)
+        if not current:
+            return None
+        self.storage.set_list("trends_added", [b for b in self.storage.get_list("trends_added")
+                                               if normalize(b) != key])
+        if any(normalize(b) == key for b in TREND_BRANDS):
+            self.storage.set_list("trends_removed", self.storage.get_list("trends_removed") + [current])
+        return current
 
     # -- Suchen ------------------------------------------------------------------
 
@@ -87,6 +155,7 @@ class Monitor:
 
     def check_search(self, search: SearchConfig) -> list[Alert]:
         """Fragt eine Suche ab und liefert die Treffer, die gemeldet werden sollen."""
+        search = self.effective(search)
         items = self.client.search(query_for_search(search, self.cfg.currency), per_page=self._per_page(search))
         self.stats["checked"] += len(items)
         seeded = self.storage.is_seeded(search.name)
@@ -120,6 +189,7 @@ class Monitor:
 
     def rank_items(self, search: SearchConfig, items: list[Item]) -> list[Alert]:
         """Für 'scan': alle aktuellen Treffer bewerten, ohne etwas zu speichern."""
+        search = self.effective(search)
         now = self.clock()
         max_age = self._max_age_seconds(search) if search.is_resale else 0
         out = []

@@ -1,7 +1,8 @@
 import pytest
 
 from conftest import NOW, FakeClient, FakeNotifier, item
-from vinted_bot.config import TREND_BRANDS, ConfigError, SearchConfig, config_from_dict, resale_searches
+from vinted_bot.config import (RESALE_LEVELS, TREND_BRANDS, ConfigError, SearchConfig, config_from_dict,
+                               resale_searches)
 from vinted_bot.monitor import Monitor
 from vinted_bot.notify import Alert, telegram_caption
 from vinted_bot.scoring import (Reference, brand_matches, market_reference, meets_targets, normalize,
@@ -16,10 +17,16 @@ def test_resale_section_trends_and_custom_brands():
     assert [s.name for s in trends] == [f"Resale · {b}" for b in TREND_BRANDS]
     s = trends[0]
     assert s.is_resale and s.keywords == "Carhartt" and s.brands == ["Carhartt"]
-    assert (s.max_age_minutes, s.min_discount, s.min_profit, s.min_condition) == (10, 40, 15, "gut")
+    # Ziele stehen nicht fest in der Suche, sondern kommen zur Laufzeit aus der Stufe
+    assert (s.max_age_minutes, s.min_discount, s.min_profit, s.min_cheaper_than) == (None, None, None, None)
+    eff = s.with_targets(RESALE_LEVELS["normal"])
+    assert (eff.max_age_minutes, eff.min_discount, eff.min_cheaper_than, eff.min_profit) == (10, 40, 90, 15)
+    # eigene Werte einer Suche gewinnen gegen die Stufe
+    own_value = SearchConfig.resale_for_brand("Nike", min_discount=60).with_targets(RESALE_LEVELS["streng"])
+    assert own_value.min_discount == 60 and own_value.max_age_minutes == 5
 
-    own = resale_searches({"brands": ["Stüssy", "trends"], "min_discount": 55, "max_price": 100})
-    assert own[0].name == "Resale · Stüssy" and own[0].min_discount == 55 and own[0].max_price == 100
+    own = resale_searches({"brands": ["Stüssy", "trends"], "max_price": 100})
+    assert own[0].name == "Resale · Stüssy" and own[0].max_price == 100
     assert len(own) == len(TREND_BRANDS)  # Stüssy nicht doppelt
     assert resale_searches({"enabled": False, "brands": "trends"}) == []
 
@@ -29,6 +36,14 @@ def test_resale_name_clash_and_bad_mode():
         config_from_dict({"searches": [{"name": "Resale · Nike", "keywords": "x"}], "resale": {"brands": ["Nike"]}})
     with pytest.raises(ConfigError):
         SearchConfig.from_dict({"name": "x", "keywords": "x", "mode": "turbo"})
+    with pytest.raises(ConfigError):
+        config_from_dict({"resale": {"brands": ["Nike"], "level": "ultra"}})
+
+
+def test_config_level_and_overrides():
+    cfg = config_from_dict({"resale": {"brands": ["Nike"], "level": "streng", "min_profit": 30}})
+    assert cfg.resale_targets == {**RESALE_LEVELS["streng"], "min_profit": 30.0}
+    assert config_from_dict({}).resale_targets == RESALE_LEVELS["normal"]
 
 
 # -- Marken & Produkttypen --------------------------------------------------------------
@@ -94,13 +109,30 @@ def test_resale_score_rewards_freshness_and_big_discounts():
 
 
 def test_meets_targets():
-    s = SearchConfig.resale_for_brand("Nike")  # 40 % Rabatt, 15 € Gewinn
+    s = SearchConfig.resale_for_brand("Nike").with_targets(RESALE_LEVELS["normal"])  # 40 % Rabatt, 15 € Gewinn
     ref = Reference(100.0)
     assert meets_targets(s, score_item(item(1, 50), ref, now=NOW, resale=True, shipping=5))[0]
     assert meets_targets(s, score_item(item(1, 70), ref, now=NOW, resale=True))[1] == "Rabatt zu klein"
     cheap_ref = Reference(30.0)  # 50 % Rabatt, aber nur ~5 € Gewinn
     assert meets_targets(s, score_item(item(1, 15), cheap_ref, now=NOW, resale=True, shipping=5))[1] == "Gewinn zu klein"
     assert meets_targets(s, score_item(item(1, 15), None, now=NOW, resale=True))[1] == "Marktpreis noch unbekannt"
+
+
+def test_price_rank_only_the_cheapest():
+    # 60 % unter dem Median – aber ein anderes Angebot ist noch billiger
+    prices = [30.0] + [100.0] * 9
+    ref = Reference(100.0, "10 ähnliche", 10, prices)
+    sc = score_item(item(1, 40), ref, now=NOW, resale=True, shipping=5)
+    assert sc.cheaper_than == pytest.approx(0.9)
+    assert "günstiger als 90% von 10 vergleichbaren Angeboten" in sc.reasons
+    normal = SearchConfig.resale_for_brand("Nike").with_targets(RESALE_LEVELS["normal"])  # günstiger als 90 %
+    strict = SearchConfig.resale_for_brand("Nike").with_targets(RESALE_LEVELS["streng"])  # günstiger als 95 %
+    assert meets_targets(normal, sc)[0]
+    assert meets_targets(strict, sc) == (False, "nicht günstig genug im Vergleich")
+
+    best = score_item(item(2, 25), ref, now=NOW, resale=True, shipping=5)
+    assert best.cheaper_than == 1.0 and "billigstes von 10 vergleichbaren Angeboten 🏆" in best.reasons
+    assert meets_targets(strict, best)[0]
 
 
 # -- Ablauf im Monitor ---------------------------------------------------------------
@@ -164,3 +196,21 @@ def test_old_database_is_migrated(tmp_path):
     st.add_price("x", 20, "b:nike|schuhe")
     assert st.price_history("x") == [20, 10]
     assert st.group_history("b:nike|schuhe") == [20]
+
+
+@pytest.mark.parametrize("level,expected", [
+    ("streng", {3}),        # ≤ 5 Min., ≥ 50 % unter Markt, günstiger als 95 %, ≥ 20 € Gewinn
+    ("normal", {1, 2, 3}),  # ≤ 10 Min., ≥ 40 %
+])
+def test_level_changes_what_gets_reported(resale_monitor, level, expected):
+    mon, client, notifier = resale_monitor
+    base = market()
+    client.pages = [base, [
+        carhartt(1, 55, "Carhartt Michigan Jacket", minutes_old=3),   # 45 % unter Markt
+        carhartt(2, 40, "Carhartt Michigan Jacket", minutes_old=8),   # 60 % unter Markt, aber 8 Min. alt
+        carhartt(3, 35, "Carhartt Michigan Jacket", minutes_old=2),   # 65 % unter Markt, ganz frisch
+    ] + base]
+    mon.storage.set_state("resale_level", level)
+    mon.run_once()
+    mon.run_once()
+    assert {a.item.id for a in notifier.alerts} == expected

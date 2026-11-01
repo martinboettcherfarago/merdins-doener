@@ -70,13 +70,14 @@ Beim ersten Durchlauf merkt sich der Bot die Artikel, die gerade online sind, un
 
 ---
 
-## 💰 Resale-Radar: frische Schnäppchen zum Weiterverkaufen
+## 💰 Resale-Radar: nur die günstigsten, frisch hochgeladenen Artikel
 
-Der Resale-Modus ist für alle, die günstig kaufen und teurer weiterverkaufen wollen. Er beobachtet **ganze Marken** und meldet nur Artikel, die alle drei Bedingungen erfüllen:
+Die besten Schnäppchen gibt es meistens in den ersten Minuten nach dem Hochladen. Der Resale-Modus beobachtet deshalb **ganze Marken** und meldet nur Artikel, die alle Bedingungen gleichzeitig erfüllen (Stufe „normal“):
 
 1. **ganz frisch:** höchstens 10 Minuten online
-2. **weit unter Marktpreis:** mindestens 40 % billiger
-3. **lohnt sich:** mindestens 15 € Gewinn nach Käuferschutz und Versand
+2. **weit unter Marktpreis:** mindestens 40 % billiger als der übliche Preis
+3. **wirklich einer der günstigsten:** billiger als 90 % aller vergleichbaren Angebote
+4. **lohnt sich:** mindestens 15 € Gewinn nach Käuferschutz und Versand
 
 ```
 🔥💰 RESALE-DEAL · 62% unter Markt · Score 91/100
@@ -86,40 +87,51 @@ Nike Air Max 90 OG
 💰 Gewinn-Potenzial ca. +18,50 € (Weiterverkauf zum Marktpreis, nach Käuferschutz & Versand)
 ⚡ vor 1 Min. hochgeladen
 📊 62% unter Marktpreis (Ø 40 € · 10 ähnliche Nike Schuhe)
+📊 billigstes von 10 vergleichbaren Angeboten 🏆
 🏷 Nike · Gr. 43 · Sehr gut
 ```
 
 **Wie der Marktpreis entsteht:** Der Bot sammelt die Preise aller Artikel, die er sieht, getrennt nach **Marke und Produkttyp**. Er erkennt Jacken, Hoodies, Pullover, Shirts, Hosen, Schuhe, Mützen, Taschen und mehr am Titel. Eine Carhartt-Mütze für 20 € wird also nie mit einer Carhartt-Jacke für 100 € verglichen. Gemeldet wird erst, wenn mindestens 5 Vergleichspreise da sind. Nach dem Start braucht der Bot deshalb ein paar Durchläufe zum Lernen.
 
-### Einschalten in der `config.yaml`
+### 🎯 Schnäppchen-Stufe: wie streng gefiltert wird
+
+| Stufe | online seit max. | unter Marktpreis | günstiger als | Gewinn mind. |
+|---|---|---|---|---|
+| `locker` | 20 Min. | 30 % | 75 % der Vergleichsangebote | 10 € |
+| `normal` | 10 Min. | 40 % | 90 % der Vergleichsangebote | 15 € |
+| `streng` | **5 Min.** | **50 %** | **95 %** der Vergleichsangebote | **20 €** |
+
+Per Telegram umschalten: **`/stufe streng`**. Dann kommen wenige Meldungen, aber nur die allergünstigsten. `/stufe` zeigt die aktuelle Einstellung. In der `config.yaml` geht es mit `level: streng` im Abschnitt `resale:`.
+
+### 🔥 Eigene Trend-Marken
+
+Die eingebaute Liste enthält Carhartt, Stüssy, Arc'teryx, Salomon, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, New Balance, Asics, Levi's, Dickies, Barbour, Nike und Adidas. Du kannst sie jederzeit per Telegram ändern:
+
+```
+/trends                              deine Trend-Marken anzeigen (✅ = wird beobachtet, ⭐ = von dir)
+/trends plus jacquemus, ganni        eigene Marken hinzufügen – werden sofort beobachtet
+/trends minus nike, adidas           Marken entfernen
+/trends an   ·   /trends aus         alle Trend-Marken beobachten / stoppen
+/marke carhartt bis 80 rabatt 50     eine Marke mit eigenen Grenzen beobachten
+```
+
+Oder in der `config.yaml`:
 ```yaml
 resale:
   enabled: true
-  brands: trends            # eingebaute Trend-Liste – oder eigene: [Carhartt, Stüssy, Arc'teryx]
-  max_age_minutes: 10       # nur Artikel, die höchstens 10 Min. online sind
-  min_discount: 40          # mind. 40 % unter Marktpreis
-  min_profit: 15            # mind. 15 € Gewinn-Potenzial
-  min_condition: gut        # "zufriedenstellend" ignorieren
+  brands: [trends, Jacquemus, Ganni]   # Trend-Liste + eigene Marken
+  level: streng                        # locker / normal / streng
   max_price: 250
-  shipping_estimate: 5      # Versandkosten für die Gewinn-Rechnung
-```
-
-**Eingebaute Trend-Marken** (`brands: trends`): Carhartt, Stüssy, Arc'teryx, Salomon, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, New Balance, Asics, Levi's, Dickies, Barbour, Nike und Adidas. Trends ändern sich, deshalb kannst du die Liste jederzeit durch deine eigene ersetzen.
-
-### Oder per Telegram
-```
-/marke stone island                     eine Marke beobachten
-/marke carhartt bis 80 rabatt 50 gewinn 20 frisch 5
-/trends                                 Trend-Liste anzeigen
-/trends an   ·   /trends aus            alle Trend-Marken beobachten / entfernen
+  shipping_estimate: 5                 # Versandkosten für die Gewinn-Rechnung
+  # min_profit: 30                     # einzelne Werte der Stufe überschreiben
 ```
 
 Die Resale-Kriterien gibt es auch für normale Suchen:
-`/neu salomon xt-6 bis 90 rabatt 35 frisch 15` oder in der config `min_discount`, `min_profit`, `max_age_minutes` und `min_condition`.
+`/neu salomon xt-6 bis 90 rabatt 35 günstiger 95 frisch 5` oder in der config `min_discount`, `min_cheaper_than`, `min_profit`, `max_age_minutes` und `min_condition`.
 
 **Tipps:**
+- **Weniger Marken bedeutet schnellere Meldungen.** Bei 17 Marken dauert ein Durchlauf rund eine Minute, weil der Bot zwischen den Abfragen kurz wartet. Mit 5–8 Lieblingsmarken bist du deutlich schneller.
 - Je kleiner `interval_seconds` (z. B. 30–45), desto früher bist du dran. Zu klein führt aber zu Blockaden durch Vinted.
-- Bei 17 Trend-Marken dauert ein Durchlauf rund eine Minute, weil der Bot zwischen den Abfragen kurz wartet. Weniger Marken heißt schnellere Meldungen.
 - Der „Marktpreis“ ist der Median der **Angebotspreise** auf Vinted. Verkauft wird oft etwas darunter. Rechne den Gewinn deshalb lieber vorsichtig.
 - Bei Luxusmarken auf Fakes achten. Wörter wie „replica“ filtert der Bot schon raus, echte Prüfung ersetzt das nicht.
 
@@ -162,6 +174,7 @@ searches:
 | `min_profit` | nur Artikel mit mind. x € Gewinn-Potenzial |
 | `max_age_minutes` | nur Artikel, die höchstens x Minuten online sind |
 | `min_condition` | Mindest-Zustand, z. B. `sehr gut` |
+| `min_cheaper_than` | nur Artikel, die günstiger sind als x % aller vergleichbaren Angebote |
 | `must_contain` | diese Wörter müssen im Titel stehen |
 | `exclude_words` | diese Wörter dürfen nicht im Titel stehen |
 | `enabled: false` | Suche vorübergehend aus |
@@ -173,6 +186,7 @@ searches:
 /neu https://www.vinted.de/catalog?search_text=…   (Link mit Filtern)
 /neu salomon xt-6 bis 90 rabatt 35 frisch 15
 /marke stüssy    Resale-Radar für eine Marke    /trends   Trend-Marken
+/trends plus ganni   eigene Trend-Marke    /stufe streng   nur die allergünstigsten
 /suchen          alle Suchen mit Nummer
 /pause 2         Suche 2 anhalten     /weiter 2   fortsetzen
 /loeschen 2      Suche 2 löschen
@@ -235,6 +249,18 @@ Der Bot meldet nur, solange er läuft. Dafür gibt es drei Möglichkeiten:
   ```
 
 Die Datenbank `vinted_bot.db` (gesehene Artikel, Preise, per Telegram angelegte Suchen) liegt neben der `config.yaml`.
+
+---
+
+## 🔄 Bot aktualisieren (Einstellungen bleiben erhalten)
+
+1. Neue Version als ZIP herunterladen und entpacken, wie bei der Einrichtung.
+2. Aus dem **alten** `vinted-bot`-Ordner diese zwei Dateien in den **neuen** kopieren:
+   - `config.yaml` (deine Einstellungen und der Telegram-Token)
+   - `vinted_bot.db` (gelernte Marktpreise, Trend-Marken und per Telegram angelegte Suchen)
+3. Im neuen Ordner `start.bat` starten. Beim ersten Mal richtet er sich wieder 1–2 Minuten ein.
+
+Der alte Ordner kann danach weg.
 
 ---
 

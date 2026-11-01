@@ -99,6 +99,7 @@ class Reference:
     price: Optional[float]
     basis: str = ""
     samples: int = 0
+    prices: list[float] = field(default_factory=list)  # die Vergleichspreise (für den Preis-Rang)
 
 
 @dataclass
@@ -110,6 +111,7 @@ class DealScore:
     reasons: list[str] = field(default_factory=list)
     profit: Optional[float] = None       # geschätzter Gewinn beim Weiterverkauf zum Marktpreis
     age_minutes: Optional[float] = None
+    cheaper_than: Optional[float] = None  # 0.95 = günstiger als 95 % der Vergleichsangebote
 
 
 def _contains_word(text: str, word: str) -> bool:
@@ -170,10 +172,11 @@ def market_reference(search: SearchConfig, group_prices: list[float], search_pri
     if search.market_price:
         return Reference(float(search.market_price), "dein Marktpreis", 0)
     if len(group_prices) >= MIN_GROUP_SAMPLES:
-        return Reference(float(median(group_prices)), f"{len(group_prices)} {group_label}", len(group_prices))
+        return Reference(float(median(group_prices)), f"{len(group_prices)} {group_label}", len(group_prices),
+                         list(group_prices))
     if not search.is_resale and len(search_prices) >= MIN_SEARCH_SAMPLES:
         return Reference(float(median(search_prices)), f"{len(search_prices)} Angebote dieser Suche",
-                         len(search_prices))
+                         len(search_prices), list(search_prices))
     return Reference(None)
 
 
@@ -248,6 +251,15 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
         price_pts = 15.0 if resale else 25.0
         reasons.append("noch zu wenig Preisdaten für einen Vergleich")
 
+    # Preis-Rang: Wie viele vergleichbare Angebote sind teurer?
+    cheaper_than = None
+    if ref.prices:
+        cheaper_than = sum(1 for p in ref.prices if p > item.price) / len(ref.prices)
+        if cheaper_than >= 1.0:
+            reasons.append(f"billigstes von {len(ref.prices)} vergleichbaren Angeboten 🏆")
+        elif cheaper_than >= 0.5:
+            reasons.append(f"günstiger als {cheaper_than:.0%} von {len(ref.prices)} vergleichbaren Angeboten")
+
     # 2) Zustand
     cond_pts = condition_points(item.condition) / (2 if resale else 1)
 
@@ -265,11 +277,11 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
 
     total = max(0, min(100, int(round(price_pts + cond_pts + fresh_pts + pop_pts))))
     return DealScore(total=total, reference_price=ref.price, discount=discount, is_top=total >= top_threshold,
-                     reasons=reasons, profit=profit, age_minutes=age_min)
+                     reasons=reasons, profit=profit, age_minutes=age_min, cheaper_than=cheaper_than)
 
 
 def meets_targets(search: SearchConfig, score: DealScore) -> tuple[bool, str]:
-    """Harte Ziele einer Suche: Mindest-Rabatt, Mindest-Gewinn, Mindest-Score."""
+    """Harte Ziele einer Suche: Mindest-Score, -Rabatt, Preis-Rang und Mindest-Gewinn."""
     if score.total < search.min_score:
         return False, "Score zu niedrig"
     needs_price = search.min_discount is not None or search.min_profit is not None or search.is_resale
@@ -277,6 +289,9 @@ def meets_targets(search: SearchConfig, score: DealScore) -> tuple[bool, str]:
         return False, "Marktpreis noch unbekannt"
     if search.min_discount is not None and (score.discount or 0) * 100 < search.min_discount:
         return False, "Rabatt zu klein"
+    if search.min_cheaper_than is not None and score.cheaper_than is not None \
+            and score.cheaper_than * 100 < search.min_cheaper_than:
+        return False, "nicht günstig genug im Vergleich"
     if search.min_profit is not None and (score.profit or 0) < search.min_profit:
         return False, "Gewinn zu klein"
     return True, ""

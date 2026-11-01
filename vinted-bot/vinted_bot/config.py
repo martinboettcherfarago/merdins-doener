@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any, Optional
 
 import yaml
@@ -22,8 +22,17 @@ TREND_BRANDS = [
     "Barbour", "Nike", "Adidas",
 ]
 
-# Voreinstellungen für Resale-Suchen: nur ganz frische Artikel weit unter Marktpreis
-RESALE_DEFAULTS = {"max_age_minutes": 10, "min_discount": 40.0, "min_profit": 15.0, "min_condition": "gut"}
+# Schnäppchen-Stufen für Resale-Suchen (per Telegram: /stufe streng)
+RESALE_LEVELS: dict[str, dict[str, Any]] = {
+    "locker": {"max_age_minutes": 20, "min_discount": 30.0, "min_cheaper_than": 75.0, "min_profit": 10.0,
+               "min_condition": "zufriedenstellend"},
+    "normal": {"max_age_minutes": 10, "min_discount": 40.0, "min_cheaper_than": 90.0, "min_profit": 15.0,
+               "min_condition": "gut"},
+    "streng": {"max_age_minutes": 5, "min_discount": 50.0, "min_cheaper_than": 95.0, "min_profit": 20.0,
+               "min_condition": "gut"},
+}
+RESALE_DEFAULTS = RESALE_LEVELS["normal"]
+RESALE_TARGET_KEYS = tuple(RESALE_DEFAULTS)
 
 
 class ConfigError(Exception):
@@ -50,6 +59,7 @@ class SearchConfig:
     min_profit: Optional[float] = None    # mind. x € Gewinn-Potenzial beim Weiterverkauf
     max_age_minutes: Optional[int] = None  # nur Artikel, die höchstens so alt sind
     min_condition: Optional[str] = None   # z. B. "sehr gut" -> schlechtere Zustände ignorieren
+    min_cheaper_than: Optional[float] = None  # günstiger als x % aller vergleichbaren Angebote
 
     @property
     def is_resale(self) -> bool:
@@ -103,15 +113,25 @@ class SearchConfig:
             min_profit=_num("min_profit"),
             max_age_minutes=int(age) if age is not None else None,
             min_condition=str(data["min_condition"]).strip() if data.get("min_condition") else None,
+            min_cheaper_than=_num("min_cheaper_than"),
         )
 
     @classmethod
     def resale_for_brand(cls, brand: str, source: str = "config", **overrides: Any) -> "SearchConfig":
-        """Resale-Suche für eine Marke: nur frische Artikel dieser Marke weit unter Marktpreis."""
-        data: dict[str, Any] = {"name": f"Resale · {brand}", "keywords": brand, "brands": [brand],
-                                "mode": "resale", **RESALE_DEFAULTS}
+        """Resale-Suche für eine Marke: nur frische Artikel dieser Marke weit unter Marktpreis.
+
+        Nicht angegebene Ziele (Rabatt, Frische, …) kommen zur Laufzeit aus der Schnäppchen-Stufe.
+        """
+        data: dict[str, Any] = {"name": resale_name(brand), "keywords": brand, "brands": [brand], "mode": "resale"}
         data.update({k: v for k, v in overrides.items() if v is not None})
         return cls.from_dict(data, source=source)
+
+    def with_targets(self, targets: dict[str, Any]) -> "SearchConfig":
+        """Füllt bei Resale-Suchen nicht gesetzte Ziele mit den Werten der aktuellen Stufe."""
+        if not self.is_resale:
+            return self
+        missing = {k: v for k, v in targets.items() if k in RESALE_TARGET_KEYS and getattr(self, k) is None}
+        return replace(self, **missing) if missing else self
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in asdict(self).items() if v not in (None, [], "") and k != "source"}
@@ -127,6 +147,7 @@ class Config:
     price_drop_percent: float = 10.0
     top_deal_score: int = 75
     shipping_estimate: float = 5.0       # geschätzte Versandkosten für die Gewinn-Rechnung
+    resale_targets: dict[str, Any] = field(default_factory=lambda: dict(RESALE_DEFAULTS))
     global_exclude_words: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_WORDS))
 
     telegram_token: str = ""
@@ -216,8 +237,22 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
             raise ConfigError(f"Der Suchname '{s.name}' kommt doppelt vor.")
         names.add(s.name)
     cfg.searches = searches
-    cfg.shipping_estimate = float((data.get("resale") or {}).get("shipping_estimate") or 5.0)
+    section = data.get("resale") or {}
+    cfg.shipping_estimate = float(section.get("shipping_estimate") or 5.0)
+    level = str(section.get("level") or "normal").strip().lower()
+    if level not in RESALE_LEVELS:
+        raise ConfigError(f"resale → level muss {', '.join(RESALE_LEVELS)} sein, nicht '{level}'.")
+    cfg.resale_targets = dict(RESALE_LEVELS[level])
+    for key in RESALE_TARGET_KEYS:  # einzelne Werte aus der config überschreiben die Stufe
+        if section.get(key) is not None:
+            value = section[key]
+            cfg.resale_targets[key] = (str(value) if key == "min_condition"
+                                       else int(value) if key == "max_age_minutes" else float(value))
     return cfg
+
+
+def resale_name(brand: str) -> str:
+    return f"Resale · {brand}"
 
 
 def resale_searches(section: dict[str, Any]) -> list[SearchConfig]:
@@ -227,8 +262,8 @@ def resale_searches(section: dict[str, Any]) -> list[SearchConfig]:
     brands = section["brands"]
     if isinstance(brands, str):
         brands = TREND_BRANDS if brands.strip().lower() in ("trends", "trend") else [brands]
-    overrides = {k: section.get(k) for k in ("max_age_minutes", "min_discount", "min_profit", "min_condition",
-                                               "min_price", "max_price", "sizes", "exclude_words")}
+    # Rabatt/Frische/Gewinn kommen aus der Stufe (resale_targets), hier nur Preis- und Größenfilter
+    overrides = {k: section.get(k) for k in ("min_price", "max_price", "sizes", "exclude_words")}
     out = []
     for brand in brands:
         brand = str(brand).strip()

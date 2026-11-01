@@ -156,7 +156,8 @@ def test_example_config_is_valid():
     assert names[:3] == ["Air Max 90", "Carhartt Jacken", "Levi's 501"]
     assert "Resale · Stone Island" in names and len(names) == 3 + 17
     resale = cfg.searches[3]
-    assert resale.is_resale and resale.max_age_minutes == 10 and resale.min_discount == 40
-    assert resale.max_price == 250 and cfg.shipping_estimate == 5
+    assert resale.is_resale and resale.max_price == 250 and cfg.shipping_estimate == 5
+    assert cfg.resale_targets == {"max_age_minutes": 10, "min_discount": 40.0, "min_cheaper_than": 90.0,
+                                  "min_profit": 15.0, "min_condition": "gut"}
     assert cfg.searches[1].min_score == 60 and cfg.searches[2].enabled is False
     assert cfg.account_enabled is False

@@ -43,20 +43,29 @@ account:
 database: vinted_bot.db
 
 # ──────────────────────────────────────────────────────────────────────
-#  💰 RESALE-RADAR: beobachtet ganze Marken und meldet NUR Artikel, die
-#  gerade frisch hochgeladen wurden und weit unter dem Marktpreis liegen.
+#  💰 RESALE-RADAR: beobachtet ganze Marken und meldet NUR die günstigsten
+#  Artikel, die gerade frisch hochgeladen wurden.
 #  Den Marktpreis lernt der Bot selbst – getrennt nach Marke UND Produkttyp
 #  (Carhartt-Jacken werden nur mit Carhartt-Jacken verglichen, nicht mit Mützen).
+#  Per Telegram änderbar: /stufe streng · /trends plus jacquemus · /trends minus nike
 # ──────────────────────────────────────────────────────────────────────
 resale:
   enabled: true
-  brands: trends               # "trends" = eingebaute Liste angesagter Marken (Carhartt, Stüssy,
+  brands: [trends]             # "trends" = eingebaute Liste angesagter Marken (Carhartt, Stüssy,
                                # Arc'teryx, Salomon, North Face, Ralph Lauren, Stone Island, …)
-  # brands: [Carhartt, Stüssy, Arc'teryx, Stone Island]   # oder deine eigene Auswahl
-  max_age_minutes: 10          # nur Artikel, die höchstens 10 Minuten online sind
-  min_discount: 40             # mind. 40 % unter Marktpreis
-  min_profit: 15               # mind. 15 € Gewinn-Potenzial beim Weiterverkauf
-  min_condition: gut           # "zufriedenstellend" ignorieren
+  # brands: [trends, Jacquemus, Ganni, Miu Miu]   # Trend-Liste + eigene Marken
+  # brands: [Carhartt, Stüssy, Arc'teryx]         # oder nur deine eigene Auswahl
+
+  level: normal                # Schnäppchen-Stufe: locker / normal / streng
+                               #   locker: ≤ 20 Min. alt, ≥ 30 % unter Markt, günstiger als 75 %, ≥ 10 € Gewinn
+                               #   normal: ≤ 10 Min. alt, ≥ 40 % unter Markt, günstiger als 90 %, ≥ 15 € Gewinn
+                               #   streng: ≤  5 Min. alt, ≥ 50 % unter Markt, günstiger als 95 %, ≥ 20 € Gewinn
+  # Einzelne Werte der Stufe kannst du überschreiben:
+  # max_age_minutes: 10        # nur Artikel, die höchstens so lange online sind
+  # min_discount: 40           # mind. x % unter Marktpreis
+  # min_cheaper_than: 90       # günstiger als x % aller vergleichbaren Angebote
+  # min_profit: 15             # mind. x € Gewinn-Potenzial beim Weiterverkauf
+  # min_condition: gut         # schlechtere Zustände ignorieren
   max_price: 250               # nicht mehr als 250 € ausgeben
   shipping_estimate: 5         # geschätzte Versandkosten für die Gewinn-Rechnung
 

@@ -2,7 +2,7 @@ import pytest
 
 from conftest import FakeClient, FakeNotifier, item
 from vinted_bot.account import OfferResult
-from vinted_bot.config import ConfigError
+from vinted_bot.config import ConfigError, SearchConfig
 from vinted_bot.monitor import Monitor
 from vinted_bot.notify import Alert, money, telegram_caption, telegram_keyboard
 from vinted_bot.scoring import score_item
@@ -174,7 +174,7 @@ def test_brand_watch_command(bot):
     ctl.handle_update(msg("/marke stone island bis 300 rabatt 50"))
     s = storage.custom_searches()[0]
     assert s.name == "Resale · Stone Island" and s.is_resale and s.brands == ["Stone Island"]
-    assert (s.max_price, s.min_discount, s.min_profit, s.max_age_minutes) == (300, 50, 15, 10)
+    assert (s.max_price, s.min_discount, s.min_profit, s.max_age_minutes) == (300, 50, None, None)
     assert "Marktpreise dieser Marke" in tg.texts()[-1]
 
     ctl.handle_update(msg("/marke Stone Island"))
@@ -183,7 +183,8 @@ def test_brand_watch_command(bot):
     assert storage.custom_searches()[-1].name == "Resale · Jacquemus"
 
     ctl.handle_update(msg("/suchen"))
-    assert "💰 Resale · 0–300 € · ≥ 50 % unter Markt · ≥ 15 € Gewinn · max. 10 Min. alt" in tg.texts()[-1]
+    assert ("💰 Resale · 0–300 € · ≥ 50 % unter Markt · günstiger als 90 % · ≥ 15 € Gewinn · max. 10 Min. alt"
+            in tg.texts()[-1])
 
 
 def test_trends_command(bot):
@@ -200,3 +201,76 @@ def test_trends_command(bot):
     assert "✅ Carhartt" in tg.texts()[-1]
     ctl.handle_update(msg("/trends aus"))
     assert storage.custom_searches() == []
+
+
+def test_own_trend_brands(bot):
+    from vinted_bot.config import TREND_BRANDS
+    ctl, tg, storage, _ = bot
+    mon = ctl.monitor
+    ctl.handle_update(msg("/trends plus jacquemus, Miu Miu"))
+    assert "Jacquemus, Miu Miu" in tg.texts()[-1] and "günstiger als 90 %" in tg.texts()[-1]
+    assert mon.trend_brands()[-2:] == ["Jacquemus", "Miu Miu"]
+    assert {s.name for s in storage.custom_searches()} == {"Resale · Jacquemus", "Resale · Miu Miu"}
+
+    ctl.handle_update(msg("/trends +JACQUEMUS"))  # kein Duplikat
+    assert mon.trend_brands().count("Jacquemus") == 1
+
+    ctl.handle_update(msg("/trends minus nike, gibtsnicht"))
+    assert "Nike" not in mon.trend_brands()
+    assert "Nicht in der Liste: gibtsnicht" in tg.texts()[-1]
+    ctl.handle_update(msg("/trends -jacquemus"))
+    assert "Jacquemus" not in mon.trend_brands()
+    assert [s.name for s in storage.custom_searches()] == ["Resale · Miu Miu"]
+
+    ctl.handle_update(msg("/trends"))
+    listing = tg.texts()[-1]
+    assert f"Deine Trend-Marken ({len(TREND_BRANDS)})" in listing  # 17 - Nike + Miu Miu
+    assert "✅ Miu Miu ⭐" in listing and "▫️ Carhartt" in listing and "Nike" not in listing
+
+    ctl.handle_update(msg("/trends an"))
+    assert len(storage.custom_searches()) == len(TREND_BRANDS)
+    ctl.handle_update(msg("/trends plus nike"))  # eingebaute Marke zurückholen
+    assert "Nike" in mon.trend_brands() and mon.storage.get_list("trends_added") == ["Miu Miu"]
+
+
+def test_trends_minus_pauses_config_brand(cfg, tmp_path, clock):
+    from conftest import FakeClient, FakeNotifier
+    from vinted_bot.config import config_from_dict
+    cfg2 = config_from_dict({"resale": {"brands": ["Nike", "Stüssy"]}}, base_dir=str(tmp_path))
+    storage = Storage(str(tmp_path / "c.db"))
+    mon = Monitor(cfg2, FakeClient(), storage, FakeNotifier(), clock=clock)
+    ctl = TelegramController(FakeTelegram(), mon, None)
+    ctl.handle_update(msg("/trends minus nike"))
+    assert storage.is_disabled("Resale · Nike")  # steht in der config -> nur angehalten
+    ctl.handle_update(msg("/trends plus nike"))
+    assert not storage.is_disabled("Resale · Nike")
+
+
+def test_level_command(bot):
+    ctl, tg, storage, _ = bot
+    ctl.handle_update(msg("/stufe"))
+    assert "Einstellungen aus der config.yaml" in tg.texts()[-1] and "/stufe streng" in tg.texts()[-1]
+    ctl.handle_update(msg("/stufe streng"))
+    text = tg.texts()[-1]
+    assert "höchstens 5 Min." in text and "mind. 50 %" in text and "günstiger als 95 %" in text
+    assert ctl.monitor.resale_targets()["min_cheaper_than"] == 95
+    ctl.handle_update(msg("/status"))
+    assert "Schnäppchen-Stufe: streng" in tg.texts()[-1]
+    ctl.handle_update(msg("/stufe reset"))
+    assert ctl.monitor.resale_level is None
+
+
+def test_old_resale_searches_are_migrated(cfg, tmp_path, clock):
+    from conftest import FakeClient, FakeNotifier
+    storage = Storage(str(tmp_path / "m.db"))
+    old = SearchConfig.from_dict({"name": "Resale · Ganni", "keywords": "Ganni", "brands": ["Ganni"], "mode": "resale",
+                                  "max_age_minutes": 10, "min_discount": 40, "min_profit": 15,
+                                  "min_condition": "gut", "max_price": 99}, source="telegram")
+    custom = SearchConfig.from_dict({"name": "Resale · Ace", "keywords": "Ace", "mode": "resale",
+                                     "min_discount": 60}, source="telegram")
+    storage.add_search(old)
+    storage.add_search(custom)
+    Monitor(cfg, FakeClient(), storage, FakeNotifier(), clock=clock)
+    ganni, ace = storage.custom_searches()
+    assert (ganni.min_discount, ganni.max_age_minutes, ganni.max_price) == (None, None, 99)
+    assert ace.min_discount == 60  # eigener Wert bleibt

@@ -11,7 +11,7 @@ from datetime import date
 from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
-from .config import TREND_BRANDS, ConfigError, SearchConfig
+from .config import RESALE_LEVELS, TREND_BRANDS, ConfigError, SearchConfig, resale_name
 from .notify import TelegramNotifier, money
 from .scoring import normalize
 
@@ -25,8 +25,11 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b>
 /marke <i>Name</i> – Marke beobachten, z. B.
    <code>/marke stone island</code>
    <code>/marke carhartt bis 80 rabatt 50 gewinn 20</code>
-/trends – eingebaute Liste angesagter Resale-Marken
-/trends an · /trends aus – alle Trend-Marken beobachten / entfernen
+/trends – deine Trend-Marken anzeigen
+/trends plus <i>Marke, Marke</i> – eigene Marken hinzufügen
+/trends minus <i>Marke</i> – Marke entfernen
+/trends an · /trends aus – alle Trend-Marken beobachten / stoppen
+/stufe streng – nur die allergünstigsten (auch: normal, locker)
 
 <b>🔎 Normale Suchen</b>
 /neu <i>Begriff</i> – neue Suche, z. B.
@@ -45,6 +48,7 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b>
 <code>bis 40</code> Höchstpreis · <code>ab 10</code> Mindestpreis
 <code>rabatt 40</code> mind. 40 % unter Marktpreis · <code>gewinn 15</code> mind. 15 € Gewinn
 <code>frisch 10</code> nur Artikel jünger als 10 Min. · <code>score 60</code> Mindest-Score
+<code>günstiger 95</code> billiger als 95 % der vergleichbaren Angebote
 <code>markt 50</code> typischer Marktpreis"""
 
 # bewusst kein "max": sonst würde aus "air max 90" ein Höchstpreis von 90 €
@@ -56,6 +60,7 @@ OPTION_PATTERNS = {
     "min_discount": r"rabatt\s*(\d+(?:[.,]\d+)?)\s*%?",
     "min_profit": r"gewinn\s*(\d+(?:[.,]\d+)?)\s*€?",
     "max_age_minutes": r"frisch\s*(\d+)\s*(?:min\.?|minuten)?",
+    "min_cheaper_than": r"(?:günstiger|guenstiger|billiger)(?:\s*als)?\s*(\d+(?:[.,]\d+)?)\s*%?",
 }
 
 
@@ -100,8 +105,7 @@ def parse_brand_watch(text: str) -> SearchConfig:
     brand, opts = extract_options(text.strip())
     if not brand:
         raise ConfigError("Welche Marke? z. B. /marke carhartt oder /marke stone island bis 150")
-    brand = next((b for b in TREND_BRANDS if normalize(b) == normalize(brand)), brand.title())
-    return SearchConfig.resale_for_brand(brand[:40], source="telegram", **opts)
+    return SearchConfig.resale_for_brand(_nice_brand(brand), source="telegram", **opts)
 
 
 def describe_search(s: SearchConfig) -> str:
@@ -114,6 +118,8 @@ def describe_search(s: SearchConfig) -> str:
         bits.append(f"{lo}–{hi} €")
     if s.min_discount:
         bits.append(f"≥ {s.min_discount:g} % unter Markt")
+    if s.min_cheaper_than:
+        bits.append(f"günstiger als {s.min_cheaper_than:g} %")
     if s.min_profit:
         bits.append(f"≥ {s.min_profit:g} € Gewinn")
     if s.max_age_minutes:
@@ -125,6 +131,19 @@ def describe_search(s: SearchConfig) -> str:
     if s.url:
         bits.append("Vinted-Link")
     return " · ".join(bits)
+
+
+ADD_WORDS = {"plus", "add", "dazu", "hinzu", "hinzufügen", "hinzufuegen", "neu"}
+REMOVE_WORDS = {"minus", "weg", "entfernen", "löschen", "loeschen", "remove", "raus"}
+
+
+def _nice_brand(raw: str) -> str:
+    """'jacquemus' -> 'Jacquemus'; eigene Schreibweise mit Großbuchstaben bleibt erhalten."""
+    raw = " ".join(raw.split())[:40]
+    builtin = next((b for b in TREND_BRANDS if normalize(b) == normalize(raw)), None)
+    if builtin:
+        return builtin
+    return raw if any(c.isupper() for c in raw) else raw.title()
 
 
 class TelegramController(threading.Thread):
@@ -199,6 +218,7 @@ class TelegramController(threading.Thread):
             "/neu": self.cmd_new, "/add": self.cmd_new,
             "/marke": self.cmd_brand, "/brand": self.cmd_brand, "/resale": self.cmd_brand,
             "/trends": self.cmd_trends, "/trend": self.cmd_trends,
+            "/stufe": self.cmd_level, "/filter": self.cmd_level,
             "/suchen": self.cmd_list, "/liste": self.cmd_list, "/list": self.cmd_list,
             "/loeschen": self.cmd_delete, "/löschen": self.cmd_delete, "/delete": self.cmd_delete,
             "/pause": self.cmd_pause, "/weiter": self.cmd_resume, "/resume": self.cmd_resume,
@@ -247,40 +267,127 @@ class TelegramController(threading.Thread):
             return
         self._add(search)
 
-    def cmd_trends(self, arg: str) -> None:
+    # -- Trend-Marken -------------------------------------------------------------
+
+    def _watch(self, brand: str) -> bool:
+        """Beobachtet eine Marke (Resale). True, wenn sie neu dazukam oder wieder eingeschaltet wurde."""
+        name = resale_name(brand)
         existing = {s.name: s for s in self._numbered()}
-        arg = arg.lower().strip()
-        if arg in ("an", "on", "start", "alle"):
-            added = []
-            for brand in TREND_BRANDS:
-                s = SearchConfig.resale_for_brand(brand, source="telegram")
-                if s.name not in existing:
-                    self.storage.add_search(s)
-                    added.append(brand)
-            self.reply(f"✅ {len(added)} Trend-Marken werden jetzt beobachtet"
-                       + (f": {html.escape(', '.join(added))}" if added else " (waren schon alle aktiv)")
-                       + "\n\nGemeldet wird nur, was gerade frisch hochgeladen wurde (≤ 10 Min.), mind. 40 % unter "
-                       "Marktpreis liegt und ca. 15 € Gewinn bringt. Den Marktpreis je Marke und Produkttyp "
-                       "lernt der Bot in den ersten Durchläufen.")
+        if name in existing:
+            if self.storage.is_disabled(name):
+                self.storage.set_disabled(name, False)
+                return True
+            return False
+        self.storage.add_search(SearchConfig.resale_for_brand(brand, source="telegram"))
+        return True
+
+    def _unwatch(self, brand: str) -> bool:
+        name = resale_name(brand)
+        existing = {s.name: s for s in self._numbered()}
+        if name not in existing:
+            return False
+        if existing[name].source == "telegram":
+            self.storage.delete_search(name)
+            self.storage.forget_search(name)
+        else:  # steht in der config.yaml -> nur anhalten
+            self.storage.set_disabled(name, True)
+        return True
+
+    def cmd_trends(self, arg: str) -> None:
+        arg = arg.strip()
+        if arg[:1] in "+-" and arg[1:].strip():  # "/trends +jacquemus" / "/trends -nike"
+            action, rest = ("plus" if arg[0] == "+" else "minus"), arg[1:]
+        else:
+            action, _, rest = arg.partition(" ")
+            action = action.lower()
+        brands = [b.strip() for b in re.split(r"[,;\n]+", rest) if b.strip()]
+
+        if action in ADD_WORDS:
+            if not brands:
+                self.reply("Welche Marke? z. B. <code>/trends plus jacquemus, ganni, miu miu</code>")
+                return
+            names = []
+            for raw in brands:
+                brand = self.monitor.add_trend_brand(_nice_brand(raw))
+                self._watch(brand)
+                names.append(brand)
+            self.reply(f"✅ Zu deinen Trends hinzugefügt und beobachtet: <b>{html.escape(', '.join(names))}</b>\n\n"
+                       + self._targets_text() + "\n\nDen Marktpreis lernt der Bot in den ersten Durchläufen.")
             return
-        if arg in ("aus", "off", "stop"):
-            removed = 0
-            for brand in TREND_BRANDS:
-                name = SearchConfig.resale_for_brand(brand).name
-                if name in existing and existing[name].source == "telegram":
-                    self.storage.delete_search(name)
-                    self.storage.forget_search(name)
-                    removed += 1
-            self.reply(f"🗑 {removed} Trend-Marken entfernt.")
+        if action in REMOVE_WORDS:
+            if not brands:
+                self.reply("Welche Marke? z. B. <code>/trends minus nike</code>")
+                return
+            done, missing = [], []
+            for raw in brands:
+                brand = self.monitor.remove_trend_brand(raw)
+                if brand:
+                    self._unwatch(brand)
+                    done.append(brand)
+                else:
+                    missing.append(raw)
+            text = f"🗑 Aus deinen Trends entfernt: <b>{html.escape(', '.join(done))}</b>" if done else ""
+            if missing:
+                text += f"\nNicht in der Liste: {html.escape(', '.join(missing))}"
+            self.reply(text.strip())
             return
-        lines = ["<b>🔥 Trend-Marken für Resale</b>"]
-        for brand in TREND_BRANDS:
-            name = SearchConfig.resale_for_brand(brand).name
-            active = name in existing and not self.storage.is_disabled(name)
-            lines.append(f"{'✅' if active else '▫️'} {html.escape(brand)}")
-        lines.append("\n/trends an – alle beobachten · /trends aus – alle entfernen\n"
-                     "Einzelne Marke: <code>/marke stüssy</code>")
+        if action in ("an", "on", "start", "alle"):
+            started = [b for b in self.monitor.trend_brands() if self._watch(b)]
+            self.reply(f"✅ {len(self.monitor.trend_brands())} Trend-Marken werden beobachtet"
+                       + (f" (neu: {html.escape(', '.join(started))})" if started else "")
+                       + "\n\n" + self._targets_text())
+            return
+        if action in ("aus", "off", "stop"):
+            stopped = [b for b in self.monitor.trend_brands() if self._unwatch(b)]
+            self.reply(f"⏹ {len(stopped)} Trend-Marken werden nicht mehr beobachtet. "
+                       "Die Liste bleibt gespeichert – /trends an startet sie wieder.")
+            return
+
+        existing = {s.name for s in self.monitor.active_searches()}
+        own = {normalize(b) for b in self.storage.get_list("trends_added")}
+        brands = self.monitor.trend_brands()
+        lines = [f"<b>🔥 Deine Trend-Marken ({len(brands)})</b>"]
+        for brand in brands:
+            icon = "✅" if resale_name(brand) in existing else "▫️"
+            star = " ⭐" if normalize(brand) in own else ""
+            lines.append(f"{icon} {html.escape(brand)}{star}")
+        lines.append("\n✅ = wird beobachtet · ⭐ = von dir hinzugefügt\n"
+                     "<code>/trends plus jacquemus, ganni</code> – Marken hinzufügen\n"
+                     "<code>/trends minus nike</code> – Marke entfernen\n"
+                     "/trends an · /trends aus – alle beobachten / stoppen\n"
+                     "/stufe – wie streng gefiltert wird")
         self.reply("\n".join(lines))
+
+    # -- Schnäppchen-Stufe ----------------------------------------------------------
+
+    def _targets_text(self) -> str:
+        t = self.monitor.resale_targets()
+        level = self.monitor.resale_level
+        title = f"Stufe „{level}“" if level else "Einstellungen aus der config.yaml"
+        return (f"🎯 <b>{title}</b> – gemeldet wird nur, was\n"
+                f"⚡ höchstens {int(t['max_age_minutes'])} Min. online ist\n"
+                f"💸 mind. {t['min_discount']:g} % unter Marktpreis liegt\n"
+                f"🏆 günstiger als {t['min_cheaper_than']:g} % der vergleichbaren Angebote ist\n"
+                f"💰 mind. {t['min_profit']:g} € Gewinn bringt\n"
+                f"🏷 mind. Zustand „{html.escape(str(t['min_condition']))}“ hat")
+
+    def cmd_level(self, arg: str) -> None:
+        a = arg.strip().lower()
+        if a in RESALE_LEVELS:
+            self.storage.set_state("resale_level", a)
+            self.reply("✅ Gespeichert.\n\n" + self._targets_text()
+                       + ("\n\nStreng heißt: wenige Meldungen, aber nur echte Knaller." if a == "streng" else ""))
+            return
+        if a in ("config", "standard", "zurück", "zurueck", "reset"):
+            self.storage.delete_state("resale_level")
+            self.reply("✅ Es gelten wieder die Werte aus der config.yaml.\n\n" + self._targets_text())
+            return
+        options = []
+        for name, t in RESALE_LEVELS.items():
+            options.append(f"<code>/stufe {name}</code> – ≤ {t['max_age_minutes']} Min., ≥ {t['min_discount']:g} % "
+                           f"unter Markt, günstiger als {t['min_cheaper_than']:g} %, ≥ {t['min_profit']:g} € Gewinn")
+        self.reply(self._targets_text() + "\n\n<b>Stufen</b>\n" + "\n".join(options)
+                   + "\n\nGilt für alle Resale-Suchen ohne eigene Werte.")
 
     def _add(self, search: SearchConfig) -> None:
         existing = {s.name for s in self._numbered()}
@@ -289,7 +396,7 @@ class TelegramController(threading.Thread):
             search.name = f"{base} ({n})"
             n += 1
         self.storage.add_search(search)
-        details = describe_search(search)
+        details = describe_search(self.monitor.effective(search))
         hint = ("Ich lerne jetzt die Marktpreise dieser Marke und melde dir nur frisch hochgeladene "
                 "Schnäppchen." if search.is_resale else
                 "Ich merke mir jetzt die aktuellen Preise und melde dir ab sofort neue Treffer.")
@@ -305,7 +412,7 @@ class TelegramController(threading.Thread):
         for i, s in enumerate(searches, 1):
             active = s.enabled and not self.storage.is_disabled(s.name)
             icon = "▶️" if active else "⏸"
-            details = describe_search(s)
+            details = describe_search(self.monitor.effective(s))
             lines.append(f"{i}. {icon} <b>{html.escape(s.name)}</b>"
                          + (f" – {html.escape(details)}" if details else "")
                          + (" <i>(config.yaml)</i>" if s.source == "config" else ""))
@@ -360,6 +467,7 @@ class TelegramController(threading.Thread):
             f"Durchläufe: {st['cycles']} · Artikel geprüft: {st['checked']} · Meldungen: {st['alerts']}",
             f"Letzter Durchlauf: vor {last} s" if last is not None else "Erster Durchlauf läuft …",
             f"Angebote per Bot: {'an' if self.account else 'aus'}",
+            f"Schnäppchen-Stufe: {self.monitor.resale_level or 'aus config.yaml'}",
         ]
         if st["last_error"]:
             lines.append(f"Letzter Fehler: {html.escape(str(st['last_error'])[:200])}")

@@ -89,7 +89,8 @@ def cmd_run(cfg: Config) -> int:
     names = ", ".join(s.name for s in active if not s.is_resale) or "–"
     if resale_brands:
         names += f"\n💰 Resale-Radar: {len(resale_brands)} Marken ({', '.join(resale_brands[:6])}" \
-                 + (" …)" if len(resale_brands) > 6 else ")")
+                 + (" …)" if len(resale_brands) > 6 else ")") \
+                 + f"\n🎯 Schnäppchen-Stufe: {monitor.resale_level or 'aus config.yaml'} (/stufe)"
     log.info("Vinted-Bot %s gestartet (vinted.%s, alle %ss). Suchen: %s",
              __version__, cfg.domain, cfg.interval_seconds, names)
     notifier.send_text(

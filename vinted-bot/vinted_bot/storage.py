@@ -167,6 +167,16 @@ class Storage:
             self._db.execute("DELETE FROM state WHERE key=?", (key,))
             self._db.commit()
 
+    def get_list(self, key: str) -> list[str]:
+        try:
+            value = json.loads(self.get_state(key) or "[]")
+        except ValueError:
+            return []
+        return [str(v) for v in value] if isinstance(value, list) else []
+
+    def set_list(self, key: str, values: list[str]) -> None:
+        self.set_state(key, json.dumps(list(values), ensure_ascii=False))
+
     def is_disabled(self, search: str) -> bool:
         return self.get_state(f"disabled:{search}") == "1"
 
