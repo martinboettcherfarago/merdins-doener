@@ -26,6 +26,7 @@ TREND_WATCHES = [
     "Nike Tech Fleece", "Nike ACG", "Vintage Nike", "Adidas Trainingsjacke", "Ralph Lauren Strick",
     "Polo Bear", "Longchamp Le Pliage", "Prada Nylon", "Coach Tasche", "Ed Hardy", "Diesel vintage",
     "Vintage Lederjacke", "Vintage Trikot", "College Jacke", "Band Shirt vintage", "Harley Davidson", "Y2K",
+    "Vintage Levi's", "Bootcut Jeans",
 ]
 TREND_BRANDS = TREND_WATCHES  # alter Name, bleibt für ältere Konfigurationen gültig
 

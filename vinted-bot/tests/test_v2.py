@@ -182,3 +182,29 @@ def test_radar_command(bot):
     assert "Alles-Radar ist <b>an</b>" in tg.texts()[-1]
     ctl.handle_update(msg("/radar aus"))
     assert "Alles-Radar" not in {s.name for s in ctl.monitor.active_searches()}
+
+
+# -- Jeans: Bundweiten, Schnitte, Levi's ------------------------------------------------
+
+def test_jeans_sizes_pass_the_letter_size_filter():
+    from vinted_bot.knowledge import size_matches
+    for size in ["W30 L32", "W32 | L32", "30/32", "38", "M / 38 / 10", "48"]:
+        assert size_matches(size, ["S", "M", "L"]), size
+    for size in ["W38 L34", "164", "43", "XL"]:
+        assert not size_matches(size, ["S", "M", "L"]), size
+    assert size_matches("W32 L34", ["W32"])  # eigene Bundweite geht auch
+
+
+def test_jeans_cuts_and_trends():
+    assert product_type("Levi's 517 Bootcut") == "jeans"
+    assert product_type("Y2K Low Rise Flared Jeans") == "jeans"
+    assert trend_match("Levi's 517 Bootcut") == "Bootcut/Flared"
+
+
+def test_vintage_levis_bootcut_is_found(mon):
+    s = mon.effective(SearchConfig.watch("Vintage Levi's"))
+    assert s.keywords == "Vintage Levi's" and s.brands == ["Levi's"]
+    jeans = item(1, 9, title="Vintage Levi's 517 Bootcut Y2K", brand="Levi's", size="W30 L32", minutes_old=2)
+    alert, why = mon.explain(s, jeans, NOW)
+    assert alert is not None, why
+    assert alert.score.rarity_level == 1 and alert.score.trend in ("Y2K", "Bootcut/Flared")

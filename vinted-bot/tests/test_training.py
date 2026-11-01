@@ -67,7 +67,7 @@ def test_size_matching():
     wanted = ["S", "M", "L"]
     assert size_matches("M", wanted) and size_matches("M / 38 / 10", wanted) and size_matches("s", wanted)
     assert not size_matches("XL", wanted) and not size_matches("43", wanted) and not size_matches("164", wanted)
-    assert not size_matches("W32 | L32", wanted)
+    assert size_matches("W32 | L32", wanted)  # Bundweite 32 ≈ M/L (seit Version 2.1)
     assert size_matches("One size", wanted) and size_matches("", wanted)  # Taschen, Caps …
     assert size_matches("XL", [])  # keine Einschränkung
 

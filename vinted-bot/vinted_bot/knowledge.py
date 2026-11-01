@@ -60,7 +60,7 @@ BRAND_GRAILS: dict[str, list[str]] = {
                     "raso gommato", "formula steel"],
     "cpcompany": ["goggle", "mille miglia", "watchviewer", "explorer", "urban protection", "50 fili"],
     "levis": ["big e", "501xx", "orange tab", "type 1", "type 2", "type 3", "lvc", "selvedge", "silvertab",
-              "silver tab"],
+              "silver tab", "made in usa", "made in u.s.a"],
     "barbour": ["2 crest", "two crest", "3 crest", "three crest", "border", "gamefair", "a7"],
     "nike": ["acg", "center swoosh", "centre swoosh", "middle swoosh", "nocta", "sacai", "off-white",
              "off white"],
@@ -118,7 +118,9 @@ def rarity(item: Item) -> Rarity:
             points += pts
     for grail in BRAND_GRAILS.get(brand_key(item_brand(item)), []):
         if re.search(rf"(?<![a-z0-9]){re.escape(grail)}(?![a-z0-9])", title):
-            tags.append(grail.title() if len(grail) > 3 else grail.upper())
+            label = grail.title() if len(grail) > 3 else grail.upper()
+            if _norm(label) not in {_norm(t) for t in tags}:  # "Made in USA" nicht doppelt anzeigen
+                tags.append(label)
             points += 2
             break
     level = 0 if points < 2 else 1 if points < 4 else 2 if points < 6 else 3
@@ -144,6 +146,7 @@ TREND_MODELS: list[tuple[str, str]] = [
     (r"\bbig e\b", "Big E"), (r"orange tab", "Orange Tab"), (r"ed hardy", "Ed Hardy"),
     (r"von dutch", "Von Dutch"), (r"juicy couture", "Juicy Couture"), (r"leopard|animal print", "Leo-Print"),
     (r"gorpcore", "Gorpcore"), (r"barrel", "Barrel Jeans"), (r"\bsamba\b", "Samba"), (r"tasman", "Tasman"),
+    (r"boot ?cut|\bflared?\b|schlag(?:hose|jeans)", "Bootcut/Flared"), (r"low ?rise", "Low Rise"),
 ]
 TREND_PREMIUM = 1.1
 TREND_POINTS = 5
@@ -229,6 +232,31 @@ def normalize_sizes(values: Iterable[str]) -> list[str]:
     return out
 
 
+# Bundweite -> Buchstabengröße (Damen und Herren überlappen, deshalb lieber großzügig zwei Größen)
+_W_SIZES = [(25, ("XXS", "XS")), (27, ("XS", "S")), (29, ("S", "M")), (31, ("M",)), (32, ("M", "L")),
+            (34, ("L",)), (36, ("L", "XL")), (38, ("XL", "XXL")), (99, ("XXL", "XXXL"))]
+# EU-Konfektionsgrößen: Damen 32–44, Herren 46–56
+_EU_SIZES = {32: "XXS", 34: "XS", 36: "S", 38: "M", 40: "L", 42: "XL", 44: "XXL",
+             46: "S", 48: "M", 50: "L", 52: "XL", 54: "XXL", 56: "XXXL"}
+
+
+def letter_equivalents(size: str) -> set[str]:
+    """'W30 L32' -> {'M'}, '38' -> {'M'}, '30/32' -> {'M'} – damit Jeans & Co. nicht am Größenfilter scheitern."""
+    s = (size or "").upper()
+    out: set[str] = set()
+    widths = [int(w) for w in re.findall(r"W\s?(\d{2})", s)]
+    m = re.match(r"^\s*(\d{2})\s*[/X]\s*(\d{2})\s*$", s)  # "30/32" = Weite/Länge
+    if m and 23 <= int(m.group(1)) <= 44:
+        widths.append(int(m.group(1)))
+    for w in widths:
+        out.update(next(letters for limit, letters in _W_SIZES if w <= limit))
+    if not widths:
+        for num in re.findall(r"(?<![0-9])(\d{2})(?![0-9])", s):
+            if int(num) in _EU_SIZES:
+                out.add(_EU_SIZES[int(num)])
+    return out
+
+
 def size_matches(item_size: str, wanted: Iterable[str]) -> bool:
     """Passt die Größe? Artikel ohne Größe (Taschen, Caps, 'One Size') passen immer."""
     wanted_set = set(normalize_sizes(wanted))
@@ -236,4 +264,7 @@ def size_matches(item_size: str, wanted: Iterable[str]) -> bool:
         return True
     if is_one_size(item_size):
         return True
-    return bool(size_tokens(item_size) & wanted_set)
+    tokens = size_tokens(item_size)
+    if wanted_set & set(LETTER_SIZES):
+        tokens |= letter_equivalents(item_size)
+    return bool(tokens & wanted_set)
