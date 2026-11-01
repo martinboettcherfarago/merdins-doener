@@ -121,7 +121,7 @@ def test_alles_radar_only_wanted_brands(mon):
     assert radar.keywords is None and radar.sweep
     noname = mon.explain(radar, item(1, 3, title="Pullover", brand="", size="M", minutes_old=1), NOW)
     assert noname == (None, "Alles-Radar: keine gefragte Marke")
-    hm = mon.explain(radar, item(2, 1, title="H&M Pullover", brand="H&M", size="M", minutes_old=1), NOW)
+    hm = mon.explain(radar, item(2, 3, title="H&M Pullover", brand="H&M", size="M", minutes_old=1), NOW)
     assert hm == (None, "Alles-Radar: keine gefragte Marke")
     good = mon.explain(radar, item(3, 20, title="Arc'teryx Fleece", brand="Arc'teryx", size="M", minutes_old=1),
                        NOW)[0]
@@ -208,3 +208,43 @@ def test_vintage_levis_bootcut_is_found(mon):
     alert, why = mon.explain(s, jeans, NOW)
     assert alert is not None, why
     assert alert.score.rarity_level == 1 and alert.score.trend in ("Y2K", "Bootcut/Flared")
+
+
+# -- Kleinkram & Bücher raus, neue Trends rein (Version 2.2) ------------------------------
+
+@pytest.mark.parametrize("title,why", [
+    ("Carhartt WIP Logo Patch für Jacken", "Kleinkram: Patches, Sticker & Anstecker – kein Kleidungsstück"),
+    ("Stüssy Sticker Set", "Kleinkram: Patches, Sticker & Anstecker – kein Kleidungsstück"),
+    ("Carhartt Staubbeutel", "Kleinkram: Verpackung, Etiketten & Staubbeutel – kein Kleidungsstück"),
+    ("Carhartt Katalog 2019", "Buch/Medien: Bücher – kein Kleidungsstück"),
+    ("Carhartt Jacke", "unter 2 € (meist Lockangebot oder Kleinkram)"),
+])
+def test_patches_stickers_books_are_not_deals(mon, title, why):
+    s = mon.effective(SearchConfig.watch("Carhartt"))
+    price = 1 if title == "Carhartt Jacke" else 3
+    assert mon.explain(s, item(1, price, title=title, brand="Carhartt", size="M", minutes_old=1), NOW) == (None, why)
+
+
+def test_patchwork_is_clothing_and_explicit_sticker_search_works(mon):
+    s = mon.effective(SearchConfig.watch("Carhartt"))
+    a = mon.explain(s, item(1, 20, title="Carhartt Patchwork Jacke", brand="Carhartt", size="M", minutes_old=1), NOW)
+    assert a[0] is not None, a[1]
+    stickers = SearchConfig(name="Sticker", keywords="supreme sticker")  # wer Sticker sucht, bekommt Sticker
+    assert "Kleinkram" not in mon.explain(stickers, item(2, 3, title="Supreme Sticker", brand="Supreme"), NOW)[1]
+    books = SearchConfig(name="Bücher", keywords="harry potter buch")
+    assert "Buch/Medien" not in mon.explain(books, item(3, 3, title="Harry Potter Buch"), NOW)[1]
+
+
+def test_new_trends_tops_and_fur_jackets(mon):
+    from vinted_bot.config import TREND_WATCHES
+    for entry in ["Abercrombie & Fitch", "Fellkragen Jacke", "Y2K Top", "Korsett Top", "Brandy Melville",
+                  "Lululemon", "Y2K Cargo", "Y2K Minirock"]:
+        assert entry in TREND_WATCHES
+    assert trend_match("Abercrombie & Fitch Y2K Jacke mit Fellkragen") == "Abercrombie Y2K"
+    assert trend_match("Spitzen Top weiß Y2K") == "Spitzen-Top"
+    assert product_type("Korsett Top schwarz") == "top" and product_type("Vintage Lammfelljacke") == "lederjacke"
+    s = mon.effective(SearchConfig.watch("Abercrombie & Fitch"))
+    a, why = mon.explain(s, item(1, 15, title="Abercrombie & Fitch Y2K Jacke mit Fellkragen",
+                                 brand="Abercrombie & Fitch", size="S", minutes_old=2), NOW)
+    assert a is not None, why
+    assert a.score.trend == "Abercrombie Y2K" and a.score.value > 50

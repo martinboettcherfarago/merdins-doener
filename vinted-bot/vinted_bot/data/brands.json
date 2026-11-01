@@ -241,7 +241,13 @@
   "Eastpak",
   "Herschel",
   "Rains",
-  "Fjallraven Kanken"
+  "Fjallraven Kanken",
+  "Abercrombie & Fitch",
+  "Skims",
+  "Miss Sixty",
+  "Free People",
+  "Aritzia",
+  "Fornarina"
  ],
  "standard": [
   "Nike",
@@ -272,7 +278,6 @@
   "Monki",
   "Urban Outfitters",
   "BDG",
-  "Abercrombie & Fitch",
   "Hollister",
   "American Eagle",
   "Superdry",
@@ -355,7 +360,11 @@
   "Russell Athletic",
   "Majestic",
   "Fanatics",
-  "Lee Cooper"
+  "Lee Cooper",
+  "Brandy Melville",
+  "Motel Rocks",
+  "Jaded London",
+  "Edikted"
  ],
  "budget": [
   "H&M",
@@ -471,6 +480,10 @@
   "essentials": "Essentials",
   "ugg": "UGG",
   "nb": "New Balance",
-  "new balance": "New Balance"
+  "new balance": "New Balance",
+  "abercrombie": "Abercrombie & Fitch",
+  "a&f": "Abercrombie & Fitch",
+  "abercrombie and fitch": "Abercrombie & Fitch",
+  "brandy": "Brandy Melville"
  }
 }

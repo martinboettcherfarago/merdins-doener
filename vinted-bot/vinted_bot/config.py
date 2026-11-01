@@ -27,6 +27,10 @@ TREND_WATCHES = [
     "Polo Bear", "Longchamp Le Pliage", "Prada Nylon", "Coach Tasche", "Ed Hardy", "Diesel vintage",
     "Vintage Lederjacke", "Vintage Trikot", "College Jacke", "Band Shirt vintage", "Harley Davidson", "Y2K",
     "Vintage Levi's", "Bootcut Jeans",
+    # Y2K, Tops & Felljacken
+    "Abercrombie & Fitch", "Fellkragen Jacke", "Lammfell Jacke", "Wildlederjacke", "Juicy Couture",
+    "Brandy Melville", "Skims", "Lululemon", "True Religion", "Miss Sixty", "Y2K Top", "Korsett Top",
+    "Spitzen Top", "Y2K Cargo", "Y2K Minirock", "Tommy Hilfiger vintage", "Champion vintage",
 ]
 TREND_BRANDS = TREND_WATCHES  # alter Name, bleibt für ältere Konfigurationen gültig
 

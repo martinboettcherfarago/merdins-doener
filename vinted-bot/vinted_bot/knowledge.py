@@ -147,16 +147,32 @@ TREND_MODELS: list[tuple[str, str]] = [
     (r"von dutch", "Von Dutch"), (r"juicy couture", "Juicy Couture"), (r"leopard|animal print", "Leo-Print"),
     (r"gorpcore", "Gorpcore"), (r"barrel", "Barrel Jeans"), (r"\bsamba\b", "Samba"), (r"tasman", "Tasman"),
     (r"boot ?cut|\bflared?\b|schlag(?:hose|jeans)", "Bootcut/Flared"), (r"low ?rise", "Low Rise"),
+    (r"abercrombie.{0,60}(?:fell|fur|y2k|vintage|elch|moose)|(?:fell|fur|y2k|vintage).{0,60}abercrombie",
+     "Abercrombie Y2K"),
+    (r"fell ?kragen|fell ?kapuze|faux ?fur|kunstfell|fur (?:collar|hood)", "Fellkragen"),
+    (r"lammfell|shearling|penny ?lane|afghan", "Shearling"), (r"wildleder|suede", "Wildleder"),
+    (r"korsett|corset|corsage", "Korsett-Top"), (r"spitzen ?top|lace top", "Spitzen-Top"),
+    (r"mesh ?top|netz ?top", "Mesh-Top"), (r"babydoll|milkmaid", "Babydoll"),
+    (r"juicy couture", "Juicy Couture"), (r"brandy melville", "Brandy Melville"), (r"\bskims\b", "Skims"),
+    (r"lululemon.{0,40}(?:define|align|scuba)|(?:define|align|scuba).{0,40}lululemon", "Lululemon"),
+    (r"true religion", "True Religion"), (r"miss sixty", "Miss Sixty"),
+    (r"y2k.{0,30}(?:cargo|mini ?rock|minirock)|(?:cargo|minirock).{0,30}y2k", "Y2K Cargo/Mini"),
+    (r"reverse weave", "Reverse Weave"), (r"patchwork", "Patchwork"), (r"\b70(?:er|s)\b", "70er"),
 ]
 TREND_PREMIUM = 1.1
 TREND_POINTS = 5
 
 
+# Allgemeine Stil-Wörter erst prüfen, wenn kein konkretes Modell passt ("A&F Y2K Fellkragen" -> Fellkragen)
+_GENERIC_TRENDS = {"Y2K", "Baggy", "Workwear", "70er", "Leo-Print", "Patchwork", "Gorpcore", "Low Rise"}
+
+
 def trend_match(title: str) -> Optional[str]:
     t = (title or "").lower()
-    for pattern, label in TREND_MODELS:
-        if re.search(pattern, t):
-            return label
+    for generic in (False, True):
+        for pattern, label in TREND_MODELS:
+            if (label in _GENERIC_TRENDS) == generic and re.search(pattern, t):
+                return label
     return None
 
 

@@ -24,7 +24,7 @@ from .storage import Storage
 
 BASE = "https://www.vinted.de"
 SAMPLE_BRANDS = ["Carhartt", "Stüssy", "Arc'teryx", "Stone Island", "Ralph Lauren", "The North Face",
-                 "Patagonia", "Nike", "Miu Miu"]
+                 "Patagonia", "Nike", "Miu Miu", "Abercrombie & Fitch"]
 # Trend-Suchen nach Begriff (keine Marke): Markt aus verschiedenen Marken und No-Name
 SAMPLE_TERMS = {"Vintage Lederjacke": ("lederjacke", ["", "", "", "Zara", "H&M", "Mango", "Levi's", "Gipsy"])}
 TITLES = {
@@ -40,10 +40,12 @@ TITLES = {
     "tasche": ["Tasche", "Handtasche", "Shopper"],
     "rock": ["Rock", "Minirock"],
     "lederjacke": ["Lederjacke", "Vintage Lederjacke", "Bikerjacke"],
+    "top": ["Top", "Crop Top", "Spitzen Top"],
 }
 # Welche Kategorien eine Marke im Musterdatensatz anbietet
 BRAND_TYPES = {"Nike": ["schuhe", "jacke", "hoodie", "pullover", "tshirt", "hose", "muetze"],
-               "Miu Miu": ["tasche", "rock", "pullover", "tshirt", "jacke"]}
+               "Miu Miu": ["tasche", "rock", "pullover", "tshirt", "jacke"],
+               "Abercrombie & Fitch": ["jacke", "hoodie", "pullover", "tshirt", "top", "hose"]}
 DEFAULT_TYPES = ["jacke", "hoodie", "pullover", "tshirt", "hose", "weste", "fleece", "muetze"]
 SIZES = [("XS", 5), ("S", 20), ("M", 30), ("L", 25), ("XL", 15), ("XXL", 5)]
 CONDITIONS = [("Neu mit Etikett", 10), ("Neu ohne Etikett", 10), ("Sehr gut", 45), ("Gut", 30),
@@ -59,6 +61,7 @@ FINDS = [
     ("Ralph Lauren", "Vintage Polo Sport Jacke 90s", "L", 22, "Gut", 2),
     ("Miu Miu", "Miu Miu Tasche Leder", "", 160, "Sehr gut", 2),
     ("", "Vintage Lederjacke 90er", "L", 12, "Gut", 3),  # No-Name, gefunden über die Trend-Suche
+    ("Abercrombie & Fitch", "Abercrombie & Fitch Y2K Jacke mit Fellkragen", "S", 15, "Sehr gut", 2),
 ]
 # Fallen: (Marke, Titel, Größe, Preis, Zustand, Minuten online, warum nicht) – sollten NICHT gemeldet werden
 TRAPS = [
@@ -74,6 +77,9 @@ TRAPS = [
     ("Patagonia", "Patagonia Fleece", "M", 55, "Sehr gut", 3, "kaum Rabatt"),
     ("Miu Miu", "Miu Miu Tasche", "", 35, "Neu mit Etikett", 1, "Fake-Verdacht"),
     ("H&M", "H&M Lederjacke", "M", 8, "Sehr gut", 2, "lohnt sich nicht (Fast Fashion)"),
+    ("Carhartt", "Carhartt WIP Logo Patch für Jacken", "", 3, "Neu mit Etikett", 1, "nur ein Patch"),
+    ("Stone Island", "Stone Island Archivio Buch", "", 15, "Sehr gut", 2, "Buch"),
+    ("Abercrombie & Fitch", "Abercrombie & Fitch Sticker", "", 2, "Neu ohne Etikett", 1, "Sticker"),
 ]
 
 

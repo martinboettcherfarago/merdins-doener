@@ -87,6 +87,8 @@ CATEGORIES: dict[str, Category] = {c.key: c for c in [
     Category("parfum", "Parfum", 30, "other", "beauty"),
     Category("kosmetik", "Kosmetik", 10, "other", "beauty"),
     Category("deko", "Deko & Wohnen", 10, "other", "wohnen"),
+    Category("kleinkram", "Patches, Sticker & Anstecker", 3, "other", "kleinkram"),
+    Category("verpackung", "Verpackung, Etiketten & Staubbeutel", 2, "other", "kleinkram"),
     Category("sonstiges", "Artikel", 12, "other", "sonstiges", volatile=True),
 ]}
 
@@ -95,12 +97,24 @@ FAMILY_LABELS = {
     "hose": "Hosen & Jeans", "bademode": "Bademode", "jacke": "Jacken & Mäntel", "schuhe": "Schuhe",
     "tasche": "Taschen", "accessoires": "Accessoires", "elektronik": "Elektronik & Games",
     "spielzeug": "Spielzeug & Sammeln", "medien": "Bücher & Medien", "beauty": "Beauty", "wohnen": "Wohnen",
-    "sonstiges": "Sonstiges",
+    "kleinkram": "Kleinkram (Patches, Sticker, Verpackung)", "sonstiges": "Sonstiges",
 }
 
 # Erkennung am Titel: erster Treffer gewinnt, deshalb Spezielles vor Allgemeinem.
 # 'wort' = irgendwo, '=wort' = Wortanfang, '=wort=' = ganzes Wort (siehe text.keyword_in)
 DETECTION: list[tuple[str, list[str]]] = [
+    # Kleinkram, Verpackung und Bücher ganz zuerst: "Carhartt Patch für Jacken" ist keine Jacke,
+    # "Stone Island Archivio Buch" kein Pullover
+    ("kleinkram", ["=patch=", "=patches=", "aufnäher", "aufnaeher", "aufbügler", "bügelbild", "sticker",
+                   "aufkleber", "anstecker", "ansteckpin", "=pins=", "enamel pin", "=badge=", "schlüsselanhänger",
+                   "schluesselanhaenger", "keychain", "key chain", "lanyard", "=emblem=", "logo patch"]),
+    ("verpackung", ["originalkarton", "schuhkarton", "=karton=", "leere box", "box leer", "geschenkbox",
+                    "staubbeutel", "dustbag", "dust bag", "einkaufstüte", "papiertüte", "=tüte=", "paper bag",
+                    "kleiderbügel", "=etikett=", "=etiketten=", "hang tag", "hangtag", "preisschild",
+                    "ersatzknöpfe", "ersatzknopf", "schnürsenkel", "einlegesohle", "echtheitszertifikat"]),
+    ("buch", ["=buch=", "bücher", "buecher", "=roman=", "taschenbuch", "hardcover", "paperback", "bildband",
+              "=magazin=", "=magazine=", "zeitschrift", "=katalog=", "lookbook", "=isbn", "=book=", "=books=",
+              "kochbuch", "fotobuch"]),
     # eindeutige Sneaker-Modelle zuerst ("Nike Blazer Mid" ist kein Sakko)
     ("sneaker", ["blazer mid", "blazer low", "air max", "air force", "=dunk low", "=dunk high", "jordan 1",
                  "jordan 4", "yeezy", "=samba", "gazelle", "=campus 00", "=spezial=", "new balance 550", "=9060",
@@ -118,7 +132,8 @@ DETECTION: list[tuple[str, list[str]]] = [
     ("weste", ["weste", "=vest=", "gilet", "bodywarmer"]),
     ("pullover", ["sweatjacke", "strickjacke", "cardigan", "trainingsjacke", "track jacket", "tracktop",
                   "track top"]),
-    ("lederjacke", ["lederjacke", "leather jacket", "bikerjacke", "lederblouson", "wildlederjacke"]),
+    ("lederjacke", ["lederjacke", "leather jacket", "bikerjacke", "lederblouson", "wildlederjacke", "wildleder",
+                    "suede jacket", "lammfell", "shearling", "penny lane", "afghan coat", "afghanmantel"]),
     ("daunenjacke", ["daunenjacke", "daunen", "puffer", "steppjacke", "nuptse", "down jacket", "=down="]),
     ("mantel", ["mantel", "=coat=", "overcoat", "trenchcoat", "=trench", "parka", "peacoat", "dufflecoat"]),
     ("blazer", ["sakko", "=blazer=", "anzugjacke", "=anzug=", "=suit="]),
@@ -128,8 +143,10 @@ DETECTION: list[tuple[str, list[str]]] = [
                   "half zip", "troyer", "rollkragen", "=jumper="]),
     ("hemd", ["hemd", "overshirt", "flanell", "button down", "button-down", "=shirt jacket"]),
     ("trikot", ["trikot", "=jersey=", "football shirt", "soccer jersey"]),
-    ("top", ["bluse", "tanktop", "tank top", "crop top", "croptop", "corsage", "korsett", "bustier", "camisole",
-             "neckholder", "trägertop", "=body=", "=top=", "=tops="]),
+    ("top", ["bluse", "tanktop", "tank top", "crop top", "croptop", "corsage", "korsett", "=corset", "bustier",
+             "camisole", "=cami=", "neckholder", "trägertop", "=body=", "=top=", "=tops=", "spitzentop",
+             "spitzen top", "lace top", "mesh top", "netztop", "babydoll", "milkmaid", "bandeau", "bralette",
+             "schulterfrei", "off shoulder", "rückenfrei", "halter top"]),
     ("tshirt", ["t-shirt", "tshirt", "t shirt", "=tee=", "=tees=", "=shirt=", "=shirts=", "longsleeve",
                 "=polo=", "poloshirt", "langarmshirt"]),
     ("rock", ["=rock="]),

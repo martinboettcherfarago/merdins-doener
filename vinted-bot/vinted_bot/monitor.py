@@ -20,6 +20,9 @@ from .vinted import VintedBlocked, VintedClient, VintedRateLimited, query_for_se
 
 log = logging.getLogger(__name__)
 
+JUNK_TYPES = {"kleinkram", "verpackung"}   # Patches, Sticker, Kartons, Staubbeutel …
+MEDIA_TYPES = {"buch", "medien"}           # Bücher, Magazine, Kataloge, CDs …
+
 
 class Monitor:
     def __init__(self, cfg: Config, client: VintedClient, storage: Storage, notifier: Any,
@@ -30,7 +33,7 @@ class Monitor:
         self.notifier = notifier
         self.clock = clock
         self.stop_event = threading.Event()
-        self.pause_between_searches = (1.0, 2.5)
+        self.pause_between_searches = (0.8, 2.0)
         self.stats: dict[str, Any] = {"started": clock(), "cycles": 0, "checked": 0, "alerts": 0,
                                       "errors": 0, "last_error": "", "last_cycle": 0.0}
         self._blocked_notified = False
@@ -197,6 +200,27 @@ class Monitor:
 
     # -- Bewertung -----------------------------------------------------------------
 
+    @staticmethod
+    def _search_text(search: SearchConfig) -> str:
+        if search.keywords:
+            return search.keywords
+        if search.url:
+            from .vinted import query_from_url
+            return query_from_url(search.url).search_text
+        return ""
+
+    def _junk_reason(self, search: SearchConfig, item: Item, ptype: str) -> str:
+        """Patches, Sticker, Verpackung, Bücher … sind keine Schnäppchen – außer du suchst genau danach."""
+        if ptype not in JUNK_TYPES and ptype not in MEDIA_TYPES:
+            return "" if not (search.is_resale and item.price < 2) else \
+                "unter 2 € (meist Lockangebot oder Kleinkram)"
+        wanted = product_type(self._search_text(search))
+        if wanted == ptype or (wanted in JUNK_TYPES and ptype in JUNK_TYPES) or \
+                (wanted in MEDIA_TYPES and ptype in MEDIA_TYPES):
+            return ""
+        kind = "Kleinkram" if ptype in JUNK_TYPES else "Buch/Medien"
+        return f"{kind}: {TYPE_LABELS.get(ptype, ptype)} – kein Kleidungsstück"
+
     def evaluate(self, search: SearchConfig, item: Item, now: float, kind: str = "new",
                  old_price: Optional[float] = None, extra: Optional[list[Item]] = None) -> Optional[Alert]:
         """Bewertet einen Artikel. Gibt einen Alarm zurück, wenn er alle Filter und Ziele der Suche erfüllt."""
@@ -210,6 +234,9 @@ class Monitor:
         if not ok:
             return None, why
         ptype = product_type(item.title)
+        junk = self._junk_reason(search, item, ptype)
+        if junk:
+            return None, junk
         rare = rarity(item)
         trend = trend_match(item.title)
         est = estimate_item(item, ptype)

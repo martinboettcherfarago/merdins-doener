@@ -125,6 +125,7 @@ Per Telegram umschalten: **`/stufe streng`**. Dann kommen wenige Meldungen, aber
 Eingebaut sind:
 - **Marken:** Carhartt, Stüssy, Arc'teryx, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, Barbour, Levi's, Dickies, Moncler, Burberry, Miu Miu und Vivienne Westwood
 - **Modelle & Styles:** Nike Tech Fleece, Nike ACG, Vintage Nike, Adidas Trainingsjacke, Ralph Lauren Strick, Polo Bear, Longchamp Le Pliage, Prada Nylon, Coach Tasche, Ed Hardy, Diesel vintage, Vintage Lederjacke, Vintage Trikot, College Jacke, Band Shirt vintage, Harley Davidson, Y2K, Vintage Levi's und Bootcut Jeans
+- **Y2K, Tops & Felljacken:** Abercrombie & Fitch, Fellkragen Jacke, Lammfell Jacke, Wildlederjacke, Juicy Couture, Brandy Melville, Skims, Lululemon, True Religion, Miss Sixty, Y2K Top, Korsett Top, Spitzen Top, Y2K Cargo, Y2K Minirock, Tommy Hilfiger vintage und Champion vintage
 
 Ändern kannst du die Liste per Telegram:
 
@@ -156,7 +157,8 @@ Die Schnäppchen-Kriterien gibt es auch für normale Suchen:
 `/neu salomon xt-6 bis 90 rabatt 35 günstiger 95 frisch 5` oder in der config `min_discount`, `min_cheaper_than`, `min_profit`, `max_age_minutes` und `min_condition`.
 
 **Tipps:**
-- **Weniger Einträge bedeuten schnellere Meldungen.** Bei den 33 eingebauten Trends dauert ein Durchlauf rund 1–1,5 Minuten, weil der Bot zwischen den Abfragen kurz wartet. Mit 10–15 Lieblingseinträgen bist du deutlich schneller.
+- **Weniger Einträge bedeuten schnellere Meldungen.** Bei den 52 eingebauten Trends dauert ein Durchlauf rund 2 Minuten, weil der Bot zwischen den Abfragen kurz wartet. Mit 15–20 Lieblingseinträgen (`/trends minus …`) bist du deutlich schneller.
+- **Kein Kleinkram:** Patches, Aufnäher, Sticker, Pins, Schlüsselanhänger, Kartons, Staubbeutel, Etiketten sowie Bücher, Magazine und Kataloge meldet der Bot nicht, auch wenn „Carhartt“ oder „Jacke“ im Titel steht. Dasselbe gilt für Artikel unter 2 €, das sind meist Lockangebote. Suchst du genau so etwas (`/neu supreme sticker`), kommt es natürlich durch.
 - Findet ein Artikel mehrere Suchen gleichzeitig, wird er trotzdem nur **einmal** gemeldet.
 - Je kleiner `interval_seconds` (z. B. 30–45), desto früher bist du dran. Zu klein führt aber zu Blockaden durch Vinted.
 - Der „Marktpreis“ ist der Median der **Angebotspreise** auf Vinted. Verkauft wird oft etwas darunter. Rechne den Gewinn deshalb lieber vorsichtig.
