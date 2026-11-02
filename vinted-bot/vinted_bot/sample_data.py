@@ -208,7 +208,8 @@ class _Collector:
         pass
 
 
-COPY_STATE = ("filter_sizes", "filter_exclude_types", "only_rare", "resale_level", "prefs", "own_prices")
+COPY_STATE = ("filter_sizes", "filter_exclude_types", "only_rare", "resale_level", "prefs", "own_prices",
+              "budget", "budget_brands")
 
 
 @dataclass
@@ -220,6 +221,7 @@ class SampleResult:
     checked: int
     settings: str = ""
     found_finds: set[int] = field(default_factory=set)
+    over_budget: set[int] = field(default_factory=set)   # echte Finds, die über deinem Budget liegen
 
     @property
     def wrong_alerts(self) -> list[Alert]:
@@ -229,8 +231,9 @@ class SampleResult:
         fresh = len(self.alerts) + len(self.rejected)
         lines = [f"Geprüft: {self.checked} Angebote aus {len(SAMPLE_BRANDS)} Marken + {len(SAMPLE_TERMS)} Trend-Suche, "
                  f"davon {fresh} frisch hochgeladen",
-                 f"Echte Finds im Datensatz erkannt: {len(self.found_finds)} von {len(self.finds)} · "
-                 f"Fallen fälschlich gemeldet: {len(self.wrong_alerts)} von {len(self.traps)}",
+                 f"Echte Finds im Datensatz erkannt: {len(self.found_finds)} von {len(self.finds)}"
+                 + (f" (+{len(self.over_budget)} über deinem Budget)" if self.over_budget else "")
+                 + f" · Fallen fälschlich gemeldet: {len(self.wrong_alerts)} von {len(self.traps)}",
                  f"Einstellungen: {self.settings}", "", f"✅ Gemeldet ({len(self.alerts)}):"]
         for a in self.alerts:
             gem = " 💎" if a.score.rarity_level else ""
@@ -281,14 +284,17 @@ def run_sample(cfg: Config, source_storage: Optional[Storage] = None, seed: int 
     mon_log.setLevel(old_level)
     f = monitor.global_filters()
     t = monitor.resale_targets()
-    settings = (f"Stufe {monitor.resale_level or 'aus config'} · Größen {', '.join(f['sizes']) or 'alle'} · "
+    normal, brands = monitor.budget()
+    settings = (f"Stufe {monitor.resale_level or 'aus config'} · Budget {normal:g} € (teure Marken {brands:g} €) · "
+                f"Größen {', '.join(f['sizes']) or 'alle'} · "
                 f"ausgeblendet: {', '.join(f['exclude_types']) or 'nichts'} · "
                 f"≥ {t['min_discount']:g} % unter Wert · ≤ {t['max_age_minutes']} Min."
                 + (" · nur Raritäten" if f["only_rare"] else ""))
     alerts = sorted(collector.alerts, key=lambda a: a.score.total, reverse=True)
-    result = SampleResult(alerts=alerts, rejected=[(i, why) for _s, i, why in monitor.reject_log],
-                          finds=client.finds, traps=client.traps, checked=monitor.stats["checked"] - checked_before,
-                          settings=settings)
-    result.found_finds = {a.item.id for a in alerts} & client.finds
+    rejected = [(i, why) for _s, i, why in monitor.reject_log]
+    over = {i.id for i, why in rejected if why.startswith("über deinem Budget")} & client.finds
+    result = SampleResult(alerts=alerts, rejected=rejected, finds=client.finds - over, traps=client.traps,
+                          checked=monitor.stats["checked"] - checked_before, settings=settings, over_budget=over)
+    result.found_finds = {a.item.id for a in alerts} & result.finds
     storage.close()
     return result

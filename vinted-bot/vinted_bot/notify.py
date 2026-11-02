@@ -45,9 +45,10 @@ def money(value: Optional[float], currency: str = "EUR") -> str:
 def age_text(created_ts: Optional[int], now: Optional[float] = None) -> str:
     if not created_ts:
         return ""
-    minutes = max(0, int(((now or time.time()) - created_ts) // 60))
-    if minutes < 1:
-        return "gerade eben"
+    seconds = max(0, int((now or time.time()) - created_ts))
+    if seconds < 120:
+        return f"vor {max(1, seconds)} s"   # Sniper: auf die Sekunde
+    minutes = seconds // 60
     if minutes < 60:
         return f"vor {minutes} Min."
     hours = minutes // 60
@@ -101,7 +102,8 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
         lines += alert.brain.lines()
     if alert.ai is not None:
         lines += alert.ai.lines()
-    lines.append(f"🔎 Suche: {alert.search_name}" + (f" · Sucher {alert.worker}" if alert.worker else ""))
+    who = ("" if not alert.worker else " · ⚡ Sniper" if alert.worker == "Sniper" else f" · Sucher {alert.worker}")
+    lines.append(f"🔎 Suche: {alert.search_name}{who}")
     return lines
 
 

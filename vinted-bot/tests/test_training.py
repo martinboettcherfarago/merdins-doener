@@ -82,7 +82,8 @@ def test_more_shoe_models_are_recognised():
 
 @pytest.fixture
 def mon(tmp_path):
-    cfg = config_from_dict({"resale": {"brands": ["Carhartt"]}}, base_dir=str(tmp_path))
+    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "budget": 500, "budget_brands": 500}},
+                           base_dir=str(tmp_path))
     m = Monitor(cfg, FakeClient(), Storage(str(tmp_path / "t.db")), FakeNotifier(), clock=lambda: NOW)
     m.pause_between_searches = (0, 0)
     return m

@@ -417,7 +417,7 @@ def test_fashion_model_falls_back_to_fast_clip(monkeypatch):
 # -- Einfluss aufs Gemeldete: cooler Look, Geschmack, Kategorie aus dem Foto -----------------------------
 
 def carhartt_setup(tmp_path, tags, brands=("Carhartt",)):
-    cfg = config_from_dict({"resale": {"brands": list(brands)}}, base_dir=str(tmp_path))
+    cfg = config_from_dict({"resale": {"brands": list(brands), "budget": 500}}, base_dir=str(tmp_path))
     store = {}
     brain = Brain(cfg, lambda url: store.get(url), embedder=TagEmbedder(tags))
     from conftest import FakeClient

@@ -10,7 +10,7 @@ import time
 from dataclasses import replace
 from typing import Any, Callable, Optional
 
-from .catalog import hidden_label, is_kids, is_retro, type_hidden
+from .catalog import brand_info, hidden_label, is_kids, is_retro, type_hidden
 from . import fakecheck
 from .config import RESALE_LEVELS, TREND_WATCHES, Config, SearchConfig, watch_name
 from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
@@ -25,6 +25,10 @@ log = logging.getLogger(__name__)
 
 JUNK_TYPES = {"kleinkram", "verpackung"}   # Patches, Sticker, Kartons, Staubbeutel …
 MEDIA_TYPES = {"buch", "medien"}           # Bücher, Magazine, Kataloge, CDs …
+EXPENSIVE_TIERS = ("luxus", "designer", "outdoor")  # "wirklich teure Marken" dürfen übers Budget
+SNIPER = "⚡ Sniper"
+# Beispiel-Suchen aus der alten config.example.yaml (werden einmalig pausiert, siehe _pause_example_searches)
+EXAMPLE_SEARCHES = {"Air Max 90": ("nike air max 90", 60.0), "Carhartt Jacken": ("carhartt%20jacke", 70.0)}
 
 
 class Monitor:
@@ -49,7 +53,25 @@ class Monitor:
         self._migrate_old_resale_searches()
         self._rename_old_searches()
         self._apply_trend_presets()
+        self.paused_examples = self._pause_example_searches()
         self.min_cycle_wait = 3.0
+        self.last_fetch: dict[str, tuple[int, int]] = {}   # Suche -> (neue Artikel, Artikel insgesamt)
+        self.sniper_stats = {"polls": 0, "new": 0, "gaps": 0, "alerts": 0, "since": time.monotonic()}
+
+    def _pause_example_searches(self) -> list[str]:
+        """Die Beispiel-Suchen der alten Vorlage ("Air Max 90", "Carhartt Jacken") melden alles mögliche ohne
+        Rabatt-Prüfung. Einmalig pausieren – mit /weiter jederzeit wieder einschaltbar."""
+        if self.storage.get_state("migrated:examples_v1") == "1":
+            return []
+        paused = []
+        for s in self.cfg.searches:
+            ex = EXAMPLE_SEARCHES.get(s.name)
+            if ex and s.source == "config" and s.max_price == ex[1] and \
+                    ex[0] in ((s.keywords or "") + " " + (s.url or "")).lower():
+                self.storage.set_disabled(s.name, True)
+                paused.append(s.name)
+        self.storage.set_state("migrated:examples_v1", "1")
+        return paused
 
     def _rename_old_searches(self) -> None:
         """Version 2: 'Resale · X' heißt jetzt 'Marke · X' bzw. 'Trend · X' (gesucht wurde nie nach 'Resale')."""
@@ -107,7 +129,48 @@ class Monitor:
         return dict(RESALE_LEVELS[level]) if level else dict(self.cfg.resale_targets)
 
     def effective(self, search: SearchConfig) -> SearchConfig:
-        return search.with_targets(self.resale_targets())
+        """Suche mit den Zielen der Schnäppchen-Stufe und deinem Budget (gilt nur fürs Schnäppchen-Radar)."""
+        s = search.with_targets(self.resale_targets())
+        if s.is_resale:
+            cap = self.search_cap(s)
+            # eigene Grenze per Telegram (/marke stone island bis 300) gilt; sonst höchstens das Budget
+            if s.max_price is None or (s.max_price > cap and s.source != "telegram"):
+                s = replace(s, max_price=cap)
+        return s
+
+    # -- Budget: günstige Teile, nur teure Marken dürfen mehr kosten ----------------------
+
+    def budget(self) -> tuple[float, float]:
+        """(normales Budget, Budget für teure Marken) – per /budget änderbar, sonst aus der config."""
+        def _num(key: str, default: float) -> float:
+            try:
+                return float(self.storage.get_state(key) or default)
+            except ValueError:
+                return default
+        normal = _num("budget", self.cfg.budget)
+        return normal, max(normal, _num("budget_brands", self.cfg.budget_brands))
+
+    def price_cap(self, tier: Optional[str]) -> float:
+        normal, brands = self.budget()
+        return brands if tier in EXPENSIVE_TIERS else normal
+
+    def search_cap(self, search: SearchConfig) -> float:
+        """Preis-Obergrenze der Vinted-Abfrage: teure Marken-Suchen (Stone Island, Arc'teryx …) dürfen höher."""
+        if search.sweep or not search.brands:
+            return self.budget()[0]
+        info = brand_info(search.brands[0])
+        return self.price_cap(info[1] if info else None)
+
+    # -- ⚡ Sniper: die neuesten Uploads auf ganz Vinted, alle paar Sekunden -------------
+
+    def sniper_enabled(self) -> bool:
+        state = self.storage.get_state("sniper")
+        return state == "1" if state in ("0", "1") else self.cfg.sniper
+
+    def sniper_search(self) -> SearchConfig:
+        url = self.storage.get_state("sniper_url") or next(
+            (s.url for s in self.all_searches() if s.sweep and s.url and s.enabled), None)
+        return self.effective(SearchConfig(name=SNIPER, sweep=True, mode="resale", url=url, source="sniper"))
 
     def trend_brands(self) -> list[str]:
         """Eingebaute Trend-Marken minus die, die du entfernt hast, plus deine eigenen."""
@@ -155,7 +218,8 @@ class Monitor:
         return list(self.cfg.searches) + custom
 
     def active_searches(self) -> list[SearchConfig]:
-        return [s for s in self.all_searches() if s.enabled and not self.storage.is_disabled(s.name)]
+        """Die Suchen der normalen Sucher (das Alles-Radar läuft als ⚡ Sniper auf der Überholspur)."""
+        return [s for s in self.all_searches() if s.enabled and not s.sweep and not self.storage.is_disabled(s.name)]
 
     @property
     def paused(self) -> bool:
@@ -268,6 +332,8 @@ class Monitor:
                 old_price: Optional[float] = None, extra: Optional[list[Item]] = None
                 ) -> tuple[Optional[Alert], str]:
         """Wie evaluate, liefert aber auch den Grund, warum ein Artikel NICHT gemeldet wird."""
+        if search.is_resale and search.max_price is not None and item.price > search.max_price:
+            return None, f"über deinem Budget ({search.max_price:.0f} €)"
         ok, why = passes_filters(item, search, self.cfg.global_exclude_words)
         if not ok:
             return None, why
@@ -324,7 +390,9 @@ class Monitor:
         score = score_item(item, ref, self.cfg.top_deal_score, now, resale=search.is_resale,
                            shipping=self.cfg.shipping_estimate, rare=rare, pref_pts=pref_pts, est=est,
                            trend=trend)
-        if use_brain:
+        # Foto nur für echte Kandidaten laden & bewerten (hält den Sniper schnell); das Modell darf
+        # aber Teile retten, die laut Faustregel nur knapp unter Wert liegen
+        if use_brain and (view is not None or (score.discount or 0) >= 0.1 or rare.level or trend):
             if view is None:
                 view = self.brain.assess(item, ptype, est)
             if view is not None:
@@ -418,10 +486,12 @@ class Monitor:
         r = self.reviewer
         return r is not None and r.enabled and r.budget_left("checks")
 
-    def check_search(self, search: SearchConfig, client: Any = None, worker: str = "") -> list[Alert]:
+    def check_search(self, search: SearchConfig, client: Any = None, worker: str = "", page: int = 1) -> list[Alert]:
         """Fragt eine Suche ab und liefert die Treffer, die gemeldet werden sollen."""
         search = self.effective(search)
-        items = (client or self.client).search(query_for_search(search, self.cfg.currency), per_page=self._per_page(search))
+        query, per_page = query_for_search(search, self.cfg.currency), self._per_page(search)
+        c = client or self.client
+        items = c.search(query, per_page=per_page, page=page) if page > 1 else c.search(query, per_page=per_page)
         with self._lock:
             self.stats["checked"] += len(items)
             if worker:
@@ -433,10 +503,12 @@ class Monitor:
         drop_factor = 1 - self.cfg.price_drop_percent / 100
 
         alerts = []
+        fresh = 0
         for item in items:
             prev = self.storage.seen_price(search.name, item.id)
             alert = None
             if prev is None:
+                fresh += 1
                 too_old = bool(max_age and item.created_ts and now - item.created_ts > max_age)
                 # erster Durchlauf: nur Preise lernen; alte (nur hochgeschobene) Artikel nie melden
                 if seeded and not too_old:
@@ -462,6 +534,8 @@ class Monitor:
             if alert:
                 alerts.append(alert)
 
+        with self._lock:
+            self.last_fetch[search.name] = (fresh, len(items))
         if not seeded:
             self.storage.set_seeded(search.name)
             log.info("Suche '%s': %d Artikel als Ausgangsbasis gespeichert.", search.name, len(items))
@@ -631,6 +705,9 @@ class Monitor:
                                  daemon=True)
             threads.append(t)
             t.start()
+        sniper = threading.Thread(target=self._sniper, args=(factory(),), name="Sniper", daemon=True)
+        threads.append(sniper)
+        sniper.start()
         if self.reviewer is not None:
             self.reviewer.start()
         if self.brain is not None:
@@ -688,6 +765,56 @@ class Monitor:
             interval = self.cfg.interval_seconds
             self.stop_event.wait(max(self.min_cycle_wait, interval + random.uniform(0, interval * 0.2)
                                      - (time.monotonic() - started)))
+
+    def _sniper(self, client: Any) -> None:
+        """⚡ Sniper: alle paar Sekunden die neuesten Uploads auf ganz Vinted (bis zu deinem Budget) prüfen.
+        Sind alle Artikel einer Seite neu, kam seit dem letzten Blick mehr rein – dann sofort weiterblättern,
+        damit nichts durchrutscht."""
+        backoff, last_report = 0.0, time.monotonic()
+        while not self.stop_event.is_set():
+            if not self.sniper_enabled() or self.paused:
+                self.stop_event.wait(2)
+                continue
+            started = time.monotonic()
+            search = self.sniper_search()
+            seeded = self.storage.is_seeded(search.name)
+            for page in (1, 2, 3):
+                if not self.pacer.wait(self.stop_event):
+                    return
+                try:
+                    alerts = self.check_search(search, client=client, worker="Sniper", page=page)
+                    backoff = 0.0
+                    self._unblocked()
+                except VintedRateLimited as e:
+                    self.pacer.pause(max(60.0, e.retry_after))
+                    break
+                except VintedBlocked as e:
+                    backoff = min(900.0, backoff * 2 if backoff else 60.0)
+                    self.pacer.pause(backoff)
+                    self._error(str(e))
+                    self._blocked(e)
+                    break
+                except Exception as e:  # noqa: BLE001
+                    self._error(f"{SNIPER}: {e}")
+                    break
+                for alert in alerts:
+                    if self._deliver(alert, worker="Sniper"):
+                        self.sniper_stats["alerts"] += 1
+                fresh, total = self.last_fetch.get(search.name, (0, 0))
+                self.sniper_stats["polls"] += 1
+                self.sniper_stats["new"] += fresh
+                if not seeded or total < self._per_page(search) or fresh < total:
+                    break  # Anschluss an den letzten Blick gefunden – nichts verpasst
+                if page == 3:
+                    self.sniper_stats["gaps"] += 1
+            if time.monotonic() - last_report > 300:
+                st = self.sniper_stats
+                log.info("⚡ Sniper: %d Abfragen in 5 Min. · Ø %.0f neue Artikel pro Abfrage · %d Meldung(en)%s",
+                         st["polls"], st["new"] / max(1, st["polls"]), st["alerts"],
+                         f" · {st['gaps']}× sehr viel los (evtl. etwas verpasst)" if st["gaps"] else "")
+                self.sniper_stats = {"polls": 0, "new": 0, "gaps": 0, "alerts": 0, "since": time.monotonic()}
+                last_report = time.monotonic()
+            self.stop_event.wait(max(0.0, self.cfg.sniper_every_seconds - (time.monotonic() - started)))
 
     def _blocked(self, e: Exception) -> None:
         with self._lock:

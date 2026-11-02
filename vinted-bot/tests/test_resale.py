@@ -140,7 +140,8 @@ def test_price_rank_only_the_cheapest():
 
 @pytest.fixture
 def resale_monitor(tmp_path, clock):
-    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "shipping_estimate": 5}}, base_dir=str(tmp_path))
+    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "shipping_estimate": 5, "budget": 500,
+                                       "budget_brands": 500}}, base_dir=str(tmp_path))
     client, notifier = FakeClient(), FakeNotifier()
     mon = Monitor(cfg, client, Storage(str(tmp_path / "r.db")), notifier, clock=clock)
     mon.pause_between_searches = (0, 0)

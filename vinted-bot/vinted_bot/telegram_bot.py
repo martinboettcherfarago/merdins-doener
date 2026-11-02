@@ -32,7 +32,8 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b>
 /trends plus <i>Marke oder Begriff</i> – z. B. <code>/trends plus jacquemus, vintage lederjacke</code>
 /trends minus <i>…</i> – entfernen · /trends an · /trends aus
 /marke <i>Name</i> – Marke mit eigenen Grenzen, z. B. <code>/marke carhartt bis 80 rabatt 50</code>
-/radar an – zusätzlich die neuesten Uploads auf ganz Vinted prüfen
+/budget 30 – höchstens 30 € pro Teil · <code>/budget marken 80</code> – Ausnahme für teure Marken
+/radar – ⚡ Sniper: alle paar Sekunden die neuesten Uploads auf ganz Vinted (an/aus)
 /stufe streng – nur die allergünstigsten (auch: normal, locker)
 /wert <i>Artikel oder Link</i> – Wert schätzen, z. B. <code>/wert carhartt detroit jacke vintage</code>
 
@@ -253,7 +254,7 @@ class TelegramController(threading.Thread):
             "/raritaeten": self.cmd_rare, "/raritäten": self.cmd_rare, "/rare": self.cmd_rare,
             "/vorlieben": self.cmd_prefs, "/preis": self.cmd_price, "/probelauf": self.cmd_sample,
             "/wert": self.cmd_value, "/schaetzen": self.cmd_value, "/schätzen": self.cmd_value,
-            "/radar": self.cmd_radar,
+            "/radar": self.cmd_radar, "/sniper": self.cmd_radar, "/budget": self.cmd_budget,
             "/ki": self.cmd_ai, "/ai": self.cmd_ai, "/pruefen": self.cmd_check, "/prüfen": self.cmd_check,
             "/check": self.cmd_check,
             "/modell": self.cmd_model, "/model": self.cmd_model, "/trainieren": self.cmd_train,
@@ -514,6 +515,8 @@ class TelegramController(threading.Thread):
             f"Letzter Durchlauf: vor {last} s" if last is not None else "Erster Durchlauf läuft …",
             f"Angebote per Bot: {'an' if self.account else 'aus'}",
             f"Schnäppchen-Stufe: {self.monitor.resale_level or 'aus config.yaml'}",
+            "Budget: bis {:g} € · teure Marken bis {:g} €".format(*self.monitor.budget()),
+            f"⚡ Sniper: {'an, alle ' + format(self.monitor.cfg.sniper_every_seconds, 'g') + ' s' if self.monitor.sniper_enabled() else 'aus'}",
         ]
         workers = st.get("workers") or {}
         if workers:
@@ -887,38 +890,49 @@ class TelegramController(threading.Thread):
         self._label(arg, False)
 
     def cmd_radar(self, arg: str) -> None:
-        """Alles-Radar: neueste Uploads auf ganz Vinted (optional in einer Kategorie per Link)."""
+        """⚡ Sniper (früher Alles-Radar): neueste Uploads auf ganz Vinted alle paar Sekunden."""
         a = arg.strip()
-        existing = {s.name: s for s in self._numbered()}
         if a.lower().startswith(("an", "on", "start")):
             link = re.search(r"https?://\S*vinted\.\S+", a)
-            if "Alles-Radar" in existing:
-                self.storage.delete_search("Alles-Radar")
-            data: dict[str, Any] = {"name": "Alles-Radar", "sweep": True, "mode": "resale"}
+            self.storage.set_state("sniper", "1")
             if link:
-                data["url"] = link.group(0)
-            self.storage.add_search(SearchConfig.from_dict(data, source="telegram"))
-            self.storage.set_disabled("Alles-Radar", False)
-            self.reply("📡 <b>Alles-Radar an</b> – ich schaue zusätzlich auf die neuesten Uploads "
-                       + ("in deiner Kategorie" if link else "auf ganz Vinted")
-                       + ", egal welche Suche. Gemeldet werden nur gefragte Marken, Trends und Raritäten weit "
-                       "unter Wert (deine Größen, Kategorien und /stufe gelten auch hier).\n"
-                       "Tipp: <code>/radar an https://www.vinted.de/catalog/…</code> beschränkt auf eine Kategorie.")
+                self.storage.set_state("sniper_url", link.group(0))
+            elif self.storage.get_state("sniper_url"):
+                self.storage.delete_state("sniper_url")
+        elif a.lower().startswith(("aus", "off", "stop")):
+            self.storage.set_state("sniper", "0")
+            self.reply("⚡ Sniper aus. Die normalen Marken- und Trend-Suchen laufen weiter. <code>/radar an</code>")
             return
-        if a.lower().startswith(("aus", "off", "stop")):
-            if "Alles-Radar" in existing:
-                if existing["Alles-Radar"].source == "telegram":
-                    self.storage.delete_search("Alles-Radar")
-                    self.storage.forget_search("Alles-Radar")
-                else:
-                    self.storage.set_disabled("Alles-Radar", True)
-            self.reply("📡 Alles-Radar aus.")
-            return
-        on = "Alles-Radar" in {s.name for s in self.monitor.active_searches()}
-        self.reply(f"📡 Alles-Radar ist <b>{'an' if on else 'aus'}</b>.\n"
-                   "Es prüft bei jedem Durchlauf die neuesten Uploads auf ganz Vinted (ohne Suchbegriff) und "
-                   "meldet gefragte Marken, Trends und Raritäten weit unter Wert.\n"
-                   "<code>/radar an</code> · <code>/radar aus</code> · <code>/radar an &lt;Vinted-Link&gt;</code>")
+        m = self.monitor
+        normal, _brands = m.budget()
+        on = m.sniper_enabled()
+        where = "in deiner Kategorie (Link)" if self.storage.get_state("sniper_url") else "auf ganz Vinted"
+        self.reply(f"⚡ <b>Sniper: {'an' if on else 'aus'}</b>\n"
+                   f"Alle ~{m.cfg.sniper_every_seconds:g} s schaue ich mir die neuesten Uploads {where} bis "
+                   f"{normal:g} € an – die Treffer sind meist erst Sekunden alt. Ist sehr viel los, blättere ich "
+                   "sofort weiter, damit nichts durchrutscht. Gemeldet werden nur gefragte Marken, Trends und "
+                   "Raritäten weit unter Wert (deine Größen, Kategorien, /stufe und /budget gelten).\n\n"
+                   "<code>/radar an</code> · <code>/radar aus</code> · "
+                   "<code>/radar an &lt;Vinted-Kategorie-Link&gt;</code> (z. B. nur Herren-Jacken)")
+
+    def cmd_budget(self, arg: str) -> None:
+        """/budget 30 · /budget marken 80 – wie viel ein gemeldetes Schnäppchen höchstens kosten darf."""
+        a = arg.strip().lower().replace("€", "")
+        nums = re.findall(r"\d+(?:[.,]\d+)?", a)
+        if nums:
+            value = max(1.0, float(nums[0].replace(",", ".")))
+            if a.startswith(("marke", "teuer", "brand", "luxus")):
+                self.storage.set_state("budget_brands", f"{value:g}")
+            else:
+                self.storage.set_state("budget", f"{value:g}")
+                if len(nums) > 1:
+                    self.storage.set_state("budget_brands", f"{max(1.0, float(nums[1].replace(',', '.'))):g}")
+        normal, brands = self.monitor.budget()
+        self.reply(f"💶 <b>Budget: bis {normal:g} € pro Teil</b>\n"
+                   f"Ausnahme für teure Marken (Luxus, Designer, Outdoor-Premium wie Stone Island, Arc'teryx, "
+                   f"Moncler): bis {brands:g} €.\n"
+                   "Gilt für das Schnäppchen-Radar und den ⚡ Sniper – deine eigenen Suchen behalten ihre Grenzen.\n\n"
+                   "<code>/budget 25</code> · <code>/budget marken 100</code> · <code>/budget 30 80</code>")
 
     def cmd_sample(self, _arg: str = "") -> None:
         from .sample_data import run_sample

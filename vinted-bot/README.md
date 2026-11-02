@@ -22,7 +22,8 @@ Nike Air Max 90
 |---|---|
 | 💶 **Preisschätzung für fast alles** | über 400 Marken in 7 Preisklassen (Fast Fashion bis Luxus) × rund 50 Kategorien (Kleidung, Schuhe, Taschen, Schmuck, Konsolen, Games, Lego, Parfum …) × Zustand × Kindergröße. Nichts wird mehr wegen „Preis unbekannt“ aussortiert |
 | 💰 **Schnäppchen-Radar** | sucht nach Marken **und** angesagten Modellen/Styles (Nike Tech Fleece, Vintage Lederjacke, Vintage Trikot, Le Pliage, Y2K …) und meldet nur **ganz frisch hochgeladene** Artikel **weit unter Wert**, mit geschätztem Gewinn |
-| 📡 **Alles-Radar** | optional: prüft zusätzlich die neuesten Uploads auf ganz Vinted, ganz ohne Suchbegriff |
+| ⚡ **Sniper** | prüft **alle ~4 Sekunden die neuesten Uploads auf ganz Vinted** (ohne Suchbegriff). Treffer sind meist erst Sekunden alt, also zuschlagen, bevor andere es sehen |
+| 💶 **Budget** | standardmäßig nur Teile **bis 30 €**, nur teure Marken (Luxus, Designer, Outdoor-Premium) bis 80 €. Per `/budget` änderbar |
 | 👗 **Mode-Bildmodell** | Marqo-FashionSigLIP, ein auf Mode-Produktfotos trainiertes Bildmodell, erkennt **sofort ohne Training 123 Tags** aus dem Foto: Kategorie, Farbe, Material, Muster, Stil, Jahrzehnt, Details, Fotoart. Läuft lokal und kostenlos |
 | 🧠 **Eigenes Training** | lernt zusätzlich aus den Fotos der Artikel, die der Bot sieht (Tausende pro Tag): Wert-, Begehrt-, Geschmacks- und Fake-Modell |
 | 🤖 **KI-Bildcheck (optional)** | Claude schaut sich die Fotos jedes Treffers an: Echtheit/Fake-Risiko, Zustand, Look, Trend, realistischer Wert, Urteil. Fakes werden aussortiert, unterschätzte Retro-Teile als „KI-Fund“ gemeldet |
@@ -147,8 +148,25 @@ Eingebaut sind:
 
 Eine Marke („Ganni“) beobachtet alle neuen Artikel dieser Marke. Ein Begriff („Ganni Tasche“) sucht genau danach, und zwar nur bei echter Ganni. Ein Begriff ohne Marke („Vintage Lederjacke“) akzeptiert jede Marke.
 
-### 📡 Alles-Radar
-`/radar an` prüft bei jedem Durchlauf zusätzlich die **neuesten Uploads auf ganz Vinted**, ganz ohne Suchbegriff. Gemeldet werden nur gefragte Marken, Trend-Modelle und Raritäten weit unter Wert. Fast Fashion und No-Name werden hier ignoriert. Mit `/radar an <Vinted-Link>` beschränkst du das Radar auf eine Kategorie, z. B. Herren-Jacken. In der config geht es mit `radar: true`.
+### ⚡ Sniper: Treffer nach Sekunden statt Minuten
+Die vielen Marken- und Trend-Suchen brauchen für eine Runde 1–2 Minuten, jede Suche kommt also nur alle paar Minuten dran. Gute Teile sind dann oft schon weg. Deshalb läuft der **Sniper** auf der Überholspur:
+
+- Alle **~4 Sekunden** holt er die **neuesten Uploads auf ganz Vinted** bis zu deinem Budget, ganz ohne Suchbegriff. Die Treffer sind meist **erst Sekunden alt**: `⚡ vor 8 s hochgeladen`.
+- Wurde seit dem letzten Blick sehr viel hochgeladen (eine ganze Seite neu), blättert er **sofort weiter**, damit nichts durchrutscht.
+- Gemeldet werden nur gefragte Marken, Trend-Modelle und Raritäten weit unter Wert. Fast Fashion und No-Name ignoriert er; deine Größen, Kategorien, `/stufe` und `/budget` gelten.
+- Die Marken- und Trend-Suchen laufen daneben weiter und fangen auf, was der Sniper nicht abdeckt, z. B. teure Marken über deinem Budget.
+
+`/radar aus` schaltet ihn ab, `/radar an` wieder an. Mit `/radar an <Vinted-Kategorie-Link>` beschränkst du ihn auf eine Kategorie, z. B. Herren-Jacken. In der `config.yaml`: `sniper: true` und `sniper_every_seconds: 4` im Abschnitt `resale:`. Alle 5 Minuten steht im Fenster, wie viel los war: `⚡ Sniper: 60 Abfragen in 5 Min. · Ø 14 neue Artikel pro Abfrage · 2 Meldung(en)`.
+
+### 💶 Budget: günstige Teile, nur teure Marken dürfen mehr kosten
+Standardmäßig meldet das Schnäppchen-Radar nur Teile **bis 30 €**. Ausnahme: **teure Marken** (Luxus wie Gucci, Prada, Moncler; Designer wie Stone Island, C.P. Company; Outdoor-Premium wie Arc'teryx, Patagonia, The North Face) dürfen **bis 80 €** kosten.
+
+```
+/budget 25            höchstens 25 € pro Teil
+/budget marken 100    teure Marken bis 100 €
+/budget 20 60         beides auf einmal
+```
+Eine Grenze, die du selbst für eine Marke setzt (`/marke carhartt bis 60`), gilt weiterhin. Deine eigenen normalen Suchen behalten ihre eigenen Preisgrenzen.
 
 Oder in der `config.yaml`:
 ```yaml
@@ -156,7 +174,9 @@ resale:
   enabled: true
   brands: [trends, Jacquemus, Ganni]   # Trend-Liste + eigene Marken
   level: streng                        # locker / normal / streng
-  max_price: 250
+  budget: 30                           # höchstens 30 € pro Teil …
+  budget_brands: 80                    # … teure Marken bis 80 €
+  sniper: true                         # ⚡ neueste Uploads alle paar Sekunden
   shipping_estimate: 5                 # Versandkosten für die Gewinn-Rechnung
   # min_profit: 30                     # einzelne Werte der Stufe überschreiben
 ```
@@ -165,7 +185,7 @@ Die Schnäppchen-Kriterien gibt es auch für normale Suchen:
 `/neu salomon xt-6 bis 90 rabatt 35 günstiger 95 frisch 5` oder in der config `min_discount`, `min_cheaper_than`, `min_profit`, `max_age_minutes` und `min_condition`.
 
 **Tipps:**
-- **Weniger Einträge bedeuten schnellere Meldungen.** Bei den 76 eingebauten Trends braucht jeder der beiden Sucher für seine Hälfte gut eine Minute. Mit 20–30 Lieblingseinträgen (`/trends minus …`) bist du deutlich schneller.
+- **Weniger Einträge bedeuten schnellere Runden.** Bei den 76 eingebauten Trends braucht jeder der beiden Sucher für seine Hälfte gut eine Minute. Mit 20–30 Lieblingseinträgen (`/trends minus …`) bist du deutlich schneller. Ganz frische Teile bis zu deinem Budget fängt sowieso der ⚡ Sniper nach Sekunden ab.
 - **Kein Kleinkram:** Patches, Aufnäher, Sticker, Pins, Schlüsselanhänger, Kartons, Staubbeutel, Etiketten sowie Bücher, Magazine und Kataloge meldet der Bot nicht, auch wenn „Carhartt“ oder „Jacke“ im Titel steht. Dasselbe gilt für Artikel unter 2 €, das sind meist Lockangebote. Suchst du genau so etwas (`/neu supreme sticker`), kommt es natürlich durch.
 - Findet ein Artikel mehrere Suchen gleichzeitig, wird er trotzdem nur **einmal** gemeldet.
 - Je kleiner `interval_seconds` (z. B. 30–45), desto früher bist du dran. Zu klein führt aber zu Blockaden durch Vinted.
@@ -226,7 +246,7 @@ searches:
 /trends plus ganni   eigene Trend-Marke    /stufe streng   nur die allergünstigsten
 /groesse S M L   Größen    /ohne schuhe   Kategorie ausblenden    /raritaeten an   nur Raritäten
 /preis carhartt jacken 90   eigener Marktpreis    /vorlieben   Gelerntes    /probelauf   Testlauf
-/wert <Artikel oder Link>   Wert schätzen    /radar an   Alles-Radar
+/wert <Artikel oder Link>   Wert schätzen    /radar an|aus   ⚡ Sniper    /budget 30   Budget
 /ki an · /ki aus   KI-Bildcheck    /pruefen <Link>   Artikel von der KI prüfen lassen
 /modell   eigenes Modell    /sammeln   Sammel-Turbo    /trainieren   jetzt trainieren
 /suchen          alle Suchen mit Nummer
@@ -488,7 +508,7 @@ Für jeden Treffer, der alle Filter besteht, lädt der Bot bis zu 4 Fotos und l�
 
 ## ⚡ Mehrere Sucher gleichzeitig
 
-Mit `workers: 2` (Standard) teilen sich **Sucher A und Sucher B** die Suchen. Ein Taktgeber sorgt dafür, dass sie sich abwechseln: A fragt Vinted an, dann B, dann wieder A und so weiter, mit mindestens `request_gap_seconds` Abstand. Alles läuft im **selben Fenster**:
+Mit `workers: 2` (Standard) teilen sich **Sucher A und Sucher B** die Marken- und Trend-Suchen. Dazu kommt der **⚡ Sniper**, der alle paar Sekunden die neuesten Uploads holt. Ein Taktgeber sorgt dafür, dass sich alle abwechseln (A, Sniper, B, A …), mit mindestens `request_gap_seconds` Abstand zwischen zwei Anfragen. So bleibt die Gesamtzahl der Anfragen an Vinted gleich. Alles läuft im **selben Fenster**:
 
 ```
 15:02:21 INFO    [Sucher-A] Runde 1 fertig: 38 Suchen in 77 s · bisher 1820 Artikel geprüft, 0 Meldung(en)

@@ -86,8 +86,10 @@ resale:
                                # Lederjacke, Vintage Trikot, Longchamp Le Pliage, Y2K …)
   # brands: [trends, Jacquemus, Ganni]            # Trend-Liste + eigene Marken
   # keywords: [Vintage Levi's Jacke, Salomon XT-6] # zusätzliche Suchbegriffe
-  radar: false                 # true = Alles-Radar: zusätzlich die neuesten Uploads auf ganz Vinted prüfen
-                               # (oder ein Vinted-Kategorie-Link statt true)
+  sniper: true                 # ⚡ Sniper: alle paar Sekunden die NEUESTEN Uploads auf ganz Vinted prüfen –
+                               # Treffer sind meist erst Sekunden alt (per Telegram: /radar an|aus)
+  sniper_every_seconds: 4      # wie oft (nicht unter 2)
+  # radar: "https://www.vinted.de/catalog/…"   # optional: Sniper nur in dieser Vinted-Kategorie
 
   level: normal                # Schnäppchen-Stufe: locker / normal / streng
                                #   locker: ≤ 20 Min. alt, ≥ 30 % unter Markt, günstiger als 75 %, ≥ 10 € Gewinn
@@ -99,7 +101,9 @@ resale:
   # min_cheaper_than: 90       # günstiger als x % aller vergleichbaren Angebote
   # min_profit: 15             # mind. x € Gewinn-Potenzial beim Weiterverkauf
   # min_condition: gut         # schlechtere Zustände ignorieren
-  max_price: 250               # nicht mehr als 250 € ausgeben
+  budget: 30                   # 💶 höchstens so viel kostet ein gemeldetes Schnäppchen (per Telegram: /budget 25)
+  budget_brands: 80            # Ausnahme für teure Marken (Luxus, Designer, Outdoor-Premium wie Stone Island,
+                               # Arc'teryx, Moncler): bis hierhin   (/budget marken 100)
   shipping_estimate: 5         # geschätzte Versandkosten für die Gewinn-Rechnung
 
 # 🎯 Was das Resale-Radar meldet (alles auch per Telegram änderbar)
@@ -116,26 +120,18 @@ filters:
 #  Deine Suchen. Weitere kannst du jederzeit per Telegram anlegen:
 #  /neu nike air max 90 bis 40 score 60
 # ──────────────────────────────────────────────────────────────────────
-searches:
-  # Einfach: Suchbegriff + Preisrahmen
-  - name: Air Max 90
-    keywords: nike air max 90
-    max_price: 60
-    sizes: ["43", "44"]          # optional: nur diese Größen
-    exclude_words: [kinder]      # optional: zusätzlich ausschließen
-
-  # Profi: Suche im Browser auf vinted.de mit allen Filtern (Marke, Größe, Zustand, Kategorie)
-  # einstellen und den Link aus der Adresszeile hier einfügen.
-  - name: Carhartt Jacken
-    url: "https://www.vinted.de/catalog?search_text=carhartt%20jacke&order=newest_first"
-    max_price: 70
-    market_price: 80             # typischer Preis -> genauere Deal-Erkennung (optional)
-    min_score: 60                # nur wirklich gute Deals melden (0–100)
-
-  - name: Levi's 501
-    keywords: levis 501
-    brands: [levis, levi's]
-    min_price: 5
-    max_price: 30
-    must_contain: ["501"]
-    enabled: false               # vorübergehend aus
+searches: []
+  # Eigene Suchen (zusätzlich zum Schnäppchen-Radar) – Beispiele, zum Benutzen das "#" entfernen
+  # und "searches: []" oben durch "searches:" ersetzen:
+  #
+  # - name: Air Max 90
+  #   keywords: nike air max 90
+  #   max_price: 40
+  #   sizes: ["43", "44"]          # nur diese Größen
+  #   min_score: 60                # nur gute Deals (0–100)
+  #
+  # Profi: Suche im Browser auf vinted.de mit allen Filtern einstellen und den Link einfügen:
+  # - name: Carhartt Jacken
+  #   url: "https://www.vinted.de/catalog?search_text=carhartt%20jacke&order=newest_first"
+  #   max_price: 40
+  #   min_score: 70

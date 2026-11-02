@@ -73,7 +73,8 @@ def test_trend_detection():
 
 @pytest.fixture
 def mon(tmp_path):
-    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "keywords": ["Vintage Lederjacke"]}},
+    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "keywords": ["Vintage Lederjacke"],
+                                       "budget": 500, "budget_brands": 500}},
                            base_dir=str(tmp_path))
     m = Monitor(cfg, FakeClient(), Storage(str(tmp_path / "v2.db")), FakeNotifier(), clock=lambda: NOW)
     m.pause_between_searches = (0, 0)
@@ -174,14 +175,17 @@ def test_value_command(bot):
 
 
 def test_radar_command(bot):
+    """/radar steuert jetzt den ⚡ Sniper (neueste Uploads alle paar Sekunden statt einmal pro Runde)."""
     ctl, tg = bot
-    ctl.handle_update(msg("/radar an"))
-    assert "Alles-Radar an" in tg.texts()[-1]
-    assert "Alles-Radar" in {s.name for s in ctl.monitor.active_searches()}
-    ctl.handle_update(msg("/radar"))
-    assert "Alles-Radar ist <b>an</b>" in tg.texts()[-1]
     ctl.handle_update(msg("/radar aus"))
-    assert "Alles-Radar" not in {s.name for s in ctl.monitor.active_searches()}
+    assert not ctl.monitor.sniper_enabled() and "Sniper aus" in tg.texts()[-1]
+    ctl.handle_update(msg("/radar an https://www.vinted.de/catalog/2050-herren-jacken"))
+    assert ctl.monitor.sniper_enabled() and "Sniper: an" in tg.texts()[-1] and "in deiner Kategorie" in tg.texts()[-1]
+    sniper = ctl.monitor.sniper_search()
+    assert sniper.sweep and sniper.url.endswith("2050-herren-jacken") and sniper.max_price == 500
+    ctl.handle_update(msg("/radar"))
+    assert "Sniper: an" in tg.texts()[-1]
+    assert all(not s.sweep for s in ctl.monitor.active_searches())   # läuft nicht mehr in der langen Runde
 
 
 # -- Jeans: Bundweiten, Schnitte, Levi's ------------------------------------------------

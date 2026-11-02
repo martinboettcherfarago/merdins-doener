@@ -213,6 +213,10 @@ class Config:
     ml_train_every_hours: float = 6.0
     ml_backbone: str = "fashion"         # Bildmodell: fashion (Marqo-FashionSigLIP) oder schnell (CLIP B/32)
     fake_ampel: str = "streng"           # Fake-Ampel: streng (rot = nicht melden) / warnen / aus
+    budget: float = 30.0                 # Schnäppchen-Radar: höchstens so viel kostet ein gemeldeter Artikel …
+    budget_brands: float = 80.0          # … außer teure Marken (Luxus, Designer, Outdoor-Premium)
+    sniper: bool = True                  # ⚡ Sniper: neueste Uploads auf ganz Vinted alle paar Sekunden
+    sniper_every_seconds: float = 4.0
     filter_sizes: list[str] = field(default_factory=lambda: list(DEFAULT_SIZES))       # [] = alle Größen
     filter_exclude_types: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_TYPES))
     only_rare: bool = False
@@ -309,6 +313,13 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     cfg.searches = searches
     section = data.get("resale") or {}
     cfg.shipping_estimate = float(section.get("shipping_estimate") or 5.0)
+    try:
+        cfg.budget = max(1.0, float(section.get("budget") or 30))
+        cfg.budget_brands = max(cfg.budget, float(section.get("budget_brands") or 80))
+        cfg.sniper_every_seconds = max(2.0, float(section.get("sniper_every_seconds") or 4))
+    except (TypeError, ValueError):
+        raise ConfigError("resale → budget, budget_brands und sniper_every_seconds müssen Zahlen sein.")
+    cfg.sniper = bool(section.get("sniper", True)) and bool(section.get("enabled", True))
     level = str(section.get("level") or "normal").strip().lower()
     if level not in RESALE_LEVELS:
         raise ConfigError(f"resale → level muss {', '.join(RESALE_LEVELS)} sein, nicht '{level}'.")
