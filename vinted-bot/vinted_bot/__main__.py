@@ -142,7 +142,11 @@ def build_brain(cfg: Config, notifier: Any) -> Any:
     """Eigenes Bildmodell (sammelt & trainiert lokal). Ohne PyTorch/open_clip bleibt es aus."""
     if not cfg.ml_enabled:
         return None
-    from .brain import Brain
+    try:
+        from .brain import Brain
+    except ImportError as e:  # z. B. numpy fehlt -> Bot läuft trotzdem, nur ohne eigenes Modell
+        log.warning("Eigenes Bildmodell aus: %s – ki-installieren.bat ausführen (bzw. ./ki-installieren.sh).", e)
+        return None
     photo_client = VintedClient(cfg.domain, proxy=cfg.proxy)
     brain = Brain(cfg, photo_client.fetch_bytes, report=notifier.send_text)
     if not brain.embedder.installed():

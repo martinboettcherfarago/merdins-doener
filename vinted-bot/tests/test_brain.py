@@ -472,3 +472,10 @@ def test_photo_tells_the_category_when_the_title_does_not(tmp_path):
     brain.embedder = TagEmbedder([Tag("kategorie", "Trainingsjacke", 0.8, "jacke")])
     alert, why = m.explain(s, photo_item(store, 2, 9, title="Adidas Firebird", brand="Adidas"), NOW)
     assert alert is not None and alert.ptype == "jacke", why
+
+
+def test_bot_starts_without_numpy_or_torch(tmp_path, monkeypatch):
+    import sys
+    from vinted_bot.__main__ import build_brain
+    monkeypatch.setitem(sys.modules, "vinted_bot.brain", None)   # wie "No module named 'numpy'"
+    assert build_brain(config_from_dict({}, base_dir=str(tmp_path)), FakeNotifier()) is None
