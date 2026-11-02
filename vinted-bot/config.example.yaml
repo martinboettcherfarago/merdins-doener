@@ -1,137 +1,84 @@
 # ──────────────────────────────────────────────────────────────────────
 #  Vinted-Deal-Bot – Einstellungen
-#  Kopiere diese Datei nach "config.yaml" und trage deine Daten ein.
+#  Kopie dieser Datei heißt "config.yaml" (legt start.bat beim ersten Start an).
+#  Fast alles lässt sich später auch per Telegram ändern (/hilfe).
+#  Einrücken nur mit Leerzeichen, nie mit Tab!
 # ──────────────────────────────────────────────────────────────────────
 
-vinted:
-  domain: vinted.de            # oder vinted.at, vinted.fr, vinted.it, …
-  interval_seconds: 45         # alle wie viele Sekunden ein Durchlauf startet (nicht unter 30 – sonst blockt Vinted eher)
-  max_item_age_minutes: 60     # ältere, nur "hochgeschobene" Artikel ignorieren (0 = alle melden)
-  per_page: 48                 # wie viele der neuesten Artikel pro Suche geprüft werden
-  workers: 2                   # parallele Sucher (A, B, …) – teilen sich die Suchen und wechseln sich ab
-  request_gap_seconds: 1.0     # Abstand zwischen zwei Vinted-Anfragen (alle Sucher zusammen). Kleiner =
-                               # schneller, aber höheres Risiko, dass Vinted kurz blockt
-  # proxy: http://user:pass@host:port   # optional, falls Vinted deine IP blockt
-
 notifications:
-  # Telegram (empfohlen: Bilder, Kaufen-Button, Angebote, Suchen per Chat verwalten)
   telegram:
     token: ""                  # von @BotFather, z. B. 123456:ABC-DEF…
-    chat_id: ""                # mit "python -m vinted_bot chat-id" herausfinden
-
-  # Discord (optional): Servereinstellungen → Integrationen → Webhooks
+    chat_id: ""                # mit "start.bat chat-id" herausfinden
   discord:
-    webhook_url: ""
-
-  # ntfy (optional): Push aufs Handy ohne Konto – App "ntfy" installieren,
-  # ein geheimes Thema ausdenken (z. B. vinted-martin-8f3k2) und abonnieren.
+    webhook_url: ""            # optional
   ntfy:
-    topic: ""
+    topic: ""                  # optional: Push ohne Konto (App "ntfy", geheimes Thema ausdenken)
     server: https://ntfy.sh
 
-scoring:
-  top_deal_score: 75           # ab diesem Score gibt's 🔥 TOP-DEAL
-  price_drop_percent: 10       # Preissenkung ab x % melden
-  # Artikel mit diesen Wörtern im Titel werden nie gemeldet:
-  global_exclude_words: [fake, replica, replika, rep, nachbau, inspired, dupe, defekt, kaputt, bastler, suche, tausch]
+# 💰 SCHNÄPPCHEN-RADAR: frisch hochgeladene Teile weit unter Wert
+resale:
+  enabled: true
+  brands: [trends]             # "trends" = 76 eingebaute Marken & Trends (Carhartt, Stüssy, Vintage Adidas,
+                               # Nike Tech Fleece, Vintage Lederjacke, Y2K …) – eigene dazu: [trends, Ganni]
+  level: auto                  # auto (hält 4–20 Treffer/Std.) · locker · normal · streng   (/stufe)
+  budget: 30                   # 💶 höchstens so viel pro Teil                                (/budget 25)
+  budget_brands: 80            # Ausnahme für teure Marken (Luxus, Designer, Outdoor-Premium)  (/budget marken 100)
+  sniper: true                 # ⚡ alle paar Sekunden die neuesten Uploads auf ganz Vinted    (/radar an|aus)
+  sniper_every_seconds: 4
+  # sniper_link: "https://www.vinted.de/catalog?…"   # optional: Sniper nur für diesen Link (z. B. deine Marken)
+  shipping_estimate: 5         # Versandkosten für die Gewinn-Rechnung
 
-# EXPERIMENTELL: Preisangebote direkt per Telegram-Button schicken.
-# Dafür braucht der Bot die Cookies deines eingeloggten Vinted-Kontos (siehe README).
-# Diese Datei dann NIEMALS teilen oder hochladen!
-account:
-  enabled: false
-  cookies: ""                  # kompletter Cookie-Text aus dem Browser
-  offer_discounts: [10, 20]    # Buttons für -10 % und -20 % (Vinted erlaubt max. -40 %)
+# 🎯 Was gemeldet wird
+filters:
+  sizes: [S, M, L]             # deine Größen ("alle" = egal). Ohne Größe (Taschen, Caps) kommt immer durch
+  exclude_types: [schuhe]      # ausgeblendete Kategorien (/kategorien)
+  only_rare: false             # true = nur Raritäten
+  fake_ampel: streng           # 🛡 streng (🔴 nicht melden) · warnen · aus   (/ampel)
 
-# 🤖 KI-BILDCHECK mit Claude (optional): schaut sich die Fotos jedes Treffers an – Echtheit/Fake-Risiko,
-# Zustand, Look, Trend, realistischer Wert und Urteil (kaufen/vielleicht/lassen). Fakes werden aussortiert,
-# knapp verpasste Retro-/Trend-Teile bekommen einen "Zweitblick" (🤖✨ KI-Fund). Lernt aus deinen 👍/👎.
-# Braucht einen API-Schlüssel von console.anthropic.com (kostet pro geprüftem Treffer ein paar Cent).
+# 👗 BILDMODELL (lokal, kostenlos) – einmalig ki-installieren.bat ausführen, dann in Telegram /sammeln
+ml:
+  enabled: true
+  backbone: fashion            # fashion = Mode-Spezialist (~110 ms/Foto) · schnell = für schwache PCs (~40 ms)
+  threads: 2                   # Prozessorkerne fürs Bildmodell
+  train_every_hours: 6
+
+# 🤖 KI-BILDCHECK mit Claude (optional, kostet ein paar Cent pro Treffer – Schlüssel: console.anthropic.com)
 ai:
   enabled: false
   api_key: ""                  # oder Umgebungsvariable ANTHROPIC_API_KEY
-  model: claude-opus-5-5       # günstiger: claude-sonnet-5-5 oder claude-haiku-5-5
-  effort: medium               # Gründlichkeit: low / medium / high
+  model: claude-opus-5-5       # günstiger: claude-sonnet-5-5
   max_checks_per_day: 40       # Kostenbremse
-  second_look: true            # Zweitblick auf knapp verpasste Retro-/Trend-Teile
   max_second_looks_per_day: 20
-  hide_fakes: true             # Fake-Verdacht gar nicht erst melden
 
-# 👗 MODE-BILDMODELL + EIGENES TRAINING: erkennt sofort 123 Tags im Foto (Kategorie, Farbe, Material, Stil,
-# Jahrzehnt …) und lernt aus den Fotos, die der Bot sieht, ein Wert-, Begehrt-, Geschmacks- und Fake-Modell.
-# Lokal auf deinem PC, kostenlos. Einmalig installieren: ki-installieren.bat (Windows) bzw. ./ki-installieren.sh
-# – danach in Telegram /sammeln.
-ml:
-  enabled: true
-  backbone: fashion            # fashion = Marqo-FashionSigLIP (Mode-Spezialist, ~110 ms/Foto, Standard)
-                               # schnell = CLIP ViT-B/32 (allgemein, ~40 ms/Foto – für schwache PCs)
-  threads: 2                   # Prozessorkerne fürs Bildmodell (mehr = schneller, PC stärker ausgelastet)
-  train_every_hours: 6         # automatisch neu trainieren
+# 💸 ANGEBOTE per Button (experimentell) – braucht die Cookies deines Vinted-Logins (siehe README).
+# Diese Datei dann NIEMALS teilen oder hochladen!
+account:
+  enabled: false
+  cookies: ""
+  offer_discounts: [10, 20]    # Buttons für −10 % und −20 %
+
+vinted:
+  domain: vinted.de            # oder vinted.at, vinted.fr …
+  workers: 2                   # parallele Sucher
+  request_gap_seconds: 1.0     # Abstand zwischen zwei Anfragen (kleiner = schneller, aber eher Blockaden)
+  # proxy: http://user:pass@host:port
+
+scoring:
+  # Titel mit diesen Wörtern werden nie gemeldet ("kein Fake", "nicht defekt" zählen nicht):
+  global_exclude_words: [fake, replica, replika, rep, nachbau, inspired, dupe, defekt, kaputt, bastler, suche, tausch]
 
 database: vinted_bot.db
 
-# ──────────────────────────────────────────────────────────────────────
-#  💰 SCHNÄPPCHEN-RADAR: sucht nach Marken UND angesagten Modellen/Styles und
-#  meldet NUR frisch hochgeladene Artikel, die weit unter ihrem Wert liegen.
-#  Den Wert schätzt der Bot für fast jeden Artikel (Marke × Kategorie × Zustand)
-#  und lernt mit jedem gesehenen Preis dazu.
-#  (Der Abschnitt heißt aus Kompatibilitätsgründen noch "resale" – gesucht wird
-#   natürlich nicht nach dem Wort "Resale", sondern nach Marken und Begriffen.)
-#  Per Telegram änderbar: /trends · /trends plus … · /stufe · /radar
-# ──────────────────────────────────────────────────────────────────────
-resale:
-  enabled: true
-  brands: [trends]             # "trends" = eingebaute Trend-Liste: Marken (Carhartt, Stüssy, Arc'teryx,
-                               # Stone Island, Miu Miu …) + Modelle/Styles (Nike Tech Fleece, Vintage
-                               # Lederjacke, Vintage Trikot, Longchamp Le Pliage, Y2K …)
-  # brands: [trends, Jacquemus, Ganni]            # Trend-Liste + eigene Marken
-  # keywords: [Vintage Levi's Jacke, Salomon XT-6] # zusätzliche Suchbegriffe
-  sniper: true                 # ⚡ Sniper: alle paar Sekunden die NEUESTEN Uploads auf ganz Vinted prüfen –
-                               # Treffer sind meist erst Sekunden alt (per Telegram: /radar an|aus)
-  sniper_every_seconds: 4      # wie oft (nicht unter 2)
-  # radar: "https://www.vinted.de/catalog/…"   # optional: Sniper nur in dieser Vinted-Kategorie
-
-  level: normal                # Schnäppchen-Stufe: locker / normal / streng
-                               #   locker: ≤ 20 Min. alt, ≥ 30 % unter Markt, günstiger als 75 %, ≥ 10 € Gewinn
-                               #   normal: ≤ 10 Min. alt, ≥ 40 % unter Markt, günstiger als 90 %, ≥ 15 € Gewinn
-                               #   streng: ≤  5 Min. alt, ≥ 50 % unter Markt, günstiger als 95 %, ≥ 20 € Gewinn
-  # Einzelne Werte der Stufe kannst du überschreiben:
-  # max_age_minutes: 10        # nur Artikel, die höchstens so lange online sind
-  # min_discount: 40           # mind. x % unter Marktpreis
-  # min_cheaper_than: 90       # günstiger als x % aller vergleichbaren Angebote
-  # min_profit: 15             # mind. x € Gewinn-Potenzial beim Weiterverkauf
-  # min_condition: gut         # schlechtere Zustände ignorieren
-  budget: 30                   # 💶 höchstens so viel kostet ein gemeldetes Schnäppchen (per Telegram: /budget 25)
-  budget_brands: 80            # Ausnahme für teure Marken (Luxus, Designer, Outdoor-Premium wie Stone Island,
-                               # Arc'teryx, Moncler): bis hierhin   (/budget marken 100)
-  shipping_estimate: 5         # geschätzte Versandkosten für die Gewinn-Rechnung
-
-# 🎯 Was das Resale-Radar meldet (alles auch per Telegram änderbar)
-filters:
-  sizes: [S, M, L]             # deine Größen (/groesse S M L) – "alle" = keine Einschränkung.
-                               # Artikel ohne Größe (Taschen, Caps, One Size) kommen immer durch.
-  exclude_types: [schuhe]      # ausgeblendete Kategorien (/ohne schuhe · /mit schuhe · /kategorien)
-  only_rare: false             # true = nur Raritäten (vintage, 90er, Made in USA, Deadstock, Grails …)
-  fake_ampel: streng           # 🛡 Fake-Ampel prüft jeden Treffer sofort (Marke × Preis, "1:1"/"AAA"/"UA" …):
-                               #   streng: 🔴 nicht melden (mit KI-Bildcheck: nur wenn Claude es für echt hält)
-                               #   warnen: 🔴/🟡 mit Warnung melden · aus: keine Ampel   (auch per /ampel)
-
-# ──────────────────────────────────────────────────────────────────────
-#  Deine Suchen. Weitere kannst du jederzeit per Telegram anlegen:
-#  /neu nike air max 90 bis 40 score 60
-# ──────────────────────────────────────────────────────────────────────
+# 🔎 EIGENE SUCHEN – zusätzlich zum Schnäppchen-Radar, mit eigenen Grenzen.
+# Am einfachsten per Telegram: /neu nike air max 90 bis 40 score 60
 searches: []
-  # Eigene Suchen (zusätzlich zum Schnäppchen-Radar) – Beispiele, zum Benutzen das "#" entfernen
-  # und "searches: []" oben durch "searches:" ersetzen:
-  #
+  # Beispiele – zum Benutzen "#" entfernen und oben "searches: []" durch "searches:" ersetzen:
   # - name: Air Max 90
   #   keywords: nike air max 90
   #   max_price: 40
-  #   sizes: ["43", "44"]          # nur diese Größen
-  #   min_score: 60                # nur gute Deals (0–100)
-  #
-  # Profi: Suche im Browser auf vinted.de mit allen Filtern einstellen und den Link einfügen:
-  # - name: Carhartt Jacken
+  #   sizes: ["43", "44"]
+  #   min_score: 60
+  # - name: Carhartt Jacken        # Profi: Suche auf vinted.de mit Filtern einstellen, Link einfügen
   #   url: "https://www.vinted.de/catalog?search_text=carhartt%20jacke&order=newest_first"
   #   max_price: 40
   #   min_score: 70

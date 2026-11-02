@@ -102,7 +102,8 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
         lines += alert.brain.lines()
     if alert.ai is not None:
         lines += alert.ai.lines()
-    who = ("" if not alert.worker else " · ⚡ Sniper" if alert.worker == "Sniper" else f" · Sucher {alert.worker}")
+    who = ("" if not alert.worker or "Sniper" in alert.search_name else
+           " · ⚡ Sniper" if alert.worker == "Sniper" else f" · Sucher {alert.worker}")
     lines.append(f"🔎 Suche: {alert.search_name}{who}")
     return lines
 

@@ -25,56 +25,34 @@ log = logging.getLogger(__name__)
 
 MAX_OFFERS_PER_DAY = 25  # Limit von Vinted
 
-HELP = """<b>🤖 Vinted-Deal-Bot</b>
+HELP = """<b>🤖 Vinted-Deal-Bot</b> – frisch hochgeladene Teile weit unter Wert
 
-<b>💰 Schnäppchen-Radar (frisch &amp; weit unter Wert)</b>
-/trends – deine Trend-Liste (Marken + Modelle/Styles)
-/trends plus <i>Marke oder Begriff</i> – z. B. <code>/trends plus jacquemus, vintage lederjacke</code>
-/trends minus <i>…</i> – entfernen · /trends an · /trends aus
-/marke <i>Name</i> – Marke mit eigenen Grenzen, z. B. <code>/marke carhartt bis 80 rabatt 50</code>
-/budget 30 – höchstens 30 € pro Teil · <code>/budget marken 80</code> – Ausnahme für teure Marken
-/radar – ⚡ Sniper: alle paar Sekunden die neuesten Uploads auf ganz Vinted (an/aus)
-/stufe auto – passt sich an, damit stetig Treffer kommen (auch: locker, normal, streng)
-/wert <i>Artikel oder Link</i> – Wert schätzen, z. B. <code>/wert carhartt detroit jacke vintage</code>
-
-<b>🧠 Eigenes Modell (lernt aus Tausenden Vinted-Fotos)</b>
-/modell – Datensatz, Trainingsstand, wie gut es ist
-/sammeln – Sammel-Turbo: Tausende Bilder auf einmal, dann trainieren
-/trainieren – jetzt neu trainieren · /fake &lt;Link&gt; · /echt &lt;Link&gt;
-/ampel streng|warnen|aus – 🛡 Fake-Ampel (sofortiger Fake-Check jedes Treffers)
-
-<b>🤖 KI-Bildcheck</b>
-/ki an · /ki aus – Fotos jedes Treffers prüfen (Echtheit, Look, Trend, Wert, Urteil)
-/pruefen <i>Vinted-Link</i> – einen beliebigen Artikel prüfen lassen
+<b>💰 Schnäppchen-Radar</b>
+/stufe auto – hält 4–20 Treffer pro Stunde (auch: locker · normal · streng)
+/budget 30 – höchstens 30 € pro Teil · <code>/budget marken 80</code> für teure Marken
+/radar an|aus – ⚡ Sniper: neueste Uploads alle ~4 s · <code>/radar an &lt;Vinted-Link&gt;</code>
+/trends – deine Marken &amp; Trends · <code>/trends plus jacquemus</code> · <code>/trends minus nike</code>
+/marke <i>Name</i> – mit eigenen Regeln, z. B. <code>/marke carhartt bis 60 rabatt 50</code>
+/wert <i>Artikel oder Link</i> – Wert schätzen, z. B. <code>/wert carhartt detroit jacke 40 €</code>
 
 <b>🎯 Was gemeldet wird</b>
-/groesse S M L – deine Größen (/groesse alle)
-/ohne schuhe · /mit schuhe – Kategorien aus-/einblenden
-/kategorien – alle Kategorien
-/raritaeten an – nur seltene Stücke (vintage, 90er, Made in USA …)
-/preis carhartt jacken 90 – eigenen Marktpreis beibringen
-👍/👎 unter jeder Meldung – der Bot lernt deinen Geschmack (/vorlieben)
-/probelauf – Testlauf mit Musterdaten
+/groesse S M L · /groesse alle – deine Größen
+/ohne schuhe · /mit schuhe · /kategorien – Kategorien
+/raritaeten an – nur Raritäten · /preis carhartt jacken 90 – eigener Marktwert
+👍/👎 unter jeder Meldung – lernt deinen Geschmack (/vorlieben)
 
-<b>🔎 Normale Suchen</b>
-/neu <i>Begriff</i> – neue Suche, z. B.
-   <code>/neu nike air max 90 bis 40 score 60</code>
-   oder einen Vinted-Link mit Filtern einfügen:
-   <code>/neu https://www.vinted.de/catalog?search_text=…</code>
-/suchen – alle Suchen anzeigen
-/loeschen <i>Nr</i> – Suche löschen
-/pause <i>Nr</i> · /weiter <i>Nr</i> – einzelne Suche anhalten/fortsetzen
+<b>👗 Bildmodell &amp; Echtheit</b>
+/modell · /sammeln · /trainieren – eigenes Modell
+/ampel streng|warnen|aus – 🛡 Fake-Ampel · /fake &lt;Link&gt; · /echt &lt;Link&gt;
+/ki an|aus · /pruefen &lt;Link&gt; – Claude-Bildcheck
 
-<b>Bot</b>
+<b>⚙️ Sonstiges</b>
+/neu <i>Begriff</i> – eigene Suche, z. B. <code>/neu nike air max 90 bis 40 score 60</code>
+/suchen · /pause <i>Nr</i> · /weiter <i>Nr</i> · /loeschen <i>Nr</i>
 /pause · /weiter – alle Meldungen anhalten/fortsetzen
-/status – läuft alles?
+/status · /probelauf
 
-<b>Optionen</b>
-<code>bis 40</code> Höchstpreis · <code>ab 10</code> Mindestpreis
-<code>rabatt 40</code> mind. 40 % unter Marktpreis · <code>gewinn 15</code> mind. 15 € Gewinn
-<code>frisch 10</code> nur Artikel jünger als 10 Min. · <code>score 60</code> Mindest-Score
-<code>günstiger 95</code> billiger als 95 % der vergleichbaren Angebote
-<code>markt 50</code> typischer Marktpreis"""
+<i>Optionen für /neu und /marke:</i> <code>bis 40</code> · <code>ab 10</code> · <code>rabatt 40</code> · <code>gewinn 15</code> · <code>frisch 10</code> · <code>günstiger 95</code> · <code>score 60</code> · <code>markt 50</code>"""
 
 # bewusst kein "max": sonst würde aus "air max 90" ein Höchstpreis von 90 €
 OPTION_PATTERNS = {

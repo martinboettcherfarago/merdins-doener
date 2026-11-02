@@ -189,7 +189,7 @@ class SearchConfig:
 @dataclass
 class Config:
     domain: str = "de"
-    interval_seconds: int = 60
+    interval_seconds: int = 45           # ruhige Suchen spätestens alle 3 × so viele Sekunden
     max_item_age_minutes: int = 60
     per_page: int = 48
     proxy: Optional[str] = None
@@ -281,7 +281,7 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
 
     cfg = Config(
         domain=normalize_domain(str(v.get("domain") or "de")),
-        interval_seconds=max(20, int(v.get("interval_seconds") or 60)),
+        interval_seconds=max(20, int(v.get("interval_seconds") or 45)),
         workers=max(1, min(4, int(v.get("workers") or 2))),
         request_gap_seconds=max(0.5, float(v.get("request_gap_seconds") or 1.0)),
         max_item_age_minutes=int(v.get("max_item_age_minutes") or 60),
