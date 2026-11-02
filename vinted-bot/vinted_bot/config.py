@@ -32,7 +32,7 @@ TREND_WATCHES = [
     "Brandy Melville", "Skims", "Lululemon", "True Religion", "Miss Sixty", "Y2K Top", "Korsett Top",
     "Spitzen Top", "Y2K Cargo", "Y2K Minirock", "Tommy Hilfiger vintage", "Champion vintage",
     # Retro & 90er (inkl. Jeans) – und Adidas wieder komplett
-    "Adidas", "Vintage Adidas", "Vintage 90er", "Retro 90s", "Vintage Windbreaker", "Vintage Trainingsjacke",
+    "Adidas", "Nike", "Vintage Adidas", "Vintage 90er", "Retro 90s", "Vintage Windbreaker", "Vintage Trainingsjacke",
     "Vintage Sweatshirt", "Vintage Fleece", "Vintage Jeans", "Vintage Jeansjacke", "90er Jeans",
     "Wrangler vintage", "Lee vintage", "Kappa vintage", "Fila vintage", "Puma vintage", "Starter Jacke",
     "Nautica vintage",

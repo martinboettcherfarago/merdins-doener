@@ -528,3 +528,13 @@ def test_live_warns_when_the_sniper_is_too_slow():
     assert "alle ~220 s" in text and "⚠️ Der Sniper fragt zu selten ab" in text
     live.started = 900.0
     assert "(Bot läuft erst seit 7 Min.)" in live.text(60, now=1300.0)
+
+
+def test_searchers_never_wait_for_the_image_model_to_load(tmp_path):
+    brain, store = make_brain(tmp_path)
+    brain.embedder.loaded = False                 # Modell lädt noch
+    it, blob = listing(95_001, 60, 9)
+    store[it.photo_url] = blob
+    assert brain.assess(it, "jacke", estimate_item(it, "jacke")) is None   # sofort weiter, nur Regeln
+    brain.embedder.loaded = True
+    assert brain.assess(it, "jacke", estimate_item(it, "jacke")) is not None

@@ -88,6 +88,15 @@ class Embedder:
         self.error = ""
         self.fallback = ""     # gesetzt, wenn statt des Mode-Modells das schnelle Modell läuft
 
+    @property
+    def loaded(self) -> bool:
+        return self._model is not None
+
+    def preload(self) -> None:
+        """Bildmodell laden (im Hintergrund-Thread beim Start – die Sucher warten nicht darauf)."""
+        with self._lock:
+            self._load()
+
     @staticmethod
     def installed() -> bool:
         """Sind PyTorch und open_clip installiert? (ki-installieren.bat) – lädt sie noch nicht."""
@@ -563,6 +572,7 @@ class Brain:
         self.report = report or (lambda text: None)
         self._queue: "queue.Queue[tuple[Any, str, Any]]" = queue.Queue(maxsize=200)
         self.collect_per_minute = 40.0                  # ~57.000 Bilder pro Tag – mehr braucht das Training nicht
+        self._fg, self._fg_lock = 0, threading.Lock()   # Sucher, die gerade ein Foto bewerten
         self._tokens, self._token_ts = self.collect_per_minute, time.monotonic()
         self._train_now = threading.Event()
         self.stop_event = threading.Event()
@@ -641,13 +651,18 @@ class Brain:
     # -- Bewerten ------------------------------------------------------------------------
 
     def assess(self, item: Any, ptype: str, est: Any) -> Optional[BrainView]:
-        if not self.enabled:
-            return None
+        if not self.enabled or not getattr(self.embedder, "loaded", True):
+            return None  # Modell lädt noch -> nur Regeln, die Sucher sollen nicht warten
+        with self._fg_lock:
+            self._fg += 1            # Sammeln im Hintergrund lässt den Suchern den Vortritt
         try:
             vecs = self._embed_item(item, ptype, est)
         except Exception as e:  # noqa: BLE001
             self._fail(e)
             return None
+        finally:
+            with self._fg_lock:
+                self._fg -= 1
         if vecs is None:
             return None
         img, txt = vecs
@@ -739,6 +754,11 @@ class Brain:
         self.stop_event.set()
 
     def _run(self) -> None:
+        if self.enabled and hasattr(self.embedder, "preload"):
+            try:
+                self.embedder.preload()
+            except Exception as e:  # noqa: BLE001
+                self._fail(e)
         while not self.stop_event.is_set():
             if self._train_now.is_set() or self._training_due():
                 self._train_now.clear()
@@ -755,6 +775,8 @@ class Brain:
                 continue
             if not self.enabled:
                 continue
+            while self._fg and not self.stop_event.is_set():
+                self.stop_event.wait(0.05)   # ein Sucher bewertet gerade ein Foto -> warten
             try:
                 self._embed_item(item, ptype, est)
             except Exception as e:  # noqa: BLE001

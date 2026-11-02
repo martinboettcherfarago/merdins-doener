@@ -139,7 +139,7 @@ def test_busy_brands_are_checked_much_more_often_than_quiet_ones(tmp_path):
 
 def test_scheduler_tempo_rules():
     from types import SimpleNamespace as NS
-    sched = Scheduler(fast_gap=4, min_gap=8, max_gap=180, target_new=10, stagger=1)
+    sched = Scheduler(fast_gap=4, min_gap=8, max_gap=180, target_new=10, stagger=1, shuffle=False)
     sniper, nike, vw = NS(name=SNIPER, sweep=True), NS(name="Nike", sweep=False), NS(name="VW", sweep=False)
     first, _ = sched.take([nike, vw, sniper], now=0)
     assert first is sniper                                    # Sniper hat Vorrang
@@ -329,3 +329,67 @@ def test_only_sniper_hits_make_a_push_sound(tmp_path):
     ctl.handle_update(msg("/push aus"))
     m._send(sniper_alert)
     assert tg.calls[-1][1]["disable_notification"] is True
+
+
+# -- Vinted bremst: kurz pausieren, Tempo anpassen ------------------------------------------------------
+
+def test_pacer_adapts_to_vinted_rate_limits():
+    p = Pacer(1.0)
+    assert p.rate_limited() == 15 and p.gap == 1.75          # 1. Bremse: 15 s Pause, etwas langsamer
+    assert p.rate_limited() == 30 and p.gap > 2.5             # 2. Bremse in Folge: 30 s
+    assert p.rate_limited(retry_after=7) == 7                 # Vinted nennt die Wartezeit -> genau die
+    for _ in range(4):
+        p.rate_limited()
+    assert p.gap == Pacer.MAX_GAP and p.rate_limited() == 60  # nie langsamer als 6 s, nie länger als 60 s Pause
+    for _ in range(30 * 20):
+        p.success()
+    assert p.gap == 1.0                                       # läuft es rund, wieder volles Tempo
+
+
+def test_worker_pauses_briefly_instead_of_a_minute(tmp_path):
+    from vinted_bot.vinted import VintedRateLimited
+
+    class Grumpy(FeedClient):
+        def search(self, query, per_page=48, page=1):
+            with self.lock:
+                self.calls.append((query.search_text, query.price_to, page))
+                if len(self.calls) == 2:
+                    raise VintedRateLimited()
+                return []
+    client = Grumpy()
+    m = monitor(tmp_path, {"resale": {"brands": ["Carhartt"]}})
+    run_workers(m, client, until=lambda: m.live.summary()["ratelimits"] >= 1)
+    assert m.live.summary()["ratelimits"] == 1 and m.pacer.gap > 0
+    assert "🚦 Vinted-Bremse: 1×" in m.live.text(60)
+
+
+# -- Abwechslung: nicht ständig dieselbe Marke -----------------------------------------------------
+
+def test_brand_variety_raises_the_bar_for_a_brand_that_came_often(tmp_path):
+    from vinted_bot.knowledge import estimate_item
+    m = monitor(tmp_path, {"resale": {"brands": ["Carhartt", "Adidas"], "budget": 500, "budget_brands": 500}})
+
+    def at(discount, brand, i):
+        probe = feed_item(i, 1, title=f"{brand} Jacke", brand=brand)
+        return feed_item(i, round(estimate_item(probe).value * (1 - discount), 2), title=f"{brand} Jacke",
+                         brand=brand, seconds_old=30)
+    carhartt = m.effective(SearchConfig.watch("Carhartt"))
+    assert m.explain(carhartt, at(0.45, "Carhartt", 1), NOW)[0] is not None
+    m._brand_alerts.extend((NOW - 600, "carhartt") for _ in range(3))     # schon 3× Carhartt in der Stunde
+    alert, why = m.explain(carhartt, at(0.45, "Carhartt", 2), NOW)
+    assert alert is None and why.startswith("Marken-Vielfalt: Carhartt kam in der letzten Stunde schon 3×")
+    assert m.explain(carhartt, at(0.6, "Carhartt", 3), NOW)[0] is not None   # ein echter Knaller kommt trotzdem
+    adidas = m.effective(SearchConfig.watch("Adidas"))
+    assert m.explain(adidas, at(0.55, "Adidas", 4), NOW)[0] is not None      # andere Marken ganz normal
+
+
+def test_new_searches_start_in_random_order_and_nike_is_in_the_list():
+    from types import SimpleNamespace as NS
+    from vinted_bot.config import TREND_WATCHES
+    assert "Nike" in TREND_WATCHES and "Adidas" in TREND_WATCHES
+    searches = [NS(name=f"S{i}", sweep=False) for i in range(40)]
+    firsts = set()
+    for _ in range(5):
+        sched = Scheduler(stagger=1)
+        firsts.add(sched.take(searches, now=0)[0].name)
+    assert len(firsts) > 1          # nicht jedes Mal dieselbe Suche zuerst

@@ -41,10 +41,21 @@ class LiveStats:
         self.polls: deque[tuple[float, int, bool]] = deque(maxlen=20000)       # (Zeit, neue Artikel, Sniper?)
         self.alerts: deque[tuple[float, Optional[float], float, str, bool]] = deque(maxlen=2000)
         self.rejects: deque[tuple[float, str]] = deque(maxlen=100000)          # (Zeit, Grund)
+        self.events: deque[tuple[float, str]] = deque(maxlen=5000)             # ratelimit / blocked / error
+        self.timings: deque[tuple[float, float, float]] = deque(maxlen=5000)   # (Zeit, Vinted-Antwort s, Rechnen s)
+        self.gap: Optional[float] = None                                       # aktueller Abstand der Anfragen
 
     def poll(self, fresh: int, sniper: bool, now: Optional[float] = None) -> None:
         with self._lock:
             self.polls.append((now or time.time(), fresh, sniper))
+
+    def event(self, kind: str, now: Optional[float] = None) -> None:
+        with self._lock:
+            self.events.append((now or time.time(), kind))
+
+    def timing(self, request_s: float, work_s: float, now: Optional[float] = None) -> None:
+        with self._lock:
+            self.timings.append((now or time.time(), request_s, work_s))
 
     def reject(self, why: str, now: Optional[float] = None) -> None:
         with self._lock:
@@ -65,6 +76,8 @@ class LiveStats:
             polls = [p for p in self.polls if p[0] >= since]
             alerts = [a for a in self.alerts if a[0] >= since]
             rejects = [r for r in self.rejects if r[0] >= since]
+            events = Counter(e[1] for e in self.events if e[0] >= since)
+            timings = [t for t in self.timings if t[0] >= since]
         sniper = sorted(p[0] for p in polls if p[2])
         gaps = [b - a for a, b in zip(sniper, sniper[1:])]
         ages = sorted(a[1] for a in alerts if a[1] is not None)
@@ -87,6 +100,10 @@ class LiveStats:
             "share_20": (sum(1 for p in prices if p <= 20) / len(prices)) if prices else None,
             "max": max(alerts, key=lambda a: a[2]) if alerts else None,
             "reasons": Counter(r[1] for r in rejects).most_common(5),
+            "ratelimits": events.get("ratelimit", 0), "blocked": events.get("blocked", 0),
+            "errors": events.get("error", 0),
+            "request_s": median(t[1] for t in timings) if timings else None,
+            "work_s": median(t[2] for t in timings) if timings else None,
             "rejected": len(rejects),
         }
 
@@ -106,6 +123,12 @@ class LiveStats:
         else:
             lines.append("⚡ Sniper: keine Abfragen (aus? → /radar an)")
         lines.append(f"🔎 Marken-Suchen: {s['brand_polls']} Abfragen · insgesamt {s['checked']} neue Artikel geprüft")
+        if s["request_s"] is not None:
+            lines.append(f"⏱ Vinted antwortet in Ø {s['request_s']:.1f} s · Bewerten dauert Ø {s['work_s']:.1f} s pro Abfrage"
+                         + (f" · Abstand gerade {self.gap:.1f} s" if self.gap else ""))
+        if s["ratelimits"] or s["blocked"] or s["errors"]:
+            lines.append(f"🚦 Vinted-Bremse: {s['ratelimits']}× „zu viele Anfragen“ · {s['blocked']}× blockiert · "
+                         f"{s['errors']}× Fehler – der Bot passt sein Tempo selbst an")
         if s["alerts"]:
             last = s["last_alert"]
             lines.append(f"📬 <b>{s['alerts']} Meldungen</b> ({s['from_sniper']} vom Sniper) · zuletzt vor "

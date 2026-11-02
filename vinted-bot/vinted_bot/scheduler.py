@@ -12,6 +12,7 @@ So kommen auch Marken-Treffer nach Sekunden statt nach Minuten – bei gleich vi
 
 from __future__ import annotations
 
+import random
 import threading
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -29,13 +30,14 @@ class Slot:
 
 class Scheduler:
     def __init__(self, fast_gap: float = 4.0, min_gap: float = 8.0, max_gap: float = 180.0,
-                 target_new: float = 10.0, stagger: float = 1.0, first_gap: float = 30.0):
+                 target_new: float = 10.0, stagger: float = 1.0, first_gap: float = 30.0, shuffle: bool = True):
         self.fast_gap = fast_gap        # Sniper
         self.min_gap = min_gap          # schnellster Takt einer Marken-Suche
         self.max_gap = max_gap          # langsamster Takt
         self.target_new = target_new    # so viele neue Artikel sollen sich zwischen zwei Blicken ansammeln
         self.stagger = stagger          # neue Suchen nacheinander starten
         self.first_gap = first_gap      # Takt, bis das Tempo einer Suche gemessen ist
+        self.shuffle = shuffle          # neue Suchen in zufälliger Reihenfolge (nicht immer Carhartt zuerst)
         self._lock = threading.Lock()
         self._slots: dict[str, Slot] = {}
 
@@ -43,12 +45,14 @@ class Scheduler:
         """Die dringendste fällige Suche (wird für diesen Sucher reserviert) – oder None und wie lange bis
         zur nächsten. Vorrang hat, wer gemessen an seinem Takt am längsten überfällig ist."""
         with self._lock:
+            new = [s for s in searches if s.name not in self._slots]
+            if self.shuffle:
+                random.shuffle(new)
             start = now
-            for s in searches:
-                if s.name not in self._slots:
-                    first = self.fast_gap if s.sweep else min(self.max_gap, self.first_gap)
-                    self._slots[s.name] = Slot(interval=first, due=now if s.sweep else start)
-                    start += 0 if s.sweep else self.stagger
+            for s in new:
+                first = self.fast_gap if s.sweep else min(self.max_gap, self.first_gap)
+                self._slots[s.name] = Slot(interval=first, due=now if s.sweep else start)
+                start += 0 if s.sweep else self.stagger
             best, best_key, soonest = None, None, self.max_gap
             for s in searches:
                 slot = self._slots[s.name]

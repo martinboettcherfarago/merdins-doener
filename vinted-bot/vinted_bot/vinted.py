@@ -48,9 +48,9 @@ class VintedBlocked(VintedError):
 
 
 class VintedRateLimited(VintedError):
-    def __init__(self, retry_after: float):
-        super().__init__(f"Zu viele Anfragen, warte {retry_after:.0f}s")
-        self.retry_after = retry_after
+    def __init__(self, retry_after: Optional[float] = None):
+        super().__init__("Zu viele Anfragen" + (f", warte {retry_after:.0f}s" if retry_after else ""))
+        self.retry_after = retry_after   # None = Vinted nennt keine Wartezeit
 
 
 @dataclass
@@ -259,9 +259,9 @@ class VintedClient:
                 continue
             if status == 429:
                 try:
-                    retry_after = float(r.headers.get("Retry-After") or 60)
+                    retry_after: Optional[float] = float(r.headers.get("Retry-After") or 0) or None
                 except ValueError:
-                    retry_after = 60.0
+                    retry_after = None
                 raise VintedRateLimited(retry_after)
             last_error = VintedError(f"Vinted antwortet mit HTTP {status}")
             time.sleep(2 + attempt * 2)

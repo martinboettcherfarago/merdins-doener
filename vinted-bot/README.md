@@ -41,7 +41,7 @@ Vintage Polo Sport Jacke 90s
 | | |
 |---|---|
 | ⚡ **Sniper** | alle ~4 s die neuesten Uploads auf ganz Vinted: nur deine Marken, Premium-Marken und Raritäten |
-| ⏱ **Marken im eigenen Takt** | 76 eingebaute Marken & Trends (+ deine eigenen). Wo viel hochgeladen wird, schaut er alle 10–25 s nach, sonst alle 1–2 Min. |
+| ⏱ **Marken im eigenen Takt** | 77 eingebaute Marken & Trends (+ deine eigenen). Wo viel hochgeladen wird, schaut er alle 10–25 s nach, sonst alle 1–2 Min. |
 | 💶 **Budget** | nur Teile bis 30 €, teure Marken (Luxus, Designer, Outdoor-Premium) bis 80 € |
 | 🎚 **Auto-Stufe** | passt die Strenge so an, dass stetig 20–60 Schnäppchen pro Stunde kommen |
 | 🔔 **Push nur für Sniper** | ⚡ Sniper-Treffer klingeln, alles andere kommt lautlos in den Chat (`/push`) |

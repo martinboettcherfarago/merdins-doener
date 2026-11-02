@@ -19,7 +19,7 @@ notifications:
 # 💰 SCHNÄPPCHEN-RADAR: frisch hochgeladene Teile weit unter Wert
 resale:
   enabled: true
-  brands: [trends]             # "trends" = 76 eingebaute Marken & Trends (Carhartt, Stüssy, Vintage Adidas,
+  brands: [trends]             # "trends" = 77 eingebaute Marken & Trends (Carhartt, Stüssy, Nike, Adidas,
                                # Nike Tech Fleece, Vintage Lederjacke, Y2K …) – eigene dazu: [trends, Ganni]
   level: auto                  # auto (hält 20–60 Treffer/Std.) · offen · locker · normal · streng   (/stufe)
   budget: 30                   # 💶 höchstens so viel pro Teil                                (/budget 25)

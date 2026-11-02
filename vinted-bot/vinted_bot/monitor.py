@@ -14,7 +14,7 @@ from typing import Any, Callable, Optional
 from .catalog import brand_info, hidden_label, is_kids, is_retro, type_hidden
 from . import fakecheck
 from .config import RESALE_LEVELS, RESALE_TARGET_KEYS, TREND_WATCHES, Config, SearchConfig
-from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
+from .knowledge import brand_key, estimate_item, item_brand, rarity, size_matches, trend_match
 from .models import Item
 from .notify import Alert
 from .scoring import (TYPE_LABELS, Reference, market_reference, meets_targets, normalize, passes_filters,
@@ -33,6 +33,7 @@ AUTO_BAND = (20.0, 60.0)                              # … und hält 20–60 Sc
 AUTO_STEP = 900.0                                     # frühestens alle 15 Min. umstellen
 PHOTO_BUDGET = 8                                      # höchstens so viele Fotos pro Abfrage bewerten …
 RESCUE_BUDGET = 3                                     # … plus so viele, die nur das Wert-Modell retten könnte
+BRAND_LIMIT = 3                                       # ab so vielen Meldungen pro Stunde braucht eine Marke mehr Rabatt
 EXPENSIVE_TIERS = ("luxus", "designer", "outdoor")  # "wirklich teure Marken" dürfen übers Budget
 WANTED_TIERS = ("premium", "streetwear", "outdoor", "designer", "luxus")  # meldet der Sniper immer
 SNIPER = "⚡ Sniper"
@@ -68,6 +69,7 @@ class Monitor:
         self._brand_cache: tuple[int, set[str]] = (-1, set())
         self._watch_cache: tuple[int, list[Any]] = (-1, [])
         self._alert_times: deque[float] = deque(maxlen=1000)   # Schnäppchen-Meldungen (für die Auto-Stufe)
+        self._brand_alerts: deque[tuple[float, str]] = deque(maxlen=1000)   # (Zeit, Marke) für Marken-Vielfalt
         self.live = LiveStats()                                 # 📈 /live
         self._local = threading.local()                         # pro Sucher: Foto-Budget der laufenden Abfrage
 
@@ -512,7 +514,7 @@ class Monitor:
                                     model_fake=view.fake if view is not None else None)
             if ampel.level == "rot" and self.ampel_mode() == "streng" and not self._ai_can_check():
                 return None, f"Fake-Ampel rot ({ampel.risk:.0%}: {'; '.join(ampel.reasons[:2])})"
-        ok, why = self._meets_targets_with_model(search, score, view, rare)
+        ok, why = self._meets_targets_with_model(search, score, view, rare, brand=est.brand or "")
         if not ok:
             if extra is None and (ampel is None or ampel.level == "grün"):
                 self._maybe_second_look(search, item, score, why, rare, trend, ptype, kind,
@@ -542,13 +544,21 @@ class Monitor:
             return True
         return False
 
-    def _meets_targets_with_model(self, search: SearchConfig, score: Any, view: Any, rare: Any) -> tuple[bool, str]:
+    def _recent_brand_alerts(self, brand: str) -> int:
+        """Wie oft kam diese Marke in der letzten Stunde?"""
+        key, since = brand_key(brand), self.clock() - 3600
+        with self._lock:
+            return sum(1 for ts, k in self._brand_alerts if k == key and ts >= since) if key else 0
+
+    def _meets_targets_with_model(self, search: SearchConfig, score: Any, view: Any, rare: Any,
+                                  brand: str = "") -> tuple[bool, str]:
         """Ziele der Suche – mit Bildmodell etwas lockerer für coole/passende Teile, strenger für unpassende.
 
         Cooler Foto-Look (90er, Sportswear, Fellkragen …), "passt zu deinem Geschmack" und "sieht begehrt aus"
         senken den nötigen Rabatt (zusammen um höchstens 15 Punkte, nie unter 25 %). Was laut Geschmacks-Modell
-        gar nicht zu dir passt, braucht 10 Punkte mehr Rabatt."""
-        relax, notes = 0.0, []
+        gar nicht zu dir passt, braucht 10 Punkte mehr Rabatt – ebenso eine Marke, die in der letzten Stunde
+        schon BRAND_LIMIT-mal kam (damit nicht ständig dieselben Marken kommen)."""
+        relax, notes, minus = 0.0, [], []
         if view is not None and search.is_resale and search.min_discount is not None:
             if view.is_cool and not rare.level:
                 relax += 10
@@ -558,10 +568,16 @@ class Monitor:
                 notes.append(f"😍 passt zu deinem Geschmack ({view.taste:.0%})")
             elif view.taste is not None and view.taste <= 0.25:
                 relax -= 10
+                minus.append(f"passt laut Geschmacks-Modell eher nicht zu dir ({view.taste:.0%})")
             if view.popular is not None and view.popular_trusted and view.popular >= 0.75:
                 relax += 5
                 notes.append(f"🔥 sieht begehrt aus ({view.popular:.0%})")
-            relax = max(-10.0, min(15.0, relax))
+        if search.is_resale and search.min_discount is not None and brand:
+            n = self._recent_brand_alerts(brand)
+            if n >= BRAND_LIMIT:
+                relax -= 10
+                minus.append(f"Marken-Vielfalt: {brand} kam in der letzten Stunde schon {n}×")
+        relax = max(-15.0, min(15.0, relax))
         if not relax:
             ok, why = meets_targets(search, score)
             if ok and notes:
@@ -578,7 +594,7 @@ class Monitor:
                      if not plain_ok else "")
             score.reasons.insert(0, " · ".join(notes) + hint)
         elif not ok and plain_ok:
-            why = f"passt laut Geschmacks-Modell eher nicht zu dir ({view.taste:.0%}) – bräuchte mehr Rabatt"
+            why = " · ".join(minus) + " – bräuchte mehr Rabatt"
         return ok, why
 
     def ampel_mode(self) -> str:
@@ -596,7 +612,9 @@ class Monitor:
         self._local.photo_budget, self._local.rescue_budget = PHOTO_BUDGET, RESCUE_BUDGET
         query, per_page = query_for_search(search, self.cfg.currency), self._per_page(search)
         c = client or self.client
+        t_request = time.monotonic()
         items = c.search(query, per_page=per_page, page=page) if page > 1 else c.search(query, per_page=per_page)
+        t_work = time.monotonic()
         with self._lock:
             self.stats["checked"] += len(items)
             if worker:
@@ -646,6 +664,8 @@ class Monitor:
 
         with self._lock:
             self.last_fetch[search.name] = (fresh, len(items))
+        self.live.timing(t_work - t_request, time.monotonic() - t_work)
+        self.live.gap = self.pacer.gap
         if not seeded:
             self.storage.set_seeded(search.name)
             log.info("Suche '%s': %d Artikel als Ausgangsbasis gespeichert.", search.name, len(items))
@@ -711,6 +731,7 @@ class Monitor:
                 self.stats["alerts"] += 1
                 if alert.resale:
                     self._alert_times.append(self.clock())
+                    self._brand_alerts.append((self.clock(), brand_key(item_brand(alert.item))))
                 if alert.worker:
                     self.stats["workers"].setdefault(alert.worker, {"cycles": 0, "checked": 0, "alerts": 0})
                     self.stats["workers"][alert.worker]["alerts"] += 1
@@ -871,22 +892,27 @@ class Monitor:
                 backoff = 0.0
                 self._unblocked()
             except VintedRateLimited as e:
-                pause = max(60.0, e.retry_after)
-                self.pacer.pause(pause)
+                # Vinted bremst: kurz pausieren und danach etwas langsamer fragen (statt stur 60 s Pause)
+                pause = self.pacer.rate_limited(e.retry_after)
                 self.scheduler.release(search.name, time.monotonic(), pause)
-                log.warning("Zu viele Anfragen – alle Sucher pausieren %.0f s.", pause)
+                self.live.event("ratelimit")
+                log.warning("Vinted bremst (zu viele Anfragen) – Pause %.0f s, danach alle %.1f s eine Anfrage.",
+                            pause, self.pacer.gap)
                 continue
             except VintedBlocked as e:
                 backoff = min(900.0, backoff * 2 if backoff else 60.0)
                 self.pacer.pause(backoff)
                 self.scheduler.release(search.name, time.monotonic(), backoff)
+                self.live.event("blocked")
                 self._error(str(e))
                 self._blocked(e)
                 continue
             except Exception as e:  # noqa: BLE001
                 self.scheduler.release(search.name, time.monotonic())
+                self.live.event("error")
                 self._error(f"{search.name}: {e}")
                 continue
+            self.pacer.success()
             with self._lock:
                 w = self.stats["workers"][letter]
                 w["polls"] += 1
@@ -1002,13 +1028,20 @@ class Monitor:
 
 class Pacer:
     """Taktgeber: Zwischen zwei Vinted-Anfragen (aller Sucher zusammen) liegt mindestens `gap` Sekunden.
-    Die Sucher nehmen sich der Reihe nach den nächsten freien Zeitpunkt – so wechseln sie sich ab: A, B, A, B …"""
+    Die Sucher nehmen sich der Reihe nach den nächsten freien Zeitpunkt – so wechseln sie sich ab: A, B, A, B …
+
+    Bremst Vinted ("zu viele Anfragen"), wird kurz pausiert und der Abstand vergrößert; läuft es wieder rund,
+    wird er langsam wieder kleiner – so findet der Bot selbst das schnellste Tempo, das Vinted zulässt."""
+
+    MAX_GAP = 6.0
 
     def __init__(self, gap: float):
-        self.gap = gap
+        self.base_gap = self.gap = gap
         self._lock = threading.Lock()
         self._next = 0.0
         self._pause_until = 0.0
+        self._streak = 0          # Bremsen hintereinander
+        self._ok = 0              # Anfragen ohne Bremse seit der letzten
 
     def wait(self, stop_event: threading.Event) -> bool:
         while not stop_event.is_set():
@@ -1027,3 +1060,22 @@ class Pacer:
     def pause(self, seconds: float) -> None:
         with self._lock:
             self._pause_until = max(self._pause_until, time.monotonic() + seconds)
+
+    def rate_limited(self, retry_after: Optional[float] = None) -> float:
+        """Vinted bremst: Pause (15, 30, 45 … max. 60 s – oder was Vinted vorgibt) und größerer Abstand."""
+        with self._lock:
+            self._streak += 1
+            self._ok = 0
+            self.gap = min(self.MAX_GAP, self.gap * 1.5 + 0.25)
+            pause = retry_after if retry_after else min(60.0, 15.0 * self._streak)
+            self._pause_until = max(self._pause_until, time.monotonic() + pause)
+            return pause
+
+    def success(self) -> None:
+        """Anfrage ging durch: nach 30 Erfolgen am Stück wieder etwas schneller (bis zum eingestellten Tempo)."""
+        with self._lock:
+            self._streak = 0
+            self._ok += 1
+            if self._ok >= 30 and self.gap > self.base_gap:
+                self.gap = max(self.base_gap, self.gap * 0.85)
+                self._ok = 0
