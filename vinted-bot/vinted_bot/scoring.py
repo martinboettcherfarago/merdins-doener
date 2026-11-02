@@ -81,8 +81,16 @@ def _contains_word(text: str, word: str) -> bool:
 
 
 def brand_matches(item: Item, brands: Iterable[str]) -> bool:
-    """Strenger Markenabgleich: zählt die Marke des Artikels, nicht nur ein Wort im Titel."""
+    """Strenger Markenabgleich: zählt die Marke des Artikels, nicht nur ein Wort im Titel.
+
+    Hat der Verkäufer keine echte Marke gewählt ("Vintage", "Andere", "Ohne Marke"), zählt der Titel.
+    """
+    from .catalog import NO_BRAND, NO_BRAND_EXPLICIT, _STYLE_COPY
     item_brand = normalize(item.brand)
+    if item_brand in NO_BRAND_EXPLICIT or (item_brand in NO_BRAND and _STYLE_COPY.search(item.title.lower())):
+        return False  # "No Name" bzw. "im Carhartt Style" ist keine Carhartt
+    if item_brand in NO_BRAND:
+        item_brand = ""  # "Vintage"/"Andere" gewählt -> der Titel entscheidet
     for want in brands:
         w = normalize(want)
         if not w:
@@ -95,6 +103,27 @@ def brand_matches(item: Item, brands: Iterable[str]) -> bool:
     return False
 
 
+_NEGATIONS = r"(?:kein|keine|keinen|keiner|nicht|ohne|no|not|non|null|0)"
+_WANTED_AD = re.compile(r"^\s*(?:ich\s+)?(?:suche|gesucht|wtb|looking for)\b|\bsuche\s+(?:nach|dringend)\b")
+_SWAP_ONLY = re.compile(r"\bnur\s+(?:zum\s+)?tausch|\btausch(?:e)?\s+gegen\b|\bzum\s+tausch\b|\bnur\s+tauschen\b")
+
+
+def excluded_by(title: str, word: str) -> bool:
+    """Schließt das Wort den Artikel wirklich aus? 'kein Fake', 'ohne Defekte', 'Tausch möglich' zählen nicht."""
+    w = word.lower().strip()
+    if not w:
+        return False
+    if w in ("suche", "gesucht"):
+        return _WANTED_AD.search(title) is not None        # nur echte Suchanzeigen
+    if w in ("tausch", "nur tausch"):
+        return _SWAP_ONLY.search(title) is not None         # nur reine Tausch-Angebote
+    for m in re.finditer(rf"(?<!\w){re.escape(w)}(?!\w)", title):
+        before = title[max(0, m.start() - 20):m.start()]
+        if not re.search(rf"(?<!\w){_NEGATIONS}\W+(?:\w+\W+)?$", before):
+            return True                                      # nicht verneint -> ausschließen
+    return False
+
+
 def passes_filters(item: Item, search: SearchConfig, global_excludes: Iterable[str]) -> tuple[bool, str]:
     """Prüft die persönlichen Filter. Gibt (ok, Grund) zurück."""
     title = item.title.lower()
@@ -104,7 +133,7 @@ def passes_filters(item: Item, search: SearchConfig, global_excludes: Iterable[s
     if search.max_price is not None and item.price > search.max_price:
         return False, "zu teuer"
     for word in list(global_excludes) + search.exclude_words:
-        if word and _contains_word(title, word):
+        if word and excluded_by(title, word):
             return False, f"Ausschlusswort '{word}'"
     for word in search.must_contain:
         if not _contains_word(haystack, word):
@@ -112,11 +141,8 @@ def passes_filters(item: Item, search: SearchConfig, global_excludes: Iterable[s
     if search.brands and not brand_matches(item, search.brands):
         return False, "andere Marke"
     if search.sizes:
-        size = item.size.lower().strip()
-        wanted = {s.lower().strip() for s in search.sizes}
-        # "M / 38 / 10" soll auch bei Wunschgröße "M" passen
-        parts = {p.strip() for p in re.split(r"[/|,]", size)} | {size}
-        if not parts & wanted:
+        from .knowledge import size_matches  # versteht auch "M / 38 / 10", "W30 L32", "38"
+        if not size_matches(item.size, search.sizes):
             return False, "andere Größe"
     if search.min_condition and item.condition:
         if condition_points(item.condition) < condition_points(search.min_condition):

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Iterable, Optional
 
-from .catalog import NO_BRAND, Estimate, brand_info, detect_brand, estimate, product_type
+from .catalog import NO_BRAND, Estimate, brand_info, estimate, product_type, title_brand
 from .catalog import resolve_type as _resolve_type
 from .models import Item
 from .text import normalize
@@ -64,7 +64,20 @@ BRAND_GRAILS: dict[str, list[str]] = {
     "barbour": ["2 crest", "two crest", "3 crest", "three crest", "border", "gamefair", "a7"],
     "nike": ["acg", "center swoosh", "centre swoosh", "middle swoosh", "nocta", "sacai", "off-white",
              "off white"],
-    "adidas": ["equipment", "eqt", "y-3", "wales bonner"],
+    "adidas": ["equipment", "eqt", "y-3", "wales bonner", "firebird", "beckenbauer", "trainingsjacke",
+               "track jacket", "trainingsanzug", "ventex", "descente", "made in west germany", "atp"],
+    # Retro-Sportswear: Trainingsjacken & Windbreaker aus den 80ern/90ern sind gefragt
+    "puma": ["trainingsjacke", "track jacket", "windbreaker", "king"],
+    "kappa": ["trainingsjacke", "track jacket", "banda", "windbreaker"],
+    "fila": ["trainingsjacke", "track jacket", "settanta", "windbreaker"],
+    "ellesse": ["trainingsjacke", "track jacket", "windbreaker"],
+    "sergiotacchini": ["trainingsjacke", "track jacket", "trainingsanzug", "ghibli", "dallas"],
+    "champion": ["reverse weave"],
+    "starter": ["satin", "college jacke", "varsity", "nfl", "nba"],
+    "tommyhilfiger": ["flag", "spellout", "90s logo", "colorblock"],
+    "nautica": ["competition", "reversible", "spellout"],
+    "wrangler": ["13mwz", "made in usa", "blue bell"],
+    "lee": ["storm rider", "made in usa", "union made"],
     "dickies": ["made in usa"],
 }
 
@@ -101,7 +114,7 @@ def item_brand(item: Item) -> str:
     """Marke des Artikels – oder aus dem Titel erkannt, wenn keine angegeben ist."""
     if _norm(item.brand) not in NO_BRAND:
         return item.brand
-    return detect_brand(item.title) or ""
+    return title_brand(item.title, item.brand) or ""
 
 
 def rarity(item: Item) -> Rarity:
@@ -158,13 +171,15 @@ TREND_MODELS: list[tuple[str, str]] = [
     (r"true religion", "True Religion"), (r"miss sixty", "Miss Sixty"),
     (r"y2k.{0,30}(?:cargo|mini ?rock|minirock)|(?:cargo|minirock).{0,30}y2k", "Y2K Cargo/Mini"),
     (r"reverse weave", "Reverse Weave"), (r"patchwork", "Patchwork"), (r"\b70(?:er|s)\b", "70er"),
+    (r"windbreaker|windjacke", "Windbreaker"), (r"single stitch", "Single Stitch"),
+    (r"\b(?:19)?[89]0'?s\b|\b[89]0er\b|\bretro\b|old ?school", "Retro/90er"),
 ]
 TREND_PREMIUM = 1.1
 TREND_POINTS = 5
 
 
 # Allgemeine Stil-Wörter erst prüfen, wenn kein konkretes Modell passt ("A&F Y2K Fellkragen" -> Fellkragen)
-_GENERIC_TRENDS = {"Y2K", "Baggy", "Workwear", "70er", "Leo-Print", "Patchwork", "Gorpcore", "Low Rise"}
+_GENERIC_TRENDS = {"Y2K", "Baggy", "Workwear", "70er", "Leo-Print", "Patchwork", "Gorpcore", "Low Rise", "Retro/90er"}
 
 
 def trend_match(title: str) -> Optional[str]:

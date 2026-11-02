@@ -31,6 +31,11 @@ TREND_WATCHES = [
     "Abercrombie & Fitch", "Fellkragen Jacke", "Lammfell Jacke", "Wildlederjacke", "Juicy Couture",
     "Brandy Melville", "Skims", "Lululemon", "True Religion", "Miss Sixty", "Y2K Top", "Korsett Top",
     "Spitzen Top", "Y2K Cargo", "Y2K Minirock", "Tommy Hilfiger vintage", "Champion vintage",
+    # Retro & 90er (inkl. Jeans) – und Adidas wieder komplett
+    "Adidas", "Vintage Adidas", "Vintage 90er", "Retro 90s", "Vintage Windbreaker", "Vintage Trainingsjacke",
+    "Vintage Sweatshirt", "Vintage Fleece", "Vintage Jeans", "Vintage Jeansjacke", "90er Jeans",
+    "Wrangler vintage", "Lee vintage", "Kappa vintage", "Fila vintage", "Puma vintage", "Starter Jacke",
+    "Nautica vintage",
 ]
 TREND_BRANDS = TREND_WATCHES  # alter Name, bleibt für ältere Konfigurationen gültig
 

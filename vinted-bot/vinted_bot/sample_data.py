@@ -24,9 +24,10 @@ from .storage import Storage
 
 BASE = "https://www.vinted.de"
 SAMPLE_BRANDS = ["Carhartt", "Stüssy", "Arc'teryx", "Stone Island", "Ralph Lauren", "The North Face",
-                 "Patagonia", "Nike", "Miu Miu", "Abercrombie & Fitch"]
+                 "Patagonia", "Nike", "Miu Miu", "Abercrombie & Fitch", "Adidas"]
 # Trend-Suchen nach Begriff (keine Marke): Markt aus verschiedenen Marken und No-Name
-SAMPLE_TERMS = {"Vintage Lederjacke": ("lederjacke", ["", "", "", "Zara", "H&M", "Mango", "Levi's", "Gipsy"])}
+SAMPLE_TERMS = {"Vintage Lederjacke": ("lederjacke", ["", "", "", "Zara", "H&M", "Mango", "Levi's", "Gipsy"]),
+                "Vintage 90er": ("jacke", ["", "", "Vintage", "Nike", "Adidas", "Puma", "Kappa", "C&A"])}
 TITLES = {
     "jacke": ["Jacke", "Jacket", "Winterjacke", "Übergangsjacke"],
     "hoodie": ["Hoodie", "Kapuzenpullover"],
@@ -45,7 +46,8 @@ TITLES = {
 # Welche Kategorien eine Marke im Musterdatensatz anbietet
 BRAND_TYPES = {"Nike": ["schuhe", "jacke", "hoodie", "pullover", "tshirt", "hose", "muetze"],
                "Miu Miu": ["tasche", "rock", "pullover", "tshirt", "jacke"],
-               "Abercrombie & Fitch": ["jacke", "hoodie", "pullover", "tshirt", "top", "hose"]}
+               "Abercrombie & Fitch": ["jacke", "hoodie", "pullover", "tshirt", "top", "hose"],
+               "Adidas": ["schuhe", "jacke", "hoodie", "pullover", "tshirt", "hose"]}
 DEFAULT_TYPES = ["jacke", "hoodie", "pullover", "tshirt", "hose", "weste", "fleece", "muetze"]
 SIZES = [("XS", 5), ("S", 20), ("M", 30), ("L", 25), ("XL", 15), ("XXL", 5)]
 CONDITIONS = [("Neu mit Etikett", 10), ("Neu ohne Etikett", 10), ("Sehr gut", 45), ("Gut", 30),
@@ -62,6 +64,10 @@ FINDS = [
     ("Miu Miu", "Miu Miu Tasche Leder", "", 160, "Sehr gut", 2),
     ("", "Vintage Lederjacke 90er", "L", 10, "Gut", 3),  # No-Name, gefunden über die Trend-Suche
     ("Abercrombie & Fitch", "Abercrombie & Fitch Y2K Jacke mit Fellkragen", "S", 15, "Sehr gut", 2),
+    ("Vintage", "Adidas Trainingsjacke vintage 90er", "L", 12, "Gut", 2),      # Marke "Vintage" gewählt
+    ("", "Vintage 90er Windbreaker", "M", 4, "Gut", 3),
+    ("Carhartt WIP", "Carhartt WIP Jacke neu mit Etikett", "M", 22, "Neu mit Etikett", 2),
+    ("Stone Island", "Stone Island Hoodie mit Badge", "L", 35, "Sehr gut", 3),
 ]
 # Fallen: (Marke, Titel, Größe, Preis, Zustand, Minuten online, warum nicht) – sollten NICHT gemeldet werden
 TRAPS = [
@@ -80,6 +86,8 @@ TRAPS = [
     ("Carhartt", "Carhartt WIP Logo Patch für Jacken", "", 3, "Neu mit Etikett", 1, "nur ein Patch"),
     ("Stone Island", "Stone Island Archivio Buch", "", 15, "Sehr gut", 2, "Buch"),
     ("Abercrombie & Fitch", "Abercrombie & Fitch Sticker", "", 2, "Neu ohne Etikett", 1, "Sticker"),
+    ("No Name", "Jacke wie Carhartt", "M", 10, "Gut", 1, "keine echte Carhartt"),
+    ("Carhartt WIP", "Suche Carhartt Jacke", "M", 20, "Sehr gut", 1, "Suchanzeige"),
 ]
 
 
@@ -166,11 +174,16 @@ class SampleClient:
     @staticmethod
     def _target(brand: str, title: str) -> str:
         """In welcher Suche taucht der Artikel auf? (Marke im Titel, sonst passende Trend-Suche)"""
-        for term in SAMPLE_TERMS:
-            if all(w in title.lower() for w in term.lower().split()) or (
-                    SAMPLE_TERMS[term][0] in product_type(title) and brand not in SAMPLE_BRANDS):
+        for term in SAMPLE_TERMS:  # 1) Suchbegriff steht komplett im Titel
+            if all(w in title.lower() for w in term.lower().split()):
                 return term
-        return next((b for b in SAMPLE_BRANDS if b.lower() in title.lower()), brand)
+        for b in SAMPLE_BRANDS:     # 2) Marke steht im Titel
+            if b.lower() in title.lower():
+                return b
+        for term in SAMPLE_TERMS:  # 3) passende Kategorie einer Trend-Suche
+            if SAMPLE_TERMS[term][0] in product_type(title) and brand not in SAMPLE_BRANDS:
+                return term
+        return brand
 
     def search(self, query: Any, per_page: int = 48) -> list[Item]:
         brand = query.search_text

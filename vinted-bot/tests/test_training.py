@@ -41,7 +41,7 @@ def test_prior_is_mixed_with_real_prices_and_fades_out():
     ("Nike ACG Fleece 90s vintage", "Nike", 2),
     ("Levi's 501 Big E Made in USA", "Levi's", 2),
     ("Stone Island Ghost Piece Overshirt", "Stone Island", 1),
-    ("Adidas Jacke Made in West Germany", "Adidas", 1),
+    ("Adidas Jacke Made in West Germany", "Adidas", 2),  # bei Adidas ein Sammler-Merkmal
 ])
 def test_rarity_levels(title, brand, level):
     assert rarity(item(1, 10, title=title, brand=brand)).level == level
@@ -221,7 +221,7 @@ def test_probelauf_command(bot):
     ctl, tg = bot
     ctl.handle_update(msg("/probelauf"))
     texts = tg.texts()
-    assert "Echte Finds im Datensatz erkannt: 9 von 9" in texts[1]
+    assert "Echte Finds im Datensatz erkannt: 13 von 13" in texts[1]
     demo = [p for m, p in tg.calls if m == "sendMessage" and "PROBELAUF" in p["text"]]
     assert len(demo) == 3 and all("reply_markup" not in p for p in demo)  # keine echten Links/Buttons
 

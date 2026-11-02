@@ -13,6 +13,17 @@ def normalize(text: str) -> str:
     return re.sub(r"[^a-z0-9]", "", t.lower())
 
 
+def keyword_pattern(word: str) -> str:
+    """Regulärer Ausdruck zu einem Erkennungswort (siehe keyword_in)."""
+    if word.startswith("="):
+        core = word[1:]
+        whole = core.endswith("=")
+        core = core.rstrip("=")
+        end = r"(?![a-zäöüß0-9])" if whole else ""
+        return rf"(?<![a-zäöüß0-9]){re.escape(core)}{end}"
+    return re.escape(word)
+
+
 def keyword_in(text: str, word: str) -> bool:
     """Erkennungswort im (kleingeschriebenen) Text finden.
 

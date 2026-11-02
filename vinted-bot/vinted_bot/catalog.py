@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
 
-from .text import keyword_in, normalize
+from .text import keyword_in, keyword_pattern, normalize
 
 
 @dataclass(frozen=True)
@@ -130,8 +130,8 @@ DETECTION: list[tuple[str, list[str]]] = [
     ("hoodie", ["hoodie", "hoody", "kapuzenpullover", "kapuzenjacke", "zip hoodie"]),
     ("fleece", ["fleece", "teddyjacke", "sherpa"]),
     ("weste", ["weste", "=vest=", "gilet", "bodywarmer"]),
-    ("pullover", ["sweatjacke", "strickjacke", "cardigan", "trainingsjacke", "track jacket", "tracktop",
-                  "track top"]),
+    ("jacke", ["trainingsjacke", "track jacket", "tracktop", "track top", "trainingsanzug", "tracksuit"]),
+    ("pullover", ["sweatjacke", "strickjacke", "cardigan"]),
     ("lederjacke", ["lederjacke", "leather jacket", "bikerjacke", "lederblouson", "wildlederjacke", "wildleder",
                     "suede jacket", "lammfell", "shearling", "penny lane", "afghan coat", "afghanmantel"]),
     ("daunenjacke", ["daunenjacke", "daunen", "puffer", "steppjacke", "nuptse", "down jacket", "=down="]),
@@ -201,12 +201,37 @@ DETECTION: list[tuple[str, list[str]]] = [
 ]
 
 
+_JUNK_KEYS = ("kleinkram", "verpackung", "buch")
+# Zustands-Floskeln, die nichts über die Kategorie sagen ("Jacke neu mit Etikett" ist eine Jacke)
+_CONDITION_PHRASES = re.compile(r"(?:neu|new)?\s*(?:mit|ohne|with|without)\s+(?:etikett(?:en)?|tags?|label)")
+# "Patch für Jacken", "Buch über Sneaker" -> der Artikel IST der Kleinkram
+_FOR_PHRASE = re.compile(r"\b(?:für|fuer|for|zum|zu|über|ueber|about|passend)\b")
+# "Tasche mit Staubbeutel", "Sneaker inkl. Karton" -> Kleinkram ist nur Zubehör
+_WITH_PHRASE = re.compile(r"\b(?:mit|inkl|inklusive|incl|with|plus|samt)\b")
+
+
 def product_type(title: str) -> str:
-    t = (title or "").lower()
+    t = _CONDITION_PHRASES.sub(" ", (title or "").lower())
+    junk: Optional[str] = None
+    rest = t
     for ptype, words in DETECTION:
-        if any(keyword_in(t, w) for w in words):
+        hits = [w for w in words if keyword_in(rest, w)]
+        if not hits:
+            continue
+        if ptype in _JUNK_KEYS:
+            junk = junk or ptype
+            for w in hits:  # Kleinkram-Wörter entfernen ("Schuhkarton" ist kein Schuh) und weitersuchen
+                rest = re.sub(keyword_pattern(w), " ", rest)
+            continue
+        if junk is None:
             return ptype
-    return "sonstiges"
+        # Es gibt Kleinkram-Wörter UND ein richtiges Produkt im Titel
+        if _FOR_PHRASE.search(t):
+            return junk                      # "Logo Patch für Jacken", "Buch über Sneaker"
+        if category(ptype).group in FASHION_GROUPS or _WITH_PHRASE.search(t):
+            return ptype                     # "Pullover mit Badge", "Nintendo DS mit Originalkarton"
+        return junk                          # "Lego Katalog"
+    return junk or "sonstiges"
 
 
 def category(ptype: str) -> Category:
@@ -282,6 +307,19 @@ TIERS: dict[str, dict[str, float]] = {
 FASHION_GROUPS = ("clothing", "outerwear", "shoes", "bags", "accessories")
 NO_BRAND = {"", "nobrand", "noname", "ohnemarke", "sansmarque", "andere", "sonstige", "other", "unbekannt",
             "handmade", "selbstgemacht", "vintage", "markenlos", "keinemarke"}
+# Verkäufer hat ausdrücklich "keine Marke" gewählt -> eine Marke im Titel ist nur ein Vergleich ("im Stone Island Style")
+NO_BRAND_EXPLICIT = {"nobrand", "noname", "ohnemarke", "sansmarque", "markenlos", "keinemarke", "handmade",
+                     "selbstgemacht"}
+# "im Carhartt Style", "wie Stone Island", "Ralph Lauren Optik" -> keine echte Marke
+_STYLE_COPY = re.compile(r"\b(?:style|stil|look|optik|inspired|inspiriert|wie|like|ähnlich|aehnlich|à la|a la|"
+                         r"art von|dupe|alternative)\b")
+
+
+def title_brand(title: str, brand_field: str = "") -> Optional[str]:
+    """Marke aus dem Titel – nur wenn der Verkäufer keine echte Marke gewählt hat und es kein 'Style'-Vergleich ist."""
+    if normalize(brand_field) in NO_BRAND_EXPLICIT or _STYLE_COPY.search((title or "").lower()):
+        return None
+    return detect_brand(title)
 # Wörter, die zu allgemein sind, um daraus im Titel eine Marke zu erkennen
 _AMBIGUOUS = {"only", "next", "house", "object", "pieces", "review", "comma", "alive", "george", "gap", "lee",
               "vila", "oui", "opus", "element", "smog", "starter", "majestic", "minimum", "dime", "huf", "rab",
@@ -341,6 +379,15 @@ def detect_brand(text: str) -> Optional[str]:
             if best is None or len(needle) > len(best[0]):
                 best = (needle, name)
     return best[1] if best else None
+
+
+_RETRO = re.compile(r"\b(?:vintage|retro|old ?school|y2k|single stitch|made in|(?:19)?[6-9]0'?s|[6-9]0er|"
+                    r"[6-9]0er jahre|00er|2000er)\b")
+
+
+def is_retro(title: str) -> bool:
+    """Vintage/Retro-Teil (vintage, 90er, 80s, Y2K, Made in …)?"""
+    return _RETRO.search((title or "").lower()) is not None
 
 
 # -- Zustand & Kinder ------------------------------------------------------------------------
@@ -412,7 +459,7 @@ def estimate(title: str, brand: str, condition: str = "", size: str = "", ptype:
     """
     ptype = ptype or product_type(title)
     cat = category(ptype)
-    detected = brand if brand_info(brand) else (detect_brand(title) if normalize(brand) in NO_BRAND else None)
+    detected = brand if brand_info(brand) else (title_brand(title, brand) if normalize(brand) in NO_BRAND else None)
     info = brand_info(detected or brand)
     shown_brand = (info[0] if info else (brand if normalize(brand) not in NO_BRAND else "")) or ""
     tier = info[1] if info else None
@@ -422,6 +469,8 @@ def estimate(title: str, brand: str, condition: str = "", size: str = "", ptype:
     elif cat.group in FASHION_GROUPS and tier:
         base = cat.base * TIERS[tier][cat.group]
         basis, conf = f"{cat.label} von {TIER_LABELS[tier]}-Marken", "mittel"
+    elif cat.group in FASHION_GROUPS and is_retro(title):
+        base, basis, conf = cat.base * 1.1, f"Vintage-{cat.label} ohne bekannte Marke", "mittel"
     elif cat.group in FASHION_GROUPS:
         base, basis, conf = cat.base * 0.8, f"{cat.label} ohne bekannte Marke", "niedrig"
     else:

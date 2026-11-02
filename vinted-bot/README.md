@@ -126,6 +126,9 @@ Eingebaut sind:
 - **Marken:** Carhartt, Stüssy, Arc'teryx, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, Barbour, Levi's, Dickies, Moncler, Burberry, Miu Miu und Vivienne Westwood
 - **Modelle & Styles:** Nike Tech Fleece, Nike ACG, Vintage Nike, Adidas Trainingsjacke, Ralph Lauren Strick, Polo Bear, Longchamp Le Pliage, Prada Nylon, Coach Tasche, Ed Hardy, Diesel vintage, Vintage Lederjacke, Vintage Trikot, College Jacke, Band Shirt vintage, Harley Davidson, Y2K, Vintage Levi's und Bootcut Jeans
 - **Y2K, Tops & Felljacken:** Abercrombie & Fitch, Fellkragen Jacke, Lammfell Jacke, Wildlederjacke, Juicy Couture, Brandy Melville, Skims, Lululemon, True Religion, Miss Sixty, Y2K Top, Korsett Top, Spitzen Top, Y2K Cargo, Y2K Minirock, Tommy Hilfiger vintage und Champion vintage
+- **Retro & 90er (inkl. Jeans):** Adidas, Vintage Adidas, Vintage 90er, Retro 90s, Vintage Windbreaker, Vintage Trainingsjacke, Vintage Sweatshirt, Vintage Fleece, Vintage Jeans, Vintage Jeansjacke, 90er Jeans, Wrangler/Lee/Kappa/Fila/Puma/Nautica vintage und Starter Jacke
+
+**Retro-Wissen:** Vintage- und 90er-Teile ohne bekannte Marke werden höher geschätzt als No-Name von heute. Trainingsjacken zählen als Jacken. Für Retro-Sportmarken gibt es eigene Preiswerte (Champion, Tommy Hilfiger, Kappa, Fila, Ellesse, Puma, Sergio Tacchini, Wrangler, Lee, Nautica) und Sammler-Merkmale, z. B. Adidas Firebird/Beckenbauer/Made in West Germany, Champion Reverse Weave, Wrangler 13MWZ, Lee Storm Rider.
 
 Ändern kannst du die Liste per Telegram:
 
@@ -157,7 +160,7 @@ Die Schnäppchen-Kriterien gibt es auch für normale Suchen:
 `/neu salomon xt-6 bis 90 rabatt 35 günstiger 95 frisch 5` oder in der config `min_discount`, `min_cheaper_than`, `min_profit`, `max_age_minutes` und `min_condition`.
 
 **Tipps:**
-- **Weniger Einträge bedeuten schnellere Meldungen.** Bei den 52 eingebauten Trends dauert ein Durchlauf rund 2 Minuten, weil der Bot zwischen den Abfragen kurz wartet. Mit 15–20 Lieblingseinträgen (`/trends minus …`) bist du deutlich schneller.
+- **Weniger Einträge bedeuten schnellere Meldungen.** Bei den 70 eingebauten Trends dauert ein Durchlauf rund 2,5 Minuten, weil der Bot zwischen den Abfragen kurz wartet. Mit 20–30 Lieblingseinträgen (`/trends minus …`) bist du deutlich schneller.
 - **Kein Kleinkram:** Patches, Aufnäher, Sticker, Pins, Schlüsselanhänger, Kartons, Staubbeutel, Etiketten sowie Bücher, Magazine und Kataloge meldet der Bot nicht, auch wenn „Carhartt“ oder „Jacke“ im Titel steht. Dasselbe gilt für Artikel unter 2 €, das sind meist Lockangebote. Suchst du genau so etwas (`/neu supreme sticker`), kommt es natürlich durch.
 - Findet ein Artikel mehrere Suchen gleichzeitig, wird er trotzdem nur **einmal** gemeldet.
 - Je kleiner `interval_seconds` (z. B. 30–45), desto früher bist du dran. Zu klein führt aber zu Blockaden durch Vinted.
@@ -324,15 +327,35 @@ Unter jeder Meldung gibt es **👍 Guter Find** und **👎 Nicht mein Ding**:
 - `/vorlieben` zeigt, was er gelernt hat. `/vorlieben reset` vergisst alles.
 
 ### 🧪 Probelauf mit Musterdaten
-Ohne Vinted zu fragen zeigt der Bot, was er mit **deinen aktuellen Einstellungen** melden würde. Er nutzt dafür einen künstlichen, aber realistischen Datensatz: über 700 Angebote aus 10 Marken plus eine Trend-Suche.
+Ohne Vinted zu fragen zeigt der Bot, was er mit **deinen aktuellen Einstellungen** melden würde. Er nutzt dafür einen künstlichen, aber realistischen Datensatz: rund 800 Angebote aus 11 Marken plus zwei Trend-Suchen („Vintage Lederjacke“, „Vintage 90er“).
 
-- **9 echte Finds**, z. B. vintage Carhartt Detroit für 45 €, eine Miu-Miu-Tasche für 160 €, eine No-Name-Vintage-Lederjacke für 10 €, eine Abercrombie-Y2K-Jacke mit Fellkragen für 15 €
-- **15 Fallen**: Schuhe, Fakes, „Miu Miu“ für 35 €, XL, Kindergröße, defekt, Normalpreis, H&M ohne Gewinn, schon lange online, Carhartt-Patch, Stone-Island-Buch, Abercrombie-Sticker
+- **13 echte Finds**, z. B. vintage Carhartt Detroit für 45 €, eine Miu-Miu-Tasche für 160 €, eine No-Name-Vintage-Lederjacke für 10 €, eine Abercrombie-Y2K-Jacke mit Fellkragen für 15 €, eine Vintage-Adidas-Trainingsjacke (Marke „Vintage“) für 12 €, ein 90er-Windbreaker für 4 €, eine Carhartt-Jacke „neu mit Etikett“ für 22 €
+- **17 Fallen**: Schuhe, Fakes, „Miu Miu“ für 35 €, XL, Kindergröße, defekt, Normalpreis, H&M ohne Gewinn, schon lange online, Carhartt-Patch, Stone-Island-Buch, Abercrombie-Sticker, „Jacke wie Carhartt“, Suchanzeige
 
 - **Telegram:** `/probelauf`
 - **Windows:** Doppelklick auf `probelauf.bat`
 
-Mit den Standardeinstellungen (Stufe „normal“) erkennt er in 30 verschiedenen Zufalls-Märkten **269 von 270 Finds** und meldet **keine einzige Falle**.
+Mit den Standardeinstellungen (Stufe „normal“) erkennt er in 30 verschiedenen Zufalls-Märkten **384 von 390 Finds** und meldet **keine einzige Falle**.
+
+---
+
+## 🧹 Was aussortiert wird – und was nicht
+
+| wird aussortiert | wird NICHT mehr aussortiert |
+|---|---|
+| „Carhartt Jacke **fake**“, „**inspired**“, „**replica**“ | „100% original **kein Fake**“ |
+| „Jacke **defekt**“ | „**nicht** defekt“, „ohne Defekte“ |
+| „**Suche** Carhartt Jacke“ (Suchanzeige) | „… wie gesucht“ |
+| „**nur Tausch**“, „tausche gegen …“ | „**kein Tausch**“, „Tausch möglich“ |
+| „Carhartt **Patch für Jacken**“, „Stüssy **Sticker**“, „LV **Staubbeutel**“, „Nike **Schuhkarton**“ | „Jacke **neu mit Etikett**“, „Pullover **mit Badge**“, „Tasche **mit Staubbeutel**“, „Sneaker **mit Karton**“ |
+| Bücher, Magazine, Kataloge (außer du suchst danach) | „Book Bag“ (eine Tasche) |
+| „Jacke **im Stone Island Style**“, Marke „No Name“ + Markenname im Titel | Marke „**Vintage**“/„**Andere**“ gewählt + „Adidas“ im Titel → zählt als Adidas |
+| Kindergrößen (z. B. 164), falsche Größe, ausgeblendete Kategorien | Jeansgrößen „W30 L32“, „38“, „30/32“ werden in S/M/L umgerechnet |
+| Artikel unter 2 € in Schnäppchen-Suchen | |
+
+**Lernen nur aus echten Angeboten:** Fakes, Style-Kopien, Kindergrößen, Kleinkram, Suchanzeigen und defekte Teile fließen nicht mehr in den gelernten Marktpreis ein. Früher haben sie den Preis nach unten gezogen, und echte Schnäppchen galten dann nicht mehr als „die günstigsten“.
+
+Warum ein bestimmter Artikel nicht kam, zeigt `/probelauf` mit Beispielen und Grund.
 
 ---
 

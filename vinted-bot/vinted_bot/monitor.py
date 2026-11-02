@@ -6,9 +6,10 @@ import logging
 import random
 import threading
 import time
+from dataclasses import replace
 from typing import Any, Callable, Optional
 
-from .catalog import hidden_label, type_hidden
+from .catalog import hidden_label, is_kids, type_hidden
 from .config import RESALE_LEVELS, TREND_WATCHES, Config, SearchConfig, watch_name
 from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
 from .models import Item
@@ -209,6 +210,15 @@ class Monitor:
             return query_from_url(search.url).search_text
         return ""
 
+    def _learnable(self, search: SearchConfig, item: Item) -> bool:
+        """Nur aus echten, vergleichbaren Angeboten lernen – nicht aus Fakes, Kindergrößen, Kleinkram,
+        Suchanzeigen oder "im Carhartt Style"-Teilen (die würden den Marktpreis nach unten ziehen)."""
+        ptype = product_type(item.title)
+        if ptype in JUNK_TYPES or ptype in MEDIA_TYPES or is_kids(item.title, item.size):
+            return False
+        loose = replace(search, min_price=None, max_price=None, sizes=[], must_contain=[], min_condition=None)
+        return passes_filters(item, loose, self.cfg.global_exclude_words)[0]
+
     def _junk_reason(self, search: SearchConfig, item: Item, ptype: str) -> str:
         """Patches, Sticker, Verpackung, Bücher … sind keine Schnäppchen – außer du suchst genau danach."""
         if ptype not in JUNK_TYPES and ptype not in MEDIA_TYPES:
@@ -309,7 +319,8 @@ class Monitor:
                 elif seeded and self.reject_log is not None:
                     self.reject_log.append((search.name, item, f"schon {int((now - item.created_ts) / 60)} Min. online"))
                 self.storage.mark_seen(search.name, item)
-                self.storage.add_price(search.name, item.price, price_group(search, item))
+                if self._learnable(search, item):
+                    self.storage.add_price(search.name, item.price, price_group(search, item))
             elif item.price != prev:
                 self.storage.mark_seen(search.name, item)
                 if item.price <= prev * drop_factor:

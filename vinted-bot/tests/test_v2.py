@@ -94,8 +94,8 @@ def test_no_learning_phase_needed(mon):
 
 def test_unknown_brand_needs_bigger_discount(mon):
     s = mon.effective(SearchConfig.watch("Vintage Lederjacke"))
-    ok = mon.explain(s, item(1, 9, title="Vintage Lederjacke", brand="", size="M", minutes_old=1), NOW)[0]
-    meh = mon.explain(s, item(2, 18, title="Vintage Lederjacke", brand="", size="M", minutes_old=1), NOW)
+    ok = mon.explain(s, item(1, 9, title="Lederjacke schwarz", brand="", size="M", minutes_old=1), NOW)[0]
+    meh = mon.explain(s, item(2, 18, title="Lederjacke schwarz", brand="", size="M", minutes_old=1), NOW)
     assert ok is not None and ok.score.confidence == "niedrig"
     assert meh[0] is None and "unsichere Schätzung" in meh[1]  # 45 % reicht bei No-Name nicht
 
@@ -248,3 +248,56 @@ def test_new_trends_tops_and_fur_jackets(mon):
                                  brand="Abercrombie & Fitch", size="S", minutes_old=2), NOW)
     assert a is not None, why
     assert a.score.trend == "Abercrombie Y2K" and a.score.value > 50
+
+
+# -- Version 2.3: Aussortier-Mechanismen überprüft, Retro/90er, Adidas ---------------------
+
+AUDIT = [  # (Suche, Titel, Marke im Feld, Preis, Größe) – alles echte Schnäppchen, die gemeldet werden müssen
+    ("Carhartt", "Carhartt WIP Jacke neu mit Etikett", "Carhartt WIP", 20, "M"),
+    ("Stone Island", "Stone Island Pullover mit Badge", "Stone Island", 30, "L"),
+    ("Miu Miu", "Miu Miu Tasche mit Staubbeutel", "Miu Miu", 150, ""),
+    ("Carhartt", "Carhartt Hoodie mit Logo Patch", "Carhartt WIP", 12, "M"),
+    ("Stone Island", "Stone Island Jacke 100% original kein Fake", "Stone Island", 60, "M"),
+    ("Carhartt", "Carhartt Jacke kein Tausch", "Carhartt WIP", 20, "M"),
+    ("Carhartt", "Carhartt Jacke Tausch möglich", "Carhartt WIP", 20, "M"),
+    ("Carhartt", "Carhartt Jacke nicht defekt", "Carhartt WIP", 20, "M"),
+    ("Adidas", "Adidas Trainingsjacke vintage 90er", "Vintage", 12, "L"),       # Marke "Vintage" gewählt
+    ("Vintage Adidas", "Vintage Adidas Trainingsjacke 90s", "Andere", 12, "M"),  # Marke "Andere" gewählt
+    ("Vintage Levi's", "Levi's 501 vintage 90er", "Levi's", 10, "W31 L32"),
+    ("Vintage 90er", "Vintage 90er Windbreaker", "", 6, "L"),
+    ("Vintage Jeans", "Vintage Wrangler Jeans 90er Made in USA", "Wrangler", 9, "W30 L32"),
+    ("Vintage Sweatshirt", "Vintage Champion Reverse Weave Sweatshirt 90s", "Champion", 9, "M"),
+    ("Tommy Hilfiger vintage", "Vintage Tommy Hilfiger Jacke 90er", "Tommy Hilfiger", 12, "L"),
+]
+
+
+@pytest.mark.parametrize("watch,title,brand,price,size", AUDIT)
+def test_good_items_are_no_longer_dropped(mon, watch, title, brand, price, size):
+    s = mon.effective(SearchConfig.watch(watch))
+    alert, why = mon.explain(s, item(1, price, title=title, brand=brand, size=size, minutes_old=2), NOW)
+    assert alert is not None, f"{title}: {why}"
+
+
+@pytest.mark.parametrize("watch,title,brand,price,size,why", [
+    ("Carhartt", "Suche Carhartt Jacke", "Carhartt WIP", 20, "M", "Ausschlusswort 'suche'"),
+    ("Carhartt", "Carhartt Jacke nur Tausch", "Carhartt WIP", 20, "M", "Ausschlusswort 'tausch'"),
+    ("Carhartt", "Carhartt Jacke defekt", "Carhartt WIP", 20, "M", "Ausschlusswort 'defekt'"),
+    ("Stone Island", "Stone Island Jacke fake", "Stone Island", 30, "M", "Ausschlusswort 'fake'"),
+    ("Carhartt", "Carhartt WIP Logo Patch für Jacken", "Carhartt WIP", 3, "",
+     "Kleinkram: Patches, Sticker & Anstecker – kein Kleidungsstück"),
+    ("Stone Island", "Jacke im Stone Island Style", "Vintage", 30, "M", "andere Marke"),
+    ("Carhartt", "Jacke wie Carhartt", "No Name", 10, "M", "andere Marke"),
+])
+def test_bad_items_are_still_dropped(mon, watch, title, brand, price, size, why):
+    s = mon.effective(SearchConfig.watch(watch))
+    assert mon.explain(s, item(1, price, title=title, brand=brand, size=size, minutes_old=2), NOW) == (None, why)
+
+
+def test_retro_and_adidas_are_in_the_trend_list():
+    from vinted_bot.catalog import is_retro
+    from vinted_bot.config import TREND_WATCHES
+    for entry in ["Adidas", "Vintage Adidas", "Vintage 90er", "Vintage Jeans", "90er Jeans", "Vintage Windbreaker"]:
+        assert entry in TREND_WATCHES
+    assert is_retro("Vintage 90er Windbreaker") and is_retro("80s Jacke") and not is_retro("Jacke schwarz")
+    assert product_type("Adidas Trainingsjacke vintage") == "jacke"  # Trainingsjacken sind Jacken (Wert!)
+    assert trend_match("Puma Windbreaker") == "Windbreaker"
