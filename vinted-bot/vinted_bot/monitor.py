@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 
 from .catalog import brand_info, hidden_label, is_kids, is_retro, type_hidden
 from . import fakecheck
-from .config import RESALE_LEVELS, TREND_WATCHES, Config, SearchConfig, watch_name
+from .config import RESALE_LEVELS, RESALE_TARGET_KEYS, TREND_WATCHES, Config, SearchConfig, watch_name
 from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
 from .models import Item
 from .notify import Alert
@@ -181,6 +181,41 @@ class Monitor:
     def _wanted_brand(self, est: Any) -> bool:
         """Der Sniper meldet Marken aus deiner Liste und gefragte Premium-Marken – kein No-Name/Fast Fashion."""
         return est.tier in WANTED_TIERS or (bool(est.brand) and brand_key(est.brand) in self.watched_brands())
+
+    def matching_watch(self, item: Item, est: Any) -> Optional[SearchConfig]:
+        """Die genaueste Schnäppchen-Suche mit eigenen Einstellungen, zu der dieses Teil passt
+        (z. B. "Vintage Adidas" mit 35 % statt 40 % oder "/marke stone island rabatt 60")."""
+        haystack = normalize(f"{item.title} {item.brand}")
+        brand = brand_key(est.brand or item.brand)
+        best, best_rank = None, -1
+        for w in self.active_searches():
+            if not w.is_resale or w.sweep:
+                continue
+            if all(getattr(w, k) is None for k in RESALE_TARGET_KEYS) and not w.exclude_words and not w.sizes:
+                continue  # nichts Besonderes eingestellt -> Stufe gilt sowieso
+            keys = {brand_key(b) for b in w.brands} - {""}
+            if keys and brand not in keys:
+                continue
+            words = [normalize(x) for x in (w.keywords or "").split()]
+            words = [x for x in words if x and x not in keys and not any(x in k for k in keys)]
+            if not all(x in haystack for x in words):
+                continue
+            rank = len(words) + (1 if keys else 0)
+            if rank > best_rank:
+                best, best_rank = w, rank
+        return best
+
+    def _sniper_rules(self, search: SearchConfig, item: Item, est: Any) -> tuple[SearchConfig, str]:
+        w = self.matching_watch(item, est)
+        if w is None:
+            return search, ""
+        merged = replace(search, exclude_words=search.exclude_words + w.exclude_words, sizes=w.sizes or search.sizes,
+                         **{k: getattr(w, k) for k in RESALE_TARGET_KEYS if getattr(w, k) is not None})
+        if w.exclude_words or w.sizes:
+            ok, why = passes_filters(item, merged, self.cfg.global_exclude_words)
+            if not ok:
+                return merged, why
+        return merged, ""
 
     def sniper_enabled(self) -> bool:
         state = self.storage.get_state("sniper")
@@ -363,6 +398,10 @@ class Monitor:
         rare = rarity(item)
         trend = trend_match(item.title)
         est = estimate_item(item, ptype)
+        if search.sweep:  # Sniper: für dieses Teil gelten die Einstellungen deiner passenden Marken-/Trend-Suche
+            search, why = self._sniper_rules(search, item, est)
+            if why:
+                return None, why
         use_brain = extra is None and self.brain is not None and self.brain.enabled and kind == "new"
         view = None
         if use_brain and ptype == "sonstiges":

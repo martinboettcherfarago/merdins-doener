@@ -97,6 +97,8 @@ def test_sniper_polls_newest_uploads_and_reports_within_seconds(tmp_path):
     assert client.texts("")[0] == ("", 30, 1)            # ohne Suchbegriff, nur bis zum Budget
     alert = m.notifier.alerts[0]
     assert alert.item.id == 100 and alert.worker == "Sniper" and alert.search_name == SNIPER
+    # dieselben Extras wie jede Schnäppchen-Meldung: Fake-Ampel, Gewinn, Angebots-Buttons, Wert-Schätzung
+    assert alert.resale and alert.ampel is not None and alert.offers and alert.score.value and alert.score.profit
     cap = telegram_caption(alert, now=NOW)
     assert "⚡ vor 8 s hochgeladen" in cap and "⚡ Sniper" in cap
 
@@ -183,3 +185,34 @@ def test_old_example_searches_are_paused_once(tmp_path):
     m.storage.set_disabled("Air Max 90", False)          # /weiter – bleibt dann an
     again = Monitor(m.cfg, m.client, m.storage, FakeNotifier(), clock=lambda: NOW)
     assert again.paused_examples == [] and "Air Max 90" in [s.name for s in again.active_searches()]
+
+
+# -- Sniper bewertet genauso wie die Marken-Suchen -------------------------------------------------
+
+def test_sniper_uses_the_same_estimates_and_your_brand_settings(tmp_path):
+    from vinted_bot.knowledge import estimate_item
+    data = {"resale": {"brands": ["Vintage Adidas", "Adidas"], "budget": 500, "budget_brands": 500},
+            "searches": [{"name": "Marke · Stone Island", "keywords": "Stone Island", "brands": ["Stone Island"],
+                          "mode": "resale", "min_discount": 60}]}
+    m = monitor(tmp_path, data)
+    sniper = m.sniper_search()
+
+    def at(discount, title, brand, i):
+        probe = feed_item(i, 1, title=title, brand=brand)
+        value = estimate_item(probe).value
+        return feed_item(i, round(value * (1 - discount), 2), title=title, brand=brand)
+
+    # Stone Island: deine Regel "mind. 60 % unter Wert" gilt auch im Sniper (normal wären 40 %)
+    si = at(0.5, "Stone Island Pullover", "Stone Island", 1)
+    assert m.explain(sniper, si, NOW)[1] == "Rabatt zu klein"
+    assert m.explain(m.effective(SearchConfig.watch("Stone Island")), si, NOW)[0] is not None  # ohne Regel: ok
+    # Vintage Adidas: 35 % reichen (Voreinstellung der Trend-Suche) – auch im Sniper …
+    vintage = at(0.38, "Vintage Adidas Pullover 90er", "Adidas", 2)
+    alert, why = m.explain(sniper, vintage, NOW)
+    assert alert is not None, why
+    # … aber ein normales Adidas-Teil braucht weiter 40 %
+    plain = at(0.38, "Adidas Pullover", "Adidas", 3)
+    assert m.explain(sniper, plain, NOW)[1] == "Rabatt zu klein"
+    # dieselbe Schätzung wie bei den Marken-Suchen (Marke × Kategorie × Zustand, gelernte Preise)
+    brand_alert, _ = m.explain(m.effective(SearchConfig.watch("Vintage Adidas")), vintage, NOW)
+    assert brand_alert.score.value == alert.score.value and brand_alert.score.discount == alert.score.discount
