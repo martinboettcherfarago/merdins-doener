@@ -1,3 +1,4 @@
 curl_cffi>=0.7
 requests>=2.28
 PyYAML>=6.0
+anthropic>=2.3   # KI-Bildcheck mit Claude (optional, nur mit API-Schlüssel aktiv)

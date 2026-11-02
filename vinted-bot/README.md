@@ -23,6 +23,8 @@ Nike Air Max 90
 | 💶 **Preisschätzung für fast alles** | über 400 Marken in 7 Preisklassen (Fast Fashion bis Luxus) × rund 50 Kategorien (Kleidung, Schuhe, Taschen, Schmuck, Konsolen, Games, Lego, Parfum …) × Zustand × Kindergröße. Nichts wird mehr wegen „Preis unbekannt“ aussortiert |
 | 💰 **Schnäppchen-Radar** | sucht nach Marken **und** angesagten Modellen/Styles (Nike Tech Fleece, Vintage Lederjacke, Vintage Trikot, Le Pliage, Y2K …) und meldet nur **ganz frisch hochgeladene** Artikel **weit unter Wert**, mit geschätztem Gewinn |
 | 📡 **Alles-Radar** | optional: prüft zusätzlich die neuesten Uploads auf ganz Vinted, ganz ohne Suchbegriff |
+| 🤖 **KI-Bildcheck (optional)** | Claude schaut sich die Fotos jedes Treffers an: Echtheit/Fake-Risiko, Zustand, Look, Trend, realistischer Wert, Urteil. Fakes werden aussortiert, unterschätzte Retro-Teile als „KI-Fund“ gemeldet |
+| ⚡ **Parallele Sucher** | Sucher A und B teilen sich die Suchen und wechseln sich im Takt ab, alles im selben Fenster: etwa doppelt so schnell |
 | ⚠️ **Fake-Schutz** | Luxus/Designer verdächtig billig → Warnung; extrem billig → wird aussortiert |
 | 💎 **Raritäten-Erkennung** | erkennt vintage, 90er, Made in USA/Italy/England, Deadstock und begehrte Modelle (Carhartt Detroit, Stone Island Ghost, Arc'teryx Veilance, Patagonia Retro X …) |
 | 🧠 **Lernt dazu** | 👍/👎 unter jeder Meldung, eingebautes Preis-Vorwissen, eigene Marktpreise per `/preis` |
@@ -126,6 +128,7 @@ Eingebaut sind:
 - **Marken:** Carhartt, Stüssy, Arc'teryx, The North Face, Patagonia, Ralph Lauren, Lacoste, Stone Island, C.P. Company, Barbour, Levi's, Dickies, Moncler, Burberry, Miu Miu und Vivienne Westwood
 - **Modelle & Styles:** Nike Tech Fleece, Nike ACG, Vintage Nike, Adidas Trainingsjacke, Ralph Lauren Strick, Polo Bear, Longchamp Le Pliage, Prada Nylon, Coach Tasche, Ed Hardy, Diesel vintage, Vintage Lederjacke, Vintage Trikot, College Jacke, Band Shirt vintage, Harley Davidson, Y2K, Vintage Levi's und Bootcut Jeans
 - **Y2K, Tops & Felljacken:** Abercrombie & Fitch, Fellkragen Jacke, Lammfell Jacke, Wildlederjacke, Juicy Couture, Brandy Melville, Skims, Lululemon, True Religion, Miss Sixty, Y2K Top, Korsett Top, Spitzen Top, Y2K Cargo, Y2K Minirock, Tommy Hilfiger vintage und Champion vintage
+- **Mehr Vintage Adidas:** Adidas Originals vintage, Adidas 90er, Adidas Windbreaker, Adidas Trefoil, Adidas Firebird, Adidas Trainingsanzug vintage. Für diese Suchen reichen 35 % Rabatt und 8 € Gewinn, damit mehr Teile durchkommen.
 - **Retro & 90er (inkl. Jeans):** Adidas, Vintage Adidas, Vintage 90er, Retro 90s, Vintage Windbreaker, Vintage Trainingsjacke, Vintage Sweatshirt, Vintage Fleece, Vintage Jeans, Vintage Jeansjacke, 90er Jeans, Wrangler/Lee/Kappa/Fila/Puma/Nautica vintage und Starter Jacke
 
 **Retro-Wissen:** Vintage- und 90er-Teile ohne bekannte Marke werden höher geschätzt als No-Name von heute. Trainingsjacken zählen als Jacken. Für Retro-Sportmarken gibt es eigene Preiswerte (Champion, Tommy Hilfiger, Kappa, Fila, Ellesse, Puma, Sergio Tacchini, Wrangler, Lee, Nautica) und Sammler-Merkmale, z. B. Adidas Firebird/Beckenbauer/Made in West Germany, Champion Reverse Weave, Wrangler 13MWZ, Lee Storm Rider.
@@ -160,7 +163,7 @@ Die Schnäppchen-Kriterien gibt es auch für normale Suchen:
 `/neu salomon xt-6 bis 90 rabatt 35 günstiger 95 frisch 5` oder in der config `min_discount`, `min_cheaper_than`, `min_profit`, `max_age_minutes` und `min_condition`.
 
 **Tipps:**
-- **Weniger Einträge bedeuten schnellere Meldungen.** Bei den 70 eingebauten Trends dauert ein Durchlauf rund 2,5 Minuten, weil der Bot zwischen den Abfragen kurz wartet. Mit 20–30 Lieblingseinträgen (`/trends minus …`) bist du deutlich schneller.
+- **Weniger Einträge bedeuten schnellere Meldungen.** Bei den 76 eingebauten Trends braucht jeder der beiden Sucher für seine Hälfte gut eine Minute. Mit 20–30 Lieblingseinträgen (`/trends minus …`) bist du deutlich schneller.
 - **Kein Kleinkram:** Patches, Aufnäher, Sticker, Pins, Schlüsselanhänger, Kartons, Staubbeutel, Etiketten sowie Bücher, Magazine und Kataloge meldet der Bot nicht, auch wenn „Carhartt“ oder „Jacke“ im Titel steht. Dasselbe gilt für Artikel unter 2 €, das sind meist Lockangebote. Suchst du genau so etwas (`/neu supreme sticker`), kommt es natürlich durch.
 - Findet ein Artikel mehrere Suchen gleichzeitig, wird er trotzdem nur **einmal** gemeldet.
 - Je kleiner `interval_seconds` (z. B. 30–45), desto früher bist du dran. Zu klein führt aber zu Blockaden durch Vinted.
@@ -222,6 +225,7 @@ searches:
 /groesse S M L   Größen    /ohne schuhe   Kategorie ausblenden    /raritaeten an   nur Raritäten
 /preis carhartt jacken 90   eigener Marktpreis    /vorlieben   Gelerntes    /probelauf   Testlauf
 /wert <Artikel oder Link>   Wert schätzen    /radar an   Alles-Radar
+/ki an · /ki aus   KI-Bildcheck    /pruefen <Link>   Artikel von der KI prüfen lassen
 /suchen          alle Suchen mit Nummer
 /pause 2         Suche 2 anhalten     /weiter 2   fortsetzen
 /loeschen 2      Suche 2 löschen
@@ -338,6 +342,55 @@ Ohne Vinted zu fragen zeigt der Bot, was er mit **deinen aktuellen Einstellungen
 Mit den Standardeinstellungen (Stufe „normal“) erkennt er in 30 verschiedenen Zufalls-Märkten **384 von 390 Finds** und meldet **keine einzige Falle**.
 
 ---
+
+## 🤖 KI-Bildcheck mit Claude (optional)
+
+Für jeden Treffer, der alle Filter besteht, lädt der Bot bis zu 4 Fotos und lässt sie von Claude, der Bild-KI von Anthropic, beurteilen:
+
+```
+🤖 KI-Check (4 Fotos): Adidas Trainingsjacke, 90er · 90er
+🔍 ✅ wirkt echt (Ventex-Etikett; saubere Stickerei)
+🧵 Zustand laut Fotos: leichte Gebrauchsspuren am Bündchen
+🎨 Look 8/10 · 🔥 Trend 9/10 · KI-Wert ca. 55 €
+🧭 Urteil: 👍 kaufen – Gefragtes 90er-Teil, deutlich unter Marktwert.
+```
+
+- **Fake-Verdacht** (konkrete Auffälligkeiten an Logo, Etikett oder Nähten) → wird gar nicht erst gemeldet.
+- **🤖✨ KI-Fund:** Retro- und Trend-Teile, die die Faustregel knapp verpasst hätte, bekommen einen Zweitblick. Schätzt die KI den Wert deutlich höher, wird das Teil gemeldet.
+- **Lernt deinen Geschmack:** Deine 👍/👎 bekommt die KI als Beispiele für die Look-Bewertung.
+- `/pruefen <Vinted-Link>` lässt einen beliebigen Artikel prüfen, `/ki` zeigt Status und Kosten, `/ki an` / `/ki aus` schaltet um.
+
+**Einrichten:**
+1. Auf [console.anthropic.com](https://console.anthropic.com) einen API-Schlüssel erstellen.
+2. In der `config.yaml` unter `ai:` den Schlüssel bei `api_key` eintragen und `enabled: true` setzen.
+3. Bot neu starten.
+
+**Kosten:** Jeder Check ist eine Anfrage an Claude mit Fotos.
+- Standardmodell **Claude Opus 5.5** (am gründlichsten): ca. 4–6 Cent pro Check. Bei bis zu 40 Checks und 20 Zweitblicken pro Tag (einstellbar) sind das höchstens ca. 2–3 $ am Tag.
+- **Claude Sonnet 5.5** kostet etwa die Hälfte, **Claude Haiku 5.5** nur einen Bruchteil, ist aber weniger genau. Das Modell stellst du mit `model:` ein.
+- `/ki` zeigt die Kosten des Tages.
+
+**Ehrlich gesagt:**
+- Keine KI kann anhand von Vinted-Fotos **sicher** sagen, ob etwas echt ist. Der Check erkennt typische Auffälligkeiten und sagt „unklar“, wenn z. B. kein Etikett fotografiert ist.
+- Bei teuren Teilen: Fotos vom Etikett anfordern oder einen Echtheits-Service nutzen.
+- Ohne Schlüssel oder bei einem Fehler läuft der Bot ganz normal ohne KI weiter.
+
+## ⚡ Mehrere Sucher gleichzeitig
+
+Mit `workers: 2` (Standard) teilen sich **Sucher A und Sucher B** die Suchen. Ein Taktgeber sorgt dafür, dass sie sich abwechseln: A fragt Vinted an, dann B, dann wieder A und so weiter, mit mindestens `request_gap_seconds` Abstand. Alles läuft im **selben Fenster**:
+
+```
+15:02:21 INFO    [Sucher-A] Runde 1 fertig: 38 Suchen in 77 s · bisher 1820 Artikel geprüft, 0 Meldung(en)
+15:02:22 INFO    [Sucher-B] Runde 1 fertig: 38 Suchen in 77 s · bisher 1795 Artikel geprüft, 0 Meldung(en)
+15:02:26 INFO    [Sucher-B] 🔥 Adidas Firebird Trainingsjacke vintage 90er – 9.00 € (Score 100)
+15:02:31 INFO    [KI-Check] 🤖 Fake-Verdacht, nicht gemeldet: Stone Island Jacke (Kompass-Badge falsch gestickt)
+```
+
+- Findet derselbe Artikel bei beiden Suchern einen Treffer, wird er trotzdem nur **einmal** gemeldet.
+- Blockt Vinted kurz, pausieren **alle** Sucher gemeinsam.
+- In der Meldung steht, welcher Sucher den Treffer gefunden hat. `/status` zeigt die Zahlen je Sucher.
+
+Mehr Sucher (bis 4) oder ein kleinerer Abstand machen den Bot schneller. Vinted merkt viele Anfragen aber eher. Bei Blockaden: `workers: 1` oder `request_gap_seconds: 1.5`.
 
 ## 🧹 Was aussortiert wird – und was nicht
 

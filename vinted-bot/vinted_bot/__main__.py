@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 import signal
+import threading
 import sys
 import time
 from typing import Any, Optional
@@ -59,6 +60,7 @@ def cmd_run(cfg: Config) -> int:
         return 2
     storage = Storage(cfg.database)
     monitor = Monitor(cfg, VintedClient(cfg.domain, proxy=cfg.proxy), storage, notifier)
+    monitor.reviewer = build_reviewer(cfg, storage, monitor)
 
     controller = None
     if cfg.telegram_token:
@@ -95,6 +97,11 @@ def cmd_run(cfg: Config) -> int:
         names += (f"\n📏 Größen: {', '.join(f['sizes']) or 'alle'} (/groesse)"
                   f" · 🚫 ausgeblendet: {', '.join(f['exclude_types']) or 'nichts'} (/kategorien)"
                   + (" · 💎 nur Raritäten" if f["only_rare"] else ""))
+    workers = " + ".join(f"Sucher {chr(65 + i)}" for i in range(max(1, cfg.workers)))
+    ai_on = monitor.reviewer is not None and monitor.reviewer.enabled
+    names += (f"\n⚡ {workers} im Wechsel (alle {cfg.request_gap_seconds:g} s eine Anfrage)"
+              + (f"\n🤖 KI-Bildcheck: an ({cfg.ai_model}, max. {cfg.ai_max_checks_per_day}/Tag)" if ai_on
+                 else "\n🤖 KI-Bildcheck: aus (/ki)"))
     log.info("Vinted-Bot %s gestartet (vinted.%s, alle %ss). Suchen: %s",
              __version__, cfg.domain, cfg.interval_seconds, names)
     notifier.send_text(
@@ -105,6 +112,21 @@ def cmd_run(cfg: Config) -> int:
     monitor.run_forever()
     storage.close()
     return 0
+
+
+def build_reviewer(cfg: Config, storage: Storage, monitor: Any) -> Any:
+    """KI-Bildcheck vorbereiten (wird erst beim ersten Check mit Anthropic verbunden)."""
+    try:
+        from .vision import AiReviewer
+    except ImportError:  # pragma: no cover
+        return None
+    photo_client = VintedClient(cfg.domain, proxy=cfg.proxy)  # eigene Sitzung für den KI-Thread
+
+    def photos(item: Any) -> list[str]:
+        monitor.pacer.wait(monitor.stop_event)  # auch Foto-Abfragen halten den Takt ein
+        return photo_client.item_photos(item)
+
+    return AiReviewer(cfg, storage, photos, photo_client.fetch_bytes)
 
 
 def _wait_forever(controller: Any) -> None:
@@ -228,7 +250,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
-                        format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
+                        format="%(asctime)s %(levelname)-7s [%(threadName)s] %(message)s", datefmt="%H:%M:%S")
+    threading.current_thread().name = "Bot"
     for noisy in ("urllib3", "curl_cffi"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     try:

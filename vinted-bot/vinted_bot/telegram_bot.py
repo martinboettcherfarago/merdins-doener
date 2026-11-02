@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import logging
+import os
 import re
 import threading
 import time
@@ -33,6 +34,10 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b>
 /radar an – zusätzlich die neuesten Uploads auf ganz Vinted prüfen
 /stufe streng – nur die allergünstigsten (auch: normal, locker)
 /wert <i>Artikel oder Link</i> – Wert schätzen, z. B. <code>/wert carhartt detroit jacke vintage</code>
+
+<b>🤖 KI-Bildcheck</b>
+/ki an · /ki aus – Fotos jedes Treffers prüfen (Echtheit, Look, Trend, Wert, Urteil)
+/pruefen <i>Vinted-Link</i> – einen beliebigen Artikel prüfen lassen
 
 <b>🎯 Was gemeldet wird</b>
 /groesse S M L – deine Größen (/groesse alle)
@@ -242,6 +247,8 @@ class TelegramController(threading.Thread):
             "/vorlieben": self.cmd_prefs, "/preis": self.cmd_price, "/probelauf": self.cmd_sample,
             "/wert": self.cmd_value, "/schaetzen": self.cmd_value, "/schätzen": self.cmd_value,
             "/radar": self.cmd_radar,
+            "/ki": self.cmd_ai, "/ai": self.cmd_ai, "/pruefen": self.cmd_check, "/prüfen": self.cmd_check,
+            "/check": self.cmd_check,
             "/suchen": self.cmd_list, "/liste": self.cmd_list, "/list": self.cmd_list,
             "/loeschen": self.cmd_delete, "/löschen": self.cmd_delete, "/delete": self.cmd_delete,
             "/pause": self.cmd_pause, "/weiter": self.cmd_resume, "/resume": self.cmd_resume,
@@ -498,6 +505,14 @@ class TelegramController(threading.Thread):
             f"Angebote per Bot: {'an' if self.account else 'aus'}",
             f"Schnäppchen-Stufe: {self.monitor.resale_level or 'aus config.yaml'}",
         ]
+        workers = st.get("workers") or {}
+        if workers:
+            lines.append("Sucher: " + " · ".join(f"{k}: {v['cycles']} Runden, {v['checked']} Artikel, "
+                                                 f"{v['alerts']} Meldungen" for k, v in sorted(workers.items())))
+        r = self.monitor.reviewer
+        if r is not None:
+            lines.append(f"KI-Bildcheck: {'an' if r.enabled else 'aus'} · {st.get('ai_checked', 0)} geprüft · "
+                         f"{st.get('ai_fakes', 0)} Fakes raus · {st.get('ai_finds', 0)} KI-Funde")
         if st["last_error"]:
             lines.append(f"Letzter Fehler: {html.escape(str(st['last_error'])[:200])}")
         self.reply("\n".join(lines))
@@ -689,6 +704,72 @@ class TelegramController(threading.Thread):
                                                          else f"{-disc:.0%} über Wert"))
         lines.append("\nWeiß du es besser? <code>/preis marke kategorie betrag</code>")
         self.reply("\n".join(lines))
+
+    # -- KI-Bildcheck ------------------------------------------------------------------
+
+    def cmd_ai(self, arg: str) -> None:
+        r = self.monitor.reviewer
+        if r is None:
+            self.reply("🤖 Der KI-Bildcheck ist nicht verfügbar (Paket 'anthropic' fehlt – start.bat neu ausführen).")
+            return
+        a = arg.strip().lower()
+        if a in ("an", "on", "start"):
+            if not (self.monitor.cfg.ai_api_key or os.environ.get("ANTHROPIC_API_KEY")):
+                self.reply("🔑 Für den KI-Bildcheck brauche ich einen Anthropic-API-Schlüssel.\n"
+                           "Trag ihn in der config.yaml unter <code>ai → api_key</code> ein und starte den Bot neu. "
+                           "Schlüssel gibt es auf console.anthropic.com.")
+                return
+            self.storage.set_state("ai_enabled", "1")
+            self.storage.delete_state("ai_disabled_reason")
+        elif a in ("aus", "off", "stop"):
+            self.storage.set_state("ai_enabled", "0")
+        cfg = self.monitor.cfg
+        st = self.monitor.stats
+        reason = self.storage.get_state("ai_disabled_reason")
+        lines = [f"🤖 <b>KI-Bildcheck: {'an' if r.enabled else 'aus'}</b>"
+                 + (f" – {html.escape(reason)}" if reason else ""),
+                 f"Modell: {html.escape(cfg.ai_model)} · Gründlichkeit: {html.escape(cfg.ai_effort)}",
+                 f"Heute: {r.used_today('checks')}/{cfg.ai_max_checks_per_day} Checks, "
+                 f"{r.used_today('second_looks')}/{cfg.ai_max_second_looks_per_day} Zweitblicke · "
+                 f"Kosten ca. {r.cost_today():.2f} $",
+                 f"Seit Start: {st['ai_checked']} geprüft · {st['ai_fakes']} Fakes aussortiert · "
+                 f"{st['ai_finds']} KI-Funde",
+                 "",
+                 "Für jeden Treffer prüft die KI die Fotos: Echtheit, Zustand, Look, Trend, realistischer Wert, "
+                 "Urteil (kaufen/vielleicht/lassen). Bei Fake-Verdacht wird nicht gemeldet. Knapp verpasste "
+                 "Retro-/Trend-Teile schaut sie sich zusätzlich an (🤖✨ KI-Fund). Deine 👍/👎 bringen ihr "
+                 "deinen Geschmack bei.",
+                 "",
+                 "<code>/ki an</code> · <code>/ki aus</code> · <code>/pruefen &lt;Vinted-Link&gt;</code>"]
+        if r.last_error:
+            lines.insert(4, f"Letzter Fehler: {html.escape(r.last_error)}")
+        self.reply("\n".join(lines))
+
+    def cmd_check(self, arg: str) -> None:
+        """/pruefen <Vinted-Link> – einen beliebigen Artikel von der KI prüfen lassen."""
+        from .vision import listing_context
+        r = self.monitor.reviewer
+        m = re.search(r"/items/(\d+)(?:-([a-z0-9-]+))?", arg)
+        if not m:
+            self.reply("Schick mir einen Vinted-Link: <code>/pruefen https://www.vinted.de/items/123-…</code>")
+            return
+        if r is None or not r.enabled:
+            self.reply("🤖 Der KI-Bildcheck ist aus – erst <code>/ki an</code>.")
+            return
+        item_id = int(m.group(1))
+        title = (m.group(2) or "").replace("-", " ") or f"Artikel {item_id}"
+        price_m = re.search(r"(\d+(?:[.,]\d+)?)\s*€", arg)
+        item = Item(id=item_id, title=title, price=float(price_m.group(1).replace(",", ".")) if price_m else 0.0,
+                    url=f"{self.monitor.cfg.web_base}/items/{item_id}")
+        self.reply("🤖 Ich schaue mir die Fotos an …")
+        verdict = r.review(item, listing_context(item) + "\n(Preis unbekannt, falls 0)")
+        if verdict is None:
+            self.reply("⚠️ Prüfung nicht möglich" + (f": {html.escape(r.last_error)}" if r.last_error else
+                                                    " (keine Fotos gefunden oder Tageslimit erreicht)."))
+            return
+        self.reply("\n".join(html.escape(line) for line in verdict.lines())
+                   + "\n\n<i>Hinweis: Eine KI kann Echtheit nur anhand sichtbarer Merkmale einschätzen – "
+                   "bei teuren Teilen lieber Fotos von Etiketten anfordern.</i>")
 
     def cmd_radar(self, arg: str) -> None:
         """Alles-Radar: neueste Uploads auf ganz Vinted (optional in einer Kategorie per Link)."""

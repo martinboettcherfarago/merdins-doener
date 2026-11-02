@@ -177,6 +177,14 @@ class Storage:
         with self._lock:
             return self._db.execute("SELECT 1 FROM alerted WHERE item_id=?", (item_id,)).fetchone() is not None
 
+    def claim_alert(self, item_id: int) -> bool:
+        """Atomar: True nur für den ersten Sucher, der diesen Artikel melden will."""
+        with self._lock:
+            cur = self._db.execute("INSERT OR IGNORE INTO alerted (item_id, ts) VALUES (?, ?)",
+                                   (item_id, time.time()))
+            self._db.commit()
+            return cur.rowcount == 1
+
     def mark_alerted(self, item_id: int) -> None:
         with self._lock:
             self._db.execute("INSERT OR REPLACE INTO alerted (item_id, ts) VALUES (?, ?)", (item_id, time.time()))

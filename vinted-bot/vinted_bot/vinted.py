@@ -266,3 +266,50 @@ class VintedClient:
             last_error = VintedError(f"Vinted antwortet mit HTTP {status}")
             time.sleep(2 + attempt * 2)
         raise last_error or VintedError("Unbekannter Fehler bei der Vinted-Suche")
+
+
+    # -- Fotos (für den KI-Bildcheck) ---------------------------------------------
+
+    def item_photos(self, item: Item, limit: int = 4) -> list[str]:
+        """Bis zu `limit` Foto-Links eines Artikels (Etiketten & Details sind für den Echtheits-Check wichtig)."""
+        urls: list[str] = []
+
+        def add(url: Any) -> None:
+            if isinstance(url, str) and url.startswith("http") and url not in urls:
+                urls.append(url)
+
+        for p in (item.raw or {}).get("photos") or []:
+            if isinstance(p, dict):
+                add(p.get("full_size_url") or p.get("url"))
+        if len(urls) < 2:
+            try:
+                if self._session is None:
+                    self._session = self._new_session()
+                r = self._session.get(f"{self.web_base}/api/v2/items/{item.id}", timeout=self.timeout,
+                                      headers={"Accept": "application/json"})
+                if r.status_code == 200:
+                    data = r.json()
+                    for p in ((data.get("item") or {}).get("photos") or []):
+                        if isinstance(p, dict):
+                            add(p.get("full_size_url") or p.get("url"))
+            except Exception as e:  # noqa: BLE001
+                log.debug("Foto-Liste über API nicht verfügbar: %s", e)
+        if len(urls) < 2:
+            try:
+                r = self._session.get(item.url, timeout=self.timeout,
+                                      headers={"Accept": "text/html,application/xhtml+xml"})
+                if r.status_code == 200:
+                    for m in re.findall(r"https://images\d*\.vinted\.net/[^\"'\s<>]+?\.(?:jpe?g|webp|png)[^\"'\s<>]*",
+                                        r.text):
+                        add(m.replace("\\u0026", "&").replace("&amp;", "&"))
+            except Exception as e:  # noqa: BLE001
+                log.debug("Foto-Liste über Artikelseite nicht verfügbar: %s", e)
+        if not urls and item.photo_url:
+            add(item.photo_url)
+        return urls[:limit]
+
+    def fetch_bytes(self, url: str) -> Optional[bytes]:
+        if self._session is None:
+            self._session = self._new_session()
+        r = self._session.get(url, timeout=self.timeout, headers={"Accept": "image/avif,image/webp,image/*,*/*"})
+        return r.content if r.status_code == 200 else None

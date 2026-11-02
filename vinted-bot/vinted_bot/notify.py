@@ -29,6 +29,9 @@ class Alert:
     ptype: str = ""                   # erkannter Produkttyp (für 👍/👎)
     feedback: bool = True             # 👍/👎-Buttons anzeigen
     demo: bool = False                # Probelauf: keine Buttons (die Links gibt es nicht wirklich)
+    worker: str = ""                  # welcher Sucher (A, B, …) den Treffer gefunden hat
+    ai: Any = None                    # KI-Urteil (vision.AiVerdict)
+    ai_find: bool = False             # von der KI entdeckt (Zweitblick)
 
 
 def money(value: Optional[float], currency: str = "EUR") -> str:
@@ -56,6 +59,8 @@ def headline(alert: Alert) -> str:
     if alert.kind == "price_drop":
         return (f"📉 PREIS GESENKT · {money(alert.old_price, alert.item.currency)} → "
                 f"{money(alert.item.price, alert.item.currency)} · Score {s.total}/100")
+    if alert.ai_find:
+        return f"🤖✨ KI-FUND · {s.discount:.0%} unter KI-Wert"
     if alert.resale and s.discount is not None:
         fire = "🔥" if s.is_top else ""
         kind = "💎 RARITÄT" if s.rarity_level >= 1 else "💰 SCHNÄPPCHEN"
@@ -88,16 +93,32 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
                                    f"👤 {it.seller_login}" if it.seller_login else "") if x)
     if extra:
         lines.append(extra)
-    lines.append(f"🔎 Suche: {alert.search_name}")
+    if alert.ai is not None:
+        lines += alert.ai.lines()
+    lines.append(f"🔎 Suche: {alert.search_name}" + (f" · Sucher {alert.worker}" if alert.worker else ""))
     return lines
 
 
-def telegram_caption(alert: Alert, now: Optional[float] = None) -> str:
+# Zeilen, die bei Platzmangel zuerst wegfallen (Telegram erlaubt bei Fotos nur 1024 Zeichen)
+_OPTIONAL_PREFIXES = ("❤️", "👤", "🧵", "📊 günstiger als", "📊 billigstes", "❔", "📊")
+
+
+def telegram_caption(alert: Alert, now: Optional[float] = None, limit: int = 1024) -> str:
     title = alert.item.title if len(alert.item.title) <= 120 else alert.item.title[:117] + "…"
-    parts = [f"<b>{html.escape(headline(alert))}</b>", f"<b>{html.escape(title)}</b>", ""]
-    parts += [html.escape(line) for line in detail_lines(alert, now)]
-    caption = "\n".join(parts)
-    return caption[:1020]
+    head = [f"<b>{html.escape(headline(alert))}</b>", f"<b>{html.escape(title)}</b>", ""]
+    lines = detail_lines(alert, now)
+
+    def render() -> str:
+        return "\n".join(head + [html.escape(line) for line in lines])
+
+    for prefix in _OPTIONAL_PREFIXES:
+        while len(render()) > limit:
+            idx = next((i for i in range(len(lines) - 1, -1, -1) if lines[i].startswith(prefix)), None)
+            if idx is None:
+                break
+            lines.pop(idx)
+    caption = render()
+    return caption if len(caption) <= limit else caption[: limit - 1] + "…"
 
 
 def telegram_keyboard(alert: Alert, offers_via_bot: bool) -> dict[str, Any]:

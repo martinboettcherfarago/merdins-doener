@@ -36,7 +36,19 @@ TREND_WATCHES = [
     "Vintage Sweatshirt", "Vintage Fleece", "Vintage Jeans", "Vintage Jeansjacke", "90er Jeans",
     "Wrangler vintage", "Lee vintage", "Kappa vintage", "Fila vintage", "Puma vintage", "Starter Jacke",
     "Nautica vintage",
+    # noch mehr Vintage Adidas
+    "Adidas Originals vintage", "Adidas 90er", "Adidas Windbreaker", "Adidas Trefoil", "Adidas Firebird",
+    "Adidas Trainingsanzug vintage",
 ]
+
+# Lockerere Grenzen für einzelne Trend-Einträge: Hier sind auch kleinere Gewinne interessant,
+# damit mehr Vintage-Adidas-Teile durchkommen (eigene Werte per /marke … gehen immer vor).
+_ADIDAS_VINTAGE = {"min_discount": 35.0, "min_profit": 8.0}
+TREND_OVERRIDES: dict[str, dict[str, Any]] = {
+    e: _ADIDAS_VINTAGE for e in ("Vintage Adidas", "Adidas Originals vintage", "Adidas 90er", "Adidas Windbreaker",
+                                 "Adidas Trefoil", "Adidas Firebird", "Adidas Trainingsanzug vintage",
+                                 "Adidas Trainingsjacke")
+}
 TREND_BRANDS = TREND_WATCHES  # alter Name, bleibt für ältere Konfigurationen gültig
 
 # Schnäppchen-Stufen für Resale-Suchen (per Telegram: /stufe streng)
@@ -159,6 +171,8 @@ class SearchConfig:
         data: dict[str, Any] = {"name": watch_name(entry), "keywords": entry, "mode": "resale"}
         if brand:
             data["brands"] = [brand]
+        preset = next((v for k, v in TREND_OVERRIDES.items() if normalize_name(k) == normalize_name(entry)), {})
+        data.update(preset)
         data.update({k: v for k, v in overrides.items() if v is not None})
         return cls.from_dict(data, source=source)
 
@@ -184,6 +198,16 @@ class Config:
     top_deal_score: int = 75
     shipping_estimate: float = 5.0       # geschätzte Versandkosten für die Gewinn-Rechnung
     resale_targets: dict[str, Any] = field(default_factory=lambda: dict(RESALE_DEFAULTS))
+    workers: int = 2                     # parallele Sucher (A, B, …), abwechselnd getaktet
+    request_gap_seconds: float = 1.0     # Mindestabstand zwischen zwei Vinted-Anfragen (alle Sucher zusammen)
+    ai_enabled: bool = False             # KI-Bildcheck mit Claude
+    ai_model: str = "claude-opus-5-5"
+    ai_effort: str = "medium"
+    ai_api_key: str = ""
+    ai_max_checks_per_day: int = 40
+    ai_second_look: bool = True          # KI schaut sich knapp verpasste Retro-/Trend-Teile an
+    ai_max_second_looks_per_day: int = 20
+    ai_hide_fakes: bool = True
     filter_sizes: list[str] = field(default_factory=lambda: list(DEFAULT_SIZES))       # [] = alle Größen
     filter_exclude_types: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_TYPES))
     only_rare: bool = False
@@ -248,6 +272,8 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     cfg = Config(
         domain=normalize_domain(str(v.get("domain") or "de")),
         interval_seconds=max(20, int(v.get("interval_seconds") or 60)),
+        workers=max(1, min(4, int(v.get("workers") or 2))),
+        request_gap_seconds=max(0.5, float(v.get("request_gap_seconds") or 1.0)),
         max_item_age_minutes=int(v.get("max_item_age_minutes") or 60),
         per_page=min(96, max(10, int(v.get("per_page") or 48))),
         proxy=v.get("proxy") or None,
@@ -292,6 +318,15 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
         types = filters.get("exclude_types") or []
         cfg.filter_exclude_types = [str(t).strip().lower() for t in ([types] if isinstance(types, str) else types)]
     cfg.only_rare = bool(filters.get("only_rare", False))
+    ai = data.get("ai") or {}
+    cfg.ai_enabled = bool(ai.get("enabled", False))
+    cfg.ai_model = str(ai.get("model") or "claude-opus-5-5").strip()
+    cfg.ai_effort = str(ai.get("effort") or "medium").strip()
+    cfg.ai_api_key = str(ai.get("api_key") or os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+    cfg.ai_max_checks_per_day = int(ai.get("max_checks_per_day") or 40)
+    cfg.ai_second_look = bool(ai.get("second_look", True))
+    cfg.ai_max_second_looks_per_day = int(ai.get("max_second_looks_per_day") or 20)
+    cfg.ai_hide_fakes = bool(ai.get("hide_fakes", True))
     for key in RESALE_TARGET_KEYS:  # einzelne Werte aus der config überschreiben die Stufe
         if section.get(key) is not None:
             value = section[key]

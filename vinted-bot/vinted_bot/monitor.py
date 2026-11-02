@@ -9,7 +9,7 @@ import time
 from dataclasses import replace
 from typing import Any, Callable, Optional
 
-from .catalog import hidden_label, is_kids, type_hidden
+from .catalog import hidden_label, is_kids, is_retro, type_hidden
 from .config import RESALE_LEVELS, TREND_WATCHES, Config, SearchConfig, watch_name
 from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
 from .models import Item
@@ -38,9 +38,15 @@ class Monitor:
         self.stats: dict[str, Any] = {"started": clock(), "cycles": 0, "checked": 0, "alerts": 0,
                                       "errors": 0, "last_error": "", "last_cycle": 0.0}
         self._blocked_notified = False
+        self._lock = threading.Lock()
+        self.stats.update({"workers": {}, "ai_checked": 0, "ai_fakes": 0, "ai_finds": 0})
+        self.reviewer: Any = None   # KI-Bildcheck (vision.AiReviewer), wird von __main__ gesetzt
+        self.pacer = Pacer(0.0)
         self.reject_log: Optional[list[tuple[str, Item, str]]] = None  # für Probelauf/Fehlersuche
         self._migrate_old_resale_searches()
         self._rename_old_searches()
+        self._apply_trend_presets()
+        self.min_cycle_wait = 3.0
 
     def _rename_old_searches(self) -> None:
         """Version 2: 'Resale · X' heißt jetzt 'Marke · X' bzw. 'Trend · X' (gesucht wurde nie nach 'Resale')."""
@@ -55,6 +61,21 @@ class Monitor:
             self.storage.delete_state(key)
             self.storage.set_state(f"{prefix}:{watch_name(old.split(' · ', 1)[1])}", value or "1")
         self.storage.set_state("migrated:names_v2", "1")
+
+    def _apply_trend_presets(self) -> None:
+        """Schon gespeicherte Trend-Suchen bekommen neue Voreinstellungen (z. B. mehr Vintage Adidas)."""
+        from .config import TREND_OVERRIDES
+        if self.storage.get_state("migrated:trend_presets_v1") == "1":
+            return
+        presets = {normalize(k): v for k, v in TREND_OVERRIDES.items()}
+        for s in self.storage.custom_searches():
+            preset = presets.get(normalize(s.keywords or ""))
+            if s.is_resale and preset:
+                for key, value in preset.items():
+                    if getattr(s, key) is None:
+                        setattr(s, key, value)
+                self.storage.add_search(s)
+        self.storage.set_state("migrated:trend_presets_v1", "1")
 
     def _migrate_old_resale_searches(self) -> None:
         """Ältere Versionen haben die Resale-Ziele fest in jede Telegram-Suche geschrieben.
@@ -186,6 +207,8 @@ class Monitor:
             if key:
                 prefs[key] = int(prefs.get(key, 0)) + delta
         self.storage.set_json("prefs", prefs)
+        if self.reviewer is not None:  # der KI-Check lernt deinen Geschmack mit
+            self.reviewer.learn(info.get("title") or "", positive)
         label = TYPE_LABELS.get(ptype, ptype)
         if not positive and ptype != "sonstiges" and prefs.get(f"type:{ptype}", 0) <= -3:
             hidden = self.global_filters()["exclude_types"]
@@ -290,16 +313,22 @@ class Monitor:
             score.reasons.insert(0, f"Preis um {1 - item.price / old_price:.0%} gesenkt")
         ok, why = meets_targets(search, score)
         if not ok:
+            if extra is None:
+                self._maybe_second_look(search, item, score, why, rare, trend, ptype, kind)
             return None, why
         return Alert(item=item, search_name=search.name, score=score, buy_url=item.buy_url(self.cfg.web_base),
                      kind=kind, old_price=old_price, resale=search.is_resale, ptype=ptype,
                      offers=suggest_offers(item.price, self.cfg.offer_discounts)), ""
 
-    def check_search(self, search: SearchConfig) -> list[Alert]:
+    def check_search(self, search: SearchConfig, client: Any = None, worker: str = "") -> list[Alert]:
         """Fragt eine Suche ab und liefert die Treffer, die gemeldet werden sollen."""
         search = self.effective(search)
-        items = self.client.search(query_for_search(search, self.cfg.currency), per_page=self._per_page(search))
-        self.stats["checked"] += len(items)
+        items = (client or self.client).search(query_for_search(search, self.cfg.currency), per_page=self._per_page(search))
+        with self._lock:
+            self.stats["checked"] += len(items)
+            if worker:
+                self.stats["workers"].setdefault(worker, {"cycles": 0, "checked": 0, "alerts": 0})
+                self.stats["workers"][worker]["checked"] += len(items)
         seeded = self.storage.is_seeded(search.name)
         now = self.clock()
         max_age = self._max_age_seconds(search)
@@ -349,8 +378,97 @@ class Monitor:
         out.sort(key=lambda a: a.score.total, reverse=True)
         return out
 
+    # -- Melden: direkt oder über den KI-Bildcheck ----------------------------------
+
+    def _deliver(self, alert: Alert, worker: str = "") -> bool:
+        """Meldung verschicken – Doppelte aussortieren (auch zwischen Sucher A und B) und ggf. KI-Check."""
+        if alert.kind == "new":
+            if not self.storage.claim_alert(alert.item.id):
+                return False  # schon von einer anderen Suche bzw. einem anderen Sucher gemeldet
+        else:
+            self.storage.mark_alerted(alert.item.id)
+        self.storage.save_item(alert.item, alert.ptype)
+        if self.paused:
+            return False
+        alert.worker = worker
+        if self.reviewer is not None and self.reviewer.enabled and self.reviewer.budget_left("checks"):
+            self.reviewer.submit("check", alert, self._after_review)
+            return True
+        return self._send(alert)
+
+    def _send(self, alert: Alert) -> bool:
+        tag = "🤖✨" if alert.ai_find else ("🔥" if alert.score.is_top else "🆕")
+        log.info("%s %s – %.2f € (Score %s)%s", tag, alert.item.title, alert.item.price, alert.score.total,
+                 f" · KI: {alert.ai.urteil}" if alert.ai else "")
+        ok = bool(self.notifier.send_alert(alert))
+        if ok:
+            with self._lock:
+                self.stats["alerts"] += 1
+                if alert.worker:
+                    self.stats["workers"].setdefault(alert.worker, {"cycles": 0, "checked": 0, "alerts": 0})
+                    self.stats["workers"][alert.worker]["alerts"] += 1
+        return ok
+
+    def _after_review(self, kind: str, alert: Alert) -> None:
+        """Läuft im KI-Thread: Urteil holen, Fakes aussortieren, KI-Funde melden."""
+        from .vision import listing_context
+        if kind == "check":
+            verdict = self.reviewer.review(alert.item, listing_context(alert.item, alert))
+            if verdict is not None:
+                alert.ai = verdict
+                with self._lock:
+                    self.stats["ai_checked"] += 1
+                if verdict.fake and self.cfg.ai_hide_fakes:
+                    log.info("🤖 Fake-Verdacht, nicht gemeldet: %s (%s)", alert.item.title,
+                             "; ".join(verdict.echtheit_gruende))
+                    with self._lock:
+                        self.stats["ai_fakes"] += 1
+                    return
+            self._send(alert)
+            return
+        # Zweitblick: knapp verpasstes Retro-/Trend-Teil – sieht die KI mehr Wert als die Faustregel?
+        verdict = self.reviewer.review(alert.item, listing_context(alert.item, alert), kind="second_looks")
+        if verdict is None or verdict.fake or verdict.urteil == "lassen" or verdict.look < 6 or not verdict.wert_eur:
+            return
+        value = verdict.wert_eur
+        profit = value - (alert.item.total_price or alert.item.price) - self.cfg.shipping_estimate
+        discount = 1 - alert.item.price / value
+        targets = self.resale_targets()
+        if discount * 100 < targets["min_discount"] or profit < targets["min_profit"]:
+            return
+        if not self.storage.claim_alert(alert.item.id):
+            return
+        self.storage.save_item(alert.item, alert.ptype)
+        alert.ai, alert.ai_find = verdict, True
+        alert.score.value, alert.score.discount, alert.score.profit = value, discount, profit
+        alert.score.reasons.insert(0, f"🤖 KI schätzt den Wert auf ca. {value:.0f} € – mehr als die Faustregel")
+        with self._lock:
+            self.stats["ai_finds"] += 1
+        if not self.paused:
+            self._send(alert)
+
+    def _maybe_second_look(self, search: SearchConfig, item: Item, score: Any, why: str, rare: Any,
+                           trend: Optional[str], ptype: str, kind: str) -> None:
+        """Knapp verpasste Retro-/Trend-Teile der KI zeigen – Faustregeln unterschätzen solche Teile oft."""
+        r = self.reviewer
+        if (r is None or not self.cfg.ai_second_look or kind != "new" or not search.is_resale
+                or not r.enabled or not r.budget_left("second_looks") or score.fake_suspect):
+            return
+        if not why.startswith(("Rabatt zu klein", "Gewinn zu klein", "nicht günstig genug")):
+            return
+        if not (rare.level or trend or is_retro(item.title)) or (score.discount or 0) < 0.15:
+            return
+        if self.storage.get_state(f"sl:{item.id}"):
+            return
+        self.storage.set_state(f"sl:{item.id}", "1")
+        alert = Alert(item=item, search_name=search.name, score=score, buy_url=item.buy_url(self.cfg.web_base),
+                      resale=True, ptype=ptype, offers=suggest_offers(item.price, self.cfg.offer_discounts))
+        r.submit("second_look", alert, self._after_review)
+
+    # -- Ein Durchlauf (Tests, Probelauf) ---------------------------------------------
+
     def run_once(self) -> int:
-        """Ein Durchlauf über alle aktiven Suchen. Gibt die Zahl der gesendeten Meldungen zurück."""
+        """Ein Durchlauf über alle aktiven Suchen (ohne Parallelität). Gibt die Zahl der Meldungen zurück."""
         sent = 0
         searches = self.active_searches()
         for i, search in enumerate(searches):
@@ -361,60 +479,139 @@ class Monitor:
             except (VintedBlocked, VintedRateLimited):
                 raise
             except Exception as e:  # noqa: BLE001 - eine kaputte Suche darf den Bot nicht stoppen
-                self.stats["errors"] += 1
-                self.stats["last_error"] = f"{search.name}: {e}"
-                log.warning("Suche '%s' fehlgeschlagen: %s", search.name, e)
+                self._error(f"{search.name}: {e}")
                 alerts = []
             for alert in alerts:
-                if alert.kind == "new" and self.storage.was_alerted(alert.item.id):
-                    continue  # schon von einer anderen Suche gemeldet
-                self.storage.mark_alerted(alert.item.id)
-                self.storage.save_item(alert.item, alert.ptype)
-                if self.paused:
-                    continue
-                log.info("%s %s – %s (%s)", "🔥" if alert.score.is_top else "🆕", alert.item.title,
-                         alert.item.price, alert.score.total)
-                if self.notifier.send_alert(alert):
+                if self._deliver(alert):
                     sent += 1
-                    self.stats["alerts"] += 1
             if i < len(searches) - 1:
                 self.stop_event.wait(random.uniform(*self.pause_between_searches))
-        self.stats["cycles"] += 1
-        self.stats["last_cycle"] = self.clock()
+        with self._lock:
+            self.stats["cycles"] += 1
+            self.stats["last_cycle"] = self.clock()
         return sent
 
-    def run_forever(self) -> None:
-        backoff = 0.0
+    def _error(self, text: str) -> None:
+        with self._lock:
+            self.stats["errors"] += 1
+            self.stats["last_error"] = text
+        log.warning("Suche fehlgeschlagen: %s", text)
+
+    # -- Dauerbetrieb: mehrere Sucher, abwechselnd getaktet ---------------------------
+
+    def run_forever(self, client_factory: Optional[Callable[[], Any]] = None) -> None:
+        n = max(1, int(self.cfg.workers))
+        factory = client_factory or (lambda: VintedClient(self.cfg.domain, proxy=self.cfg.proxy))
+        self.pacer = Pacer(self.cfg.request_gap_seconds)
+        threads = []
+        for idx in range(n):
+            client = self.client if idx == 0 else factory()
+            t = threading.Thread(target=self._worker, args=(idx, n, client), name=f"Sucher-{chr(65 + idx)}",
+                                 daemon=True)
+            threads.append(t)
+            t.start()
+        if self.reviewer is not None:
+            self.reviewer.start()
         last_cleanup = 0.0
         while not self.stop_event.is_set():
-            started = time.monotonic()
-            wait: Optional[float] = None
-            try:
-                self.run_once()
-                backoff = 0.0
-                if self._blocked_notified:
-                    self._blocked_notified = False
-                    self.notifier.send_text("✅ Vinted antwortet wieder – die Suche läuft weiter.")
-            except VintedRateLimited as e:
-                wait = max(60.0, e.retry_after)
-                log.warning("Zu viele Anfragen – Pause für %.0f s.", wait)
-            except VintedBlocked as e:
-                backoff = min(900.0, backoff * 2 if backoff else 60.0)
-                wait = backoff
-                self.stats["errors"] += 1
-                self.stats["last_error"] = str(e)
-                log.warning("%s Neuer Versuch in %.0f s.", e, wait)
-                if not self._blocked_notified:
-                    self._blocked_notified = True
-                    self.notifier.send_text(f"⚠️ {e}\nIch versuche es automatisch weiter. Wenn das oft "
-                                            "passiert: Intervall in der config.yaml erhöhen.")
             if time.time() - last_cleanup > 86400:
                 self.storage.cleanup()
                 last_cleanup = time.time()
-            if wait is None:
-                interval = self.cfg.interval_seconds
-                wait = max(5.0, interval + random.uniform(0, interval * 0.3) - (time.monotonic() - started))
-            self.stop_event.wait(wait)
+            self.stop_event.wait(5)
+        for t in threads:
+            t.join(timeout=15)
+        if self.reviewer is not None:
+            self.reviewer.stop()
+
+    def _worker(self, idx: int, n: int, client: Any) -> None:
+        letter = chr(65 + idx)
+        backoff = 0.0
+        with self._lock:
+            self.stats["workers"].setdefault(letter, {"cycles": 0, "checked": 0, "alerts": 0})
+        self.stop_event.wait(idx * self.cfg.request_gap_seconds)  # versetzt starten: A, dann B, …
+        while not self.stop_event.is_set():
+            started = time.monotonic()
+            mine = [s for i, s in enumerate(self.active_searches()) if i % n == idx]
+            for search in mine:
+                if not self.pacer.wait(self.stop_event):
+                    return
+                try:
+                    alerts = self.check_search(search, client=client, worker=letter)
+                    backoff = 0.0
+                    self._unblocked()
+                except VintedRateLimited as e:
+                    pause = max(60.0, e.retry_after)
+                    self.pacer.pause(pause)
+                    log.warning("Zu viele Anfragen – alle Sucher pausieren %.0f s.", pause)
+                    continue
+                except VintedBlocked as e:
+                    backoff = min(900.0, backoff * 2 if backoff else 60.0)
+                    self.pacer.pause(backoff)
+                    self._error(str(e))
+                    self._blocked(e)
+                    continue
+                except Exception as e:  # noqa: BLE001
+                    self._error(f"{search.name}: {e}")
+                    continue
+                for alert in alerts:
+                    self._deliver(alert, worker=letter)
+            with self._lock:
+                self.stats["cycles"] += 1
+                w = self.stats["workers"][letter]
+                w["cycles"] += 1
+                self.stats["last_cycle"] = self.clock()
+            log.info("Runde %d fertig: %d Suchen in %.0f s · bisher %d Artikel geprüft, %d Meldung(en)",
+                     w["cycles"], len(mine), time.monotonic() - started, w["checked"], w["alerts"])
+            interval = self.cfg.interval_seconds
+            self.stop_event.wait(max(self.min_cycle_wait, interval + random.uniform(0, interval * 0.2)
+                                     - (time.monotonic() - started)))
+
+    def _blocked(self, e: Exception) -> None:
+        with self._lock:
+            first = not self._blocked_notified
+            self._blocked_notified = True
+        log.warning("%s Alle Sucher machen eine Pause.", e)
+        if first:
+            self.notifier.send_text(f"⚠️ {e}\nIch versuche es automatisch weiter. Wenn das oft passiert: "
+                                    "weniger Sucher (vinted → workers) oder größeren Abstand (request_gap_seconds).")
+
+    def _unblocked(self) -> None:
+        with self._lock:
+            was = self._blocked_notified
+            self._blocked_notified = False
+        if was:
+            self.notifier.send_text("✅ Vinted antwortet wieder – die Suche läuft weiter.")
 
     def stop(self) -> None:
         self.stop_event.set()
+        if self.reviewer is not None:
+            self.reviewer.stop()
+
+
+class Pacer:
+    """Taktgeber: Zwischen zwei Vinted-Anfragen (aller Sucher zusammen) liegt mindestens `gap` Sekunden.
+    Die Sucher nehmen sich der Reihe nach den nächsten freien Zeitpunkt – so wechseln sie sich ab: A, B, A, B …"""
+
+    def __init__(self, gap: float):
+        self.gap = gap
+        self._lock = threading.Lock()
+        self._next = 0.0
+        self._pause_until = 0.0
+
+    def wait(self, stop_event: threading.Event) -> bool:
+        while not stop_event.is_set():
+            with self._lock:
+                now = time.monotonic()
+                slot = max(now, self._next, self._pause_until)
+                self._next = slot + self.gap * random.uniform(0.8, 1.25)
+            delay = slot - time.monotonic()
+            if delay > 0 and stop_event.wait(delay):
+                return False
+            with self._lock:
+                if time.monotonic() >= self._pause_until:
+                    return True
+        return False
+
+    def pause(self, seconds: float) -> None:
+        with self._lock:
+            self._pause_until = max(self._pause_until, time.monotonic() + seconds)

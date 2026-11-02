@@ -8,6 +8,9 @@ vinted:
   interval_seconds: 45         # alle wie viele Sekunden ein Durchlauf startet (nicht unter 30 – sonst blockt Vinted eher)
   max_item_age_minutes: 60     # ältere, nur "hochgeschobene" Artikel ignorieren (0 = alle melden)
   per_page: 48                 # wie viele der neuesten Artikel pro Suche geprüft werden
+  workers: 2                   # parallele Sucher (A, B, …) – teilen sich die Suchen und wechseln sich ab
+  request_gap_seconds: 1.0     # Abstand zwischen zwei Vinted-Anfragen (alle Sucher zusammen). Kleiner =
+                               # schneller, aber höheres Risiko, dass Vinted kurz blockt
   # proxy: http://user:pass@host:port   # optional, falls Vinted deine IP blockt
 
 notifications:
@@ -39,6 +42,20 @@ account:
   enabled: false
   cookies: ""                  # kompletter Cookie-Text aus dem Browser
   offer_discounts: [10, 20]    # Buttons für -10 % und -20 % (Vinted erlaubt max. -40 %)
+
+# 🤖 KI-BILDCHECK mit Claude (optional): schaut sich die Fotos jedes Treffers an – Echtheit/Fake-Risiko,
+# Zustand, Look, Trend, realistischer Wert und Urteil (kaufen/vielleicht/lassen). Fakes werden aussortiert,
+# knapp verpasste Retro-/Trend-Teile bekommen einen "Zweitblick" (🤖✨ KI-Fund). Lernt aus deinen 👍/👎.
+# Braucht einen API-Schlüssel von console.anthropic.com (kostet pro geprüftem Treffer ein paar Cent).
+ai:
+  enabled: false
+  api_key: ""                  # oder Umgebungsvariable ANTHROPIC_API_KEY
+  model: claude-opus-5-5       # günstiger: claude-sonnet-5-5 oder claude-haiku-5-5
+  effort: medium               # Gründlichkeit: low / medium / high
+  max_checks_per_day: 40       # Kostenbremse
+  second_look: true            # Zweitblick auf knapp verpasste Retro-/Trend-Teile
+  max_second_looks_per_day: 20
+  hide_fakes: true             # Fake-Verdacht gar nicht erst melden
 
 database: vinted_bot.db
 
