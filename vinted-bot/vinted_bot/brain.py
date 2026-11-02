@@ -561,7 +561,9 @@ class Brain:
         self.embedder = embedder or Embedder(threads=cfg.ml_threads, backbone=backbone)
         self.models = load_models(self.model_path)
         self.report = report or (lambda text: None)
-        self._queue: "queue.Queue[tuple[Any, str, Any]]" = queue.Queue(maxsize=2000)
+        self._queue: "queue.Queue[tuple[Any, str, Any]]" = queue.Queue(maxsize=200)
+        self.collect_per_minute = 40.0                  # ~57.000 Bilder pro Tag – mehr braucht das Training nicht
+        self._tokens, self._token_ts = self.collect_per_minute, time.monotonic()
         self._train_now = threading.Event()
         self.stop_event = threading.Event()
         self.collected_today = 0
@@ -576,9 +578,17 @@ class Brain:
     # -- Sammeln -------------------------------------------------------------------------
 
     def collect(self, item: Any, ptype: str, est: Any) -> None:
-        """Artikel in die Warteschlange zum Sammeln legen (läuft im Hintergrund)."""
+        """Artikel in die Warteschlange zum Sammeln legen (läuft im Hintergrund, gedrosselt: Das Bildmodell soll
+        den Prozessor nicht so belegen, dass die Sucher warten müssen)."""
         if not self.enabled or self.data.has(item.id):
             return
+        now = time.monotonic()
+        rate = self.collect_per_minute / 60.0
+        self._tokens = min(self.collect_per_minute, self._tokens + (now - self._token_ts) * rate)
+        self._token_ts = now
+        if self._tokens < 1:
+            return  # gerade genug gesammelt – Tausende pro Tag reichen fürs Training
+        self._tokens -= 1
         try:
             self._queue.put_nowait((item, ptype, est))
         except queue.Full:

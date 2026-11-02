@@ -158,8 +158,20 @@ def build_brain(cfg: Config, notifier: Any) -> Any:
     except ImportError as e:  # z. B. numpy fehlt -> Bot läuft trotzdem, nur ohne eigenes Modell
         log.warning("Eigenes Bildmodell aus: %s – ki-installieren.bat ausführen (bzw. ./ki-installieren.sh).", e)
         return None
-    photo_client = VintedClient(cfg.domain, proxy=cfg.proxy)
-    brain = Brain(cfg, photo_client.fetch_bytes, report=lambda text: notifier.send_text(text, silent=True))
+    local = threading.local()
+
+    def fetch(url: str) -> Optional[bytes]:
+        """Foto laden – jeder Thread (Sucher A/B, Sammeln) mit eigener Verbindung, höchstens 8 s warten."""
+        client = getattr(local, "client", None)
+        if client is None:
+            client = local.client = VintedClient(cfg.domain, proxy=cfg.proxy, timeout=8.0)
+        try:
+            return client.fetch_bytes(url)
+        except Exception as e:  # noqa: BLE001 - ein Foto darf die Suche nicht stoppen
+            log.debug("Foto nicht ladbar (%s): %s", url, e)
+            return None
+
+    brain = Brain(cfg, fetch, report=lambda text: notifier.send_text(text, silent=True))
     if not brain.embedder.installed():
         log.info("Eigenes Bildmodell: noch nicht installiert (ki-installieren.bat) – der Bot läuft ohne.")
     return brain

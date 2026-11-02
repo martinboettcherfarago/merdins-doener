@@ -480,3 +480,51 @@ def test_bot_starts_without_numpy_or_torch(tmp_path, monkeypatch):
     from vinted_bot.__main__ import build_brain
     monkeypatch.setitem(sys.modules, "vinted_bot.brain", None)   # wie "No module named 'numpy'"
     assert build_brain(config_from_dict({}, base_dir=str(tmp_path)), FakeNotifier()) is None
+
+
+# -- Bildmodell darf die Sucher nicht ausbremsen ---------------------------------------------------------
+
+def test_only_real_candidates_get_a_photo_check_and_at_most_8_per_poll(tmp_path):
+    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "budget": 500}}, base_dir=str(tmp_path))
+    fetched = []
+    brain = Brain(cfg, lambda url: fetched.append(url) or f"IMG:30:0:{len(fetched)}".encode(),
+                  embedder=FakeEmbedder())
+    from conftest import FakeClient
+    client = FakeClient()
+    m = Monitor(cfg, client, Storage(str(tmp_path / "b.db")), FakeNotifier(), clock=lambda: NOW)
+    m.brain = brain
+    s = m.effective(SearchConfig.watch("Carhartt"))
+
+    def page(start, price):
+        out = []
+        for i in range(start, start + 30):
+            it = item(i, price, title="Carhartt Pullover", brand="Carhartt", size="M", minutes_old=1)
+            it.photo_url = f"https://img/{i}.jpg"
+            out.append(it)
+        return out
+    client.pages = [page(1, 30), page(100, 30), page(200, 9)]
+    m.check_search(s)                  # Ausgangsbasis
+    m.check_search(s)                  # 30 Teile zum normalen Preis: kein einziges Foto nötig
+    assert fetched == []
+    m.check_search(s)                  # 30 Schnäppchen: höchstens 8 Fotos, der Rest nach Regeln
+    assert 1 <= len(fetched) <= 8
+
+
+def test_background_collection_is_throttled(tmp_path):
+    brain, store = make_brain(tmp_path)
+    for i in range(1, 300):
+        it, blob = listing(90_000 + i, 30, 20)
+        brain.collect(it, "jacke", estimate_item(it, "jacke"))
+    assert brain._queue.qsize() <= 41   # ~40 pro Minute statt alles auf einmal
+
+
+def test_live_warns_when_the_sniper_is_too_slow():
+    from vinted_bot.livestats import LiveStats
+    live = LiveStats()
+    live.started = 0.0
+    live.poll(95, True, now=1000.0)
+    live.poll(95, True, now=1220.0)
+    text = live.text(60, now=1300.0)
+    assert "alle ~220 s" in text and "⚠️ Der Sniper fragt zu selten ab" in text
+    live.started = 900.0
+    assert "(Bot läuft erst seit 7 Min.)" in live.text(60, now=1300.0)

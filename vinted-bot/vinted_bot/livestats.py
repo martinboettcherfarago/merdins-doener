@@ -36,6 +36,7 @@ def _eur(value: float) -> str:
 
 class LiveStats:
     def __init__(self) -> None:
+        self.started = time.time()
         self._lock = threading.Lock()
         self.polls: deque[tuple[float, int, bool]] = deque(maxlen=20000)       # (Zeit, neue Artikel, Sniper?)
         self.alerts: deque[tuple[float, Optional[float], float, str, bool]] = deque(maxlen=2000)
@@ -90,12 +91,18 @@ class LiveStats:
         }
 
     def text(self, minutes: float = 60, now: Optional[float] = None, level: str = "") -> str:
+        now = now or time.time()
         s = self.summary(minutes, now)
         span = f"{minutes:g} Min." if minutes < 120 else f"{minutes / 60:g} Std."
-        lines = [f"📈 <b>Live-Check – letzte {span}</b>"]
+        running = (now - self.started) / 60
+        lines = [f"📈 <b>Live-Check – letzte {span}</b>"
+                 + (f" (Bot läuft erst seit {running:.0f} Min.)" if running < minutes else "")]
         if s["sniper_polls"]:
             lines.append(f"⚡ Sniper: {s['sniper_polls']} Abfragen · alle ~{s['sniper_gap'] or 0:.0f} s · "
                          f"Ø {s['sniper_new']:.0f} neue Artikel pro Abfrage")
+            if (s["sniper_gap"] or 0) > 20:
+                lines.append("⚠️ Der Sniper fragt zu selten ab (Soll: alle ~4–6 s). Ist der PC stark ausgelastet "
+                             "oder blockt Vinted? Im Fenster nach Warnungen schauen.")
         else:
             lines.append("⚡ Sniper: keine Abfragen (aus? → /radar an)")
         lines.append(f"🔎 Marken-Suchen: {s['brand_polls']} Abfragen · insgesamt {s['checked']} neue Artikel geprüft")

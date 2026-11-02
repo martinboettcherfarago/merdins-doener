@@ -31,6 +31,8 @@ MEDIA_TYPES = {"buch", "medien"}           # Bücher, Magazine, Kataloge, CDs �
 AUTO_ORDER = ("streng", "normal", "locker", "offen")  # Auto-Stufe bewegt sich zwischen diesen Stufen …
 AUTO_BAND = (20.0, 60.0)                              # … und hält 20–60 Schnäppchen pro Stunde
 AUTO_STEP = 900.0                                     # frühestens alle 15 Min. umstellen
+PHOTO_BUDGET = 8                                      # höchstens so viele Fotos pro Abfrage bewerten …
+RESCUE_BUDGET = 3                                     # … plus so viele, die nur das Wert-Modell retten könnte
 EXPENSIVE_TIERS = ("luxus", "designer", "outdoor")  # "wirklich teure Marken" dürfen übers Budget
 WANTED_TIERS = ("premium", "streetwear", "outdoor", "designer", "luxus")  # meldet der Sniper immer
 SNIPER = "⚡ Sniper"
@@ -67,6 +69,7 @@ class Monitor:
         self._watch_cache: tuple[int, list[Any]] = (-1, [])
         self._alert_times: deque[float] = deque(maxlen=1000)   # Schnäppchen-Meldungen (für die Auto-Stufe)
         self.live = LiveStats()                                 # 📈 /live
+        self._local = threading.local()                         # pro Sucher: Foto-Budget der laufenden Abfrage
 
     def _pause_example_searches(self) -> list[str]:
         """Die Beispiel-Suchen der alten Vorlage ("Air Max 90", "Carhartt Jacken") melden alles mögliche ohne
@@ -469,9 +472,9 @@ class Monitor:
         score = score_item(item, ref, self.cfg.top_deal_score, now, resale=search.is_resale,
                            shipping=self.cfg.shipping_estimate, rare=rare, pref_pts=pref_pts, est=est,
                            trend=trend)
-        # Foto nur für echte Kandidaten laden & bewerten (hält den Sniper schnell); das Modell darf
-        # aber Teile retten, die laut Faustregel nur knapp unter Wert liegen
-        if use_brain and (view is not None or (score.discount or 0) >= 0.1 or rare.level or trend):
+        # Foto nur für echte Kandidaten laden & bewerten: Download + Bildmodell kosten auf einem Laptop ~0,5–1 s
+        # pro Teil – für jedes Teil würde das die Sucher ausbremsen. Erst die Regeln, dann (wenige) Fotos.
+        if use_brain and (view is not None or self._photo_worthy(search, score, rare, trend)):
             if view is None:
                 view = self.brain.assess(item, ptype, est)
             if view is not None:
@@ -518,6 +521,26 @@ class Monitor:
         return Alert(item=item, search_name=search.name, score=score, buy_url=item.buy_url(self.cfg.web_base),
                      kind=kind, old_price=old_price, resale=search.is_resale, ptype=ptype, brain=view,
                      ampel=ampel, offers=suggest_offers(item.price, self.cfg.offer_discounts)), ""
+
+    def _photo_worthy(self, search: SearchConfig, score: Any, rare: Any, trend: Optional[str]) -> bool:
+        """Lohnt sich der Blick aufs Foto? Nur wenn das Teil mit dem Bildmodell überhaupt noch durchkommen kann
+        (Ziele mit größtmöglicher Lockerung erfüllt) – höchstens PHOTO_BUDGET Fotos pro Abfrage."""
+        budget = getattr(self._local, "photo_budget", PHOTO_BUDGET)
+        relaxed = replace(
+            search,
+            min_discount=None if search.min_discount is None else max(20.0, search.min_discount - 15),
+            min_cheaper_than=None if search.min_cheaper_than is None else max(50.0, search.min_cheaper_than - 15),
+            min_score=max(0, search.min_score - 20))
+        if budget > 0 and meets_targets(relaxed, score)[0]:
+            self._local.photo_budget = budget - 1
+            return True
+        # Rettung: Das gelernte Wert-Modell sieht am Foto oft mehr als die Faustregel (seltenes Modell, Material …)
+        rescue = getattr(self._local, "rescue_budget", RESCUE_BUDGET)
+        if rescue > 0 and self.brain.models.get("value_trusted") and \
+                (score.discount or 0) >= max(0.1, (search.min_discount or 40) / 100 - 0.25):
+            self._local.rescue_budget = rescue - 1
+            return True
+        return False
 
     def _meets_targets_with_model(self, search: SearchConfig, score: Any, view: Any, rare: Any) -> tuple[bool, str]:
         """Ziele der Suche – mit Bildmodell etwas lockerer für coole/passende Teile, strenger für unpassende.
@@ -570,6 +593,7 @@ class Monitor:
     def check_search(self, search: SearchConfig, client: Any = None, worker: str = "", page: int = 1) -> list[Alert]:
         """Fragt eine Suche ab und liefert die Treffer, die gemeldet werden sollen."""
         search = self.effective(search)
+        self._local.photo_budget, self._local.rescue_budget = PHOTO_BUDGET, RESCUE_BUDGET
         query, per_page = query_for_search(search, self.cfg.currency), self._per_page(search)
         c = client or self.client
         items = c.search(query, per_page=per_page, page=page) if page > 1 else c.search(query, per_page=per_page)
