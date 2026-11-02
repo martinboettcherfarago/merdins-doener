@@ -411,3 +411,64 @@ def test_fashion_model_falls_back_to_fast_clip(monkeypatch):
     emb = Embedder(threads=2, backbone="fashion", pretrained=None)
     emb._load()
     assert emb.backbone == "schnell" and "nicht ladbar" in emb.fallback and emb.dim == 512
+
+
+# -- Einfluss aufs Gemeldete: cooler Look, Geschmack, Kategorie aus dem Foto -----------------------------
+
+def carhartt_setup(tmp_path, tags, brands=("Carhartt",)):
+    cfg = config_from_dict({"resale": {"brands": list(brands)}}, base_dir=str(tmp_path))
+    store = {}
+    brain = Brain(cfg, lambda url: store.get(url), embedder=TagEmbedder(tags))
+    from conftest import FakeClient
+    m = Monitor(cfg, FakeClient(), Storage(str(tmp_path / "c.db")), FakeNotifier(), clock=lambda: NOW)
+    m.brain = brain
+    return m, brain, store
+
+
+def photo_item(store, i, price, title="Carhartt Jacke", brand="Carhartt"):
+    it = item(i, price, title=title, brand=brand, size="M", minutes_old=1)
+    it.photo_url = f"https://img/{i}.jpg"
+    store[it.photo_url] = f"IMG:60:0:{i}".encode()
+    return it
+
+
+def test_cool_photo_look_lets_slightly_smaller_discounts_through(tmp_path):
+    from vinted_bot.brain import Tag
+    cool = [Tag("jahrzehnt", "90er", 0.7), Tag("stil", "Workwear", 0.6), Tag("details", "Cargotaschen", 0.5)]
+    m, brain, store = carhartt_setup(tmp_path, cool)
+    s = m.effective(SearchConfig.watch("Carhartt"))           # normal: ≥ 40 % unter Wert
+    alert, why = m.explain(s, photo_item(store, 1, 50), NOW)  # nur ~33 % unter Wert
+    assert alert is not None, why
+    reason = alert.score.reasons[0]
+    assert reason.startswith("😎 Foto-Look: 90er · Workwear") and "dafür reichen 30 % statt 40 % Rabatt" in reason
+    assert "😎 Foto-Look" in telegram_caption(alert, now=NOW)
+    # schon günstig genug -> der Look wird nur genannt
+    alert, _ = m.explain(s, photo_item(store, 2, 40), NOW)
+    assert alert.score.reasons[0] == "😎 Foto-Look: 90er · Workwear · Cargotaschen"
+    # langweiliger Look (aktuell, Basic) -> bleibt bei 40 %
+    brain.embedder = TagEmbedder([Tag("jahrzehnt", "aktuell", 0.8), Tag("stil", "Basic", 0.7)])
+    assert m.explain(s, photo_item(store, 3, 50), NOW) == (None, "Rabatt zu klein")
+
+
+def test_taste_model_shifts_what_gets_shown(tmp_path):
+    m, brain, store = carhartt_setup(tmp_path, [])
+    s = m.effective(SearchConfig.watch("Carhartt"))
+    brain.models.update({"taste_w": np.zeros(N_FEATURES), "taste_auc": 0.8})
+    brain.models["taste_w"][-1] = 3.0           # "gefällt dir" (95 %)
+    alert, why = m.explain(s, photo_item(store, 1, 50), NOW)
+    assert alert is not None and "😍 passt zu deinem Geschmack (95%)" in alert.score.reasons[0], why
+    brain.models["taste_w"][-1] = -3.0          # "gar nicht dein Ding" (5 %): 40 % Rabatt reicht nicht mehr
+    alert, why = m.explain(s, photo_item(store, 2, 45), NOW)
+    assert alert is None and why.startswith("passt laut Geschmacks-Modell eher nicht zu dir (5%)")
+
+
+def test_photo_tells_the_category_when_the_title_does_not(tmp_path):
+    from vinted_bot.brain import Tag
+    m, brain, store = carhartt_setup(tmp_path, [Tag("kategorie", "Sneaker", 0.8, "sneaker")], brands=("Adidas",))
+    s = m.effective(SearchConfig.watch("Adidas"))
+    assert product_type("Adidas Firebird") == "sonstiges"
+    alert, why = m.explain(s, photo_item(store, 1, 9, title="Adidas Firebird", brand="Adidas"), NOW)
+    assert alert is None and why.startswith("Kategorie ausgeblendet")   # Schuhe sind standardmäßig aus
+    brain.embedder = TagEmbedder([Tag("kategorie", "Trainingsjacke", 0.8, "jacke")])
+    alert, why = m.explain(s, photo_item(store, 2, 9, title="Adidas Firebird", brand="Adidas"), NOW)
+    assert alert is not None and alert.ptype == "jacke", why

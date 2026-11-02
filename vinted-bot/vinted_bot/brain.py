@@ -36,7 +36,7 @@ from typing import Any, Callable, Optional
 import numpy as np
 
 from .catalog import FAMILY_LABELS, family_of
-from .tags import SHOWN_GROUPS, TAG_GROUPS, THRESHOLDS, count_tags
+from .tags import COOL_THRESHOLD, SHOWN_GROUPS, TAG_GROUPS, THRESHOLDS, cool_score, count_tags
 
 log = logging.getLogger(__name__)
 
@@ -508,6 +508,13 @@ class BrainView:
     style_conf: float = 0.0
     photo_quality: float = 0.0
     tags: list[Tag] = field(default_factory=list)
+    cool: float = 0.0                  # Cool-Faktor aus den Foto-Tags (90er, Sportswear, Fellkragen …)
+    cool_bits: list[str] = field(default_factory=list)
+    popular_trusted: bool = False      # Begehrt-Modell hat die Prüfung bestanden
+
+    @property
+    def is_cool(self) -> bool:
+        return self.cool >= COOL_THRESHOLD
 
     def tag(self, group: str, min_prob: float = 0.0) -> Optional[Tag]:
         return next((t for t in self.tags if t.group == group and t.prob >= min_prob), None)
@@ -648,6 +655,7 @@ class Brain:
                 view.style, view.style_conf = (st.label, st.prob) if st else ("", 0.0)
                 blurry = next((t.prob for t in view.tags if t.label == "unscharf/dunkel"), 0.0)
                 view.photo_quality = 1.0 - blurry
+                view.cool, view.cool_bits = cool_score(view.tags)
             else:
                 view.style, view.style_conf, view.photo_quality = self.embedder.style(img)
         except Exception as e:  # noqa: BLE001
@@ -662,6 +670,7 @@ class Brain:
             view.value_trusted = bool(m.get("value_trusted"))
         if "pop_w" in m:
             view.popular = _sigmoid(float(x @ m["pop_w"]))
+            view.popular_trusted = (m.get("pop_auc") or 0) >= 0.6
         if "taste_w" in m and (m.get("taste_auc") or 0) >= 0.6:
             view.taste = _sigmoid(float(x @ m["taste_w"]))
         if "fake_w" in m and (m.get("fake_auc") or 0) >= 0.7:

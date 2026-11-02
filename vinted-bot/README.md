@@ -381,6 +381,20 @@ In der Meldung steht dann z. B.:
 ```
 **Und es hilft beim Aussortieren:** Heißt ein Artikel „Adidas Jacke 90er“, das Foto zeigt aber nur einen Aufnäher, einen Schuhkarton oder ein Buch, wird er nicht gemeldet. Ein Katalogfoto bei einer oft gefälschten Marke ist ein Warnzeichen für die Fake-Ampel. Die Tags gehen außerdem an den Claude-Bildcheck.
 
+### 🎯 Was das Bildmodell an deinen Meldungen ändert
+
+| | sofort (Tags) | nach `/sammeln` + Training |
+|---|---|---|
+| 😎 **Cooler Look** (z. B. 90er + Sportswear, Vintage + Leder + Fellkragen) | braucht **10 Punkte weniger Rabatt** (z. B. 30 % statt 40 %) | |
+| 😍 **Passt zu deinem Geschmack** (aus deinen 👍/👎) | | 10 Punkte weniger Rabatt – und 10 Punkte **mehr**, wenn es gar nicht dein Ding ist |
+| 🔥 **Sieht begehrt aus** (bekommt schnell Favoriten) | | 5 Punkte weniger Rabatt |
+| 💶 **Wert aus dem Foto** | | findet Teile, die die Faustregel unterschätzt (nur, wenn das Modell nachweislich genauer ist) |
+| 🗂 **Kategorie aus dem Foto**, wenn der Titel sie nicht verrät („Adidas Firebird“) | richtige Preisschätzung, Schuhe/Kategorien-Filter greifen | |
+| 🧹 Foto zeigt nur Aufnäher/Karton/Buch | wird aussortiert | |
+| 🛡 Katalogfoto bei oft gefälschter Marke | Warnzeichen für die Fake-Ampel | eigenes Fake-Modell kommt dazu |
+
+Zusammen höchstens 15 Punkte weniger Rabatt und nie unter 25 % – der **Gewinn** muss trotzdem stimmen. In der Meldung steht, warum ein Teil durchkam, z. B. `😎 Foto-Look: 90er · Sportswear · Ärmelstreifen → dafür reichen 30 % statt 40 % Rabatt`. Coole Teile, die knapp scheitern, bekommen außerdem den KI-Zweitblick (wenn der Claude-Check an ist).
+
 ### 🧠 Eigenes Training
 
 1. **Sammeln:** Von jedem Artikel macht das Mode-Bildmodell einen „Bild-Fingerabdruck“ (768 Zahlen). Der wird mit Marke, Kategorie, Zustand, Preis und Favoriten in `ki_daten_fashion.db` gespeichert – die Fotos selbst nicht, ca. 4 KB pro Artikel. Nach ein paar Wochen sind das Hunderttausende Bilder.

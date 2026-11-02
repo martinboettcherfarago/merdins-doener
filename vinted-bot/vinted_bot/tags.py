@@ -126,3 +126,34 @@ SHOWN_GROUPS = ("kategorie", "material", "farbe", "muster", "jahrzehnt", "stil",
 
 def count_tags() -> int:
     return sum(len(v) for v in TAG_GROUPS.values())
+
+
+# Wie stark ein erkanntes Merkmal für "cool & gefragt" (Resale-Sicht) spricht – negativ = eher langweilig.
+COOL_WEIGHTS: dict[tuple[str, str], float] = {
+    ("jahrzehnt", "70er"): 1.0, ("jahrzehnt", "80er"): 1.0, ("jahrzehnt", "90er"): 1.0,
+    ("jahrzehnt", "Y2K/2000er"): 0.9, ("jahrzehnt", "aktuell"): -0.4,
+    ("stil", "Vintage"): 0.6, ("stil", "Sportswear"): 0.5, ("stil", "Gorpcore"): 0.5, ("stil", "Workwear"): 0.5,
+    ("stil", "Y2K"): 0.5, ("stil", "Grunge"): 0.4, ("stil", "Skater"): 0.4, ("stil", "Streetwear"): 0.3,
+    ("stil", "Techwear"): 0.3, ("stil", "Luxus"): 0.3, ("stil", "Preppy"): 0.2, ("stil", "Boho"): 0.1,
+    ("stil", "Basic"): -0.5, ("stil", "Business"): -0.4,
+    ("details", "Fellkragen"): 0.4, ("details", "Ärmelstreifen"): 0.4, ("details", "Logo-Stickerei"): 0.3,
+    ("details", "Badge/Patch"): 0.3, ("details", "Cargotaschen"): 0.2, ("details", "oversized"): 0.1,
+    ("muster", "Colorblock"): 0.4, ("muster", "großes Logo"): 0.3, ("muster", "Camouflage"): 0.3,
+    ("muster", "Leopard"): 0.3, ("muster", "Batik"): 0.2, ("muster", "kariert"): 0.2, ("muster", "uni"): -0.1,
+    ("material", "Leder"): 0.3, ("material", "Wildleder"): 0.3, ("material", "Kunstfell"): 0.3,
+    ("material", "Cord"): 0.3, ("material", "Nylon"): 0.2, ("material", "Denim"): 0.2, ("material", "Samt"): 0.2,
+    ("material", "Satin/Seide"): 0.2, ("material", "gesteppt"): 0.1,
+    ("foto", "unscharf/dunkel"): -0.3,
+}
+COOL_THRESHOLD = 0.6   # ab hier gilt der Look als "cool" (z. B. 90er + Sportswear oder Vintage + Leder + Fellkragen)
+
+
+def cool_score(tags: list) -> tuple[float, list[str]]:
+    """Cool-Faktor 0–1 aus den Foto-Tags + die Merkmale, die dafür sprechen (stärkste zuerst)."""
+    total, good = 0.0, []
+    for t in tags:
+        w = COOL_WEIGHTS.get((t.group, t.label), 0.0)
+        total += w * t.prob
+        if w > 0:
+            good.append((w * t.prob, t.label))
+    return max(0.0, min(1.0, total)), [label for _, label in sorted(good, reverse=True)]

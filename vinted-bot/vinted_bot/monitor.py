@@ -278,6 +278,16 @@ class Monitor:
         rare = rarity(item)
         trend = trend_match(item.title)
         est = estimate_item(item, ptype)
+        use_brain = extra is None and self.brain is not None and self.brain.enabled and kind == "new"
+        view = None
+        if use_brain and ptype == "sonstiges":
+            # Titel verrät die Kategorie nicht ("Adidas Firebird", "Carhartt Detroit") -> das Foto fragen.
+            # So greifen auch Größen-/Kategorie-Filter (z. B. Schuhe ausgeblendet) und die Preisschätzung.
+            view = self.brain.assess(item, ptype, est)
+            seen = view.tag("kategorie", 0.6) if view is not None else None
+            if seen is not None and seen.ptype and seen.ptype not in JUNK_TYPES | MEDIA_TYPES:
+                ptype = seen.ptype
+                est = estimate_item(item, ptype)
         brand_votes = type_votes = 0
         if search.is_resale:
             f = self.global_filters()
@@ -314,9 +324,9 @@ class Monitor:
         score = score_item(item, ref, self.cfg.top_deal_score, now, resale=search.is_resale,
                            shipping=self.cfg.shipping_estimate, rare=rare, pref_pts=pref_pts, est=est,
                            trend=trend)
-        view = None
-        if extra is None and self.brain is not None and self.brain.enabled and kind == "new":
-            view = self.brain.assess(item, ptype, est)
+        if use_brain:
+            if view is None:
+                view = self.brain.assess(item, ptype, est)
             if view is not None:
                 # Das Mode-Bildmodell erkennt Kleinkram auch dann, wenn der Titel nichts verrät
                 seen = view.tag("kategorie", 0.6)
@@ -350,14 +360,54 @@ class Monitor:
                                     model_fake=view.fake if view is not None else None)
             if ampel.level == "rot" and self.ampel_mode() == "streng" and not self._ai_can_check():
                 return None, f"Fake-Ampel rot ({ampel.risk:.0%}: {'; '.join(ampel.reasons[:2])})"
-        ok, why = meets_targets(search, score)
+        ok, why = self._meets_targets_with_model(search, score, view, rare)
         if not ok:
             if extra is None and (ampel is None or ampel.level == "grün"):
-                self._maybe_second_look(search, item, score, why, rare, trend, ptype, kind)
+                self._maybe_second_look(search, item, score, why, rare, trend, ptype, kind,
+                                        photo_cool=view is not None and view.is_cool)
             return None, why
         return Alert(item=item, search_name=search.name, score=score, buy_url=item.buy_url(self.cfg.web_base),
                      kind=kind, old_price=old_price, resale=search.is_resale, ptype=ptype, brain=view,
                      ampel=ampel, offers=suggest_offers(item.price, self.cfg.offer_discounts)), ""
+
+    def _meets_targets_with_model(self, search: SearchConfig, score: Any, view: Any, rare: Any) -> tuple[bool, str]:
+        """Ziele der Suche – mit Bildmodell etwas lockerer für coole/passende Teile, strenger für unpassende.
+
+        Cooler Foto-Look (90er, Sportswear, Fellkragen …), "passt zu deinem Geschmack" und "sieht begehrt aus"
+        senken den nötigen Rabatt (zusammen um höchstens 15 Punkte, nie unter 25 %). Was laut Geschmacks-Modell
+        gar nicht zu dir passt, braucht 10 Punkte mehr Rabatt."""
+        relax, notes = 0.0, []
+        if view is not None and search.is_resale and search.min_discount is not None:
+            if view.is_cool and not rare.level:
+                relax += 10
+                notes.append(f"😎 Foto-Look: {' · '.join(view.cool_bits[:3])}")
+            if view.taste is not None and view.taste >= 0.7:
+                relax += 10
+                notes.append(f"😍 passt zu deinem Geschmack ({view.taste:.0%})")
+            elif view.taste is not None and view.taste <= 0.25:
+                relax -= 10
+            if view.popular is not None and view.popular_trusted and view.popular >= 0.75:
+                relax += 5
+                notes.append(f"🔥 sieht begehrt aus ({view.popular:.0%})")
+            relax = max(-10.0, min(15.0, relax))
+        if not relax:
+            ok, why = meets_targets(search, score)
+            if ok and notes:
+                score.reasons.insert(0, " · ".join(notes))
+            return ok, why
+        needed = search.min_discount - relax
+        adjusted = replace(search, min_discount=max(25.0, needed) if relax > 0 else needed,
+                           min_cheaper_than=None if search.min_cheaper_than is None
+                           else max(50.0, min(99.0, search.min_cheaper_than - relax)))
+        ok, why = meets_targets(adjusted, score)
+        plain_ok = meets_targets(search, score)[0]
+        if ok and notes:
+            hint = (f" → dafür reichen {adjusted.min_discount:.0f} % statt {search.min_discount:.0f} % Rabatt"
+                     if not plain_ok else "")
+            score.reasons.insert(0, " · ".join(notes) + hint)
+        elif not ok and plain_ok:
+            why = f"passt laut Geschmacks-Modell eher nicht zu dir ({view.taste:.0%}) – bräuchte mehr Rabatt"
+        return ok, why
 
     def ampel_mode(self) -> str:
         """streng / warnen / aus – per /ampel änderbar, sonst aus der config."""
@@ -519,7 +569,7 @@ class Monitor:
             self._send(alert)
 
     def _maybe_second_look(self, search: SearchConfig, item: Item, score: Any, why: str, rare: Any,
-                           trend: Optional[str], ptype: str, kind: str) -> None:
+                           trend: Optional[str], ptype: str, kind: str, photo_cool: bool = False) -> None:
         """Knapp verpasste Retro-/Trend-Teile der KI zeigen – Faustregeln unterschätzen solche Teile oft."""
         r = self.reviewer
         if (r is None or not self.cfg.ai_second_look or kind != "new" or not search.is_resale
@@ -527,7 +577,7 @@ class Monitor:
             return
         if not why.startswith(("Rabatt zu klein", "Gewinn zu klein", "nicht günstig genug")):
             return
-        if not (rare.level or trend or is_retro(item.title)) or (score.discount or 0) < 0.15:
+        if not (rare.level or trend or is_retro(item.title) or photo_cool) or (score.discount or 0) < 0.15:
             return
         if self.storage.get_state(f"sl:{item.id}"):
             return

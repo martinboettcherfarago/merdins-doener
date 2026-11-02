@@ -84,7 +84,7 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
                      f"(Weiterverkauf zum Marktpreis, nach Käuferschutz & Versand)")
     if alert.resale and it.created_ts:
         lines.append(f"⚡ {age_text(it.created_ts, now)} hochgeladen")
-    lines += [r if r.startswith(("💎", "👍", "👎", "🔥", "⚠️")) else f"📊 {r}" for r in alert.score.reasons]
+    lines += [r if r.startswith(("💎", "👍", "👎", "🔥", "⚠️", "😎", "😍")) else f"📊 {r}" for r in alert.score.reasons]
     if alert.score.confidence == "niedrig":
         lines.append("❔ Schätzung unsicher (unbekannte Marke/Kategorie) – Preis kurz selbst prüfen")
     meta = " · ".join(x for x in (it.brand, f"Gr. {it.size}" if it.size else "", it.condition) if x)
