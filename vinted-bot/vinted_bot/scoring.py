@@ -14,7 +14,7 @@ from .catalog import Estimate, product_type  # noqa: F401  (product_type wird vo
 from .config import SearchConfig
 from .knowledge import TREND_POINTS, TREND_PREMIUM, Rarity
 from .models import Item
-from .text import normalize  # noqa: F401
+from .text import normalize, rx  # noqa: F401
 
 # Zustand -> Punkte (max. 20). Längere Schlüssel zuerst, damit "sehr gut" nicht als "gut" zählt.
 CONDITION_POINTS = [
@@ -77,7 +77,7 @@ class DealScore:
 
 
 def _contains_word(text: str, word: str) -> bool:
-    return re.search(rf"(?<!\w){re.escape(word.lower())}(?!\w)", text) is not None
+    return rx(rf"(?<!\w){re.escape(word.lower())}(?!\w)").search(text) is not None
 
 
 def brand_matches(item: Item, brands: Iterable[str]) -> bool:
@@ -104,6 +104,7 @@ def brand_matches(item: Item, brands: Iterable[str]) -> bool:
 
 
 _NEGATIONS = r"(?:kein|keine|keinen|keiner|nicht|ohne|no|not|non|null|0)"
+_NEGATED = re.compile(rf"(?<!\w){_NEGATIONS}\W+(?:\w+\W+)?$")
 _WANTED_AD = re.compile(r"^\s*(?:ich\s+)?(?:suche|gesucht|wtb|looking for)\b|\bsuche\s+(?:nach|dringend)\b")
 _SWAP_ONLY = re.compile(r"\bnur\s+(?:zum\s+)?tausch|\btausch(?:e)?\s+gegen\b|\bzum\s+tausch\b|\bnur\s+tauschen\b")
 
@@ -117,9 +118,9 @@ def excluded_by(title: str, word: str) -> bool:
         return _WANTED_AD.search(title) is not None        # nur echte Suchanzeigen
     if w in ("tausch", "nur tausch"):
         return _SWAP_ONLY.search(title) is not None         # nur reine Tausch-Angebote
-    for m in re.finditer(rf"(?<!\w){re.escape(w)}(?!\w)", title):
+    for m in rx(rf"(?<!\w){re.escape(w)}(?!\w)").finditer(title):
         before = title[max(0, m.start() - 20):m.start()]
-        if not re.search(rf"(?<!\w){_NEGATIONS}\W+(?:\w+\W+)?$", before):
+        if not _NEGATED.search(before):
             return True                                      # nicht verneint -> ausschließen
     return False
 

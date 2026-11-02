@@ -18,7 +18,7 @@ from typing import Any, Iterable, Optional
 
 from .knowledge import brand_key
 from .models import Item
-from .text import normalize
+from .text import normalize, rx
 
 # Marke -> (wie oft gefälscht 0..1, Kategorien mit den meisten Fakes – andere zählen weniger)
 FAKE_PRONE: dict[str, tuple[float, Optional[tuple[str, ...]]]] = {
@@ -148,7 +148,7 @@ def brand_risk(brand: str, ptype: str, tier: Optional[str] = None, title: str = 
     model = ""
     low = f" {title.lower()} "
     for pattern, label in HOT_MODELS:
-        if re.search(pattern, low):
+        if rx(pattern).search(low):
             model = label
             weight = min(1.0, max(weight * 1.2, 0.3))
             break
@@ -174,7 +174,7 @@ def check(item: Item, brand: str = "", ptype: str = "", discount: Optional[float
 
     # 1) Verräter-Wörter (gelten für jede Marke)
     for pattern, p, why in TEXT_SIGNALS:
-        if re.search(pattern, low):
+        if rx(pattern).search(low):
             # "Top Qualität" & Co. nur bei Marken verdächtig, die gefälscht werden
             p = p if p >= 0.5 else p * min(1.0, weight * 2)
             if p >= 0.05:

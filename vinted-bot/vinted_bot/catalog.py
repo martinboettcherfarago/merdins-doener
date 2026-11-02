@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
 
-from .text import keyword_in, keyword_pattern, normalize
+from .text import keyword_in, keyword_pattern, normalize, rx
 
 
 @dataclass(frozen=True)
@@ -210,6 +210,7 @@ _FOR_PHRASE = re.compile(r"\b(?:für|fuer|for|zum|zu|über|ueber|about|passend)\
 _WITH_PHRASE = re.compile(r"\b(?:mit|inkl|inklusive|incl|with|plus|samt)\b")
 
 
+@lru_cache(maxsize=8192)
 def product_type(title: str) -> str:
     t = _CONDITION_PHRASES.sub(" ", (title or "").lower())
     junk: Optional[str] = None
@@ -221,7 +222,7 @@ def product_type(title: str) -> str:
         if ptype in _JUNK_KEYS:
             junk = junk or ptype
             for w in hits:  # Kleinkram-Wörter entfernen ("Schuhkarton" ist kein Schuh) und weitersuchen
-                rest = re.sub(keyword_pattern(w), " ", rest)
+                rest = rx(keyword_pattern(w)).sub(" ", rest)
             continue
         if junk is None:
             return ptype
@@ -365,20 +366,24 @@ def brand_info(brand: str) -> Optional[tuple[str, str]]:
     return best
 
 
-def detect_brand(text: str) -> Optional[str]:
-    """Marke im Titel finden ('vintage carhartt detroit jacke' -> 'Carhartt')."""
-    t = f" {(text or '').lower()} "
+@lru_cache(maxsize=1)
+def _brand_needles() -> list[tuple[str, str, "re.Pattern[str]"]]:
+    """(Suchwort, Markenname, Muster) – einmal vorbereitet, längste zuerst."""
     brands, aliases = _brand_db()
-    candidates: list[tuple[str, str]] = [(alias, name) for alias, name in aliases.items()]
+    candidates = [(alias, name) for alias, name in aliases.items()]
     candidates += [(name.lower(), name) for name, _tier in brands.values()]
-    best: Optional[tuple[str, str]] = None
-    for needle, name in candidates:
-        if normalize(needle) in _AMBIGUOUS or len(normalize(needle)) < 3:
-            continue
-        if re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", t):
-            if best is None or len(needle) > len(best[0]):
-                best = (needle, name)
-    return best[1] if best else None
+    out = [(needle, name, re.compile(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])"))
+           for needle, name in candidates if normalize(needle) not in _AMBIGUOUS and len(normalize(needle)) >= 3]
+    return sorted(out, key=lambda x: -len(x[0]))
+
+
+def detect_brand(text: str) -> Optional[str]:
+    """Marke im Titel finden ('vintage carhartt detroit jacke' -> 'Carhartt'): die längste passende."""
+    t = f" {(text or '').lower()} "
+    for needle, name, pattern in _brand_needles():
+        if needle in t and pattern.search(t):  # schneller Vortest, dann genau prüfen
+            return name
+    return None
 
 
 _RETRO = re.compile(r"\b(?:vintage|retro|old ?school|y2k|single stitch|made in|(?:19)?[6-9]0'?s|[6-9]0er|"

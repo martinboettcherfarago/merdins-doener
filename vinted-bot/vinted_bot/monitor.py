@@ -62,7 +62,8 @@ class Monitor:
         self.scheduler = Scheduler()
         self.scheduler_settings: Optional[dict[str, float]] = None   # Tests: schnellere Takte
         self._last_report = time.monotonic()
-        self._brand_cache: tuple[float, set[str]] = (0.0, set())
+        self._brand_cache: tuple[int, set[str]] = (-1, set())
+        self._watch_cache: tuple[int, list[Any]] = (-1, [])
 
     def _pause_example_searches(self) -> list[str]:
         """Die Beispiel-Suchen der alten Vorlage ("Air Max 90", "Carhartt Jacken") melden alles mögliche ohne
@@ -171,11 +172,11 @@ class Monitor:
 
     def watched_brands(self) -> set[str]:
         """Marken deiner Schnäppchen-Suchen (Trend-Liste + eigene), kurz zwischengespeichert."""
-        ts, keys = self._brand_cache
-        if time.monotonic() - ts < 30:
+        version, keys = self._brand_cache
+        if version == self.storage.version:
             return keys
         keys = {brand_key(b) for s in self.active_searches() if s.is_resale for b in s.brands} - {""}
-        self._brand_cache = (time.monotonic(), keys)
+        self._brand_cache = (self.storage.version, keys)
         return keys
 
     def _wanted_brand(self, est: Any) -> bool:
@@ -188,22 +189,33 @@ class Monitor:
         haystack = normalize(f"{item.title} {item.brand}")
         brand = brand_key(est.brand or item.brand)
         best, best_rank = None, -1
-        for w in self.active_searches():
-            if not w.is_resale or w.sweep:
-                continue
-            if all(getattr(w, k) is None for k in RESALE_TARGET_KEYS) and not w.exclude_words and not w.sizes:
-                continue  # nichts Besonderes eingestellt -> Stufe gilt sowieso
-            keys = {brand_key(b) for b in w.brands} - {""}
+        for w, keys, words in self._special_watches():
             if keys and brand not in keys:
                 continue
-            words = [normalize(x) for x in (w.keywords or "").split()]
-            words = [x for x in words if x and x not in keys and not any(x in k for k in keys)]
             if not all(x in haystack for x in words):
                 continue
             rank = len(words) + (1 if keys else 0)
             if rank > best_rank:
                 best, best_rank = w, rank
         return best
+
+    def _special_watches(self) -> list[tuple[SearchConfig, set[str], list[str]]]:
+        """Schnäppchen-Suchen mit eigenen Einstellungen, vorbereitet (Marken-Schlüssel, Suchwörter) – gemerkt,
+        bis sich etwas ändert."""
+        version, cached = self._watch_cache
+        if version == self.storage.version:
+            return cached
+        out = []
+        for w in self.active_searches():
+            if not w.is_resale or w.sweep:
+                continue
+            if all(getattr(w, k) is None for k in RESALE_TARGET_KEYS) and not w.exclude_words and not w.sizes:
+                continue  # nichts Besonderes eingestellt -> Stufe gilt sowieso
+            keys = {brand_key(b) for b in w.brands} - {""}
+            words = [normalize(x) for x in (w.keywords or "").split()]
+            out.append((w, keys, [x for x in words if x and x not in keys and not any(x in k for k in keys)]))
+        self._watch_cache = (self.storage.version, out)
+        return out
 
     def _sniper_rules(self, search: SearchConfig, item: Item, est: Any) -> tuple[SearchConfig, str]:
         w = self.matching_watch(item, est)

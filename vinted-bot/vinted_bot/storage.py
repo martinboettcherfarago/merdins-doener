@@ -50,6 +50,9 @@ class Storage:
     def __init__(self, path: str):
         self._lock = threading.Lock()
         self._db = sqlite3.connect(path, check_same_thread=False)
+        # WAL + NORMAL: Schreiben ohne auf die Festplatte zu warten (sicher bei Absturz des Bots, ~50× schneller)
+        self._db.execute("PRAGMA journal_mode=WAL")
+        self._db.execute("PRAGMA synchronous=NORMAL")
         self._db.executescript(SCHEMA)
         # ältere Datenbanken: Spalte für die Vergleichsgruppe nachrüsten
         cols = {r[1] for r in self._db.execute("PRAGMA table_info(prices)")}
@@ -57,6 +60,14 @@ class Storage:
             self._db.execute("ALTER TABLE prices ADD COLUMN grp TEXT NOT NULL DEFAULT ''")
         self._db.execute("CREATE INDEX IF NOT EXISTS prices_grp ON prices (grp, ts)")
         self._db.commit()
+        self._load_caches()
+
+    def _load_caches(self) -> None:
+        """Zustand und Telegram-Suchen im Speicher halten – sie werden ständig gelesen, aber selten geändert."""
+        self.version = getattr(self, "version", 0) + 1   # steigt bei jeder Änderung (für Zwischenspeicher)
+        self._state = dict(self._db.execute("SELECT key, value FROM state").fetchall())
+        rows = self._db.execute("SELECT data FROM searches ORDER BY rowid").fetchall()
+        self._searches = [json.loads(r[0]) for r in rows]
 
     def close(self) -> None:
         with self._lock:
@@ -111,6 +122,7 @@ class Storage:
                 self._db.execute(f"DELETE FROM {table} WHERE search=?", (search,))
             self._db.execute("DELETE FROM state WHERE key IN (?, ?)", (f"seeded:{search}", f"disabled:{search}"))
             self._db.commit()
+            self._load_caches()
 
     def cleanup(self, days: int = 30) -> None:
         cutoff = time.time() - days * 86400
@@ -141,41 +153,41 @@ class Storage:
 
     def custom_searches(self) -> list[SearchConfig]:
         with self._lock:
-            rows = self._db.execute("SELECT data FROM searches ORDER BY rowid").fetchall()
-        return [SearchConfig.from_dict(json.loads(r[0]), source="telegram") for r in rows]
+            data = list(self._searches)
+        return [SearchConfig.from_dict(d, source="telegram") for d in data]
 
     def add_search(self, search: SearchConfig) -> None:
         with self._lock:
             self._db.execute("INSERT OR REPLACE INTO searches (name, data) VALUES (?, ?)",
                              (search.name, json.dumps(search.to_dict())))
             self._db.commit()
+            self._load_caches()
 
     def delete_search(self, name: str) -> bool:
         with self._lock:
             cur = self._db.execute("DELETE FROM searches WHERE name=?", (name,))
             self._db.commit()
+            self._load_caches()
             return cur.rowcount > 0
 
     # -- Zustand -------------------------------------------------------------------
 
     def get_state(self, key: str, default: Optional[str] = None) -> Optional[str]:
-        with self._lock:
-            row = self._db.execute("SELECT value FROM state WHERE key=?", (key,)).fetchone()
-        return row[0] if row else default
+        return self._state.get(key, default)
 
     def set_state(self, key: str, value: str) -> None:
         with self._lock:
             self._db.execute("INSERT OR REPLACE INTO state (key, value) VALUES (?, ?)", (key, value))
             self._db.commit()
+            self._state[key] = value
+            self.version += 1
 
     def delete_state(self, key: str) -> None:
         with self._lock:
             self._db.execute("DELETE FROM state WHERE key=?", (key,))
             self._db.commit()
-
-    def was_alerted(self, item_id: int) -> bool:
-        with self._lock:
-            return self._db.execute("SELECT 1 FROM alerted WHERE item_id=?", (item_id,)).fetchone() is not None
+            self._state.pop(key, None)
+            self.version += 1
 
     def claim_alert(self, item_id: int) -> bool:
         """Atomar: True nur für den ersten Sucher, der diesen Artikel melden will."""
@@ -191,10 +203,7 @@ class Storage:
             self._db.commit()
 
     def state_keys(self, prefix: str) -> list[str]:
-        with self._lock:
-            rows = self._db.execute("SELECT key FROM state WHERE substr(key, 1, ?) = ?",
-                                    (len(prefix), prefix)).fetchall()
-        return [r[0] for r in rows]
+        return [k for k in list(self._state) if k.startswith(prefix)]
 
     def rename_search(self, old: str, new: str) -> None:
         """Suche umbenennen – samt gelernten Preisen, gesehenen Artikeln und Zustand."""
@@ -211,6 +220,7 @@ class Storage:
             for prefix in ("seeded:", "disabled:"):
                 self._db.execute("UPDATE OR IGNORE state SET key=? WHERE key=?", (prefix + new, prefix + old))
             self._db.commit()
+            self._load_caches()
 
     def get_json(self, key: str, default: Any = None) -> Any:
         raw = self.get_state(key)

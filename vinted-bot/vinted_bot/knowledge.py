@@ -17,7 +17,7 @@ from typing import Iterable, Optional
 from .catalog import NO_BRAND, Estimate, brand_info, estimate, product_type, title_brand
 from .catalog import resolve_type as _resolve_type
 from .models import Item
-from .text import normalize
+from .text import normalize, rx
 
 resolve_type = _resolve_type  # für ältere Importe
 
@@ -98,6 +98,7 @@ def _norm(text: str) -> str:
     return normalize(text)
 
 
+@lru_cache(maxsize=8192)
 def brand_key(brand: str) -> str:
     """'Carhartt WIP' -> 'carhartt', 'Polo Ralph Lauren' -> 'ralphlauren' (Schlüssel für Wissen & Vorlieben)."""
     b = _norm(brand)
@@ -122,7 +123,7 @@ def rarity(item: Item) -> Rarity:
     tags: list[str] = []
     points = 0
     for pattern, label, pts in RARE_SIGNALS:
-        m = re.search(pattern, title)
+        m = rx(pattern).search(title)
         if m and label not in tags:
             if label == "Made in …":  # "made in usa" -> "Made in USA"
                 country = m.group(0).split(" ", 2)[-1]
@@ -130,7 +131,7 @@ def rarity(item: Item) -> Rarity:
             tags.append(label)
             points += pts
     for grail in BRAND_GRAILS.get(brand_key(item_brand(item)), []):
-        if re.search(rf"(?<![a-z0-9]){re.escape(grail)}(?![a-z0-9])", title):
+        if rx(rf"(?<![a-z0-9]){re.escape(grail)}(?![a-z0-9])").search(title):
             label = grail.title() if len(grail) > 3 else grail.upper()
             if _norm(label) not in {_norm(t) for t in tags}:  # "Made in USA" nicht doppelt anzeigen
                 tags.append(label)
@@ -186,7 +187,7 @@ def trend_match(title: str) -> Optional[str]:
     t = (title or "").lower()
     for generic in (False, True):
         for pattern, label in TREND_MODELS:
-            if (label in _GENERIC_TRENDS) == generic and re.search(pattern, t):
+            if (label in _GENERIC_TRENDS) == generic and rx(pattern).search(t):
                 return label
     return None
 
