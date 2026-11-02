@@ -196,9 +196,9 @@ class VintedClient:
 
     # -- Suche -----------------------------------------------------------------
 
-    def search(self, query: SearchQuery, per_page: int = 48) -> list[Item]:
+    def search(self, query: SearchQuery, per_page: int = 48, page: int = 1) -> list[Item]:
         """Neueste Artikel zur Suche (neueste zuerst)."""
-        data = self._get_catalog(query, per_page)
+        data = self._get_catalog(query, per_page, page)
         items = []
         for raw in data.get("items") or []:
             if not isinstance(raw, dict):
@@ -208,13 +208,13 @@ class VintedClient:
                 items.append(item)
         return items
 
-    def _get_catalog(self, query: SearchQuery, per_page: int) -> dict:
+    def _get_catalog(self, query: SearchQuery, per_page: int, page: int = 1) -> dict:
         last_error: Optional[Exception] = None
         for attempt in range(3):
             if self._mode == "legacy":
-                url, params = f"{self.web_base}/api/v2/catalog/items", query.legacy_params(per_page)
+                url, params = f"{self.web_base}/api/v2/catalog/items", query.legacy_params(per_page, page)
             else:
-                url, params = f"{self.edge_base}/svc-catalogue/items", query.edge_params(per_page)
+                url, params = f"{self.edge_base}/svc-catalogue/items", query.edge_params(per_page, page)
             try:
                 if self._session is None:
                     self._session = self._new_session()

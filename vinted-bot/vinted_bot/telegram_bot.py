@@ -35,6 +35,11 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b>
 /stufe streng – nur die allergünstigsten (auch: normal, locker)
 /wert <i>Artikel oder Link</i> – Wert schätzen, z. B. <code>/wert carhartt detroit jacke vintage</code>
 
+<b>🧠 Eigenes Modell (lernt aus Tausenden Vinted-Fotos)</b>
+/modell – Datensatz, Trainingsstand, wie gut es ist
+/sammeln – Sammel-Turbo: Tausende Bilder auf einmal, dann trainieren
+/trainieren – jetzt neu trainieren · /fake &lt;Link&gt; · /echt &lt;Link&gt;
+
 <b>🤖 KI-Bildcheck</b>
 /ki an · /ki aus – Fotos jedes Treffers prüfen (Echtheit, Look, Trend, Wert, Urteil)
 /pruefen <i>Vinted-Link</i> – einen beliebigen Artikel prüfen lassen
@@ -249,6 +254,8 @@ class TelegramController(threading.Thread):
             "/radar": self.cmd_radar,
             "/ki": self.cmd_ai, "/ai": self.cmd_ai, "/pruefen": self.cmd_check, "/prüfen": self.cmd_check,
             "/check": self.cmd_check,
+            "/modell": self.cmd_model, "/model": self.cmd_model, "/trainieren": self.cmd_train,
+            "/sammeln": self.cmd_collect, "/fake": self.cmd_mark_fake, "/echt": self.cmd_mark_real,
             "/suchen": self.cmd_list, "/liste": self.cmd_list, "/list": self.cmd_list,
             "/loeschen": self.cmd_delete, "/löschen": self.cmd_delete, "/delete": self.cmd_delete,
             "/pause": self.cmd_pause, "/weiter": self.cmd_resume, "/resume": self.cmd_resume,
@@ -770,6 +777,85 @@ class TelegramController(threading.Thread):
         self.reply("\n".join(html.escape(line) for line in verdict.lines())
                    + "\n\n<i>Hinweis: Eine KI kann Echtheit nur anhand sichtbarer Merkmale einschätzen – "
                    "bei teuren Teilen lieber Fotos von Etiketten anfordern.</i>")
+
+    # -- Eigenes Modell -----------------------------------------------------------------
+
+    def _brain_or_hint(self) -> Any:
+        b = self.monitor.brain
+        if b is None or not b.embedder.installed():
+            self.reply("🧠 Das eigene Modell ist noch nicht installiert.\n"
+                       "Windows: Bot stoppen, <b>ki-installieren.bat</b> doppelklicken (einmalig ca. 300 MB), "
+                       "dann start.bat. Mac/Linux: <code>./ki-installieren.sh</code>.")
+            return None
+        if b.embedder.error:
+            self.reply(f"🧠 Das eigene Modell hat ein Problem: {html.escape(b.embedder.error)}")
+            return None
+        return b
+
+    def cmd_model(self, _arg: str = "") -> None:
+        b = self._brain_or_hint()
+        if b is None:
+            return
+        st = b.status()
+        last = st["last_train"]
+        when = (f"vor {int((time.time() - last) // 3600)} Std." if last else "noch nie")
+        lines = [f"🧠 <b>Eigenes Modell</b> {'(' + st['busy'] + ' …)' if st['busy'] else ''}",
+                 f"📸 Datensatz: <b>{st['samples']:,} Bilder</b>".replace(",", ".")
+                 + f" (heute {st['today']}, in Arbeit {st['queue']})",
+                 f"🏋️ Zuletzt trainiert: {when} (automatisch alle {self.monitor.cfg.ml_train_every_hours:g} Std.)"]
+        if st["value_mape"] is not None:
+            lines.append(f"💶 Wert-Modell: Ø {st['value_mape']:.0%} Abweichung"
+                         + (f" (Faustregel {st['heur_mape']:.0%})" if st["heur_mape"] is not None else "")
+                         + (" – wird genutzt ✅" if st["value_trusted"] else " – lernt noch"))
+        if st["pop_auc"] is not None:
+            lines.append(f"🔥 Begehrt-Modell: Trefferqualität {st['pop_auc']:.0%}")
+        lines.append(f"❤️ Geschmack: {st['likes']} Bewertungen"
+                     + (f" · Trefferqualität {st['taste_auc']:.0%}" if st["taste_auc"] else ""))
+        lines.append(f"🔍 Fake-Modell: {st['fakes']} Beispiele"
+                     + (f" · Trefferqualität {st['fake_auc']:.0%}" if st["fake_auc"] else " (noch inaktiv)"))
+        lines.append("\n<code>/sammeln</code> – Tausende Bilder auf einmal sammeln und trainieren\n"
+                     "<code>/trainieren</code> – jetzt neu trainieren\n"
+                     "<code>/fake &lt;Link&gt;</code> · <code>/echt &lt;Link&gt;</code> – dem Fake-Modell etwas beibringen")
+        self.reply("\n".join(lines))
+
+    def cmd_train(self, _arg: str = "") -> None:
+        b = self._brain_or_hint()
+        if b is None:
+            return
+        b.request_training()
+        self.reply("🏋️ Training gestartet – das Ergebnis schicke ich dir gleich.")
+
+    def cmd_collect(self, arg: str) -> None:
+        b = self._brain_or_hint()
+        if b is None:
+            return
+        pages = int(arg) if arg.strip().isdigit() else 3
+        pages = max(1, min(10, pages))
+        n = len([s for s in self.monitor.active_searches() if s.is_resale])
+        self.reply(f"🧲 Sammel-Turbo gestartet: {n} Suchen × bis zu {pages} Seiten à 96 Artikel "
+                   f"(bis zu {n * pages * 96:,} Bilder). Die normale Suche läuft weiter. ".replace(",", ".")
+                   + "Danach wird automatisch trainiert – ich melde mich.")
+        threading.Thread(target=self.monitor.bootstrap, kwargs={"pages": pages, "done": self.reply},
+                         name="KI-Sammeln", daemon=True).start()
+
+    def _label(self, arg: str, fake: bool) -> None:
+        b = self._brain_or_hint()
+        if b is None:
+            return
+        m = re.search(r"/items/(\d+)", arg)
+        if not m:
+            self.reply(f"Schick mir einen Vinted-Link: <code>/{'fake' if fake else 'echt'} https://www.vinted.de/items/…</code>")
+            return
+        if b.label_fake(int(m.group(1)), fake):
+            self.reply(f"✅ Gemerkt: {'Fake' if fake else 'echt'}. Das Fake-Modell lernt beim nächsten Training daraus.")
+        else:
+            self.reply("Diesen Artikel hat der Bot noch nicht gesehen – ich kann nur Artikel aus dem Datensatz markieren.")
+
+    def cmd_mark_fake(self, arg: str) -> None:
+        self._label(arg, True)
+
+    def cmd_mark_real(self, arg: str) -> None:
+        self._label(arg, False)
 
     def cmd_radar(self, arg: str) -> None:
         """Alles-Radar: neueste Uploads auf ganz Vinted (optional in einer Kategorie per Link)."""

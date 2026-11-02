@@ -61,6 +61,7 @@ def cmd_run(cfg: Config) -> int:
     storage = Storage(cfg.database)
     monitor = Monitor(cfg, VintedClient(cfg.domain, proxy=cfg.proxy), storage, notifier)
     monitor.reviewer = build_reviewer(cfg, storage, monitor)
+    monitor.brain = build_brain(cfg, notifier)
 
     controller = None
     if cfg.telegram_token:
@@ -102,6 +103,11 @@ def cmd_run(cfg: Config) -> int:
     names += (f"\n⚡ {workers} im Wechsel (alle {cfg.request_gap_seconds:g} s eine Anfrage)"
               + (f"\n🤖 KI-Bildcheck: an ({cfg.ai_model}, max. {cfg.ai_max_checks_per_day}/Tag)" if ai_on
                  else "\n🤖 KI-Bildcheck: aus (/ki)"))
+    b = monitor.brain
+    if b is not None and b.enabled:
+        names += f"\n🧠 Eigenes Modell: an · {b.data.count():,} Bilder im Datensatz (/modell)".replace(",", ".")
+    elif b is not None:
+        names += "\n🧠 Eigenes Modell: nicht installiert (ki-installieren.bat)"
     log.info("Vinted-Bot %s gestartet (vinted.%s, alle %ss). Suchen: %s",
              __version__, cfg.domain, cfg.interval_seconds, names)
     notifier.send_text(
@@ -127,6 +133,18 @@ def build_reviewer(cfg: Config, storage: Storage, monitor: Any) -> Any:
         return photo_client.item_photos(item)
 
     return AiReviewer(cfg, storage, photos, photo_client.fetch_bytes)
+
+
+def build_brain(cfg: Config, notifier: Any) -> Any:
+    """Eigenes Bildmodell (sammelt & trainiert lokal). Ohne PyTorch/open_clip bleibt es aus."""
+    if not cfg.ml_enabled:
+        return None
+    from .brain import Brain
+    photo_client = VintedClient(cfg.domain, proxy=cfg.proxy)
+    brain = Brain(cfg, photo_client.fetch_bytes, report=notifier.send_text)
+    if not brain.embedder.installed():
+        log.info("Eigenes Bildmodell: noch nicht installiert (ki-installieren.bat) – der Bot läuft ohne.")
+    return brain
 
 
 def _wait_forever(controller: Any) -> None:

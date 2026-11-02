@@ -23,6 +23,7 @@ Nike Air Max 90
 | 💶 **Preisschätzung für fast alles** | über 400 Marken in 7 Preisklassen (Fast Fashion bis Luxus) × rund 50 Kategorien (Kleidung, Schuhe, Taschen, Schmuck, Konsolen, Games, Lego, Parfum …) × Zustand × Kindergröße. Nichts wird mehr wegen „Preis unbekannt“ aussortiert |
 | 💰 **Schnäppchen-Radar** | sucht nach Marken **und** angesagten Modellen/Styles (Nike Tech Fleece, Vintage Lederjacke, Vintage Trikot, Le Pliage, Y2K …) und meldet nur **ganz frisch hochgeladene** Artikel **weit unter Wert**, mit geschätztem Gewinn |
 | 📡 **Alles-Radar** | optional: prüft zusätzlich die neuesten Uploads auf ganz Vinted, ganz ohne Suchbegriff |
+| 🧠 **Eigenes Bildmodell** | lernt aus den Fotos der Artikel, die der Bot sieht (Tausende pro Tag): Wert-, Begehrt-, Geschmacks- und Fake-Modell. Trainiert regelmäßig, lokal und kostenlos |
 | 🤖 **KI-Bildcheck (optional)** | Claude schaut sich die Fotos jedes Treffers an: Echtheit/Fake-Risiko, Zustand, Look, Trend, realistischer Wert, Urteil. Fakes werden aussortiert, unterschätzte Retro-Teile als „KI-Fund“ gemeldet |
 | ⚡ **Parallele Sucher** | Sucher A und B teilen sich die Suchen und wechseln sich im Takt ab, alles im selben Fenster: etwa doppelt so schnell |
 | ⚠️ **Fake-Schutz** | Luxus/Designer verdächtig billig → Warnung; extrem billig → wird aussortiert |
@@ -226,6 +227,7 @@ searches:
 /preis carhartt jacken 90   eigener Marktpreis    /vorlieben   Gelerntes    /probelauf   Testlauf
 /wert <Artikel oder Link>   Wert schätzen    /radar an   Alles-Radar
 /ki an · /ki aus   KI-Bildcheck    /pruefen <Link>   Artikel von der KI prüfen lassen
+/modell   eigenes Modell    /sammeln   Sammel-Turbo    /trainieren   jetzt trainieren
 /suchen          alle Suchen mit Nummer
 /pause 2         Suche 2 anhalten     /weiter 2   fortsetzen
 /loeschen 2      Suche 2 löschen
@@ -343,6 +345,39 @@ Mit den Standardeinstellungen (Stufe „normal“) erkennt er in 30 verschiedene
 
 ---
 
+## 🧠 Eigenes Bildmodell – trainiert auf deinen Vinted-Daten
+
+Der Bot trainiert **sein eigenes Modell**, und zwar auf deinem PC mit den Fotos der Artikel, die er auf Vinted sieht.
+
+**So funktioniert es:**
+1. **Sammeln:** Von jedem Artikel lädt der Bot ein Foto. Ein frei verfügbares Bild-Grundmodell (CLIP ViT-B/32) macht daraus einen „Bild-Fingerabdruck“ aus 512 Zahlen. Der wird zusammen mit Marke, Kategorie, Zustand, Preis und Favoriten in `ki_daten.db` gespeichert. Die Fotos selbst werden nicht gespeichert, ca. 4 KB pro Artikel. Bei Tausenden Artikeln pro Tag sind das nach ein paar Wochen Hunderttausende Bilder.
+2. **Trainieren:** Alle 6 Stunden (oder mit `/trainieren`) trainiert der Bot:
+   - **💶 Wert-Modell:** Was ist ein Teil, das *so aussieht*, auf Vinted wert? Es erkennt auch Dinge, die nicht im Titel stehen: Schnitt, Material, Stil, seltene Modelle.
+   - **🔥 Begehrt-Modell:** Was bekommt schnell viele Favoriten?
+   - **❤️ Geschmack:** Was gefällt dir? Lernt aus deinen 👍/👎.
+   - **🔍 Fake-Modell:** Lernt aus den Urteilen des Claude-Bildchecks („Lehrer-Schüler“) und deinen `/fake`- und `/echt`-Meldungen.
+3. **Bewerten:** Jeder Kandidat wird lokal in ca. 0,05–0,2 s bewertet. Ist das Wert-Modell nachweislich besser als die Faustregel, fließt es in den Wert ein. Es findet dann auch Schnäppchen, die die Faustregel übersieht. Begehrt und Geschmack geben Bonuspunkte, ein hohes Fake-Risiko sortiert aus.
+
+   In der Meldung steht zum Beispiel: `🧠 Eigenes Modell: Stil: 90er-Sportswear · Wert ca. 58 € · begehrt 81% · passt zu dir 74%`
+
+**Ehrliche Zahlen statt Versprechen:**
+- Jedes Modell wird auf 20 % zurückgehaltenen Artikeln geprüft, die es beim Training nicht gesehen hat. `/modell` zeigt das Ergebnis, z. B. „Wert-Modell: Ø 24 % Abweichung (Faustregel 35 %) – wird genutzt ✅“.
+- Ist das Modell schlechter als die Faustregel, wird es **nicht** benutzt.
+- Das Fake-Modell wird erst aktiv, wenn es genug bestätigte Beispiele gibt, und nur, wenn es in der Prüfung gut abschneidet. Fakes sicher zu erkennen bleibt schwer.
+
+**Einrichten (einmalig):**
+1. Bot stoppen, dann **`ki-installieren.bat`** doppelklicken. Das installiert PyTorch und open_clip, ca. 300 MB.
+2. `start.bat` starten. Beim ersten Mal lädt der Bot das Bild-Grundmodell, ca. 600 MB.
+3. In Telegram **`/sammeln`** schreiben. Der Sammel-Turbo holt Tausende Artikel auf einmal (bis zu 3 Seiten à 96 je Suche) und trainiert danach sofort. Ab dann sammelt und trainiert der Bot von selbst.
+
+**Befehle:**
+- `/modell`: Datensatz, Trainingsstand und Prüfergebnisse
+- `/trainieren`: jetzt trainieren
+- `/sammeln [Seiten]`: Sammel-Turbo
+- `/fake <Link>` / `/echt <Link>`: dem Fake-Modell etwas beibringen
+
+**Leistung** (gemessen): Das Bild-Grundmodell braucht auf 4 Prozessorkernen ca. 40 ms pro Foto. Ein Training mit 50.000 Bildern dauert ca. 20 s. Ohne Installation läuft der Bot ganz normal ohne eigenes Modell.
+
 ## 🤖 KI-Bildcheck mit Claude (optional)
 
 Für jeden Treffer, der alle Filter besteht, lädt der Bot bis zu 4 Fotos und lässt sie von Claude, der Bild-KI von Anthropic, beurteilen:
@@ -415,9 +450,10 @@ Warum ein bestimmter Artikel nicht kam, zeigt `/probelauf` mit Beispielen und Gr
 ## 🔄 Bot aktualisieren (Einstellungen bleiben erhalten)
 
 1. Neue Version als ZIP herunterladen und entpacken, wie bei der Einrichtung.
-2. Aus dem **alten** `vinted-bot`-Ordner diese zwei Dateien in den **neuen** kopieren:
+2. Aus dem **alten** `vinted-bot`-Ordner diese Dateien in den **neuen** kopieren:
    - `config.yaml` (deine Einstellungen und der Telegram-Token)
    - `vinted_bot.db` (gelernte Marktpreise, Trend-Marken und per Telegram angelegte Suchen)
+   - `ki_daten.db` und `ki_modell.npz`, falls vorhanden (gesammelte Bilder und trainiertes eigenes Modell)
 3. Im neuen Ordner `start.bat` starten. Beim ersten Mal richtet er sich wieder 1–2 Minuten ein.
 
 Der alte Ordner kann danach weg.

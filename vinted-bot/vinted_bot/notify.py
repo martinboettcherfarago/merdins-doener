@@ -32,6 +32,7 @@ class Alert:
     worker: str = ""                  # welcher Sucher (A, B, …) den Treffer gefunden hat
     ai: Any = None                    # KI-Urteil (vision.AiVerdict)
     ai_find: bool = False             # von der KI entdeckt (Zweitblick)
+    brain: Any = None                 # Bewertung durch das eigene Modell (brain.BrainView)
 
 
 def money(value: Optional[float], currency: str = "EUR") -> str:
@@ -93,6 +94,8 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
                                    f"👤 {it.seller_login}" if it.seller_login else "") if x)
     if extra:
         lines.append(extra)
+    if alert.brain is not None:
+        lines += alert.brain.lines()
     if alert.ai is not None:
         lines += alert.ai.lines()
     lines.append(f"🔎 Suche: {alert.search_name}" + (f" · Sucher {alert.worker}" if alert.worker else ""))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import random
 import threading
 import time
@@ -14,8 +15,8 @@ from .config import RESALE_LEVELS, TREND_WATCHES, Config, SearchConfig, watch_na
 from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
 from .models import Item
 from .notify import Alert
-from .scoring import (TYPE_LABELS, market_reference, meets_targets, normalize, passes_filters, price_group,
-                      product_type, score_item, suggest_offers)
+from .scoring import (TYPE_LABELS, Reference, market_reference, meets_targets, normalize, passes_filters,
+                      price_group, product_type, score_item, suggest_offers)
 from .storage import Storage
 from .vinted import VintedBlocked, VintedClient, VintedRateLimited, query_for_search
 
@@ -41,6 +42,7 @@ class Monitor:
         self._lock = threading.Lock()
         self.stats.update({"workers": {}, "ai_checked": 0, "ai_fakes": 0, "ai_finds": 0})
         self.reviewer: Any = None   # KI-Bildcheck (vision.AiReviewer), wird von __main__ gesetzt
+        self.brain: Any = None      # eigenes Bildmodell (brain.Brain), wird von __main__ gesetzt
         self.pacer = Pacer(0.0)
         self.reject_log: Optional[list[tuple[str, Item, str]]] = None  # für Probelauf/Fehlersuche
         self._migrate_old_resale_searches()
@@ -209,6 +211,8 @@ class Monitor:
         self.storage.set_json("prefs", prefs)
         if self.reviewer is not None:  # der KI-Check lernt deinen Geschmack mit
             self.reviewer.learn(info.get("title") or "", positive)
+        if self.brain is not None:     # … und das eigene Modell auch
+            self.brain.label_like(item_id, positive)
         label = TYPE_LABELS.get(ptype, ptype)
         if not positive and ptype != "sonstiges" and prefs.get(f"type:{ptype}", 0) <= -3:
             hidden = self.global_filters()["exclude_types"]
@@ -309,6 +313,27 @@ class Monitor:
         score = score_item(item, ref, self.cfg.top_deal_score, now, resale=search.is_resale,
                            shipping=self.cfg.shipping_estimate, rare=rare, pref_pts=pref_pts, est=est,
                            trend=trend)
+        view = None
+        if extra is None and self.brain is not None and self.brain.enabled and kind == "new":
+            view = self.brain.assess(item, ptype, est)
+            if view is not None:
+                if view.fake is not None and view.fake >= 0.75:
+                    return None, f"eigenes Modell: Fake-Risiko {view.fake:.0%}"
+                bonus = 0.0
+                if view.popular is not None:
+                    bonus += (view.popular - 0.5) * 10
+                if view.taste is not None:
+                    bonus += (view.taste - 0.5) * 16
+                adjusted = ref
+                if view.value and view.value_trusted and ref.price and score.value:
+                    # gelernter Wert und Faustregel mischen (das Modell zählt mehr, wenn es besser ist)
+                    blended = math.exp(0.6 * math.log(view.value) + 0.4 * math.log(score.value))
+                    adjusted = Reference(ref.price * blended / score.value, ref.basis + " + eigenes Modell",
+                                         ref.samples, ref.prices)
+                if bonus or adjusted is not ref:
+                    score = score_item(item, adjusted, self.cfg.top_deal_score, now, resale=search.is_resale,
+                                       shipping=self.cfg.shipping_estimate, rare=rare,
+                                       pref_pts=max(-20.0, min(20.0, pref_pts + bonus)), est=est, trend=trend)
         if kind == "price_drop" and old_price:
             score.reasons.insert(0, f"Preis um {1 - item.price / old_price:.0%} gesenkt")
         ok, why = meets_targets(search, score)
@@ -317,7 +342,7 @@ class Monitor:
                 self._maybe_second_look(search, item, score, why, rare, trend, ptype, kind)
             return None, why
         return Alert(item=item, search_name=search.name, score=score, buy_url=item.buy_url(self.cfg.web_base),
-                     kind=kind, old_price=old_price, resale=search.is_resale, ptype=ptype,
+                     kind=kind, old_price=old_price, resale=search.is_resale, ptype=ptype, brain=view,
                      offers=suggest_offers(item.price, self.cfg.offer_discounts)), ""
 
     def check_search(self, search: SearchConfig, client: Any = None, worker: str = "") -> list[Alert]:
@@ -350,7 +375,14 @@ class Monitor:
                 self.storage.mark_seen(search.name, item)
                 if self._learnable(search, item):
                     self.storage.add_price(search.name, item.price, price_group(search, item))
-            elif item.price != prev:
+                    if self.brain is not None:  # Trainingsdaten fürs eigene Modell
+                        ptype_c = product_type(item.title)
+                        self.brain.collect(item, ptype_c, estimate_item(item, ptype_c))
+            else:
+                if self.brain is not None:
+                    self.brain.seen_again(item)  # Favoriten-Verlauf fürs Begehrt-Modell
+                if item.price == prev:
+                    continue
                 self.storage.mark_seen(search.name, item)
                 if item.price <= prev * drop_factor:
                     alert = self.evaluate(search, item, now, "price_drop", prev)
@@ -416,6 +448,8 @@ class Monitor:
             verdict = self.reviewer.review(alert.item, listing_context(alert.item, alert))
             if verdict is not None:
                 alert.ai = verdict
+                if self.brain is not None:
+                    self.brain.label_ai(alert.item.id, verdict)  # Lehrer-Schüler: Claude bringt dem Modell bei
                 with self._lock:
                     self.stats["ai_checked"] += 1
                 if verdict.fake and self.cfg.ai_hide_fakes:
@@ -512,6 +546,8 @@ class Monitor:
             t.start()
         if self.reviewer is not None:
             self.reviewer.start()
+        if self.brain is not None:
+            self.brain.start()
         last_cleanup = 0.0
         while not self.stop_event.is_set():
             if time.time() - last_cleanup > 86400:
@@ -586,6 +622,38 @@ class Monitor:
         self.stop_event.set()
         if self.reviewer is not None:
             self.reviewer.stop()
+        if self.brain is not None:
+            self.brain.stop()
+
+    def bootstrap(self, pages: int = 3, client: Any = None, done: Optional[Callable[[str], None]] = None) -> None:
+        """Sammel-Turbo: tiefere Seiten aller Schnäppchen-Suchen durchgehen und Tausende Bilder auf einmal
+        sammeln, danach sofort trainieren. Läuft im Hintergrund und hält den Takt der Sucher ein."""
+        brain = self.brain
+        if brain is None or not brain.enabled:
+            return
+        client = client or VintedClient(self.cfg.domain, proxy=self.cfg.proxy)
+        queued = 0
+        for search in [self.effective(s) for s in self.active_searches() if s.is_resale]:
+            for page in range(1, pages + 1):
+                if self.stop_event.is_set() or not self.pacer.wait(self.stop_event):
+                    return
+                try:
+                    items = client.search(query_for_search(search, self.cfg.currency), per_page=96, page=page)
+                except Exception as e:  # noqa: BLE001
+                    log.info("Sammel-Turbo: %s Seite %d übersprungen (%s)", search.name, page, e)
+                    break
+                for item in items:
+                    if self._learnable(search, item) and not brain.data.has(item.id):
+                        ptype_c = product_type(item.title)
+                        brain.collect_blocking(item, ptype_c, estimate_item(item, ptype_c))
+                        queued += 1
+                if len(items) < 96:
+                    break
+        log.info("Sammel-Turbo: %d Artikel eingesammelt – verarbeite Fotos …", queued)
+        brain.drain()
+        rep = brain.train()
+        if done:
+            done(f"🧲 Sammel-Turbo fertig: {queued} neue Artikel.\n" + rep.text())
 
 
 class Pacer:

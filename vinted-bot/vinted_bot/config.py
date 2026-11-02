@@ -208,6 +208,9 @@ class Config:
     ai_second_look: bool = True          # KI schaut sich knapp verpasste Retro-/Trend-Teile an
     ai_max_second_looks_per_day: int = 20
     ai_hide_fakes: bool = True
+    ml_enabled: bool = True              # eigenes Bildmodell (braucht: ki-installieren.bat)
+    ml_threads: int = 2
+    ml_train_every_hours: float = 6.0
     filter_sizes: list[str] = field(default_factory=lambda: list(DEFAULT_SIZES))       # [] = alle Größen
     filter_exclude_types: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_TYPES))
     only_rare: bool = False
@@ -327,6 +330,10 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     cfg.ai_second_look = bool(ai.get("second_look", True))
     cfg.ai_max_second_looks_per_day = int(ai.get("max_second_looks_per_day") or 20)
     cfg.ai_hide_fakes = bool(ai.get("hide_fakes", True))
+    ml = data.get("ml") or {}
+    cfg.ml_enabled = bool(ml.get("enabled", True))
+    cfg.ml_threads = max(1, int(ml.get("threads") or 2))
+    cfg.ml_train_every_hours = max(0.5, float(ml.get("train_every_hours") or 6))
     for key in RESALE_TARGET_KEYS:  # einzelne Werte aus der config überschreiben die Stufe
         if section.get(key) is not None:
             value = section[key]
