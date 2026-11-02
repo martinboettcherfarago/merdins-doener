@@ -18,6 +18,7 @@ from .models import Item
 from .notify import Alert
 from .scoring import (TYPE_LABELS, Reference, market_reference, meets_targets, normalize, passes_filters,
                       price_group, product_type, score_item, suggest_offers)
+from .scheduler import Scheduler
 from .storage import Storage
 from .vinted import VintedBlocked, VintedClient, VintedRateLimited, query_for_search
 
@@ -26,6 +27,7 @@ log = logging.getLogger(__name__)
 JUNK_TYPES = {"kleinkram", "verpackung"}   # Patches, Sticker, Kartons, Staubbeutel …
 MEDIA_TYPES = {"buch", "medien"}           # Bücher, Magazine, Kataloge, CDs …
 EXPENSIVE_TIERS = ("luxus", "designer", "outdoor")  # "wirklich teure Marken" dürfen übers Budget
+WANTED_TIERS = ("premium", "streetwear", "outdoor", "designer", "luxus")  # meldet der Sniper immer
 SNIPER = "⚡ Sniper"
 # Beispiel-Suchen aus der alten config.example.yaml (werden einmalig pausiert, siehe _pause_example_searches)
 EXAMPLE_SEARCHES = {"Air Max 90": ("nike air max 90", 60.0), "Carhartt Jacken": ("carhartt%20jacke", 70.0)}
@@ -57,6 +59,10 @@ class Monitor:
         self.min_cycle_wait = 3.0
         self.last_fetch: dict[str, tuple[int, int]] = {}   # Suche -> (neue Artikel, Artikel insgesamt)
         self.sniper_stats = {"polls": 0, "new": 0, "gaps": 0, "alerts": 0, "since": time.monotonic()}
+        self.scheduler = Scheduler()
+        self.scheduler_settings: Optional[dict[str, float]] = None   # Tests: schnellere Takte
+        self._last_report = time.monotonic()
+        self._brand_cache: tuple[float, set[str]] = (0.0, set())
 
     def _pause_example_searches(self) -> list[str]:
         """Die Beispiel-Suchen der alten Vorlage ("Air Max 90", "Carhartt Jacken") melden alles mögliche ohne
@@ -162,6 +168,19 @@ class Monitor:
         return self.price_cap(info[1] if info else None)
 
     # -- ⚡ Sniper: die neuesten Uploads auf ganz Vinted, alle paar Sekunden -------------
+
+    def watched_brands(self) -> set[str]:
+        """Marken deiner Schnäppchen-Suchen (Trend-Liste + eigene), kurz zwischengespeichert."""
+        ts, keys = self._brand_cache
+        if time.monotonic() - ts < 30:
+            return keys
+        keys = {brand_key(b) for s in self.active_searches() if s.is_resale for b in s.brands} - {""}
+        self._brand_cache = (time.monotonic(), keys)
+        return keys
+
+    def _wanted_brand(self, est: Any) -> bool:
+        """Der Sniper meldet Marken aus deiner Liste und gefragte Premium-Marken – kein No-Name/Fast Fashion."""
+        return est.tier in WANTED_TIERS or (bool(est.brand) and brand_key(est.brand) in self.watched_brands())
 
     def sniper_enabled(self) -> bool:
         state = self.storage.get_state("sniper")
@@ -366,8 +385,8 @@ class Monitor:
             brand_votes, type_votes = self._pref_votes(item, ptype)
             if brand_votes + type_votes <= -3:
                 return None, "von dir aussortiert (👎)"
-            if search.sweep and not rare.level and not trend and est.tier in (None, "budget"):
-                return None, "Alles-Radar: keine gefragte Marke"
+            if search.sweep and not rare.level and not trend and not self._wanted_brand(est):
+                return None, "Sniper: keine Marke aus deiner Liste"
 
         group = price_group(search, item)
         group_prices = self.storage.group_history(group)
@@ -698,6 +717,9 @@ class Monitor:
         n = max(1, int(self.cfg.workers))
         factory = client_factory or (lambda: VintedClient(self.cfg.domain, proxy=self.cfg.proxy))
         self.pacer = Pacer(self.cfg.request_gap_seconds)
+        self.scheduler = Scheduler(**(self.scheduler_settings or {
+            "fast_gap": self.cfg.sniper_every_seconds, "stagger": self.cfg.request_gap_seconds,
+            "max_gap": max(60.0, min(600.0, self.cfg.interval_seconds * 3.0))}))
         threads = []
         for idx in range(n):
             client = self.client if idx == 0 else factory()
@@ -705,9 +727,6 @@ class Monitor:
                                  daemon=True)
             threads.append(t)
             t.start()
-        sniper = threading.Thread(target=self._sniper, args=(factory(),), name="Sniper", daemon=True)
-        threads.append(sniper)
-        sniper.start()
         if self.reviewer is not None:
             self.reviewer.start()
         if self.brain is not None:
@@ -723,98 +742,101 @@ class Monitor:
         if self.reviewer is not None:
             self.reviewer.stop()
 
+    def scheduled_searches(self) -> list[SearchConfig]:
+        """Alles, was die Sucher abfragen: ⚡ Sniper (falls an) + alle aktiven Marken-, Trend- und eigenen Suchen."""
+        searches = list(self.active_searches())
+        if self.sniper_enabled():
+            searches.insert(0, self.sniper_search())
+        return searches
+
     def _worker(self, idx: int, n: int, client: Any) -> None:
+        """Ein Sucher: nimmt sich immer die dringendste Suche (eigener Takt pro Suche, siehe scheduler.py).
+        Alle Sucher teilen sich den Taktgeber – die Zahl der Anfragen an Vinted bleibt gleich."""
         letter = chr(65 + idx)
         backoff = 0.0
         with self._lock:
-            self.stats["workers"].setdefault(letter, {"cycles": 0, "checked": 0, "alerts": 0})
+            self.stats["workers"].setdefault(letter, {"cycles": 0, "polls": 0, "checked": 0, "alerts": 0})
         self.stop_event.wait(idx * self.cfg.request_gap_seconds)  # versetzt starten: A, dann B, …
         while not self.stop_event.is_set():
-            started = time.monotonic()
-            mine = [s for i, s in enumerate(self.active_searches()) if i % n == idx]
-            for search in mine:
-                if not self.pacer.wait(self.stop_event):
-                    return
-                try:
-                    alerts = self.check_search(search, client=client, worker=letter)
-                    backoff = 0.0
-                    self._unblocked()
-                except VintedRateLimited as e:
-                    pause = max(60.0, e.retry_after)
-                    self.pacer.pause(pause)
-                    log.warning("Zu viele Anfragen – alle Sucher pausieren %.0f s.", pause)
-                    continue
-                except VintedBlocked as e:
-                    backoff = min(900.0, backoff * 2 if backoff else 60.0)
-                    self.pacer.pause(backoff)
-                    self._error(str(e))
-                    self._blocked(e)
-                    continue
-                except Exception as e:  # noqa: BLE001
-                    self._error(f"{search.name}: {e}")
-                    continue
-                for alert in alerts:
-                    self._deliver(alert, worker=letter)
-            with self._lock:
-                self.stats["cycles"] += 1
-                w = self.stats["workers"][letter]
-                w["cycles"] += 1
-                self.stats["last_cycle"] = self.clock()
-            log.info("Runde %d fertig: %d Suchen in %.0f s · bisher %d Artikel geprüft, %d Meldung(en)",
-                     w["cycles"], len(mine), time.monotonic() - started, w["checked"], w["alerts"])
-            interval = self.cfg.interval_seconds
-            self.stop_event.wait(max(self.min_cycle_wait, interval + random.uniform(0, interval * 0.2)
-                                     - (time.monotonic() - started)))
-
-    def _sniper(self, client: Any) -> None:
-        """⚡ Sniper: alle paar Sekunden die neuesten Uploads auf ganz Vinted (bis zu deinem Budget) prüfen.
-        Sind alle Artikel einer Seite neu, kam seit dem letzten Blick mehr rein – dann sofort weiterblättern,
-        damit nichts durchrutscht."""
-        backoff, last_report = 0.0, time.monotonic()
-        while not self.stop_event.is_set():
-            if not self.sniper_enabled() or self.paused:
-                self.stop_event.wait(2)
+            search, wait = self.scheduler.take(self.scheduled_searches(), time.monotonic())
+            if search is None:
+                self.stop_event.wait(min(max(wait, 0.05), 1.0))
                 continue
-            started = time.monotonic()
-            search = self.sniper_search()
-            seeded = self.storage.is_seeded(search.name)
-            for page in (1, 2, 3):
-                if not self.pacer.wait(self.stop_event):
-                    return
-                try:
-                    alerts = self.check_search(search, client=client, worker="Sniper", page=page)
-                    backoff = 0.0
-                    self._unblocked()
-                except VintedRateLimited as e:
-                    self.pacer.pause(max(60.0, e.retry_after))
-                    break
-                except VintedBlocked as e:
-                    backoff = min(900.0, backoff * 2 if backoff else 60.0)
-                    self.pacer.pause(backoff)
-                    self._error(str(e))
-                    self._blocked(e)
-                    break
-                except Exception as e:  # noqa: BLE001
-                    self._error(f"{SNIPER}: {e}")
-                    break
-                for alert in alerts:
-                    if self._deliver(alert, worker="Sniper"):
-                        self.sniper_stats["alerts"] += 1
-                fresh, total = self.last_fetch.get(search.name, (0, 0))
+            label = "Sniper" if search.sweep else letter
+            try:
+                fresh, full_gap, seeded = self._poll(search, client, label)
+                self.scheduler.done(search, fresh, full_gap, seeded, time.monotonic())
+                backoff = 0.0
+                self._unblocked()
+            except VintedRateLimited as e:
+                pause = max(60.0, e.retry_after)
+                self.pacer.pause(pause)
+                self.scheduler.release(search.name, time.monotonic(), pause)
+                log.warning("Zu viele Anfragen – alle Sucher pausieren %.0f s.", pause)
+                continue
+            except VintedBlocked as e:
+                backoff = min(900.0, backoff * 2 if backoff else 60.0)
+                self.pacer.pause(backoff)
+                self.scheduler.release(search.name, time.monotonic(), backoff)
+                self._error(str(e))
+                self._blocked(e)
+                continue
+            except Exception as e:  # noqa: BLE001
+                self.scheduler.release(search.name, time.monotonic())
+                self._error(f"{search.name}: {e}")
+                continue
+            with self._lock:
+                w = self.stats["workers"][letter]
+                w["polls"] += 1
+                self.stats["polls"] = self.stats.get("polls", 0) + 1
+                self.stats["last_cycle"] = self.clock()
+                # "Runde" = so viele Abfragen, wie es Suchen gibt (für /status und die Tests)
+                if w["polls"] % max(1, len(self.active_searches()) // n or 1) == 0:
+                    w["cycles"] += 1
+                    self.stats["cycles"] += 1
+                report = time.monotonic() - self._last_report > 300
+                if report:
+                    self._last_report = time.monotonic()
+            if report:
+                self._report_tempo()
+
+    def _poll(self, search: SearchConfig, client: Any, label: str) -> tuple[int, bool, bool]:
+        """Eine Suche abfragen. Ist die ganze Seite neu, kam seit dem letzten Blick mehr rein – dann sofort
+        weiterblättern (bis Seite 3), damit nichts durchrutscht. Gibt (neue Artikel, Lücke, war eingelernt)."""
+        search = self.effective(search)
+        seeded = self.storage.is_seeded(search.name)
+        fresh_sum, full_gap = 0, False
+        for page in (1, 2, 3):
+            if not self.pacer.wait(self.stop_event):
+                break
+            alerts = self.check_search(search, client=client, worker=label, page=page)
+            for alert in alerts:
+                if self._deliver(alert, worker=label) and search.sweep:
+                    self.sniper_stats["alerts"] += 1
+            fresh, total = self.last_fetch.get(search.name, (0, 0))
+            fresh_sum += fresh
+            if search.sweep:
                 self.sniper_stats["polls"] += 1
                 self.sniper_stats["new"] += fresh
-                if not seeded or total < self._per_page(search) or fresh < total:
-                    break  # Anschluss an den letzten Blick gefunden – nichts verpasst
-                if page == 3:
-                    self.sniper_stats["gaps"] += 1
-            if time.monotonic() - last_report > 300:
-                st = self.sniper_stats
-                log.info("⚡ Sniper: %d Abfragen in 5 Min. · Ø %.0f neue Artikel pro Abfrage · %d Meldung(en)%s",
-                         st["polls"], st["new"] / max(1, st["polls"]), st["alerts"],
-                         f" · {st['gaps']}× sehr viel los (evtl. etwas verpasst)" if st["gaps"] else "")
-                self.sniper_stats = {"polls": 0, "new": 0, "gaps": 0, "alerts": 0, "since": time.monotonic()}
-                last_report = time.monotonic()
-            self.stop_event.wait(max(0.0, self.cfg.sniper_every_seconds - (time.monotonic() - started)))
+            if not seeded or total < self._per_page(search) or fresh < total:
+                break  # Anschluss an den letzten Blick gefunden – nichts verpasst
+            full_gap = page == 3
+            if full_gap and search.sweep:
+                self.sniper_stats["gaps"] += 1
+        return fresh_sum, full_gap, seeded
+
+    def _report_tempo(self) -> None:
+        """Alle 5 Minuten im Fenster: wie oft welche Suche drankommt."""
+        st = self.sniper_stats
+        if st["polls"]:
+            log.info("⚡ Sniper: %d Abfragen in 5 Min. · Ø %.0f neue Artikel pro Abfrage · %d Meldung(en)%s",
+                     st["polls"], st["new"] / max(1, st["polls"]), st["alerts"],
+                     f" · {st['gaps']}× sehr viel los (evtl. etwas verpasst)" if st["gaps"] else "")
+        self.sniper_stats = {"polls": 0, "new": 0, "gaps": 0, "alerts": 0, "since": time.monotonic()}
+        tempo = [(name, t) for name, t in self.scheduler.tempo() if name != SNIPER]
+        if tempo:
+            fast = " · ".join(f"{name.split(' · ', 1)[-1]} {t:.0f} s" for name, t in tempo[:5])
+            log.info("⏱ Marken-Takt: %s … (%d Suchen, die ruhigsten alle %.0f s)", fast, len(tempo), tempo[-1][1])
 
     def _blocked(self, e: Exception) -> None:
         with self._lock:

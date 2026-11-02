@@ -103,13 +103,14 @@ def cmd_run(cfg: Config) -> int:
     names += f"\n💶 Budget: bis {normal:g} € · teure Marken bis {brands:g} € (/budget)"
     if monitor.sniper_enabled():
         names += (f"\n⚡ Sniper: alle ~{cfg.sniper_every_seconds:g} s die neuesten Uploads auf ganz Vinted bis "
-                  f"{normal:g} € (/radar)")
+                  f"{normal:g} € – nur deine Marken, Premium-Marken & Raritäten (/radar)")
     if monitor.paused_examples:
         names += (f"\n⏸ Beispiel-Suchen pausiert: {', '.join(monitor.paused_examples)} – sie meldeten alles ohne "
                   "Rabatt-Prüfung (/suchen, /weiter Nr. zum Einschalten)")
     workers = " + ".join(f"Sucher {chr(65 + i)}" for i in range(max(1, cfg.workers)))
     ai_on = monitor.reviewer is not None and monitor.reviewer.enabled
-    names += (f"\n🔁 {workers} im Wechsel (alle {cfg.request_gap_seconds:g} s eine Anfrage)"
+    names += (f"\n🔁 {workers}: jede Marke im eigenen Takt – viel los = alle ~10–25 s "
+              f"(alle {cfg.request_gap_seconds:g} s eine Anfrage, /status)"
               + (f"\n🤖 KI-Bildcheck: an ({cfg.ai_model}, max. {cfg.ai_max_checks_per_day}/Tag)" if ai_on
                  else "\n🤖 KI-Bildcheck: aus (/ki)"))
     b = monitor.brain

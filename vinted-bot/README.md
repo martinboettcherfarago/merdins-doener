@@ -149,14 +149,30 @@ Eingebaut sind:
 Eine Marke („Ganni“) beobachtet alle neuen Artikel dieser Marke. Ein Begriff („Ganni Tasche“) sucht genau danach, und zwar nur bei echter Ganni. Ein Begriff ohne Marke („Vintage Lederjacke“) akzeptiert jede Marke.
 
 ### ⚡ Sniper: Treffer nach Sekunden statt Minuten
-Die vielen Marken- und Trend-Suchen brauchen für eine Runde 1–2 Minuten, jede Suche kommt also nur alle paar Minuten dran. Gute Teile sind dann oft schon weg. Deshalb läuft der **Sniper** auf der Überholspur:
+Gute Teile sind oft nach Minuten weg. Deshalb arbeitet der Bot nicht mehr stur eine lange Liste ab, sondern im **Sniper-Takt**:
+
+| Was | wie oft |
+|---|---|
+| ⚡ Sniper: neueste Uploads auf ganz Vinted (nur deine Marken, Premium-Marken & Raritäten) | alle ~4 s |
+| Marken mit vielen Uploads (z. B. Nike, Adidas, Carhartt) | alle ~10–25 s |
+| ruhige Marken (z. B. Vivienne Westwood) | alle 1–2 Min. |
+
+(Simuliert mit 76 Suchen und einer Anfrage pro Sekunde: Sniper alle 4,1 s, aktive Marken alle 11–25 s, Treffer dort im Schnitt ~12 s alt. Teile bis zu deinem Budget fängt der Sniper bei allen Marken deiner Liste schon nach Sekunden ab, die Marken-Suchen sind die zweite Linie.)
+
+**Jede Marke bekommt ihr eigenes Tempo:** Der Bot misst, wie viel bei einer Marke neu hochgeladen wird, und schaut dort entsprechend oft nach. Ist bei einer Marke eine ganze Seite neu, war er zu langsam: dann blättert er sofort weiter und schaut ab jetzt öfter vorbei. `/status` zeigt den aktuellen Takt, z. B. `⏱ Takt: Adidas alle 9 s · Nike alle 11 s · Carhartt alle 18 s … ruhigste alle 135 s`. Die Gesamtzahl der Anfragen an Vinted bleibt dabei gleich (höchstens eine pro `request_gap_seconds`).
+
+**Der Sniper selbst:**
 
 - Alle **~4 Sekunden** holt er die **neuesten Uploads auf ganz Vinted** bis zu deinem Budget, ganz ohne Suchbegriff. Die Treffer sind meist **erst Sekunden alt**: `⚡ vor 8 s hochgeladen`.
 - Wurde seit dem letzten Blick sehr viel hochgeladen (eine ganze Seite neu), blättert er **sofort weiter**, damit nichts durchrutscht.
-- Gemeldet werden nur gefragte Marken, Trend-Modelle und Raritäten weit unter Wert. Fast Fashion und No-Name ignoriert er; deine Größen, Kategorien, `/stufe` und `/budget` gelten.
-- Die Marken- und Trend-Suchen laufen daneben weiter und fangen auf, was der Sniper nicht abdeckt, z. B. teure Marken über deinem Budget.
+- Gemeldet werden nur **Marken aus deiner Trend-Liste** (inkl. deiner eigenen, `/trends plus …`), Premium-Marken (Ralph Lauren, Stüssy, Arc'teryx, Stone Island …), Trend-Modelle und Raritäten weit unter Wert. Fast Fashion, No-Name und Allerwelts-Marken ignoriert er; deine Größen, Kategorien, `/stufe` und `/budget` gelten.
+- Die Marken- und Trend-Suchen laufen daneben in ihrem eigenen Takt und fangen auf, was der Sniper nicht abdeckt, z. B. teure Marken über deinem Budget.
 
-`/radar aus` schaltet ihn ab, `/radar an` wieder an. Mit `/radar an <Vinted-Kategorie-Link>` beschränkst du ihn auf eine Kategorie, z. B. Herren-Jacken. In der `config.yaml`: `sniper: true` und `sniper_every_seconds: 4` im Abschnitt `resale:`. Alle 5 Minuten steht im Fenster, wie viel los war: `⚡ Sniper: 60 Abfragen in 5 Min. · Ø 14 neue Artikel pro Abfrage · 2 Meldung(en)`.
+`/radar aus` schaltet ihn ab, `/radar an` wieder an. Mit `/radar an <Vinted-Link>` beschränkst du ihn auf das, was der Link zeigt: z. B. eine Kategorie (Herren-Jacken) **oder mehrere Marken auf einmal**. Dafür auf vinted.de bei „Marke“ deine Lieblingsmarken anhaken, nach „Neueste zuerst“ sortieren und den Link aus der Adresszeile schicken. In der `config.yaml`: `sniper: true` und `sniper_every_seconds: 4` im Abschnitt `resale:`. Alle 5 Minuten steht im Fenster, wie viel los war:
+```
+⚡ Sniper: 60 Abfragen in 5 Min. · Ø 14 neue Artikel pro Abfrage · 2 Meldung(en)
+⏱ Marken-Takt: Adidas 9 s · Nike 11 s · Carhartt 18 s · Stüssy 25 s · Levi's 31 s … (76 Suchen, die ruhigsten alle 135 s)
+```
 
 ### 💶 Budget: günstige Teile, nur teure Marken dürfen mehr kosten
 Standardmäßig meldet das Schnäppchen-Radar nur Teile **bis 30 €**. Ausnahme: **teure Marken** (Luxus wie Gucci, Prada, Moncler; Designer wie Stone Island, C.P. Company; Outdoor-Premium wie Arc'teryx, Patagonia, The North Face) dürfen **bis 80 €** kosten.
@@ -185,7 +201,7 @@ Die Schnäppchen-Kriterien gibt es auch für normale Suchen:
 `/neu salomon xt-6 bis 90 rabatt 35 günstiger 95 frisch 5` oder in der config `min_discount`, `min_cheaper_than`, `min_profit`, `max_age_minutes` und `min_condition`.
 
 **Tipps:**
-- **Weniger Einträge bedeuten schnellere Runden.** Bei den 76 eingebauten Trends braucht jeder der beiden Sucher für seine Hälfte gut eine Minute. Mit 20–30 Lieblingseinträgen (`/trends minus …`) bist du deutlich schneller. Ganz frische Teile bis zu deinem Budget fängt sowieso der ⚡ Sniper nach Sekunden ab.
+- **Weniger Einträge = noch schneller.** Der Takt verteilt sich auf alle Einträge. Mit 20–30 Lieblingseinträgen (`/trends minus …`) kommen deine Marken noch öfter dran.
 - **Kein Kleinkram:** Patches, Aufnäher, Sticker, Pins, Schlüsselanhänger, Kartons, Staubbeutel, Etiketten sowie Bücher, Magazine und Kataloge meldet der Bot nicht, auch wenn „Carhartt“ oder „Jacke“ im Titel steht. Dasselbe gilt für Artikel unter 2 €, das sind meist Lockangebote. Suchst du genau so etwas (`/neu supreme sticker`), kommt es natürlich durch.
 - Findet ein Artikel mehrere Suchen gleichzeitig, wird er trotzdem nur **einmal** gemeldet.
 - Je kleiner `interval_seconds` (z. B. 30–45), desto früher bist du dran. Zu klein führt aber zu Blockaden durch Vinted.
@@ -508,12 +524,11 @@ Für jeden Treffer, der alle Filter besteht, lädt der Bot bis zu 4 Fotos und l�
 
 ## ⚡ Mehrere Sucher gleichzeitig
 
-Mit `workers: 2` (Standard) teilen sich **Sucher A und Sucher B** die Marken- und Trend-Suchen. Dazu kommt der **⚡ Sniper**, der alle paar Sekunden die neuesten Uploads holt. Ein Taktgeber sorgt dafür, dass sich alle abwechseln (A, Sniper, B, A …), mit mindestens `request_gap_seconds` Abstand zwischen zwei Anfragen. So bleibt die Gesamtzahl der Anfragen an Vinted gleich. Alles läuft im **selben Fenster**:
+Mit `workers: 2` (Standard) arbeiten **Sucher A und Sucher B** gleichzeitig. Jeder nimmt sich immer die Suche, die gerade am dringendsten dran ist: den ⚡ Sniper oder die Marke, die laut ihrem Takt am längsten überfällig ist. Ein Taktgeber sorgt dafür, dass zwischen zwei Anfragen mindestens `request_gap_seconds` liegen. So bleibt die Gesamtzahl der Anfragen an Vinted gleich. Alles läuft im **selben Fenster**:
 
 ```
-15:02:21 INFO    [Sucher-A] Runde 1 fertig: 38 Suchen in 77 s · bisher 1820 Artikel geprüft, 0 Meldung(en)
-15:02:22 INFO    [Sucher-B] Runde 1 fertig: 38 Suchen in 77 s · bisher 1795 Artikel geprüft, 0 Meldung(en)
 15:02:26 INFO    [Sucher-B] 🔥 Adidas Firebird Trainingsjacke vintage 90er – 9.00 € (Score 100)
+15:02:29 INFO    [Sucher-A] 🆕 Stüssy Hoodie vintage – 18.00 € (Score 84)
 15:02:31 INFO    [KI-Check] 🤖 Fake-Verdacht, nicht gemeldet: Stone Island Jacke (Kompass-Badge falsch gestickt)
 ```
 

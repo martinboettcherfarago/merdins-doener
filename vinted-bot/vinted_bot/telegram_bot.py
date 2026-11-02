@@ -518,6 +518,11 @@ class TelegramController(threading.Thread):
             "Budget: bis {:g} € · teure Marken bis {:g} €".format(*self.monitor.budget()),
             f"⚡ Sniper: {'an, alle ' + format(self.monitor.cfg.sniper_every_seconds, 'g') + ' s' if self.monitor.sniper_enabled() else 'aus'}",
         ]
+        tempo = [(n, t) for n, t in self.monitor.scheduler.tempo() if n != "⚡ Sniper"]
+        if tempo:
+            lines.append("⏱ Takt: " + " · ".join(f"{html.escape(n.split(' · ', 1)[-1])} alle {t:.0f} s"
+                                                 for n, t in tempo[:5])
+                         + f" … ruhigste alle {tempo[-1][1]:.0f} s")
         workers = st.get("workers") or {}
         if workers:
             lines.append("Sucher: " + " · ".join(f"{k}: {v['cycles']} Runden, {v['checked']} Artikel, "
@@ -910,8 +915,11 @@ class TelegramController(threading.Thread):
         self.reply(f"⚡ <b>Sniper: {'an' if on else 'aus'}</b>\n"
                    f"Alle ~{m.cfg.sniper_every_seconds:g} s schaue ich mir die neuesten Uploads {where} bis "
                    f"{normal:g} € an – die Treffer sind meist erst Sekunden alt. Ist sehr viel los, blättere ich "
-                   "sofort weiter, damit nichts durchrutscht. Gemeldet werden nur gefragte Marken, Trends und "
-                   "Raritäten weit unter Wert (deine Größen, Kategorien, /stufe und /budget gelten).\n\n"
+                   "sofort weiter, damit nichts durchrutscht. Gemeldet werden nur Marken aus deiner Trend-Liste, "
+                   "Premium-Marken und Raritäten weit unter Wert (deine Größen, Kategorien, /stufe und /budget "
+                   "gelten).\n"
+                   "Deine Marken-Suchen laufen daneben im eigenen Takt: Marken mit vielen Uploads alle ~10–25 s, "
+                   "ruhige alle 1–2 Min. (/status zeigt den Takt).\n\n"
                    "<code>/radar an</code> · <code>/radar aus</code> · "
                    "<code>/radar an &lt;Vinted-Kategorie-Link&gt;</code> (z. B. nur Herren-Jacken)")
 

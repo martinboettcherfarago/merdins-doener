@@ -187,6 +187,7 @@ def test_two_workers_alternate_and_never_double_report(tmp_path):
     notifier = FakeNotifier()
     m = Monitor(cfg, client, Storage(str(tmp_path / "w.db")), notifier, clock=lambda: NOW)
     m.min_cycle_wait = 0.05
+    m.scheduler_settings = {"fast_gap": 0.05, "min_gap": 0.05, "max_gap": 0.2, "stagger": 0.01}
     t = threading.Thread(target=m.run_forever, kwargs={"client_factory": lambda: client})
     t.start()
     deadline = time.time() + 10
@@ -197,7 +198,7 @@ def test_two_workers_alternate_and_never_double_report(tmp_path):
     workers = m.stats["workers"]
     assert workers["A"]["cycles"] >= 2 and workers["B"]["cycles"] >= 2   # beide Sucher arbeiten
     assert len(notifier.alerts) == 1                                     # aber nur EINE Meldung
-    assert notifier.alerts[0].worker in ("A", "B")
+    assert notifier.alerts[0].worker in ("A", "B", "Sniper")              # der Sniper darf auch zuerst sein
 
 
 # -- Mehr Vintage Adidas ------------------------------------------------------------------------

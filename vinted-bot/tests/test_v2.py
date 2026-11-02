@@ -121,9 +121,9 @@ def test_alles_radar_only_wanted_brands(mon):
     radar = mon.effective(SearchConfig.from_dict({"name": "Alles-Radar", "sweep": True, "mode": "resale"}))
     assert radar.keywords is None and radar.sweep
     noname = mon.explain(radar, item(1, 3, title="Pullover", brand="", size="M", minutes_old=1), NOW)
-    assert noname == (None, "Alles-Radar: keine gefragte Marke")
+    assert noname == (None, "Sniper: keine Marke aus deiner Liste")
     hm = mon.explain(radar, item(2, 3, title="H&M Pullover", brand="H&M", size="M", minutes_old=1), NOW)
-    assert hm == (None, "Alles-Radar: keine gefragte Marke")
+    assert hm == (None, "Sniper: keine Marke aus deiner Liste")
     good = mon.explain(radar, item(3, 20, title="Arc'teryx Fleece", brand="Arc'teryx", size="M", minutes_old=1),
                        NOW)[0]
     assert good is not None
