@@ -15,13 +15,14 @@ import pytest
 from conftest import NOW, FakeNotifier, item
 from test_telegram import FakeTelegram, msg
 from vinted_bot.brain import (N_FEATURES, Brain, Dataset, auc, features, fit_logistic, fit_ridge, load_models,
-                              save_models)
+                              n_features, save_models)
 from vinted_bot.config import SearchConfig, config_from_dict
 from vinted_bot.knowledge import estimate_item
 from vinted_bot.monitor import Monitor
 from vinted_bot.notify import telegram_caption
 from vinted_bot.scoring import product_type
 from vinted_bot.storage import Storage
+from vinted_bot.tags import TAG_GROUPS, THRESHOLDS, count_tags
 from vinted_bot.telegram_bot import TelegramController
 
 RNG = np.random.default_rng(42)
@@ -218,6 +219,9 @@ def test_model_fake_risk_blocks_alert(trained):
     it, blob = listing(70_002, 110, 22, title="Adidas Jacke")
     it.created_ts = NOW - 60
     store[it.photo_url] = blob
+    alert, why = m.explain(s, it, NOW)
+    assert alert is None and why.startswith("Fake-Ampel rot") and "eigenes Fake-Modell 99%" in why
+    m.storage.set_state("fake_ampel", "aus")  # ohne Ampel greift die alte Modell-Regel
     assert m.explain(s, it, NOW) == (None, "eigenes Modell: Fake-Risiko 99%")
 
 
@@ -303,7 +307,7 @@ def test_real_clip_embedder_runs_on_cpu():
     import io
     import time
     from PIL import Image
-    emb = Embedder(threads=2, pretrained=None)  # Architektur ohne Download (zufällige Gewichte)
+    emb = Embedder(threads=2, backbone="schnell", pretrained=None)  # ohne Download (zufällige Gewichte)
     buf = io.BytesIO()
     Image.new("RGB", (640, 800), (200, 30, 30)).save(buf, format="JPEG")
     t0 = time.time()
@@ -313,5 +317,97 @@ def test_real_clip_embedder_runs_on_cpu():
     assert abs(float(np.linalg.norm(vecs[0])) - 1) < 1e-4
     assert emb.texts(["Adidas Trainingsjacke 90er"]).shape == (1, 512)
     style, conf, quality = emb.style(vecs[0])
-    assert style and 0 <= conf <= 1 and 0 <= quality <= 1
+    assert 0 <= conf <= 1 and 0 <= quality <= 1
+    tags = emb.tags(vecs[0])
+    assert all(t.group in TAG_GROUPS and 0 <= t.prob <= 1 for t in tags)
     assert per_image < 2.0  # auf einem normalen PC-Prozessor deutlich unter 1 s pro Foto
+
+
+# -- Mode-Bildmodell: Tags, Dateien je Bildmodell, Rückfall ------------------------------------------------
+
+def test_tag_catalog_is_big_and_consistent():
+    from vinted_bot.catalog import CATEGORIES
+    assert count_tags() >= 120 and set(THRESHOLDS) == set(TAG_GROUPS)
+    assert all(p in CATEGORIES for _, _, p in TAG_GROUPS["kategorie"])
+    labels = [label for defs in TAG_GROUPS.values() for label, _, _ in defs]
+    assert len(labels) == len(set(labels))
+
+
+class TagEmbedder(FakeEmbedder):
+    def __init__(self, tags):
+        super().__init__()
+        self._tags = tags
+
+    def tags(self, img):
+        return list(self._tags)
+
+
+def test_photo_tags_show_up_and_patches_are_dropped(tmp_path):
+    from vinted_bot.brain import Tag
+    cfg = config_from_dict({"resale": {"brands": ["Vintage Adidas"], "level": "locker"}}, base_dir=str(tmp_path))
+    store = {}
+    tags = [Tag("kategorie", "Trainingsjacke", 0.8, "jacke"), Tag("material", "Nylon", 0.6),
+            Tag("farbe", "dunkelblau", 0.5), Tag("jahrzehnt", "90er", 0.7), Tag("stil", "Sportswear", 0.6),
+            Tag("foto", "Handyfoto", 0.7)]
+    brain = Brain(cfg, lambda url: store.get(url), embedder=TagEmbedder(tags))
+    from conftest import FakeClient
+    m = Monitor(cfg, FakeClient(), Storage(str(tmp_path / "p.db")), FakeNotifier(), clock=lambda: NOW)
+    m.brain = brain
+    s = m.effective(SearchConfig.watch("Vintage Adidas"))
+    it, blob = listing(80_001, 60, 9, title="Adidas Trainingsjacke 90er vintage", created=NOW - 60)
+    store[it.photo_url] = blob
+    alert, why = m.explain(s, it, NOW)
+    assert alert is not None, why
+    cap = telegram_caption(alert, now=NOW)
+    assert "🏷 Foto erkannt: Trainingsjacke · Nylon · dunkelblau · 90er · Sportswear" in cap
+    # Titel klingt nach Jacke, das Foto zeigt aber nur einen Aufnäher -> aussortieren
+    brain.embedder = TagEmbedder([Tag("kategorie", "Patch/Sticker", 0.85, "kleinkram")])
+    it2, blob2 = listing(80_002, 60, 9, title="Adidas Jacke 90er vintage", created=NOW - 60)
+    store[it2.photo_url] = blob2
+    assert m.explain(s, it2, NOW) == (None, "Foto zeigt Patch/Sticker (85%) – kein Kleidungsstück")
+
+
+def test_each_backbone_has_its_own_files(tmp_path):
+    fashion = Brain(config_from_dict({}, base_dir=str(tmp_path)), lambda u: None, embedder=FakeEmbedder())
+    fast = Brain(config_from_dict({"ml": {"backbone": "schnell"}}, base_dir=str(tmp_path)), lambda u: None,
+                 embedder=FakeEmbedder())
+    assert fashion.model_path.endswith("ki_modell_fashion.npz") and fast.model_path.endswith("ki_modell.npz")
+    assert (tmp_path / "ki_daten_fashion.db").exists() and (tmp_path / "ki_daten.db").exists()
+
+
+def test_model_from_other_backbone_is_ignored_until_retrained(trained):
+    m, brain, store = trained
+    brain.models["value_w"] = np.zeros(n_features(768))  # z. B. altes FashionSigLIP-Modell, Fotos jetzt 512er
+    brain.models["value_trusted"] = True
+    it, blob = listing(70_003, 110, 22, title="Adidas Jacke")
+    store[it.photo_url] = blob
+    view = brain.assess(it, product_type(it.title), estimate_item(it, product_type(it.title)))
+    assert view is not None and view.value is None
+
+
+def test_mixed_fingerprints_do_not_break_training(tmp_path):
+    from vinted_bot.brain import Sample
+    brain, store = make_brain(tmp_path)
+    fill(brain, store, n=300)
+    brain.data.add(Sample(9_999_999, "x", "Adidas", "", "", 1.0, False, 20.0, 20.0, None, 0,
+                          np.ones(768, dtype=np.float32) / 27.7, np.ones(512, dtype=np.float32) / 22.6))
+    rep = brain.train()
+    assert rep.samples >= 250
+
+
+def test_fashion_model_falls_back_to_fast_clip(monkeypatch):
+    from vinted_bot.brain import Embedder
+    if not Embedder.installed():
+        pytest.skip("PyTorch/open_clip nicht installiert")
+    import open_clip
+    real = open_clip.create_model_and_transforms
+
+    def fake(name, *a, **kw):
+        if name.startswith("hf-hub:"):
+            raise OSError("Hugging Face nicht erreichbar")
+        return real(name, *a, **kw)
+    monkeypatch.setattr(open_clip, "create_model_and_transforms", fake)
+    monkeypatch.setattr("importlib.util.find_spec", lambda name, *a: object())
+    emb = Embedder(threads=2, backbone="fashion", pretrained=None)
+    emb._load()
+    assert emb.backbone == "schnell" and "nicht ladbar" in emb.fallback and emb.dim == 512

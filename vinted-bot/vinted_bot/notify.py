@@ -33,6 +33,7 @@ class Alert:
     ai: Any = None                    # KI-Urteil (vision.AiVerdict)
     ai_find: bool = False             # von der KI entdeckt (Zweitblick)
     brain: Any = None                 # Bewertung durch das eigene Modell (brain.BrainView)
+    ampel: Any = None                 # Fake-Ampel (fakecheck.FakeCheck)
 
 
 def money(value: Optional[float], currency: str = "EUR") -> str:
@@ -94,6 +95,8 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
                                    f"👤 {it.seller_login}" if it.seller_login else "") if x)
     if extra:
         lines.append(extra)
+    if alert.ampel is not None and alert.ampel.visible:
+        lines.append(alert.ampel.line())
     if alert.brain is not None:
         lines += alert.brain.lines()
     if alert.ai is not None:
@@ -103,7 +106,7 @@ def detail_lines(alert: Alert, now: Optional[float] = None) -> list[str]:
 
 
 # Zeilen, die bei Platzmangel zuerst wegfallen (Telegram erlaubt bei Fotos nur 1024 Zeichen)
-_OPTIONAL_PREFIXES = ("❤️", "👤", "🧵", "📊 günstiger als", "📊 billigstes", "❔", "📊")
+_OPTIONAL_PREFIXES = ("❤️", "👤", "🧵", "🛡 Fake-Ampel: 🟢", "📊 günstiger als", "📊 billigstes", "❔", "📊")
 
 
 def telegram_caption(alert: Alert, now: Optional[float] = None, limit: int = 1024) -> str:

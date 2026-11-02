@@ -23,10 +23,11 @@ Nike Air Max 90
 | 💶 **Preisschätzung für fast alles** | über 400 Marken in 7 Preisklassen (Fast Fashion bis Luxus) × rund 50 Kategorien (Kleidung, Schuhe, Taschen, Schmuck, Konsolen, Games, Lego, Parfum …) × Zustand × Kindergröße. Nichts wird mehr wegen „Preis unbekannt“ aussortiert |
 | 💰 **Schnäppchen-Radar** | sucht nach Marken **und** angesagten Modellen/Styles (Nike Tech Fleece, Vintage Lederjacke, Vintage Trikot, Le Pliage, Y2K …) und meldet nur **ganz frisch hochgeladene** Artikel **weit unter Wert**, mit geschätztem Gewinn |
 | 📡 **Alles-Radar** | optional: prüft zusätzlich die neuesten Uploads auf ganz Vinted, ganz ohne Suchbegriff |
-| 🧠 **Eigenes Bildmodell** | lernt aus den Fotos der Artikel, die der Bot sieht (Tausende pro Tag): Wert-, Begehrt-, Geschmacks- und Fake-Modell. Trainiert regelmäßig, lokal und kostenlos |
+| 👗 **Mode-Bildmodell** | Marqo-FashionSigLIP, ein auf Mode-Produktfotos trainiertes Bildmodell, erkennt **sofort ohne Training 123 Tags** aus dem Foto: Kategorie, Farbe, Material, Muster, Stil, Jahrzehnt, Details, Fotoart. Läuft lokal und kostenlos |
+| 🧠 **Eigenes Training** | lernt zusätzlich aus den Fotos der Artikel, die der Bot sieht (Tausende pro Tag): Wert-, Begehrt-, Geschmacks- und Fake-Modell |
 | 🤖 **KI-Bildcheck (optional)** | Claude schaut sich die Fotos jedes Treffers an: Echtheit/Fake-Risiko, Zustand, Look, Trend, realistischer Wert, Urteil. Fakes werden aussortiert, unterschätzte Retro-Teile als „KI-Fund“ gemeldet |
 | ⚡ **Parallele Sucher** | Sucher A und B teilen sich die Suchen und wechseln sich im Takt ab, alles im selben Fenster: etwa doppelt so schnell |
-| ⚠️ **Fake-Schutz** | Luxus/Designer verdächtig billig → Warnung; extrem billig → wird aussortiert |
+| 🛡 **Fake-Ampel** | prüft **jeden Treffer sofort**: oft gefälschte Marke × viel zu billig, Verräter-Wörter („1:1“, „AAA“, „UA“, „mirror“, „wie original“ …), Katalogfoto, „neu mit Etikett“ zum Spottpreis. 🔴 = nicht melden (oder erst Claude prüfen lassen), 🟡 = mit Warnung |
 | 💎 **Raritäten-Erkennung** | erkennt vintage, 90er, Made in USA/Italy/England, Deadstock und begehrte Modelle (Carhartt Detroit, Stone Island Ghost, Arc'teryx Veilance, Patagonia Retro X …) |
 | 🧠 **Lernt dazu** | 👍/👎 unter jeder Meldung, eingebautes Preis-Vorwissen, eigene Marktpreise per `/preis` |
 | 📏 **Deine Größe** | Standard S, M, L; Schuhe standardmäßig ausgeblendet. Beides änderbar |
@@ -345,38 +346,99 @@ Mit den Standardeinstellungen (Stufe „normal“) erkennt er in 30 verschiedene
 
 ---
 
-## 🧠 Eigenes Bildmodell – trainiert auf deinen Vinted-Daten
+## 👗 Mode-Bildmodell + eigenes Training
 
-Der Bot trainiert **sein eigenes Modell**, und zwar auf deinem PC mit den Fotos der Artikel, die er auf Vinted sieht.
+Der Bot schaut sich die Fotos selbst an – lokal auf deinem PC, ohne laufende Kosten. Dafür nutzt er ein **fertig trainiertes Mode-Bildmodell** und trainiert darauf **sein eigenes Modell** mit den Vinted-Fotos, die er sieht.
 
-**So funktioniert es:**
-1. **Sammeln:** Von jedem Artikel lädt der Bot ein Foto. Ein frei verfügbares Bild-Grundmodell (CLIP ViT-B/32) macht daraus einen „Bild-Fingerabdruck“ aus 512 Zahlen. Der wird zusammen mit Marke, Kategorie, Zustand, Preis und Favoriten in `ki_daten.db` gespeichert. Die Fotos selbst werden nicht gespeichert, ca. 4 KB pro Artikel. Bei Tausenden Artikeln pro Tag sind das nach ein paar Wochen Hunderttausende Bilder.
-2. **Trainieren:** Alle 6 Stunden (oder mit `/trainieren`) trainiert der Bot:
-   - **💶 Wert-Modell:** Was ist ein Teil, das *so aussieht*, auf Vinted wert? Es erkennt auch Dinge, die nicht im Titel stehen: Schnitt, Material, Stil, seltene Modelle.
+### Welches Bildmodell? (Vergleich)
+
+| Modell | Spezialisiert auf | Tempo (4 CPU-Kerne, gemessen) | Download | im Bot |
+|---|---|---|---|---|
+| **Marqo-FashionSigLIP** | Mode-Produktfotos (Kategorie, Stil, Farbe, Material, Keywords) | ca. 110 ms/Foto | ca. 800 MB | **Standard** (`backbone: fashion`) |
+| CLIP ViT-B/32 (LAION-2B) | alles (allgemein) | ca. 40 ms/Foto | ca. 600 MB | `backbone: schnell` |
+| FashionCLIP 2.0 | Mode | ähnlich ViT-B/32 | ca. 600 MB | nicht eingebaut – laut Marqo-Messungen schwächer als FashionSigLIP |
+
+**Warum FashionSigLIP:** Es wurde auf Mode-Produktbildern mit Kategorien, Stil, Farben, Materialien und Stichworten trainiert und ist in Marqos Vergleich auf sechs öffentlichen Mode-Datensätzen (DeepFashion, Fashion200k, Polyvore …) deutlich besser als FashionCLIP 2.0. Es ist frei nutzbar (Apache-2.0). Auf einem normalen PC schafft es rund 9 Fotos pro Sekunde – mehr als genug, weil der Bot nur die Kandidaten anschaut.
+
+### 🏷 123 Tags sofort – ohne Training
+
+Das Mode-Bildmodell vergleicht jedes Foto mit 123 Beschreibungen und erkennt:
+
+| Gruppe | Beispiele |
+|---|---|
+| Kategorie (49) | Trainingsjacke, Windbreaker, Daunenjacke, Lederjacke, Korsett-Top, Cargohose, Trikot, Handtasche … und auch **Patch/Sticker, Karton, Buch** |
+| Farbe (17) | schwarz, dunkelblau, oliv, bordeaux, bunt … |
+| Material (14) | Denim, Leder, Wildleder, Nylon, Fleece, Cord, Kunstfell, gesteppt … |
+| Muster (10) | uni, gestreift, kariert, Camouflage, Leopard, großes Logo, Colorblock … |
+| Stil (14) | Streetwear, Vintage, Sportswear, Gorpcore, Workwear, Y2K, Grunge, Luxus … |
+| Jahrzehnt (5) | 70er, 80er, 90er, Y2K/2000er, aktuell |
+| Details (9) | Kapuze, Ärmelstreifen, Fellkragen, oversized, cropped, Cargotaschen … |
+| Fotoart (5) | Katalogfoto, Handyfoto, getragen, Etikett-Nahaufnahme, unscharf |
+
+In der Meldung steht dann z. B.:
+```
+🏷 Foto erkannt: Trainingsjacke · Nylon · dunkelblau/grün · 90er · Sportswear · Ärmelstreifen
+```
+**Und es hilft beim Aussortieren:** Heißt ein Artikel „Adidas Jacke 90er“, das Foto zeigt aber nur einen Aufnäher, einen Schuhkarton oder ein Buch, wird er nicht gemeldet. Ein Katalogfoto bei einer oft gefälschten Marke ist ein Warnzeichen für die Fake-Ampel. Die Tags gehen außerdem an den Claude-Bildcheck.
+
+### 🧠 Eigenes Training
+
+1. **Sammeln:** Von jedem Artikel macht das Mode-Bildmodell einen „Bild-Fingerabdruck“ (768 Zahlen). Der wird mit Marke, Kategorie, Zustand, Preis und Favoriten in `ki_daten_fashion.db` gespeichert – die Fotos selbst nicht, ca. 4 KB pro Artikel. Nach ein paar Wochen sind das Hunderttausende Bilder.
+2. **Trainieren:** Alle 6 Stunden (oder mit `/trainieren`):
+   - **💶 Wert-Modell:** Was ist ein Teil, das *so aussieht*, auf Vinted wert? Erkennt Schnitt, Material, Stil und seltene Modelle, auch wenn sie nicht im Titel stehen.
    - **🔥 Begehrt-Modell:** Was bekommt schnell viele Favoriten?
    - **❤️ Geschmack:** Was gefällt dir? Lernt aus deinen 👍/👎.
    - **🔍 Fake-Modell:** Lernt aus den Urteilen des Claude-Bildchecks („Lehrer-Schüler“) und deinen `/fake`- und `/echt`-Meldungen.
-3. **Bewerten:** Jeder Kandidat wird lokal in ca. 0,05–0,2 s bewertet. Ist das Wert-Modell nachweislich besser als die Faustregel, fließt es in den Wert ein. Es findet dann auch Schnäppchen, die die Faustregel übersieht. Begehrt und Geschmack geben Bonuspunkte, ein hohes Fake-Risiko sortiert aus.
+3. **Bewerten:** Jeder Kandidat wird lokal in ca. 0,1–0,2 s bewertet. Ist das Wert-Modell nachweislich besser als die Faustregel, fließt es in den Wert ein und findet Schnäppchen, die die Faustregel übersieht.
 
-   In der Meldung steht zum Beispiel: `🧠 Eigenes Modell: Stil: 90er-Sportswear · Wert ca. 58 € · begehrt 81% · passt zu dir 74%`
+   `🧠 Eigenes Modell: Wert ca. 58 € · begehrt 81% · passt zu dir 74%`
 
 **Ehrliche Zahlen statt Versprechen:**
 - Jedes Modell wird auf 20 % zurückgehaltenen Artikeln geprüft, die es beim Training nicht gesehen hat. `/modell` zeigt das Ergebnis, z. B. „Wert-Modell: Ø 24 % Abweichung (Faustregel 35 %) – wird genutzt ✅“.
-- Ist das Modell schlechter als die Faustregel, wird es **nicht** benutzt.
-- Das Fake-Modell wird erst aktiv, wenn es genug bestätigte Beispiele gibt, und nur, wenn es in der Prüfung gut abschneidet. Fakes sicher zu erkennen bleibt schwer.
+- Ist ein Modell schlechter als die Faustregel, wird es **nicht** benutzt.
+- Die Tags funktionieren sofort, das eigene Training braucht ein paar Tausend gesammelte Bilder (`/sammeln`).
 
 **Einrichten (einmalig):**
-1. Bot stoppen, dann **`ki-installieren.bat`** doppelklicken. Das installiert PyTorch und open_clip, ca. 300 MB.
-2. `start.bat` starten. Beim ersten Mal lädt der Bot das Bild-Grundmodell, ca. 600 MB.
-3. In Telegram **`/sammeln`** schreiben. Der Sammel-Turbo holt Tausende Artikel auf einmal (bis zu 3 Seiten à 96 je Suche) und trainiert danach sofort. Ab dann sammelt und trainiert der Bot von selbst.
+1. Bot stoppen, dann **`ki-installieren.bat`** doppelklicken (Mac/Linux: `./ki-installieren.sh`). Das installiert PyTorch, open_clip und transformers, ca. 400 MB. **Hattest du es schon installiert, einfach nochmal ausführen** – für das Mode-Bildmodell kommt `transformers` dazu.
+2. `start.bat` starten. Beim ersten Mal lädt der Bot das Mode-Bildmodell, ca. 800 MB.
+3. In Telegram **`/sammeln`** schreiben. Der Sammel-Turbo holt Tausende Artikel auf einmal und trainiert danach sofort. Ab dann sammelt und trainiert der Bot von selbst.
+
+Lässt sich das Mode-Bildmodell nicht laden (z. B. `transformers` fehlt), nimmt der Bot automatisch das schnelle CLIP-Modell und sagt es in `/modell`. Für einen schwachen PC: in der `config.yaml` unter `ml:` → `backbone: schnell`. Jedes Bildmodell hat seinen eigenen Datensatz (`ki_daten.db` = schnell, `ki_daten_fashion.db` = Mode-Modell), weil die Fingerabdrücke nicht zusammenpassen.
 
 **Befehle:**
-- `/modell`: Datensatz, Trainingsstand und Prüfergebnisse
+- `/modell`: Bildmodell, Datensatz, Trainingsstand und Prüfergebnisse
 - `/trainieren`: jetzt trainieren
 - `/sammeln [Seiten]`: Sammel-Turbo
 - `/fake <Link>` / `/echt <Link>`: dem Fake-Modell etwas beibringen
 
-**Leistung** (gemessen): Das Bild-Grundmodell braucht auf 4 Prozessorkernen ca. 40 ms pro Foto. Ein Training mit 50.000 Bildern dauert ca. 20 s. Ohne Installation läuft der Bot ganz normal ohne eigenes Modell.
+**Leistung** (gemessen auf 4 Prozessorkernen): Mode-Bildmodell ca. 110 ms pro Foto, schnelles Modell ca. 40 ms. Ein Training mit 50.000 Bildern dauert ca. 25 s. Ohne Installation läuft der Bot ganz normal, nur ohne Bild-Tags und eigenes Modell.
+
+## 🛡 Fake-Ampel – der Fake-Erkenner, der sofort funktioniert
+
+Jeder Treffer wird geprüft, **bevor** er gemeldet wird – ohne Training, ohne Kosten:
+
+| Warnzeichen | Beispiel |
+|---|---|
+| Oft gefälschte Marke × viel zu billig | Louis Vuitton Neverfull für 45 €, Moncler-Daunenjacke für 60 €, Jordan 1 für 40 € (je stärker eine Marke gefälscht wird, desto verdächtiger der Rabatt) |
+| Verräter-Wörter | „1:1“, „AAA“, „UA quality“, „mirror“, „Replica“, „inspired“, „nicht original“, „weiß nicht ob echt“, „wie original“, „alle Größen verfügbar“, „mehrere auf Lager“, „Top Qualität“ |
+| Neu mit Etikett zum Spottpreis | bei Marken, die oft gefälscht werden |
+| Katalogfoto statt eigenem Foto | erkennt das Mode-Bildmodell (Fälscher klauen oft Shop-Bilder) |
+| Eigenes Fake-Modell | sobald trainiert (aus `/fake`, `/echt` und Claude-Urteilen) |
+
+Die Marken-Liste umfasst rund 60 oft gefälschte Marken (Luxus, Premium-Jacken, Hype-Streetwear, Sneaker) – mit den Kategorien, in denen am meisten gefälscht wird, und Hype-Modellen wie Jordan 1/4, Dunk, Yeezy, Tech Fleece, Nuptse, Box Logo, Neverfull, Speedy.
+
+**Was passiert:**
+- 🟢 **unauffällig** – wird normal gemeldet. Bei sehr oft gefälschten Marken mit Hinweis „trotzdem Etikett & Nähte checken“.
+- 🟡 **genau prüfen** – wird gemeldet, mit Warnzeile und Gründen.
+- 🔴 **hohes Fake-Risiko** – wird **nicht** gemeldet. Ist der Claude-Bildcheck an, schaut Claude sich die Fotos an; gemeldet wird nur, wenn Claude es für echt hält.
+
+```
+🛡 Fake-Ampel: 🟡 genau prüfen (50%) – 70% unter Wert – sehr billig für Nike (Jordan 1/4/11) · „neu mit Etikett“ zum Spottpreis
+```
+
+Umschalten per Telegram: `/ampel streng` (Standard) · `/ampel warnen` (rot nur warnen) · `/ampel aus`. Auch `/wert louis vuitton speedy 40 €` zeigt die Ampel.
+
+**Ehrlich gesagt:** Ein fertiges, öffentliches Modell, das gefälschte Kleidung zuverlässig erkennt, gibt es nicht – es gibt nur kleine Forschungs-Datensätze (meist Sneaker), die für Vinted-Fotos nicht reichen. Die Ampel erkennt die typischen **Warnzeichen**, die fast jeder Fake auf Vinted hat. Grün heißt „keine Warnzeichen“, nicht „garantiert echt“. Am genauesten wird es mit Ampel + Claude-Bildcheck + deinem eigenen Fake-Modell.
 
 ## 🤖 KI-Bildcheck mit Claude (optional)
 
@@ -440,6 +502,8 @@ Mehr Sucher (bis 4) oder ein kleinerer Abstand machen den Bot schneller. Vinted 
 | „Jacke **im Stone Island Style**“, Marke „No Name“ + Markenname im Titel | Marke „**Vintage**“/„**Andere**“ gewählt + „Adidas“ im Titel → zählt als Adidas |
 | Kindergrößen (z. B. 164), falsche Größe, ausgeblendete Kategorien | Jeansgrößen „W30 L32“, „38“, „30/32“ werden in S/M/L umgerechnet |
 | Artikel unter 2 € in Schnäppchen-Suchen | |
+| Titel „Adidas Jacke“, **Foto zeigt aber nur einen Aufnäher**/Karton/Buch (Mode-Bildmodell) | |
+| 🔴 Fake-Ampel: „1:1“, „AAA“, Luxus zum Spottpreis … | 🟢/🟡 werden gemeldet (🟡 mit Warnung) |
 
 **Lernen nur aus echten Angeboten:** Fakes, Style-Kopien, Kindergrößen, Kleinkram, Suchanzeigen und defekte Teile fließen nicht mehr in den gelernten Marktpreis ein. Früher haben sie den Preis nach unten gezogen, und echte Schnäppchen galten dann nicht mehr als „die günstigsten“.
 
@@ -453,8 +517,9 @@ Warum ein bestimmter Artikel nicht kam, zeigt `/probelauf` mit Beispielen und Gr
 2. Aus dem **alten** `vinted-bot`-Ordner diese Dateien in den **neuen** kopieren:
    - `config.yaml` (deine Einstellungen und der Telegram-Token)
    - `vinted_bot.db` (gelernte Marktpreise, Trend-Marken und per Telegram angelegte Suchen)
-   - `ki_daten.db` und `ki_modell.npz`, falls vorhanden (gesammelte Bilder und trainiertes eigenes Modell)
-3. Im neuen Ordner `start.bat` starten. Beim ersten Mal richtet er sich wieder 1–2 Minuten ein.
+   - `ki_daten*.db` und `ki_modell*.npz`, falls vorhanden (gesammelte Bilder und trainiertes eigenes Modell)
+3. Hast du das Bildmodell installiert: einmal `ki-installieren.bat` im neuen Ordner ausführen.
+4. Im neuen Ordner `start.bat` starten. Beim ersten Mal richtet er sich wieder 1–2 Minuten ein.
 
 Der alte Ordner kann danach weg.
 

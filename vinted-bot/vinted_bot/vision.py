@@ -330,6 +330,13 @@ def listing_context(item: Item, alert: Any = None) -> str:
              + (f" (mit Käuferschutz {item.total_price:.2f})" if item.total_price else "")]
     if alert is not None and getattr(alert, "score", None) is not None and alert.score.value:
         lines.append(f"Schätzung des Bots: ca. {alert.score.value:.0f} € (nur Faustregel, du darfst abweichen)")
+    ampel = getattr(alert, "ampel", None) if alert is not None else None
+    if ampel is not None and ampel.level != "grün":
+        lines.append(f"Warnzeichen laut Fake-Ampel ({ampel.level}): {'; '.join(ampel.reasons)} – "
+                     "prüfe Etikett, Logo, Nähte und Materialien besonders genau")
+    brain = getattr(alert, "brain", None) if alert is not None else None
+    if brain is not None and getattr(brain, "tags", None):
+        lines.append(f"Bildmodell erkennt: {', '.join(brain.tag_labels())}")
     return "\n".join(lines)
 
 

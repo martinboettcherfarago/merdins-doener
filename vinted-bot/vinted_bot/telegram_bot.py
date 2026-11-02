@@ -12,6 +12,7 @@ from datetime import date
 from typing import Any, Optional
 from urllib.parse import parse_qs, urlparse
 
+from . import fakecheck
 from .catalog import CATEGORIES, FAMILY_LABELS, TIER_LABELS, brand_info, resolve_type
 from .config import RESALE_LEVELS, TREND_WATCHES, ConfigError, SearchConfig, is_brand_entry, watch_name
 from .knowledge import (LETTER_SIZES, brand_key, estimate_item, normalize_sizes, rarity,
@@ -39,6 +40,7 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b>
 /modell – Datensatz, Trainingsstand, wie gut es ist
 /sammeln – Sammel-Turbo: Tausende Bilder auf einmal, dann trainieren
 /trainieren – jetzt neu trainieren · /fake &lt;Link&gt; · /echt &lt;Link&gt;
+/ampel streng|warnen|aus – 🛡 Fake-Ampel (sofortiger Fake-Check jedes Treffers)
 
 <b>🤖 KI-Bildcheck</b>
 /ki an · /ki aus – Fotos jedes Treffers prüfen (Echtheit, Look, Trend, Wert, Urteil)
@@ -256,6 +258,7 @@ class TelegramController(threading.Thread):
             "/check": self.cmd_check,
             "/modell": self.cmd_model, "/model": self.cmd_model, "/trainieren": self.cmd_train,
             "/sammeln": self.cmd_collect, "/fake": self.cmd_mark_fake, "/echt": self.cmd_mark_real,
+            "/ampel": self.cmd_ampel,
             "/suchen": self.cmd_list, "/liste": self.cmd_list, "/list": self.cmd_list,
             "/loeschen": self.cmd_delete, "/löschen": self.cmd_delete, "/delete": self.cmd_delete,
             "/pause": self.cmd_pause, "/weiter": self.cmd_resume, "/resume": self.cmd_resume,
@@ -709,6 +712,9 @@ class TelegramController(threading.Thread):
             disc = 1 - item.price / value
             lines.append(f"\nFür {money(item.price)}: " + (f"<b>{disc:.0%} unter Wert</b> 👍" if disc > 0
                                                          else f"{-disc:.0%} über Wert"))
+            ampel = fakecheck.check(item, est.brand or "", est.ptype, max(0.0, disc), est.tier)
+            if ampel.visible or ampel.level != "grün":
+                lines.append(html.escape(ampel.line()))
         lines.append("\nWeiß du es besser? <code>/preis marke kategorie betrag</code>")
         self.reply("\n".join(lines))
 
@@ -799,8 +805,12 @@ class TelegramController(threading.Thread):
         st = b.status()
         last = st["last_train"]
         when = (f"vor {int((time.time() - last) // 3600)} Std." if last else "noch nie")
-        lines = [f"🧠 <b>Eigenes Modell</b> {'(' + st['busy'] + ' …)' if st['busy'] else ''}",
-                 f"📸 Datensatz: <b>{st['samples']:,} Bilder</b>".replace(",", ".")
+        lines = [f"🧠 <b>Eigenes Modell</b> {'(' + st['busy'] + ' …)' if st['busy'] else ''}"]
+        if st.get("backbone"):
+            lines.append(f"🖼 Bildmodell: {html.escape(st['backbone'])} · erkennt {st['tags']} Tags")
+        if st.get("fallback"):
+            lines.append(f"⚠️ {html.escape(st['fallback'])} – ki-installieren.bat erneut ausführen")
+        lines += [f"📸 Datensatz: <b>{st['samples']:,} Bilder</b>".replace(",", ".")
                  + f" (heute {st['today']}, in Arbeit {st['queue']})",
                  f"🏋️ Zuletzt trainiert: {when} (automatisch alle {self.monitor.cfg.ml_train_every_hours:g} Std.)"]
         if st["value_mape"] is not None:
@@ -812,7 +822,9 @@ class TelegramController(threading.Thread):
         lines.append(f"❤️ Geschmack: {st['likes']} Bewertungen"
                      + (f" · Trefferqualität {st['taste_auc']:.0%}" if st["taste_auc"] else ""))
         lines.append(f"🔍 Fake-Modell: {st['fakes']} Beispiele"
-                     + (f" · Trefferqualität {st['fake_auc']:.0%}" if st["fake_auc"] else " (noch inaktiv)"))
+                     + (f" · Trefferqualität {st['fake_auc']:.0%}" if st["fake_auc"] else " (lernt noch)"))
+        lines.append(f"🛡 Fake-Ampel: {html.escape(self.monitor.ampel_mode())} (sofort aktiv: Marke × Preis × "
+                     "Verräter-Wörter × Foto) – /ampel")
         lines.append("\n<code>/sammeln</code> – Tausende Bilder auf einmal sammeln und trainieren\n"
                      "<code>/trainieren</code> – jetzt neu trainieren\n"
                      "<code>/fake &lt;Link&gt;</code> · <code>/echt &lt;Link&gt;</code> – dem Fake-Modell etwas beibringen")
@@ -850,6 +862,23 @@ class TelegramController(threading.Thread):
             self.reply(f"✅ Gemerkt: {'Fake' if fake else 'echt'}. Das Fake-Modell lernt beim nächsten Training daraus.")
         else:
             self.reply("Diesen Artikel hat der Bot noch nicht gesehen – ich kann nur Artikel aus dem Datensatz markieren.")
+
+    def cmd_ampel(self, arg: str) -> None:
+        """/ampel streng|warnen|aus – wie die Fake-Ampel mit verdächtigen Treffern umgeht."""
+        a = arg.strip().lower()
+        if a in fakecheck.MODES:
+            self.storage.set_state("fake_ampel", a)
+        mode = self.monitor.ampel_mode()
+        explain = {"streng": "🔴 rot = nicht melden (mit KI-Bildcheck: nur melden, wenn Claude die Fotos für echt hält)"
+                             ", 🟡 gelb = mit Warnung melden",
+                   "warnen": "🔴/🟡 werden mit Warnung gemeldet – du entscheidest selbst",
+                   "aus": "keine Fake-Ampel (nur die alte Regel: Luxus ≥ 85 % unter Wert = aussortieren)"}[mode]
+        self.reply(f"🛡 <b>Fake-Ampel: {mode}</b>\n{explain}\n\n"
+                   "Sie prüft sofort jeden Treffer: oft gefälschte Marke × viel zu billig, Verräter-Wörter "
+                   "(„1:1“, „AAA“, „UA“, „mirror“, „wie original“, „alle Größen da“ …), „neu mit Etikett“ zum "
+                   "Spottpreis, Katalogfoto statt eigenem Foto und – sobald trainiert – dein eigenes Fake-Modell.\n"
+                   "<i>Grün heißt „keine Warnzeichen“, nicht „garantiert echt“.</i>\n\n"
+                   "<code>/ampel streng</code> · <code>/ampel warnen</code> · <code>/ampel aus</code>")
 
     def cmd_mark_fake(self, arg: str) -> None:
         self._label(arg, True)

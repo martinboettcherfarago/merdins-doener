@@ -211,6 +211,8 @@ class Config:
     ml_enabled: bool = True              # eigenes Bildmodell (braucht: ki-installieren.bat)
     ml_threads: int = 2
     ml_train_every_hours: float = 6.0
+    ml_backbone: str = "fashion"         # Bildmodell: fashion (Marqo-FashionSigLIP) oder schnell (CLIP B/32)
+    fake_ampel: str = "streng"           # Fake-Ampel: streng (rot = nicht melden) / warnen / aus
     filter_sizes: list[str] = field(default_factory=lambda: list(DEFAULT_SIZES))       # [] = alle Größen
     filter_exclude_types: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_TYPES))
     only_rare: bool = False
@@ -321,6 +323,12 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
         types = filters.get("exclude_types") or []
         cfg.filter_exclude_types = [str(t).strip().lower() for t in ([types] if isinstance(types, str) else types)]
     cfg.only_rare = bool(filters.get("only_rare", False))
+    ampel = str(filters.get("fake_ampel", "streng")).strip().lower()
+    if ampel in ("false", "0", "off", "no"):
+        ampel = "aus"
+    if ampel not in ("streng", "warnen", "aus"):
+        raise ConfigError(f"filters → fake_ampel muss streng, warnen oder aus sein, nicht '{ampel}'.")
+    cfg.fake_ampel = ampel
     ai = data.get("ai") or {}
     cfg.ai_enabled = bool(ai.get("enabled", False))
     cfg.ai_model = str(ai.get("model") or "claude-opus-5-5").strip()
@@ -334,6 +342,10 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     cfg.ml_enabled = bool(ml.get("enabled", True))
     cfg.ml_threads = max(1, int(ml.get("threads") or 2))
     cfg.ml_train_every_hours = max(0.5, float(ml.get("train_every_hours") or 6))
+    backbone = str(ml.get("backbone") or "fashion").strip().lower()
+    if backbone not in ("fashion", "schnell"):
+        raise ConfigError(f"ml → backbone muss fashion oder schnell sein, nicht '{backbone}'.")
+    cfg.ml_backbone = backbone
     for key in RESALE_TARGET_KEYS:  # einzelne Werte aus der config überschreiben die Stufe
         if section.get(key) is not None:
             value = section[key]

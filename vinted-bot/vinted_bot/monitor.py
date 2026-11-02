@@ -11,6 +11,7 @@ from dataclasses import replace
 from typing import Any, Callable, Optional
 
 from .catalog import hidden_label, is_kids, is_retro, type_hidden
+from . import fakecheck
 from .config import RESALE_LEVELS, TREND_WATCHES, Config, SearchConfig, watch_name
 from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
 from .models import Item
@@ -317,7 +318,13 @@ class Monitor:
         if extra is None and self.brain is not None and self.brain.enabled and kind == "new":
             view = self.brain.assess(item, ptype, est)
             if view is not None:
-                if view.fake is not None and view.fake >= 0.75:
+                # Das Mode-Bildmodell erkennt Kleinkram auch dann, wenn der Titel nichts verrät
+                seen = view.tag("kategorie", 0.6)
+                no_clothes = JUNK_TYPES | MEDIA_TYPES
+                if seen is not None and seen.ptype in no_clothes and ptype not in no_clothes \
+                        and self._junk_reason(search, item, seen.ptype):
+                    return None, f"Foto zeigt {seen.label} ({seen.prob:.0%}) – kein Kleidungsstück"
+                if view.fake is not None and view.fake >= 0.75 and self.ampel_mode() == "aus":
                     return None, f"eigenes Modell: Fake-Risiko {view.fake:.0%}"
                 bonus = 0.0
                 if view.popular is not None:
@@ -336,14 +343,30 @@ class Monitor:
                                        pref_pts=max(-20.0, min(20.0, pref_pts + bonus)), est=est, trend=trend)
         if kind == "price_drop" and old_price:
             score.reasons.insert(0, f"Preis um {1 - item.price / old_price:.0%} gesenkt")
+        ampel = None
+        if self.ampel_mode() != "aus":
+            ampel = fakecheck.check(item, est.brand or "", ptype, score.discount, est.tier,
+                                    tags=view.tags if view is not None else None,
+                                    model_fake=view.fake if view is not None else None)
+            if ampel.level == "rot" and self.ampel_mode() == "streng" and not self._ai_can_check():
+                return None, f"Fake-Ampel rot ({ampel.risk:.0%}: {'; '.join(ampel.reasons[:2])})"
         ok, why = meets_targets(search, score)
         if not ok:
-            if extra is None:
+            if extra is None and (ampel is None or ampel.level == "grün"):
                 self._maybe_second_look(search, item, score, why, rare, trend, ptype, kind)
             return None, why
         return Alert(item=item, search_name=search.name, score=score, buy_url=item.buy_url(self.cfg.web_base),
                      kind=kind, old_price=old_price, resale=search.is_resale, ptype=ptype, brain=view,
-                     offers=suggest_offers(item.price, self.cfg.offer_discounts)), ""
+                     ampel=ampel, offers=suggest_offers(item.price, self.cfg.offer_discounts)), ""
+
+    def ampel_mode(self) -> str:
+        """streng / warnen / aus – per /ampel änderbar, sonst aus der config."""
+        mode = self.storage.get_state("fake_ampel")
+        return mode if mode in ("streng", "warnen", "aus") else self.cfg.fake_ampel
+
+    def _ai_can_check(self) -> bool:
+        r = self.reviewer
+        return r is not None and r.enabled and r.budget_left("checks")
 
     def check_search(self, search: SearchConfig, client: Any = None, worker: str = "") -> list[Alert]:
         """Fragt eine Suche ab und liefert die Treffer, die gemeldet werden sollen."""
@@ -423,10 +446,19 @@ class Monitor:
         if self.paused:
             return False
         alert.worker = worker
-        if self.reviewer is not None and self.reviewer.enabled and self.reviewer.budget_left("checks"):
+        if self._ai_can_check():
             self.reviewer.submit("check", alert, self._after_review)
             return True
+        if self._ampel_blocks(alert):  # rot, aber KI-Budget inzwischen aufgebraucht
+            log.info("🛡 Fake-Ampel rot, nicht gemeldet: %s", alert.item.title)
+            return False
         return self._send(alert)
+
+    def _ampel_blocks(self, alert: Alert, verdict: Any = None) -> bool:
+        """Rote Ampel im strengen Modus: nur melden, wenn Claude die Fotos geprüft hat und sie echt wirken."""
+        if alert.ampel is None or alert.ampel.level != "rot" or self.ampel_mode() != "streng":
+            return False
+        return verdict is None or verdict.echtheit != "wahrscheinlich_echt"
 
     def _send(self, alert: Alert) -> bool:
         tag = "🤖✨" if alert.ai_find else ("🔥" if alert.score.is_top else "🆕")
@@ -458,6 +490,11 @@ class Monitor:
                     with self._lock:
                         self.stats["ai_fakes"] += 1
                     return
+            if self._ampel_blocks(alert, verdict):
+                log.info("🛡 Fake-Ampel rot und KI nicht überzeugt, nicht gemeldet: %s", alert.item.title)
+                with self._lock:
+                    self.stats["ai_fakes"] += 1
+                return
             self._send(alert)
             return
         # Zweitblick: knapp verpasstes Retro-/Trend-Teil – sieht die KI mehr Wert als die Faustregel?

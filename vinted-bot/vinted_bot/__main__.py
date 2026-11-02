@@ -104,10 +104,13 @@ def cmd_run(cfg: Config) -> int:
               + (f"\n🤖 KI-Bildcheck: an ({cfg.ai_model}, max. {cfg.ai_max_checks_per_day}/Tag)" if ai_on
                  else "\n🤖 KI-Bildcheck: aus (/ki)"))
     b = monitor.brain
+    from .tags import count_tags
     if b is not None and b.enabled:
-        names += f"\n🧠 Eigenes Modell: an · {b.data.count():,} Bilder im Datensatz (/modell)".replace(",", ".")
+        names += (f"\n🧠 Bildmodell: {b.embedder.label} · {count_tags()} Tags · {b.data.count():,} Bilder im Datensatz (/modell)"
+                  .replace(",", "."))
     elif b is not None:
         names += "\n🧠 Eigenes Modell: nicht installiert (ki-installieren.bat)"
+    names += f"\n🛡 Fake-Ampel: {monitor.ampel_mode()} (/ampel)"
     log.info("Vinted-Bot %s gestartet (vinted.%s, alle %ss). Suchen: %s",
              __version__, cfg.domain, cfg.interval_seconds, names)
     notifier.send_text(

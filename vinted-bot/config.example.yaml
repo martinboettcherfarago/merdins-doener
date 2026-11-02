@@ -57,11 +57,14 @@ ai:
   max_second_looks_per_day: 20
   hide_fakes: true             # Fake-Verdacht gar nicht erst melden
 
-# 🧠 EIGENES BILDMODELL: lernt aus den Fotos der Artikel, die der Bot auf Vinted sieht (Tausende pro Tag).
-# Trainiert regelmäßig ein Wert-, Begehrt-, Geschmacks- und Fake-Modell – lokal auf deinem PC, kostenlos.
-# Einmalig installieren: ki-installieren.bat (Windows) bzw. ./ki-installieren.sh – danach in Telegram /sammeln.
+# 👗 MODE-BILDMODELL + EIGENES TRAINING: erkennt sofort 123 Tags im Foto (Kategorie, Farbe, Material, Stil,
+# Jahrzehnt …) und lernt aus den Fotos, die der Bot sieht, ein Wert-, Begehrt-, Geschmacks- und Fake-Modell.
+# Lokal auf deinem PC, kostenlos. Einmalig installieren: ki-installieren.bat (Windows) bzw. ./ki-installieren.sh
+# – danach in Telegram /sammeln.
 ml:
   enabled: true
+  backbone: fashion            # fashion = Marqo-FashionSigLIP (Mode-Spezialist, ~110 ms/Foto, Standard)
+                               # schnell = CLIP ViT-B/32 (allgemein, ~40 ms/Foto – für schwache PCs)
   threads: 2                   # Prozessorkerne fürs Bildmodell (mehr = schneller, PC stärker ausgelastet)
   train_every_hours: 6         # automatisch neu trainieren
 
@@ -105,6 +108,9 @@ filters:
                                # Artikel ohne Größe (Taschen, Caps, One Size) kommen immer durch.
   exclude_types: [schuhe]      # ausgeblendete Kategorien (/ohne schuhe · /mit schuhe · /kategorien)
   only_rare: false             # true = nur Raritäten (vintage, 90er, Made in USA, Deadstock, Grails …)
+  fake_ampel: streng           # 🛡 Fake-Ampel prüft jeden Treffer sofort (Marke × Preis, "1:1"/"AAA"/"UA" …):
+                               #   streng: 🔴 nicht melden (mit KI-Bildcheck: nur wenn Claude es für echt hält)
+                               #   warnen: 🔴/🟡 mit Warnung melden · aus: keine Ampel   (auch per /ampel)
 
 # ──────────────────────────────────────────────────────────────────────
 #  Deine Suchen. Weitere kannst du jederzeit per Telegram anlegen:

@@ -36,47 +36,62 @@ from typing import Any, Callable, Optional
 import numpy as np
 
 from .catalog import FAMILY_LABELS, family_of
+from .tags import SHOWN_GROUPS, TAG_GROUPS, THRESHOLDS, count_tags
 
 log = logging.getLogger(__name__)
 
-BACKBONE = ("ViT-B-32", "laion2b_s34b_b79k")   # frei verfügbares CLIP-Grundmodell (open_clip)
-EMB = 512
+# Bild-Grundmodelle (über open_clip, Download einmalig auf deinem PC):
+#   fashion: Marqo-FashionSigLIP – speziell auf Mode-Produktfotos trainiert (Apache-2.0), ~110 ms/Foto auf 4 Kernen
+#   schnell: CLIP ViT-B/32 (LAION-2B) – allgemein, ~40 ms/Foto
+BACKBONES: dict[str, tuple[str, Optional[str], str]] = {
+    "fashion": ("hf-hub:Marqo/marqo-fashionSigLIP", None, "Marqo-FashionSigLIP (Mode-Spezialist)"),
+    "schnell": ("ViT-B-32", "laion2b_s34b_b79k", "CLIP ViT-B/32 (schnell)"),
+}
+BACKBONE = BACKBONES["schnell"][:2]   # alter Name
+EMB = 512                              # Standard-Größe (ViT-B/32); FashionSigLIP liefert 768
 TIER_KEYS = ["", "budget", "standard", "premium", "streetwear", "outdoor", "designer", "luxus"]
 FAMILY_KEYS = list(FAMILY_LABELS)
-N_FEATURES = 2 * EMB + len(TIER_KEYS) + len(FAMILY_KEYS) + 3
-
-# Stil-Erkennung ohne Training ("zero-shot"): CLIP vergleicht das Foto mit diesen Beschreibungen
-STYLES = {
-    "90er-Sportswear": "a photo of a vintage 1990s sportswear track jacket or windbreaker",
-    "Y2K": "a photo of y2k fashion from the early 2000s",
-    "Vintage-Denim": "a photo of vintage washed denim jeans or a denim jacket",
-    "Gorpcore/Outdoor": "a photo of technical outdoor gorpcore clothing",
-    "Streetwear": "a photo of streetwear clothing with a big logo",
-    "Workwear": "a photo of a canvas workwear jacket or pants",
-    "Luxus/Designer": "a photo of a luxury designer bag or garment",
-    "Retro-Trikot": "a photo of a retro football jersey",
-    "Leder/Shearling": "a photo of a vintage leather or shearling jacket",
-    "Strick/Preppy": "a photo of a preppy knitted sweater",
-    "Basic": "a photo of a plain basic everyday clothing item",
-}
-PHOTO_QUALITY = ("a sharp, well lit product photo of clothing", "a blurry, dark, low quality photo of crumpled clothes")
 
 
-# -- Bild-Fingerabdrücke (CLIP) ---------------------------------------------------------
+def n_features(dim: int = EMB) -> int:
+    return 2 * dim + len(TIER_KEYS) + len(FAMILY_KEYS) + 3
+
+
+N_FEATURES = n_features()
+
+# Kurz-Stil für alte Aufrufe (style): aus den Tags abgeleitet
+STYLES = {label: prompt for label, prompt, _ in TAG_GROUPS["stil"]}
+
+
+@dataclass
+class Tag:
+    group: str
+    label: str
+    prob: float
+    ptype: Optional[str] = None
+
+
+# -- Bild-Fingerabdrücke & Tags (open_clip) -------------------------------------------------------
 
 class Embedder:
-    """Berechnet Bild- und Text-Fingerabdrücke mit CLIP. Lädt PyTorch erst beim ersten Gebrauch."""
+    """Berechnet Bild- und Text-Fingerabdrücke und erkennt Tags. Lädt PyTorch erst beim ersten Gebrauch."""
 
-    def __init__(self, threads: int = 2, pretrained: Optional[str] = BACKBONE[1]):
+    def __init__(self, threads: int = 2, backbone: str = "fashion", pretrained: Any = "default"):
         self.threads = threads
-        self.pretrained = pretrained
+        self.backbone = backbone if backbone in BACKBONES else "fashion"
+        arch, tag, self.label = BACKBONES[self.backbone]
+        self.arch = arch
+        self.pretrained = tag if pretrained == "default" else pretrained
+        self._custom_weights = pretrained != "default"   # Tests: pretrained=None = ohne Download
         self._lock = threading.Lock()
         self._model: Any = None
         self._preprocess: Any = None
         self._tokenizer: Any = None
-        self._style_vecs: Optional[np.ndarray] = None
-        self._quality_vecs: Optional[np.ndarray] = None
+        self._scale = 100.0
+        self._tag_vecs: dict[str, np.ndarray] = {}
+        self.dim = 0
         self.error = ""
+        self.fallback = ""     # gesetzt, wenn statt des Mode-Modells das schnelle Modell läuft
 
     @staticmethod
     def installed() -> bool:
@@ -90,13 +105,38 @@ class Embedder:
         import open_clip
         import torch
         torch.set_num_threads(max(1, self.threads))
-        log.info("Lade Bild-Grundmodell %s (beim ersten Mal ca. 600 MB Download) …", BACKBONE[0])
-        model, _, preprocess = open_clip.create_model_and_transforms(BACKBONE[0], pretrained=self.pretrained)
+        log.info("Lade Bildmodell %s (beim ersten Mal einmaliger Download) …", self.label)
+        try:
+            if self.arch.startswith("hf-hub:"):
+                import importlib.util
+                if importlib.util.find_spec("transformers") is None:
+                    raise ImportError("Paket 'transformers' fehlt")
+                model, _, preprocess = open_clip.create_model_and_transforms(self.arch)
+            else:
+                model, _, preprocess = open_clip.create_model_and_transforms(self.arch, pretrained=self.pretrained)
+            tokenizer = open_clip.get_tokenizer(self.arch)
+        except Exception as e:  # noqa: BLE001
+            if self.backbone == "schnell":
+                raise
+            # z. B. Paket "transformers" fehlt oder Hugging Face nicht erreichbar -> schnelles Modell nehmen
+            log.warning("Mode-Bildmodell nicht ladbar (%s) – nehme das schnelle CLIP-Modell. "
+                        "Tipp: ki-installieren.bat erneut ausführen.", e)
+            self.fallback = f"{self.label} nicht ladbar ({type(e).__name__}) – nutze CLIP ViT-B/32"
+            self.backbone = "schnell"
+            self.arch, tag, self.label = BACKBONES["schnell"]
+            self.pretrained = self.pretrained if self._custom_weights else tag
+            model, _, preprocess = open_clip.create_model_and_transforms(self.arch, pretrained=self.pretrained)
+            tokenizer = open_clip.get_tokenizer(self.arch)
         model.eval()
         self._model, self._preprocess = model, preprocess
-        self._tokenizer = open_clip.get_tokenizer(BACKBONE[0])
-        self._style_vecs = self._texts_unlocked(list(STYLES.values()))
-        self._quality_vecs = self._texts_unlocked(list(PHOTO_QUALITY))
+        self._tokenizer = tokenizer
+        try:
+            self._scale = float(model.logit_scale.detach().exp())
+        except Exception:  # noqa: BLE001
+            self._scale = 100.0
+        for group, defs in TAG_GROUPS.items():
+            self._tag_vecs[group] = self._texts_unlocked([prompt for _, prompt, _ in defs])
+        self.dim = int(self._tag_vecs["kategorie"].shape[1])
 
     def _texts_unlocked(self, texts: list[str]) -> np.ndarray:
         import torch
@@ -133,19 +173,30 @@ class Embedder:
                     out[j] = vec
             return out
 
-    def style(self, img: np.ndarray) -> tuple[str, float, float]:
-        """(Stil, Sicherheit 0–1, Fotoqualität 0–1) ohne Training."""
+    def tags(self, img: np.ndarray) -> list[Tag]:
+        """Alle Tag-Gruppen für ein Foto: je Gruppe die wahrscheinlichsten Tags über der Schwelle."""
         with self._lock:
             self._load()
-            styles, quality = self._style_vecs, self._quality_vecs
-        sims = styles @ img * 100
-        p = np.exp(sims - sims.max())
-        p /= p.sum()
-        q = quality @ img * 100
-        q = np.exp(q - q.max())
-        q /= q.sum()
-        k = int(p.argmax())
-        return list(STYLES)[k], float(p[k]), float(q[0])
+            vecs, scale = self._tag_vecs, self._scale
+        out: list[Tag] = []
+        for group, defs in TAG_GROUPS.items():
+            sims = vecs[group] @ img * scale
+            p = np.exp(sims - sims.max())
+            p /= p.sum()
+            order = np.argsort(-p)
+            limit = 2 if group in ("farbe", "details", "stil") else 1
+            for k in order[:limit]:
+                if p[k] >= THRESHOLDS[group]:
+                    label, _, ptype = defs[k]
+                    out.append(Tag(group, label, float(p[k]), ptype))
+        return out
+
+    def style(self, img: np.ndarray) -> tuple[str, float, float]:
+        """(Stil, Sicherheit 0–1, Fotoqualität 0–1) – Kurzfassung der Tags."""
+        tags = self.tags(img)
+        st = next((t for t in tags if t.group == "stil"), None)
+        blurry = next((t.prob for t in tags if t.group == "foto" and t.label == "unscharf/dunkel"), 0.0)
+        return (st.label if st else ""), (st.prob if st else 0.0), 1.0 - blurry
 
 
 # -- Datensatz ----------------------------------------------------------------------------------
@@ -255,10 +306,11 @@ class Dataset:
 
 
 def features(img: np.ndarray, txt: np.ndarray, tier: str, family: str, cond: float, kids: bool) -> np.ndarray:
-    v = np.zeros(N_FEATURES, dtype=np.float32)
-    v[:EMB] = img
-    v[EMB:2 * EMB] = txt
-    o = 2 * EMB
+    dim = len(img)
+    v = np.zeros(n_features(dim), dtype=np.float32)
+    v[:dim] = img
+    v[dim:2 * dim] = txt
+    o = 2 * dim
     v[o + (TIER_KEYS.index(tier) if tier in TIER_KEYS else 0)] = 1
     o += len(TIER_KEYS)
     if family in FAMILY_KEYS:
@@ -346,6 +398,10 @@ def train_models(data: Dataset, seed: int = 0) -> tuple[dict[str, Any], TrainRep
     t0 = time.time()
     rng = np.random.default_rng(seed)
     rows = data.rows()
+    if rows:  # nur Fingerabdrücke eines Bildmodells mischen (z. B. nach einem Wechsel schnell <-> fashion)
+        sizes = [len(r[11]) for r in rows]
+        main = max(set(sizes), key=sizes.count)
+        rows = [r for r in rows if len(r[11]) == main]
     rep = TrainReport(samples=len(rows))
     models: dict[str, Any] = {"version": 1, "trained_at": time.time(), "samples": len(rows)}
     if len(rows) < 200:
@@ -451,10 +507,26 @@ class BrainView:
     style: str = ""
     style_conf: float = 0.0
     photo_quality: float = 0.0
+    tags: list[Tag] = field(default_factory=list)
+
+    def tag(self, group: str, min_prob: float = 0.0) -> Optional[Tag]:
+        return next((t for t in self.tags if t.group == group and t.prob >= min_prob), None)
+
+    def tag_labels(self) -> list[str]:
+        out: list[str] = []
+        for group in SHOWN_GROUPS:
+            labels = [t.label for t in self.tags if t.group == group]
+            if labels:
+                out.append("/".join(labels) if group == "farbe" else " · ".join(labels))
+        return out
 
     def lines(self) -> list[str]:
+        out = []
+        labels = self.tag_labels()
+        if labels:
+            out.append(f"🏷 Foto erkannt: {' · '.join(labels)}")
         bits = []
-        if self.style and self.style_conf >= 0.25:
+        if not labels and self.style and self.style_conf >= 0.25:
             bits.append(f"Stil: {self.style}")
         if self.value is not None:
             bits.append(f"Wert ca. {self.value:.0f} €" + ("" if self.value_trusted else " (lernt noch)"))
@@ -464,7 +536,9 @@ class BrainView:
             bits.append(f"passt zu dir {self.taste:.0%}")
         if self.fake is not None and self.fake >= 0.4:
             bits.append(f"⚠️ Fake-Risiko {self.fake:.0%}")
-        return [f"🧠 Eigenes Modell: {' · '.join(bits)}"] if bits else []
+        if bits:
+            out.append(f"🧠 Eigenes Modell: {' · '.join(bits)}")
+        return out
 
 
 def _sigmoid(x: float) -> float:
@@ -477,9 +551,12 @@ class Brain:
         self.cfg = cfg
         self.fetch_bytes = fetch_bytes
         base = os.path.dirname(os.path.abspath(cfg.database))
-        self.data = Dataset(os.path.join(base, "ki_daten.db"))
-        self.model_path = os.path.join(base, "ki_modell.npz")
-        self.embedder = embedder or Embedder(threads=cfg.ml_threads)
+        backbone = getattr(cfg, "ml_backbone", "fashion")
+        # eigener Datensatz je Bildmodell (die Fingerabdrücke verschiedener Modelle passen nicht zusammen)
+        suffix = "" if backbone == "schnell" else f"_{backbone}"
+        self.data = Dataset(os.path.join(base, f"ki_daten{suffix}.db"))
+        self.model_path = os.path.join(base, f"ki_modell{suffix}.npz")
+        self.embedder = embedder or Embedder(threads=cfg.ml_threads, backbone=backbone)
         self.models = load_models(self.model_path)
         self.report = report or (lambda text: None)
         self._queue: "queue.Queue[tuple[Any, str, Any]]" = queue.Queue(maxsize=2000)
@@ -564,12 +641,22 @@ class Brain:
         img, txt = vecs
         view = BrainView()
         try:
-            view.style, view.style_conf, view.photo_quality = self.embedder.style(img)
+            tags = getattr(self.embedder, "tags", None)
+            if tags is not None:
+                view.tags = tags(img)
+                st = view.tag("stil")
+                view.style, view.style_conf = (st.label, st.prob) if st else ("", 0.0)
+                blurry = next((t.prob for t in view.tags if t.label == "unscharf/dunkel"), 0.0)
+                view.photo_quality = 1.0 - blurry
+            else:
+                view.style, view.style_conf, view.photo_quality = self.embedder.style(img)
         except Exception as e:  # noqa: BLE001
-            log.debug("Stil-Erkennung fehlgeschlagen: %s", e)
+            log.debug("Tag-Erkennung fehlgeschlagen: %s", e)
         m = self.models
         x = features(img, txt, est.tier or "", family_of(ptype), est.factor,
                      "Kindergröße" in " ".join(est.factor_notes)).astype(np.float64)
+        if any(isinstance(v, np.ndarray) and v.ndim == 1 and len(v) != len(x) for v in m.values()):
+            return view  # Modell gehört zu einem anderen Bildmodell -> erst neu trainieren
         if "value_w" in m:
             view.value = float(math.exp(x @ m["value_w"]))
             view.value_trusted = bool(m.get("value_trusted"))
@@ -628,7 +715,8 @@ class Brain:
                 "value_trusted": m.get("value_trusted", False), "pop_auc": m.get("pop_auc"),
                 "taste_auc": m.get("taste_auc"), "fake_auc": m.get("fake_auc"),
                 "likes": self.data.count("liked IS NOT NULL"), "fakes": self.data.count("fake IS NOT NULL"),
-                "busy": self.busy}
+                "busy": self.busy, "backbone": getattr(self.embedder, "label", ""),
+                "fallback": getattr(self.embedder, "fallback", ""), "tags": count_tags()}
 
     # -- Hintergrund-Thread: sammeln & regelmäßig trainieren -------------------------------
 

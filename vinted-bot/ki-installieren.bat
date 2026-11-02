@@ -1,5 +1,5 @@
 @echo off
-REM Installiert PyTorch (CPU) und open_clip fuer das eigene Bildmodell des Bots (einmalig, ca. 300 MB).
+REM Installiert PyTorch (CPU), open_clip und transformers fuer das eigene Bildmodell des Bots (einmalig, ca. 400 MB).
 cd /d "%~dp0"
 if not exist .venv (
   echo Bitte zuerst einmal start.bat ausfuehren.
@@ -8,9 +8,9 @@ if not exist .venv (
 )
 echo Installiere PyTorch (CPU-Version) ...
 .venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-echo Installiere open_clip ...
-.venv\Scripts\python -m pip install open_clip_torch
+echo Installiere open_clip und transformers (fuer das Mode-Bildmodell) ...
+.venv\Scripts\python -m pip install open_clip_torch transformers sentencepiece protobuf
 echo.
-echo Fertig! Beim naechsten Start laedt der Bot einmalig das Bild-Grundmodell (ca. 600 MB).
+echo Fertig! Beim naechsten Start laedt der Bot einmalig das Mode-Bildmodell Marqo-FashionSigLIP (ca. 800 MB).
 echo Danach in Telegram: /sammeln  (sammelt Tausende Bilder und trainiert das eigene Modell)
 pause
