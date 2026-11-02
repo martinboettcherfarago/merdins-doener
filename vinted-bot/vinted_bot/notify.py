@@ -34,6 +34,11 @@ class Alert:
     ai_find: bool = False             # von der KI entdeckt (Zweitblick)
     brain: Any = None                 # Bewertung durch das eigene Modell (brain.BrainView)
     ampel: Any = None                 # Fake-Ampel (fakecheck.FakeCheck)
+    silent: bool = False              # ohne Push-Ton senden (nur Sniper-Treffer klingeln)
+
+    @property
+    def sniper(self) -> bool:
+        return self.worker == "Sniper" or "Sniper" in (self.search_name or "")
 
 
 def money(value: Optional[float], currency: str = "EUR") -> str:
@@ -63,11 +68,12 @@ def headline(alert: Alert) -> str:
         return (f"📉 PREIS GESENKT · {money(alert.old_price, alert.item.currency)} → "
                 f"{money(alert.item.price, alert.item.currency)} · Score {s.total}/100")
     if alert.ai_find:
-        return f"🤖✨ KI-FUND · {s.discount:.0%} unter KI-Wert"
+        return f"{'⚡ ' if alert.sniper else ''}🤖✨ KI-FUND · {s.discount:.0%} unter KI-Wert"
     if alert.resale and s.discount is not None:
         fire = "🔥" if s.is_top else ""
         kind = "💎 RARITÄT" if s.rarity_level >= 1 else "💰 SCHNÄPPCHEN"
-        return f"{fire}{kind} · {s.discount:.0%} unter Wert · Score {s.total}/100"
+        sniper = "⚡ SNIPER · " if alert.sniper else ""   # steht so auch in der Push-Vorschau
+        return f"{sniper}{fire}{kind} · {s.discount:.0%} unter Wert · Score {s.total}/100"
     if s.is_top:
         return f"🔥 TOP-DEAL · Score {s.total}/100"
     return f"🆕 Neu · Score {s.total}/100"
@@ -171,6 +177,8 @@ class TelegramNotifier:
     def send_alert(self, alert: Alert) -> None:
         caption = telegram_caption(alert)
         extra: dict[str, Any] = {} if alert.demo else {"reply_markup": telegram_keyboard(alert, self.offers_via_bot)}
+        if alert.silent:
+            extra["disable_notification"] = True   # kommt in den Chat, aber ohne Push-Ton
         if alert.item.photo_url:
             try:
                 self.api("sendPhoto", chat_id=self.chat_id, photo=alert.item.photo_url, caption=caption,
@@ -181,11 +189,13 @@ class TelegramNotifier:
         self.api("sendMessage", chat_id=self.chat_id, text=caption, parse_mode="HTML",
                  disable_web_page_preview=False, **extra)
 
-    def send_text(self, text: str, reply_markup: Optional[dict] = None) -> None:
+    def send_text(self, text: str, reply_markup: Optional[dict] = None, silent: bool = False) -> None:
         payload: dict[str, Any] = {"chat_id": self.chat_id, "text": text, "parse_mode": "HTML",
                                    "disable_web_page_preview": True}
         if reply_markup:
             payload["reply_markup"] = reply_markup
+        if silent:
+            payload["disable_notification"] = True
         self.api("sendMessage", **payload)
 
 
@@ -209,7 +219,7 @@ class DiscordNotifier:
         r = requests.post(self.url, json={"embeds": [embed]}, timeout=self.timeout)
         r.raise_for_status()
 
-    def send_text(self, text: str, reply_markup: Optional[dict] = None) -> None:
+    def send_text(self, text: str, reply_markup: Optional[dict] = None, silent: bool = False) -> None:
         plain = html.unescape(text.replace("<b>", "**").replace("</b>", "**"))
         requests.post(self.url, json={"content": plain[:1900]}, timeout=self.timeout).raise_for_status()
 
@@ -229,7 +239,7 @@ class NtfyNotifier:
             "title": f"{headline(alert)} – {it.title}"[:250],
             "message": "\n".join(detail_lines(alert)),
             "tags": ["fire"] if alert.score.is_top else ["shopping"],
-            "priority": 5 if alert.score.is_top else 3,
+            "priority": 1 if alert.silent else (5 if alert.score.is_top else 3),   # 1 = ohne Ton/Popup
             "click": it.url,
             "actions": [
                 {"action": "view", "label": "🛒 Kaufen", "url": alert.buy_url},
@@ -240,9 +250,10 @@ class NtfyNotifier:
             payload["attach"] = it.photo_url
         requests.post(self.server, json=payload, timeout=self.timeout).raise_for_status()
 
-    def send_text(self, text: str, reply_markup: Optional[dict] = None) -> None:
+    def send_text(self, text: str, reply_markup: Optional[dict] = None, silent: bool = False) -> None:
         plain = html.unescape(text.replace("<b>", "").replace("</b>", ""))
-        requests.post(self.server, json={"topic": self.topic, "message": plain}, timeout=self.timeout).raise_for_status()
+        requests.post(self.server, json={"topic": self.topic, "message": plain, "priority": 1 if silent else 3},
+                      timeout=self.timeout).raise_for_status()
 
 
 class MultiNotifier:
@@ -264,9 +275,9 @@ class MultiNotifier:
                 log.warning("%s: Benachrichtigung fehlgeschlagen: %s", type(n).__name__, e)
         return ok
 
-    def send_text(self, text: str) -> None:
+    def send_text(self, text: str, silent: bool = False) -> None:
         for n in self.notifiers:
             try:
-                n.send_text(text)
+                n.send_text(text, silent=silent)
             except Exception as e:  # noqa: BLE001
                 log.warning("%s: Nachricht fehlgeschlagen: %s", type(n).__name__, e)

@@ -18,6 +18,7 @@ from .config import RESALE_LEVELS, TREND_WATCHES, ConfigError, SearchConfig, is_
 from .knowledge import (LETTER_SIZES, brand_key, estimate_item, normalize_sizes, rarity,
                         trend_match)
 from .models import Item
+from .monitor import AUTO_BAND
 from .notify import TelegramNotifier, money
 from .scoring import TYPE_LABELS, normalize
 
@@ -28,7 +29,7 @@ MAX_OFFERS_PER_DAY = 25  # Limit von Vinted
 HELP = """<b>🤖 Vinted-Deal-Bot</b> – frisch hochgeladene Teile weit unter Wert
 
 <b>💰 Schnäppchen-Radar</b>
-/stufe auto – hält 4–20 Treffer pro Stunde (auch: locker · normal · streng)
+/stufe auto – hält 20–60 Treffer pro Stunde (auch: offen · locker · normal · streng)
 /budget 30 – höchstens 30 € pro Teil · <code>/budget marken 80</code> für teure Marken
 /radar an|aus – ⚡ Sniper: neueste Uploads alle ~4 s · <code>/radar an &lt;Vinted-Link&gt;</code>
 /trends – deine Marken &amp; Trends · <code>/trends plus jacquemus</code> · <code>/trends minus nike</code>
@@ -50,6 +51,7 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b> – frisch hochgeladene Teile weit unter W
 /neu <i>Begriff</i> – eigene Suche, z. B. <code>/neu nike air max 90 bis 40 score 60</code>
 /suchen · /pause <i>Nr</i> · /weiter <i>Nr</i> · /loeschen <i>Nr</i>
 /pause · /weiter – alle Meldungen anhalten/fortsetzen
+/push sniper|alle|aus – 🔔 Push-Ton nur für ⚡ Sniper-Treffer (Standard)
 /status · /live – was kam wirklich rein (Takt, Alter, Preise)? · /probelauf
 
 <i>Optionen für /neu und /marke:</i> <code>bis 40</code> · <code>ab 10</code> · <code>rabatt 40</code> · <code>gewinn 15</code> · <code>frisch 10</code> · <code>günstiger 95</code> · <code>score 60</code> · <code>markt 50</code>"""
@@ -237,7 +239,7 @@ class TelegramController(threading.Thread):
             "/check": self.cmd_check,
             "/modell": self.cmd_model, "/model": self.cmd_model, "/trainieren": self.cmd_train,
             "/sammeln": self.cmd_collect, "/fake": self.cmd_mark_fake, "/echt": self.cmd_mark_real,
-            "/ampel": self.cmd_ampel,
+            "/ampel": self.cmd_ampel, "/push": self.cmd_push, "/ton": self.cmd_push,
             "/suchen": self.cmd_list, "/liste": self.cmd_list, "/list": self.cmd_list,
             "/loeschen": self.cmd_delete, "/löschen": self.cmd_delete, "/delete": self.cmd_delete,
             "/pause": self.cmd_pause, "/weiter": self.cmd_resume, "/resume": self.cmd_resume,
@@ -402,9 +404,10 @@ class TelegramController(threading.Thread):
         a = arg.strip().lower()
         if a == "auto":
             self.storage.set_state("resale_level", "auto")
-            self.reply("✅ <b>Auto-Stufe an</b> – kommen weniger als 4 Schnäppchen pro Stunde, lockere ich; kommen "
-                       "mehr als 20, werde ich strenger (zwischen „locker“ und „streng“, höchstens alle 30 Min.).\n\n"
-                       + self._targets_text())
+            low, high = AUTO_BAND
+            self.reply(f"✅ <b>Auto-Stufe an</b> – kommen weniger als {low:g} Schnäppchen pro Stunde, lockere ich; "
+                       f"kommen mehr als {high:g}, werde ich strenger (zwischen „offen“ und „streng“, höchstens alle "
+                       "15 Min.). Der Zustand bleibt immer mindestens „gut“.\n\n" + self._targets_text())
             return
         if a in RESALE_LEVELS:
             self.storage.set_state("resale_level", a)
@@ -415,7 +418,8 @@ class TelegramController(threading.Thread):
             self.storage.delete_state("resale_level")
             self.reply("✅ Es gelten wieder die Werte aus der config.yaml.\n\n" + self._targets_text())
             return
-        options = ["<code>/stufe auto</code> – passt sich an: hält 4–20 Schnäppchen pro Stunde (empfohlen)"]
+        options = [f"<code>/stufe auto</code> – passt sich an: hält {AUTO_BAND[0]:g}–{AUTO_BAND[1]:g} Schnäppchen pro "
+                   "Stunde (empfohlen)"]
         for name, t in RESALE_LEVELS.items():
             options.append(f"<code>/stufe {name}</code> – ≤ {t['max_age_minutes']} Min., ≥ {t['min_discount']:g} % "
                            f"unter Markt, günstiger als {t['min_cheaper_than']:g} %, ≥ {t['min_profit']:g} € Gewinn")
@@ -878,6 +882,17 @@ class TelegramController(threading.Thread):
                    "Spottpreis, Katalogfoto statt eigenem Foto und – sobald trainiert – dein eigenes Fake-Modell.\n"
                    "<i>Grün heißt „keine Warnzeichen“, nicht „garantiert echt“.</i>\n\n"
                    "<code>/ampel streng</code> · <code>/ampel warnen</code> · <code>/ampel aus</code>")
+
+    def cmd_push(self, arg: str) -> None:
+        """/push sniper|alle|aus – welche Meldungen mit Push-Ton kommen."""
+        a = arg.strip().lower()
+        if a in ("sniper", "alle", "aus"):
+            self.storage.set_state("push", a)
+        mode = self.monitor.push_mode()
+        what = {"sniper": "nur <b>⚡ Sniper-Treffer</b> (frisch hochgeladen, meist erst Sekunden alt)",
+                "alle": "<b>alle</b> Meldungen", "aus": "<b>keine</b> Meldung – alles kommt lautlos"}[mode]
+        self.reply(f"🔔 <b>Push-Ton: {mode}</b>\nMit Ton und Push kommt {what}. Alles andere landet trotzdem im "
+                   "Chat, nur lautlos.\n\n<code>/push sniper</code> · <code>/push alle</code> · <code>/push aus</code>")
 
     def cmd_mark_fake(self, arg: str) -> None:
         self._label(arg, True)

@@ -121,12 +121,14 @@ def cmd_run(cfg: Config) -> int:
     elif b is not None:
         names += "\n🧠 Eigenes Modell: nicht installiert (ki-installieren.bat)"
     names += f"\n🛡 Fake-Ampel: {monitor.ampel_mode()} (/ampel)"
+    push = {"sniper": "nur ⚡ Sniper-Treffer", "alle": "alle Meldungen", "aus": "keine (alles lautlos)"}
+    names += f"\n🔔 Push-Ton: {push[monitor.push_mode()]} (/push)"
     log.info("Vinted-Bot %s gestartet (vinted.%s). Suchen: %s", __version__, cfg.domain, names)
     notifier.send_text(
         f"🤖 <b>Vinted-Bot läuft</b>\nSuchen: {names}\n"
         f"Ich lerne kurz die aktuellen Preise und melde dir dann neue Treffer."
         + ("\n💸 Angebote per Button: an" if account else "")
-        + ("\n/hilfe zeigt alle Befehle." if controller else ""))
+        + ("\n/hilfe zeigt alle Befehle." if controller else ""), silent=True)
     monitor.run_forever()
     storage.close()
     return 0
@@ -157,7 +159,7 @@ def build_brain(cfg: Config, notifier: Any) -> Any:
         log.warning("Eigenes Bildmodell aus: %s – ki-installieren.bat ausführen (bzw. ./ki-installieren.sh).", e)
         return None
     photo_client = VintedClient(cfg.domain, proxy=cfg.proxy)
-    brain = Brain(cfg, photo_client.fetch_bytes, report=notifier.send_text)
+    brain = Brain(cfg, photo_client.fetch_bytes, report=lambda text: notifier.send_text(text, silent=True))
     if not brain.embedder.installed():
         log.info("Eigenes Bildmodell: noch nicht installiert (ki-installieren.bat) – der Bot läuft ohne.")
     return brain

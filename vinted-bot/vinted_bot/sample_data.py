@@ -204,7 +204,7 @@ class _Collector:
         self.alerts.append(alert)
         return True
 
-    def send_text(self, text: str) -> None:
+    def send_text(self, text: str, silent: bool = False) -> None:
         pass
 
 

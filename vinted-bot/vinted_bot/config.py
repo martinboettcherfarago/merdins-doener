@@ -58,6 +58,9 @@ RESALE_LEVELS: dict[str, dict[str, Any]] = {
                "min_condition": "gut"},
     "streng": {"max_age_minutes": 5, "min_discount": 50.0, "min_cheaper_than": 95.0, "min_profit": 20.0,
                "min_condition": "gut"},
+    # lockerste Stufe – nimmt die Auto-Stufe, wenn sonst zu wenig reinkommt (Zustand bleibt "gut")
+    "offen":  {"max_age_minutes": 20, "min_discount": 25.0, "min_cheaper_than": 60.0, "min_profit": 8.0,
+               "min_condition": "gut"},
 }
 RESALE_DEFAULTS = RESALE_LEVELS["normal"]
 
@@ -228,6 +231,7 @@ class Config:
     discord_webhook: str = ""
     ntfy_topic: str = ""
     ntfy_server: str = "https://ntfy.sh"
+    push: str = "sniper"                 # Push-Ton: sniper (nur ⚡ Sniper-Treffer) · alle · aus
 
     account_enabled: bool = False
     account_cookies: str = ""
@@ -294,10 +298,13 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
         discord_webhook=str(dc.get("webhook_url") or "").strip(),
         ntfy_topic=str(nt.get("topic") or "").strip(),
         ntfy_server=str(nt.get("server") or "https://ntfy.sh").rstrip("/"),
+        push=str(n.get("push") or "sniper").strip().lower(),
         account_enabled=bool(acc.get("enabled", False)),
         account_cookies=str(acc.get("cookies") or os.environ.get("VINTED_COOKIES") or "").strip(),
         offer_discounts=[int(x) for x in (acc.get("offer_discounts") or [10, 20])],
     )
+    if cfg.push not in ("sniper", "alle", "aus"):
+        raise ConfigError(f"notifications → push muss sniper, alle oder aus sein, nicht '{cfg.push}'.")
     if "global_exclude_words" in sc:
         cfg.global_exclude_words = [str(w) for w in (sc.get("global_exclude_words") or [])]
 

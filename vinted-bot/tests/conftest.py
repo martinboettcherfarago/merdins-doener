@@ -70,7 +70,7 @@ class FakeNotifier:
         self.alerts.append(alert)
         return True
 
-    def send_text(self, text):
+    def send_text(self, text, silent=False):
         self.texts.append(text)
 
 

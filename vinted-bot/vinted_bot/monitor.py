@@ -28,8 +28,9 @@ log = logging.getLogger(__name__)
 
 JUNK_TYPES = {"kleinkram", "verpackung"}   # Patches, Sticker, Kartons, Staubbeutel …
 MEDIA_TYPES = {"buch", "medien"}           # Bücher, Magazine, Kataloge, CDs …
-AUTO_ORDER = ("streng", "normal", "locker")  # Auto-Stufe bewegt sich zwischen diesen Stufen …
-AUTO_BAND = (4.0, 20.0)                      # … und hält 4–20 Schnäppchen pro Stunde
+AUTO_ORDER = ("streng", "normal", "locker", "offen")  # Auto-Stufe bewegt sich zwischen diesen Stufen …
+AUTO_BAND = (20.0, 60.0)                              # … und hält 20–60 Schnäppchen pro Stunde
+AUTO_STEP = 900.0                                     # frühestens alle 15 Min. umstellen
 EXPENSIVE_TIERS = ("luxus", "designer", "outdoor")  # "wirklich teure Marken" dürfen übers Budget
 WANTED_TIERS = ("premium", "streetwear", "outdoor", "designer", "luxus")  # meldet der Sniper immer
 SNIPER = "⚡ Sniper"
@@ -113,13 +114,13 @@ class Monitor:
         return dict(RESALE_LEVELS[level]) if level else dict(self.cfg.resale_targets)
 
     def _auto_adjust(self, now: Optional[float] = None) -> Optional[str]:
-        """Auto-Stufe: Kommt zu wenig rein, lockern – kommt zu viel, strenger werden. Höchstens alle 30 Min."""
+        """Auto-Stufe: Kommt zu wenig rein, lockern – kommt zu viel, strenger werden. Höchstens alle 15 Min."""
         if not self.auto_active():
             return None
         now = self.clock() if now is None else now
         last = float(self.storage.get_state("auto_changed") or 0)
         since = max(self.stats["started"], last)
-        if now - since < 1800:
+        if now - since < AUTO_STEP:
             return None
         window = min(3600.0, now - since)
         with self._lock:
@@ -139,7 +140,7 @@ class Monitor:
         text = (f"🎚 Auto-Stufe: {why} auf „{new}“ (≥ {t['min_discount']:g} % unter Wert, ≤ "
                 f"{t['max_age_minutes']} Min. alt). Feste Stufe: /stufe normal")
         log.info(text)
-        self.notifier.send_text(text)
+        self.notifier.send_text(text, silent=True)
         return new
 
     def effective(self, search: SearchConfig) -> SearchConfig:
@@ -444,6 +445,8 @@ class Monitor:
                 return None, "von dir aussortiert (👎)"
             if search.sweep and not rare.level and not trend and not self._wanted_brand(est):
                 return None, "Sniper: keine Marke aus deiner Liste"
+            if est.tier == "budget" and not rare.level and not search.brands:
+                return None, "Fast Fashion (lohnt sich nicht)"   # außer du beobachtest die Marke gezielt
 
         group = price_group(search, item)
         group_prices = self.storage.group_history(group)
@@ -667,7 +670,14 @@ class Monitor:
             return False
         return verdict is None or verdict.echtheit != "wahrscheinlich_echt"
 
+    def push_mode(self) -> str:
+        """sniper (nur ⚡ Sniper-Treffer mit Push-Ton) · alle · aus – per /push änderbar."""
+        mode = self.storage.get_state("push")
+        return mode if mode in ("sniper", "alle", "aus") else self.cfg.push
+
     def _send(self, alert: Alert) -> bool:
+        mode = self.push_mode()
+        alert.silent = mode == "aus" or (mode == "sniper" and not alert.sniper)
         tag = "🤖✨" if alert.ai_find else ("🔥" if alert.score.is_top else "🆕")
         log.info("%s %s – %.2f € (Score %s)%s", tag, alert.item.title, alert.item.price, alert.score.total,
                  f" · KI: {alert.ai.urteil}" if alert.ai else "")

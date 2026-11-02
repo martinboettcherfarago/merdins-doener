@@ -230,12 +230,17 @@ def test_auto_level_loosens_when_little_comes_in_and_tightens_when_flooded(tmp_p
     m = monitor(tmp_path)
     assert m.auto_active() and m.auto_level() == "normal" and m.level_label() == "auto (gerade „normal“)"
     start = m.stats["started"]
-    assert m._auto_adjust(now=start + 600) is None                    # erst nach 30 Min. urteilen
-    assert m._auto_adjust(now=start + 3600) == "locker"               # 0 Treffer in einer Stunde
+    assert m._auto_adjust(now=start + 600) is None                    # erst nach 15 Min. urteilen
+    m._alert_times.extend(start + i * 120 for i in range(10))          # 10 Treffer in 20 Min. = 30/Std.: passt
+    assert m._auto_adjust(now=start + 1200) is None
+    assert m._auto_adjust(now=start + 3600) == "locker"               # danach Flaute -> lockern
     assert m.resale_targets()["min_discount"] == 30 and "Auto-Stufe" in m.notifier.texts[-1]
     assert m._auto_adjust(now=start + 3700) is None                   # nicht ständig hin und her
-    m._alert_times.extend(start + 3700 + i * 60 for i in range(30))   # 30 Treffer in 30 Min.
-    assert m._auto_adjust(now=start + 3600 + 1900) == "normal"
+    assert m._auto_adjust(now=start + 3600 + 900) == "offen"          # immer noch nichts -> noch lockerer
+    assert m.resale_targets()["min_discount"] == 25 and m.resale_targets()["min_condition"] == "gut"
+    assert m._auto_adjust(now=start + 3600 + 1800) is None            # lockerer geht es nicht
+    m._alert_times.extend(start + 5400 + i * 10 for i in range(60))   # 60 Treffer in 10 Min.
+    assert m._auto_adjust(now=start + 3600 + 2700) == "locker"        # zu viel -> strenger
     m.storage.set_state("resale_level", "streng")                    # feste Stufe: Auto aus
     assert not m.auto_active() and m.resale_targets()["min_discount"] == 50
 
@@ -296,3 +301,31 @@ def test_auto_level_never_lowers_the_condition(tmp_path):
     m.storage.set_state("auto_level", "locker")
     t = m.resale_targets()
     assert t["min_discount"] == 30 and t["min_condition"] == "gut"   # lockerer im Preis, nicht in der Qualität
+
+
+
+# -- 🔔 Push-Ton nur für Sniper-Treffer -------------------------------------------------------------
+
+def test_only_sniper_hits_make_a_push_sound(tmp_path):
+    m = monitor(tmp_path)
+    tg = FakeTelegram()
+    m.notifier = tg
+    sniper_alert = m.explain(m.sniper_search(), feed_item(1, 9), NOW)[0]
+    sniper_alert.worker = "Sniper"
+    brand_alert = m.explain(m.effective(SearchConfig.watch("Carhartt")),
+                            feed_item(2, 9, title="Carhartt Pullover vintage 90er", brand="Carhartt"), NOW)[0]
+    brand_alert.worker = "A"
+    for a in (sniper_alert, brand_alert):
+        a.item.photo_url = None
+        m._send(a)
+    (_, loud), (_, quiet) = tg.calls[-2:]
+    assert "disable_notification" not in loud and loud["text"].startswith("<b>⚡ SNIPER ·")
+    assert quiet["disable_notification"] is True and "SNIPER" not in quiet["text"]
+    ctl = TelegramController(tg, m, None)
+    ctl.handle_update(msg("/push alle"))
+    assert m.push_mode() == "alle" and "Push-Ton: alle" in tg.texts()[-1]
+    m._send(brand_alert)
+    assert "disable_notification" not in tg.calls[-1][1]
+    ctl.handle_update(msg("/push aus"))
+    m._send(sniper_alert)
+    assert tg.calls[-1][1]["disable_notification"] is True

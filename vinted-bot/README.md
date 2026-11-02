@@ -43,7 +43,8 @@ Vintage Polo Sport Jacke 90s
 | ⚡ **Sniper** | alle ~4 s die neuesten Uploads auf ganz Vinted: nur deine Marken, Premium-Marken und Raritäten |
 | ⏱ **Marken im eigenen Takt** | 76 eingebaute Marken & Trends (+ deine eigenen). Wo viel hochgeladen wird, schaut er alle 10–25 s nach, sonst alle 1–2 Min. |
 | 💶 **Budget** | nur Teile bis 30 €, teure Marken (Luxus, Designer, Outdoor-Premium) bis 80 € |
-| 🎚 **Auto-Stufe** | passt die Strenge so an, dass stetig 4–20 Schnäppchen pro Stunde kommen |
+| 🎚 **Auto-Stufe** | passt die Strenge so an, dass stetig 20–60 Schnäppchen pro Stunde kommen |
+| 🔔 **Push nur für Sniper** | ⚡ Sniper-Treffer klingeln, alles andere kommt lautlos in den Chat (`/push`) |
 | 💰 **Wert für fast alles** | über 400 Marken × rund 50 Kategorien × Zustand, lernt aus jedem gesehenen Preis |
 | 💎 **Raritäten & Trends** | vintage, 90er, Y2K, Made in USA, Grails wie Carhartt Detroit oder Stone Island Ghost |
 | 👗 **Mode-Bildmodell** | erkennt 123 Merkmale im Foto (Kategorie, Material, Farbe, Jahrzehnt, Stil …) und lernt aus Tausenden Vinted-Fotos |
@@ -91,7 +92,8 @@ Mac/Linux/Raspberry Pi: dasselbe mit `./start.sh` und `./ki-installieren.sh`.
 | `locker` | 20 Min. | 30 % | 75 % der Vergleichsangebote | 10 € |
 | `normal` | 10 Min. | 40 % | 90 % | 15 € |
 | `streng` | 5 Min. | 50 % | 95 % | 20 € |
-| **`auto`** (Standard) | wechselt selbst zwischen den dreien, damit stetig **4–20 Schnäppchen pro Stunde** kommen – lockert nur Preis-Ziele, der Zustand bleibt mind. „gut“ | | | |
+| `offen` | 20 Min. | 25 % | 60 % | 8 € |
+| **`auto`** (Standard) | wechselt selbst zwischen den vieren (höchstens alle 15 Min.), damit stetig **20–60 Schnäppchen pro Stunde** kommen – lockert nur Preis-Ziele, der Zustand bleibt immer mind. „gut“ | | | |
 
 \* Bei billigen Markenteilen reicht die Hälfte des Preises als Gewinn (8-€-Shirt: 4 €). Erst ab etwa 30 € gilt der volle Wert. Für Fast Fashion gilt immer der volle Wert.
 
@@ -108,7 +110,7 @@ Nachgeholfen wird bei: 😎 cooler Foto-Look (90er, Sportswear, Fellkragen …),
 | Befehl | Wirkung |
 |---|---|
 | **Schnäppchen-Radar** | |
-| `/stufe auto` · `locker` · `normal` · `streng` | wie streng gefiltert wird |
+| `/stufe auto` · `offen` · `locker` · `normal` · `streng` | wie streng gefiltert wird |
 | `/budget 30` · `/budget marken 80` | Höchstpreis pro Teil / für teure Marken |
 | `/radar an` · `/radar aus` · `/radar an <Vinted-Link>` | ⚡ Sniper; mit Link nur für deine angehakten Marken oder eine Kategorie |
 | `/trends` · `/trends plus jacquemus, vintage lederjacke` · `/trends minus nike` | deine Marken- & Trend-Liste |
@@ -129,6 +131,7 @@ Nachgeholfen wird bei: 😎 cooler Foto-Look (90er, Sportswear, Fellkragen …),
 | `/neu nike air max 90 bis 40 score 60` | eigene normale Suche |
 | `/suchen` · `/pause 2` · `/weiter 2` · `/loeschen 2` | Suchen verwalten |
 | `/pause` · `/weiter` | alle Meldungen anhalten / fortsetzen |
+| `/push sniper` · `alle` · `aus` | 🔔 welche Meldungen mit Push-Ton kommen (Standard: nur ⚡ Sniper-Treffer, der Rest lautlos) |
 | `/live` · `/live 10` | **was kam wirklich rein?** Sniper-Takt, Meldungen, wie viele Sekunden nach dem Upload, Preise, häufigste Aussortier-Gründe |
 | `/status` · `/probelauf` · `/hilfe` | Überblick, Testlauf, Hilfe |
 
@@ -142,7 +145,8 @@ Fast alles geht auch per Telegram. In der `config.yaml` stehen die Startwerte:
 |---|---|---|
 | `notifications → telegram → token / chat_id` | – | dein Telegram-Bot |
 | `resale → brands` | `[trends]` | eingebaute Trend-Liste (+ eigene Marken, z. B. `[trends, Ganni]`) |
-| `resale → level` | `auto` | `auto` / `locker` / `normal` / `streng` |
+| `resale → level` | `auto` | `auto` / `offen` / `locker` / `normal` / `streng` |
+| `notifications → push` | `sniper` | Push-Ton für `sniper` (nur ⚡ Sniper-Treffer) / `alle` / `aus` |
 | `resale → budget` / `budget_brands` | `30` / `80` | Höchstpreis / für teure Marken |
 | `resale → sniper` / `sniper_every_seconds` | `true` / `4` | ⚡ Sniper an, wie oft |
 | `resale → sniper_link` | – | Sniper nur für diesen Vinted-Link |
