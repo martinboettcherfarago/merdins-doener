@@ -153,13 +153,12 @@ def test_example_config_is_valid():
     cfg = load_config(path)
     assert cfg.domain == "de" and cfg.web_base == "https://www.vinted.de"
     names = [s.name for s in cfg.searches]
-    assert names[:3] == ["Air Max 90", "Carhartt Jacken", "Levi's 501"]
     from vinted_bot.config import TREND_WATCHES
+    # Vorlage: keine aktiven Beispiel-Suchen mehr (die meldeten alles ohne Rabatt-Prüfung), nur das Radar
     assert "Marke · Stone Island" in names and "Trend · Vintage Lederjacke" in names
-    assert len(names) == 3 + len(TREND_WATCHES)
-    resale = cfg.searches[3]
-    assert resale.is_resale and resale.max_price == 250 and cfg.shipping_estimate == 5
+    assert len(names) == len(TREND_WATCHES) and all(s.is_resale for s in cfg.searches)
+    assert cfg.searches[0].max_price is None and cfg.shipping_estimate == 5
+    assert (cfg.budget, cfg.budget_brands, cfg.sniper, cfg.sniper_every_seconds) == (30, 80, True, 4)
     assert cfg.resale_targets == {"max_age_minutes": 10, "min_discount": 40.0, "min_cheaper_than": 90.0,
                                   "min_profit": 15.0, "min_condition": "gut"}
-    assert cfg.searches[1].min_score == 60 and cfg.searches[2].enabled is False
     assert cfg.account_enabled is False
