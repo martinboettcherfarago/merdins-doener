@@ -248,3 +248,51 @@ def test_stufe_auto_command(tmp_path):
     assert not m.auto_active()
     ctl.handle_update(msg("/stufe auto"))
     assert m.auto_active() and "Auto-Stufe an" in tg.texts()[-1]
+
+
+# -- 📈 /live: misst, was wirklich reinkommt ---------------------------------------------------------
+
+def test_live_check_measures_tempo_freshness_prices_and_reasons():
+    from types import SimpleNamespace as NS
+    from vinted_bot.livestats import LiveStats, reason_key
+    live, t0 = LiveStats(), 1_000_000.0
+    for i in range(12):                                   # Sniper alle 5 s, je 15 neue Artikel
+        live.poll(15, True, now=t0 + i * 5)
+    live.poll(40, False, now=t0 + 3)                      # eine Marken-Suche
+    for i, (price, age) in enumerate([(9, 6), (14, 9), (22, 30), (75, 12)]):
+        item_ = NS(created_ts=t0 + 60 + i * 60 - age, price=price, brand="Stone Island" if price > 30 else "Adidas")
+        live.alert(NS(item=item_, search_name=SNIPER if i < 3 else "Marke · Stone Island", worker="A"),
+                   now=t0 + 60 + i * 60)
+    for why in ["Größe XL passt nicht (S, M, L)", "Größe XS passt nicht (S, M, L)", "Rabatt zu klein",
+                "über deinem Budget (30 €)", "Sniper: keine Marke aus deiner Liste"]:
+        live.reject(why, now=t0 + 100)
+    s = live.summary(minutes=60, now=t0 + 300)
+    assert s["sniper_polls"] == 12 and s["sniper_gap"] == 5 and s["sniper_new"] == 15
+    assert s["alerts"] == 4 and s["from_sniper"] == 3 and s["age_median"] == 10.5
+    assert s["price_median"] == 18 and s["share_20"] == 0.5 and s["max"][2] == 75
+    assert s["reasons"][0] == ("Größe passt nicht", 2)
+    text = live.text(60, now=t0 + 300, level="auto (gerade „normal“)")
+    assert "alle ~5 s" in text and "4 Meldungen</b> (3 vom Sniper)" in text and "erst 10 s online" in text
+    assert "Median 18 €" in text and "teuerstes 75 € (Stone Island)" in text and "Größe passt nicht 40%" in text
+    assert reason_key("schon 45 Min. online") == "schon zu lange online"
+
+
+def test_live_command_and_monitor_records_alerts(tmp_path):
+    m = monitor(tmp_path)
+    tg = FakeTelegram()
+    ctl = TelegramController(tg, m, None)
+    alert = m.explain(m.sniper_search(), feed_item(1, 12, seconds_old=0), NOW)[0]
+    alert.item.created_ts = time.time() - 7
+    m.live.poll(20, True)
+    assert m._send(alert)
+    ctl.handle_update(msg("/live"))
+    text = tg.texts()[-1]
+    assert "Live-Check – letzte 60 Min." in text and "1 Meldungen</b> (1 vom Sniper)" in text
+    assert "erst 7 s online" in text and "Median 12 €" in text
+
+
+def test_auto_level_never_lowers_the_condition(tmp_path):
+    m = monitor(tmp_path)
+    m.storage.set_state("auto_level", "locker")
+    t = m.resale_targets()
+    assert t["min_discount"] == 30 and t["min_condition"] == "gut"   # lockerer im Preis, nicht in der Qualität

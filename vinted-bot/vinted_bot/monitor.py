@@ -19,6 +19,7 @@ from .models import Item
 from .notify import Alert
 from .scoring import (TYPE_LABELS, Reference, market_reference, meets_targets, normalize, passes_filters,
                       price_group, product_type, profit_needed, score_item, suggest_offers)
+from .livestats import LiveStats
 from .scheduler import Scheduler
 from .storage import Storage
 from .vinted import VintedBlocked, VintedClient, VintedRateLimited, query_for_search
@@ -64,6 +65,7 @@ class Monitor:
         self._brand_cache: tuple[int, set[str]] = (-1, set())
         self._watch_cache: tuple[int, list[Any]] = (-1, [])
         self._alert_times: deque[float] = deque(maxlen=1000)   # Schnäppchen-Meldungen (für die Auto-Stufe)
+        self.live = LiveStats()                                 # 📈 /live
 
     def _pause_example_searches(self) -> list[str]:
         """Die Beispiel-Suchen der alten Vorlage ("Air Max 90", "Carhartt Jacken") melden alles mögliche ohne
@@ -105,7 +107,8 @@ class Monitor:
     def resale_targets(self) -> dict[str, Any]:
         """Ziele für Resale-Suchen: Auto-Stufe, per Telegram gewählte Stufe oder die Werte aus der config.yaml."""
         if self.auto_active():
-            return dict(RESALE_LEVELS[self.auto_level()])
+            # Auto lockert nur Rabatt, Rang, Gewinn und Frische – nie die Qualität (kein "zufriedenstellend")
+            return {**RESALE_LEVELS[self.auto_level()], "min_condition": "gut"}
         level = self.resale_level
         return dict(RESALE_LEVELS[level]) if level else dict(self.cfg.resale_targets)
 
@@ -588,10 +591,15 @@ class Monitor:
                 # erster Durchlauf: nur Preise lernen; alte (nur hochgeschobene) Artikel nie melden
                 if seeded and not too_old:
                     alert, why = self.explain(search, item, now)  # bewerten, bevor der eigene Preis mitzählt
-                    if alert is None and self.reject_log is not None:
+                    if alert is None:
+                        self.live.reject(why)
+                        if self.reject_log is not None:
+                            self.reject_log.append((search.name, item, why))
+                elif seeded:
+                    why = f"schon {int((now - item.created_ts) / 60)} Min. online"
+                    self.live.reject(why)
+                    if self.reject_log is not None:
                         self.reject_log.append((search.name, item, why))
-                elif seeded and self.reject_log is not None:
-                    self.reject_log.append((search.name, item, f"schon {int((now - item.created_ts) / 60)} Min. online"))
                 self.storage.mark_seen(search.name, item)
                 if self._learnable(search, item):
                     self.storage.add_price(search.name, item.price, price_group(search, item))
@@ -672,6 +680,7 @@ class Monitor:
                 if alert.worker:
                     self.stats["workers"].setdefault(alert.worker, {"cycles": 0, "checked": 0, "alerts": 0})
                     self.stats["workers"][alert.worker]["alerts"] += 1
+            self.live.alert(alert)
         return ok
 
     def _after_review(self, kind: str, alert: Alert) -> None:
@@ -875,6 +884,7 @@ class Monitor:
                     self.sniper_stats["alerts"] += 1
             fresh, total = self.last_fetch.get(search.name, (0, 0))
             fresh_sum += fresh
+            self.live.poll(fresh, search.sweep)
             if search.sweep:
                 self.sniper_stats["polls"] += 1
                 self.sniper_stats["new"] += fresh
@@ -893,6 +903,10 @@ class Monitor:
                      st["polls"], st["new"] / max(1, st["polls"]), st["alerts"],
                      f" · {st['gaps']}× sehr viel los (evtl. etwas verpasst)" if st["gaps"] else "")
         self.sniper_stats = {"polls": 0, "new": 0, "gaps": 0, "alerts": 0, "since": time.monotonic()}
+        s = self.live.summary(minutes=5)
+        if s["alerts"]:
+            log.info("📈 Letzte 5 Min.: %d Meldung(en) · beim Melden Ø %.0f s online · Preis-Median %.0f €",
+                     s["alerts"], s["age_median"] or 0, s["price_median"] or 0)
         tempo = [(name, t) for name, t in self.scheduler.tempo() if name != SNIPER]
         if tempo:
             fast = " · ".join(f"{name.split(' · ', 1)[-1]} {t:.0f} s" for name, t in tempo[:5])

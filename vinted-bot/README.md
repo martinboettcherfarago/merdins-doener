@@ -91,7 +91,7 @@ Mac/Linux/Raspberry Pi: dasselbe mit `./start.sh` und `./ki-installieren.sh`.
 | `locker` | 20 Min. | 30 % | 75 % der Vergleichsangebote | 10 € |
 | `normal` | 10 Min. | 40 % | 90 % | 15 € |
 | `streng` | 5 Min. | 50 % | 95 % | 20 € |
-| **`auto`** (Standard) | wechselt selbst zwischen den dreien, damit stetig **4–20 Schnäppchen pro Stunde** kommen | | | |
+| **`auto`** (Standard) | wechselt selbst zwischen den dreien, damit stetig **4–20 Schnäppchen pro Stunde** kommen – lockert nur Preis-Ziele, der Zustand bleibt mind. „gut“ | | | |
 
 \* Bei billigen Markenteilen reicht die Hälfte des Preises als Gewinn (8-€-Shirt: 4 €). Erst ab etwa 30 € gilt der volle Wert. Für Fast Fashion gilt immer der volle Wert.
 
@@ -129,6 +129,7 @@ Nachgeholfen wird bei: 😎 cooler Foto-Look (90er, Sportswear, Fellkragen …),
 | `/neu nike air max 90 bis 40 score 60` | eigene normale Suche |
 | `/suchen` · `/pause 2` · `/weiter 2` · `/loeschen 2` | Suchen verwalten |
 | `/pause` · `/weiter` | alle Meldungen anhalten / fortsetzen |
+| `/live` · `/live 10` | **was kam wirklich rein?** Sniper-Takt, Meldungen, wie viele Sekunden nach dem Upload, Preise, häufigste Aussortier-Gründe |
 | `/status` · `/probelauf` · `/hilfe` | Überblick, Testlauf, Hilfe |
 
 ---
@@ -222,7 +223,7 @@ Der Bot meldet nur, solange er läuft: entweder auf dem PC (`start.bat` offen la
 | Problem | Lösung |
 |---|---|
 | „Vinted blockiert gerade (403)“ | wartet und versucht es selbst weiter. Bei häufigem Auftreten: `workers: 1` oder `request_gap_seconds: 1.5`, evtl. `proxy:` |
-| Keine Meldungen | normal direkt nach dem Start (erste Runde = Preise lernen). `/stufe auto` lockert bei Flaute selbst. `/probelauf` zeigt Gründe |
+| Keine oder zu wenige Meldungen | normal direkt nach dem Start (erste Runde = Preise lernen). `/live` zeigt, wie oft der Sniper abfragt und warum aussortiert wird; `/stufe auto` lockert bei Flaute selbst |
 | Telegram meldet nichts | `start.bat test-notify`; dem Bot `/start` geschrieben? `chat_id` richtig? |
 | `/modell`: „⚠️ … nicht ladbar“ | `ki-installieren.bat` erneut ausführen; der Bot läuft solange mit dem schnellen Modell |
 | Rote Fehlermeldung beim Start | meist ein Tab in der `config.yaml` (nur Leerzeichen zum Einrücken). Die Meldung nennt die Zeile |

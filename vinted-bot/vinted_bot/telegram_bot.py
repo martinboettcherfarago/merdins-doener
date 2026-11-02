@@ -50,7 +50,7 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b> – frisch hochgeladene Teile weit unter W
 /neu <i>Begriff</i> – eigene Suche, z. B. <code>/neu nike air max 90 bis 40 score 60</code>
 /suchen · /pause <i>Nr</i> · /weiter <i>Nr</i> · /loeschen <i>Nr</i>
 /pause · /weiter – alle Meldungen anhalten/fortsetzen
-/status · /probelauf
+/status · /live – was kam wirklich rein (Takt, Alter, Preise)? · /probelauf
 
 <i>Optionen für /neu und /marke:</i> <code>bis 40</code> · <code>ab 10</code> · <code>rabatt 40</code> · <code>gewinn 15</code> · <code>frisch 10</code> · <code>günstiger 95</code> · <code>score 60</code> · <code>markt 50</code>"""
 
@@ -241,7 +241,7 @@ class TelegramController(threading.Thread):
             "/suchen": self.cmd_list, "/liste": self.cmd_list, "/list": self.cmd_list,
             "/loeschen": self.cmd_delete, "/löschen": self.cmd_delete, "/delete": self.cmd_delete,
             "/pause": self.cmd_pause, "/weiter": self.cmd_resume, "/resume": self.cmd_resume,
-            "/status": self.cmd_status,
+            "/status": self.cmd_status, "/live": self.cmd_live, "/statistik": self.cmd_live,
         }
         handler = handlers.get(cmd)
         if handler:
@@ -520,6 +520,11 @@ class TelegramController(threading.Thread):
         if st["last_error"]:
             lines.append(f"Letzter Fehler: {html.escape(str(st['last_error'])[:200])}")
         self.reply("\n".join(lines))
+
+    def cmd_live(self, arg: str = "") -> None:
+        """/live – was kam in der letzten Stunde wirklich rein? /live 10 = letzte 10 Minuten."""
+        minutes = float(arg) if arg.strip().replace(".", "", 1).isdigit() else 60.0
+        self.reply(self.monitor.live.text(max(1.0, min(minutes, 24 * 60)), level=self.monitor.level_label()))
 
     # -- Filter: Größe, Kategorien, Raritäten ----------------------------------------
 
