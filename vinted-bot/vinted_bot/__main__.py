@@ -291,6 +291,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     for noisy in ("urllib3", "curl_cffi", "httpx", "httpcore", "filelock"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+    # Hugging Face stellt seine Lautstärke beim (späteren) Import selbst ein -> vorher per Umgebung leise schalten
+    # (z. B. der harmlose Hinweis "unauthenticated requests … HF_TOKEN")
+    os.environ.setdefault("HF_HUB_VERBOSITY", "error")
+    os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")   # harmloser Windows-Hinweis
     warnings.filterwarnings("ignore", message=".*unauthenticated requests.*")
     warnings.filterwarnings("ignore", message=".*symlinks.*")
