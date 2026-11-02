@@ -9,6 +9,7 @@ import signal
 import threading
 import sys
 import time
+import warnings
 from typing import Any, Optional
 
 from . import __version__
@@ -274,11 +275,17 @@ def main(argv: Optional[list[str]] = None) -> int:
     sub.add_parser("chat-id", help="Telegram-Chat-ID herausfinden")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
+    # Nur die Meldungen des Bots zeigen – nicht das Download-Protokoll von Hugging Face, open_clip & Co.
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING,
                         format="%(asctime)s %(levelname)-7s [%(threadName)s] %(message)s", datefmt="%H:%M:%S")
+    logging.getLogger("vinted_bot").setLevel(logging.DEBUG if args.verbose else logging.INFO)
     threading.current_thread().name = "Bot"
-    for noisy in ("urllib3", "curl_cffi"):
+    for noisy in ("urllib3", "curl_cffi", "httpx", "httpcore", "filelock"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
+    logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")   # harmloser Windows-Hinweis
+    warnings.filterwarnings("ignore", message=".*unauthenticated requests.*")
+    warnings.filterwarnings("ignore", message=".*symlinks.*")
     try:
         cfg = load_config(args.config)
     except ConfigError as e:

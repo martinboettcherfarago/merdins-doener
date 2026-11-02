@@ -137,6 +137,7 @@ class Embedder:
         for group, defs in TAG_GROUPS.items():
             self._tag_vecs[group] = self._texts_unlocked([prompt for _, prompt, _ in defs])
         self.dim = int(self._tag_vecs["kategorie"].shape[1])
+        log.info("✅ Bildmodell bereit: %s · %d Tags", self.label, count_tags())
 
     def _texts_unlocked(self, texts: list[str]) -> np.ndarray:
         import torch

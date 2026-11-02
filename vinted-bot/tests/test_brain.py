@@ -310,6 +310,7 @@ def test_real_clip_embedder_runs_on_cpu():
     emb = Embedder(threads=2, backbone="schnell", pretrained=None)  # ohne Download (zufällige Gewichte)
     buf = io.BytesIO()
     Image.new("RGB", (640, 800), (200, 30, 30)).save(buf, format="JPEG")
+    emb._load()  # einmaliges Laden (inkl. 123 Tag-Texte) nicht mitmessen
     t0 = time.time()
     vecs = emb.images([buf.getvalue()] * 8 + [b"kein bild"])
     per_image = (time.time() - t0) / 8
