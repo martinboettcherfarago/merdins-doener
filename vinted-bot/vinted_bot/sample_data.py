@@ -232,7 +232,7 @@ class SampleResult:
         lines = [f"Geprüft: {self.checked} Angebote aus {len(SAMPLE_BRANDS)} Marken + {len(SAMPLE_TERMS)} Trend-Suche, "
                  f"davon {fresh} frisch hochgeladen",
                  f"Echte Finds im Datensatz erkannt: {len(self.found_finds)} von {len(self.finds)}"
-                 + (f" (+{len(self.over_budget)} über deinem Budget)" if self.over_budget else "")
+                 + (f" (+{len(self.over_budget)} außerhalb Budget/Marken)" if self.over_budget else "")
                  + f" · Fallen fälschlich gemeldet: {len(self.wrong_alerts)} von {len(self.traps)}",
                  f"Einstellungen: {self.settings}", "", f"✅ Gemeldet ({len(self.alerts)}):"]
         for a in self.alerts:
@@ -292,7 +292,7 @@ def run_sample(cfg: Config, source_storage: Optional[Storage] = None, seed: int 
                 + (" · nur Raritäten" if f["only_rare"] else ""))
     alerts = sorted(collector.alerts, key=lambda a: a.score.total, reverse=True)
     rejected = [(i, why) for _s, i, why in monitor.reject_log]
-    over = {i.id for i, why in rejected if why.startswith("über deinem Budget")} & client.finds
+    over = {i.id for i, why in rejected if why.startswith(("über deinem Budget", "keine gute Marke"))} & client.finds
     result = SampleResult(alerts=alerts, rejected=rejected, finds=client.finds - over, traps=client.traps,
                           checked=monitor.stats["checked"] - checked_before, settings=settings, over_budget=over)
     result.found_finds = {a.item.id for a in alerts} & result.finds

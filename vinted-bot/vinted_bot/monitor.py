@@ -28,8 +28,8 @@ log = logging.getLogger(__name__)
 
 JUNK_TYPES = {"kleinkram", "verpackung"}   # Patches, Sticker, Kartons, Staubbeutel …
 MEDIA_TYPES = {"buch", "medien"}           # Bücher, Magazine, Kataloge, CDs …
-AUTO_ORDER = ("streng", "normal", "locker", "offen")  # Auto-Stufe bewegt sich zwischen diesen Stufen …
-AUTO_BAND = (20.0, 60.0)                              # … und hält 20–60 Schnäppchen pro Stunde
+AUTO_ORDER = ("streng", "normal")                     # Auto-Stufe: nie lockerer als "normal" (nur gute Deals) …
+AUTO_BAND = (3.0, 10.0)                               # … und hält 3–10 Schnäppchen pro Stunde
 AUTO_STEP = 900.0                                     # frühestens alle 15 Min. umstellen
 PHOTO_BUDGET = 8                                      # höchstens so viele Fotos pro Abfrage bewerten …
 RESCUE_BUDGET = 3                                     # … plus so viele, die nur das Wert-Modell retten könnte
@@ -103,7 +103,7 @@ class Monitor:
     def auto_level(self) -> str:
         """Stufe, die die Auto-Stufe gerade gewählt hat."""
         level = self.storage.get_state("auto_level")
-        return level if level in RESALE_LEVELS else "normal"
+        return level if level in AUTO_ORDER else "normal"
 
     def level_label(self) -> str:
         if self.auto_active():
@@ -448,10 +448,10 @@ class Monitor:
             brand_votes, type_votes = self._pref_votes(item, ptype)
             if brand_votes + type_votes <= -3:
                 return None, "von dir aussortiert (👎)"
-            if search.sweep and not rare.level and not trend and not self._wanted_brand(est):
-                return None, "Sniper: keine Marke aus deiner Liste"
-            if est.tier == "budget" and not rare.level and not search.brands:
-                return None, "Fast Fashion (lohnt sich nicht)"   # außer du beobachtest die Marke gezielt
+            # Nur gute Marken: deine Liste, Premium-Marken oder eine echte Rarität (No-Name nur, wenn wirklich selten)
+            if not search.brands and not self._wanted_brand(est) and rare.level < 2:
+                return None, ("Sniper: keine Marke aus deiner Liste" if search.sweep else
+                              "keine gute Marke (nur deine Marken, Premium-Marken, echte Raritäten)")
 
         group = price_group(search, item)
         group_prices = self.storage.group_history(group)

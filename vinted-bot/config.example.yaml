@@ -21,7 +21,7 @@ resale:
   enabled: true
   brands: [trends]             # "trends" = 77 eingebaute Marken & Trends (Carhartt, Stüssy, Nike, Adidas,
                                # Nike Tech Fleece, Vintage Lederjacke, Y2K …) – eigene dazu: [trends, Ganni]
-  level: auto                  # auto (hält 20–60 Treffer/Std.) · offen · locker · normal · streng   (/stufe)
+  level: auto                  # auto (3–10 gute Treffer/Std., zwischen normal und streng) · locker · normal · streng
   budget: 30                   # 💶 höchstens so viel pro Teil                                (/budget 25)
   budget_brands: 80            # Ausnahme für teure Marken (Luxus, Designer, Outdoor-Premium)  (/budget marken 100)
   sniper: true                 # ⚡ alle paar Sekunden die neuesten Uploads auf ganz Vinted    (/radar an|aus)

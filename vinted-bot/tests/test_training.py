@@ -222,7 +222,7 @@ def test_probelauf_command(bot):
     ctl, tg = bot
     ctl.handle_update(msg("/probelauf"))
     texts = tg.texts()
-    assert "Echte Finds im Datensatz erkannt: 13 von 13" in texts[1]
+    assert "Echte Finds im Datensatz erkannt: 11 von 11 (+2 außerhalb Budget/Marken)" in texts[1]
     demo = [p for m, p in tg.calls if m == "sendMessage" and "PROBELAUF" in p["text"]]
     assert len(demo) == 3 and all("reply_markup" not in p for p in demo)  # keine echten Links/Buttons
 

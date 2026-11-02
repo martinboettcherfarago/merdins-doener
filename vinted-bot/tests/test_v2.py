@@ -93,12 +93,13 @@ def test_no_learning_phase_needed(mon):
     assert "Schätzung: Preiswissen Stone Island Pullover" in si.score.reasons[0]
 
 
-def test_unknown_brand_needs_bigger_discount(mon):
+def test_no_name_only_if_really_rare(mon):
     s = mon.effective(SearchConfig.watch("Vintage Lederjacke"))
-    ok = mon.explain(s, item(1, 9, title="Lederjacke schwarz", brand="", size="M", minutes_old=1), NOW)[0]
-    meh = mon.explain(s, item(2, 18, title="Lederjacke schwarz", brand="", size="M", minutes_old=1), NOW)
-    assert ok is not None and ok.score.confidence == "niedrig"
-    assert meh[0] is None and "unsichere Schätzung" in meh[1]  # 45 % reicht bei No-Name nicht
+    plain = mon.explain(s, item(1, 9, title="Lederjacke schwarz", brand="", size="M", minutes_old=1), NOW)
+    assert plain[0] is None and plain[1].startswith("keine gute Marke")       # No-Name ohne Besonderheit
+    rare = mon.explain(s, item(2, 9, title="Vintage Lederjacke 80er Made in Italy", brand="", size="M",
+                                minutes_old=1), NOW)[0]
+    assert rare is not None and rare.score.rarity_level >= 2
 
 
 def test_fake_suspicion(mon):
@@ -259,7 +260,7 @@ AUDIT = [  # (Suche, Titel, Marke im Feld, Preis, Größe) – alles echte Schn�
     ("Adidas", "Adidas Trainingsjacke vintage 90er", "Vintage", 12, "L"),       # Marke "Vintage" gewählt
     ("Vintage Adidas", "Vintage Adidas Trainingsjacke 90s", "Andere", 12, "M"),  # Marke "Andere" gewählt
     ("Vintage Levi's", "Levi's 501 vintage 90er", "Levi's", 10, "W31 L32"),
-    ("Vintage 90er", "Vintage 90er Windbreaker", "", 6, "L"),
+    ("Vintage 90er", "Vintage 90er Windbreaker Made in USA", "", 6, "L"),        # No-Name nur, wenn selten
     ("Vintage Jeans", "Vintage Wrangler Jeans 90er Made in USA", "Wrangler", 9, "W30 L32"),
     ("Vintage Sweatshirt", "Vintage Champion Reverse Weave Sweatshirt 90s", "Champion", 9, "M"),
     ("Tommy Hilfiger vintage", "Vintage Tommy Hilfiger Jacke 90er", "Tommy Hilfiger", 12, "L"),

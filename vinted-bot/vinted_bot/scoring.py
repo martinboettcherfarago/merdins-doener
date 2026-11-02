@@ -79,12 +79,12 @@ class DealScore:
 
 
 def profit_needed(min_profit: float, price: float, tier: Optional[str] = None) -> float:
-    """Mindest-Gewinn fürs Schnäppchen-Radar: Bei billigen Markenteilen reicht die Hälfte des Preises
-    (8-€-Shirt: 4 € Gewinn), ab ca. 30 € gilt der volle Wert der Stufe – sonst käme kaum ein günstiges Teil durch.
+    """Mindest-Gewinn fürs Schnäppchen-Radar: Bei billigen Markenteilen reicht die Hälfte des Preises, aber mind. 8 €
+    (10-€-Shirt: 8 € Gewinn), ab ca. 30 € gilt der volle Wert der Stufe – sonst käme kaum ein günstiges Teil durch.
     Fast Fashion (H&M, Zara …) lohnt den Weiterverkauf kaum: dort gilt immer der volle Wert."""
     if price <= 0 or tier == "budget":
         return min_profit
-    return min(min_profit, max(4.0, 0.5 * price))
+    return min(min_profit, max(8.0, 0.5 * price))   # mind. 8 € – sonst lohnt sich der Aufwand nicht
 
 
 def _contains_word(text: str, word: str) -> bool:

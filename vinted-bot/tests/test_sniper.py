@@ -161,8 +161,9 @@ def test_sniper_only_reports_brands_from_your_list_and_premium(tmp_path):
     why = lambda title, brand: m.explain(sniper, feed_item(1, 9, title=title, brand=brand), NOW)[1]  # noqa: E731
     assert why("Esprit Pullover", "Esprit") == "Sniper: keine Marke aus deiner Liste"
     assert why("H&M Jacke", "H&M") == "Sniper: keine Marke aus deiner Liste"
+    assert why("Pullover 90er vintage", "") == "Sniper: keine Marke aus deiner Liste"   # No-Name nur, wenn selten
     for title, brand in [("Carhartt Pullover", "Carhartt"), ("Adidas Pullover", "Adidas"),
-                         ("Ralph Lauren Pullover", "Ralph Lauren"), ("Pullover 90er vintage", "")]:
+                         ("Ralph Lauren Pullover", "Ralph Lauren"), ("Vintage Pullover 90er Made in USA", "")]:
         assert why(title, brand) != "Sniper: keine Marke aus deiner Liste", title
 
 
@@ -222,27 +223,23 @@ def test_sniper_uses_the_same_estimates_and_your_brand_settings(tmp_path):
 
 def test_cheap_brand_items_need_less_absolute_profit_but_fast_fashion_does_not():
     from vinted_bot.scoring import profit_needed
-    assert profit_needed(15, 8) == 4 and profit_needed(15, 20) == 10 and profit_needed(15, 40) == 15
+    assert profit_needed(15, 8) == 8 and profit_needed(15, 20) == 10 and profit_needed(15, 40) == 15
     assert profit_needed(15, 8, "budget") == 15            # H&M, Zara … lohnen sich kaum
 
 
-def test_auto_level_loosens_when_little_comes_in_and_tightens_when_flooded(tmp_path):
+def test_auto_level_stays_between_normal_and_streng(tmp_path):
     m = monitor(tmp_path)
     assert m.auto_active() and m.auto_level() == "normal" and m.level_label() == "auto (gerade „normal“)"
     start = m.stats["started"]
     assert m._auto_adjust(now=start + 600) is None                    # erst nach 15 Min. urteilen
-    m._alert_times.extend(start + i * 120 for i in range(10))          # 10 Treffer in 20 Min. = 30/Std.: passt
-    assert m._auto_adjust(now=start + 1200) is None
-    assert m._auto_adjust(now=start + 3600) == "locker"               # danach Flaute -> lockern
-    assert m.resale_targets()["min_discount"] == 30 and "Auto-Stufe" in m.notifier.texts[-1]
-    assert m._auto_adjust(now=start + 3700) is None                   # nicht ständig hin und her
-    assert m._auto_adjust(now=start + 3600 + 900) == "offen"          # immer noch nichts -> noch lockerer
-    assert m.resale_targets()["min_discount"] == 25 and m.resale_targets()["min_condition"] == "gut"
-    assert m._auto_adjust(now=start + 3600 + 1800) is None            # lockerer geht es nicht
-    m._alert_times.extend(start + 5400 + i * 10 for i in range(60))   # 60 Treffer in 10 Min.
-    assert m._auto_adjust(now=start + 3600 + 2700) == "locker"        # zu viel -> strenger
-    m.storage.set_state("resale_level", "streng")                    # feste Stufe: Auto aus
-    assert not m.auto_active() and m.resale_targets()["min_discount"] == 50
+    assert m._auto_adjust(now=start + 3600) is None                   # Flaute: nie lockerer als "normal"
+    m._alert_times.extend(start + 3600 + i * 60 for i in range(15))   # 15 Treffer in 15 Min. = 60/Std.
+    assert m._auto_adjust(now=start + 3600 + 900) == "streng"         # zu viel -> strenger
+    assert m.resale_targets()["min_discount"] == 50 and "Auto-Stufe" in m.notifier.texts[-1]
+    assert m._auto_adjust(now=start + 3600 + 1000) is None            # nicht ständig hin und her
+    assert m._auto_adjust(now=start + 3600 + 900 + 3600) == "normal"  # danach ruhig -> wieder "normal"
+    m.storage.set_state("resale_level", "locker")                    # feste Stufe: Auto aus
+    assert not m.auto_active() and m.resale_targets()["min_discount"] == 30
 
 
 def test_stufe_auto_command(tmp_path):
@@ -296,12 +293,11 @@ def test_live_command_and_monitor_records_alerts(tmp_path):
     assert "erst 7 s online" in text and "Median 12 €" in text
 
 
-def test_auto_level_never_lowers_the_condition(tmp_path):
+def test_auto_level_never_goes_below_normal(tmp_path):
     m = monitor(tmp_path)
-    m.storage.set_state("auto_level", "locker")
+    m.storage.set_state("auto_level", "offen")                     # Rest aus einer älteren Version
     t = m.resale_targets()
-    assert t["min_discount"] == 30 and t["min_condition"] == "gut"   # lockerer im Preis, nicht in der Qualität
-
+    assert m.auto_level() == "normal" and t["min_discount"] == 40 and t["min_condition"] == "gut"
 
 
 # -- 🔔 Push-Ton nur für Sniper-Treffer -------------------------------------------------------------

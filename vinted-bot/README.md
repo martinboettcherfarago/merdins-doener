@@ -43,7 +43,8 @@ Vintage Polo Sport Jacke 90s
 | ⚡ **Sniper** | alle ~4 s die neuesten Uploads auf ganz Vinted: nur deine Marken, Premium-Marken und Raritäten |
 | ⏱ **Marken im eigenen Takt** | 77 eingebaute Marken & Trends (+ deine eigenen). Wo viel hochgeladen wird, schaut er alle 10–25 s nach, sonst alle 1–2 Min. |
 | 💶 **Budget** | nur Teile bis 30 €, teure Marken (Luxus, Designer, Outdoor-Premium) bis 80 € |
-| 🎚 **Auto-Stufe** | passt die Strenge so an, dass stetig 20–60 Schnäppchen pro Stunde kommen |
+| 🎚 **Auto-Stufe** | hält 3–10 wirklich gute Schnäppchen pro Stunde (zwischen „normal“ und „streng“) |
+| 🏷 **Nur gute Marken** | deine Marken-Liste, Premium-Marken und echte Raritäten – kein No-Name, kein Fast Fashion |
 | 🔔 **Push nur für Sniper** | ⚡ Sniper-Treffer klingeln, alles andere kommt lautlos in den Chat (`/push`) |
 | 💰 **Wert für fast alles** | über 400 Marken × rund 50 Kategorien × Zustand, lernt aus jedem gesehenen Preis |
 | 💎 **Raritäten & Trends** | vintage, 90er, Y2K, Made in USA, Grails wie Carhartt Detroit oder Stone Island Ghost |
@@ -93,9 +94,11 @@ Mac/Linux/Raspberry Pi: dasselbe mit `./start.sh` und `./ki-installieren.sh`.
 | `normal` | 10 Min. | 40 % | 90 % | 15 € |
 | `streng` | 5 Min. | 50 % | 95 % | 20 € |
 | `offen` | 20 Min. | 25 % | 60 % | 8 € |
-| **`auto`** (Standard) | wechselt selbst zwischen den vieren (höchstens alle 15 Min.), damit stetig **20–60 Schnäppchen pro Stunde** kommen – lockert nur Preis-Ziele, der Zustand bleibt immer mind. „gut“ | | | |
+| **`auto`** (Standard) | wechselt selbst zwischen „normal“ und „streng“ (höchstens alle 15 Min.), damit **3–10 wirklich gute Schnäppchen pro Stunde** kommen – nie lockerer als „normal“ | | | |
 
-\* Bei billigen Markenteilen reicht die Hälfte des Preises als Gewinn (8-€-Shirt: 4 €). Erst ab etwa 30 € gilt der volle Wert. Für Fast Fashion gilt immer der volle Wert.
+\* Bei billigen Markenteilen reicht die Hälfte des Preises als Gewinn, aber **mindestens 8 €** (10-€-Shirt: 8 €). Erst ab etwa 30 € gilt der volle Wert.
+
+**Nur gute Marken:** Gemeldet wird nur, was von einer Marke aus deiner Liste (`/trends`) oder einer Premium-Marke stammt (Ralph Lauren, Lacoste, Stüssy, Carhartt WIP, Arc'teryx, Patagonia, Stone Island …) – oder eine echte Rarität ist (z. B. „Made in USA“, „Single Stitch“, Deadstock). No-Name nur mit „vintage“ im Titel reicht nicht mehr, Fast Fashion (H&M, Zara …) kommt nie.
 
 Nachgeholfen wird bei: 😎 cooler Foto-Look (90er, Sportswear, Fellkragen …), 😍 „passt zu deinem Geschmack“ und 🔥 „sieht begehrt aus“. Dann reicht bis zu 15 Prozentpunkte weniger Rabatt, nie aber unter 25 %. Eigene Regeln pro Marke (`/marke stone island rabatt 60`) gelten überall, auch im Sniper.
 

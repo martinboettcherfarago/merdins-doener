@@ -29,7 +29,7 @@ MAX_OFFERS_PER_DAY = 25  # Limit von Vinted
 HELP = """<b>🤖 Vinted-Deal-Bot</b> – frisch hochgeladene Teile weit unter Wert
 
 <b>💰 Schnäppchen-Radar</b>
-/stufe auto – hält 20–60 Treffer pro Stunde (auch: offen · locker · normal · streng)
+/stufe auto – 3–10 wirklich gute Treffer pro Stunde (auch: normal · streng · locker)
 /budget 30 – höchstens 30 € pro Teil · <code>/budget marken 80</code> für teure Marken
 /radar an|aus – ⚡ Sniper: neueste Uploads alle ~4 s · <code>/radar an &lt;Vinted-Link&gt;</code>
 /trends – deine Marken &amp; Trends · <code>/trends plus jacquemus</code> · <code>/trends minus nike</code>
@@ -406,8 +406,8 @@ class TelegramController(threading.Thread):
             self.storage.set_state("resale_level", "auto")
             low, high = AUTO_BAND
             self.reply(f"✅ <b>Auto-Stufe an</b> – kommen weniger als {low:g} Schnäppchen pro Stunde, lockere ich; "
-                       f"kommen mehr als {high:g}, werde ich strenger (zwischen „offen“ und „streng“, höchstens alle "
-                       "15 Min.). Der Zustand bleibt immer mindestens „gut“.\n\n" + self._targets_text())
+                       f"kommen mehr als {high:g}, werde ich strenger (zwischen „normal“ und „streng“, höchstens alle "
+                       "15 Min. – nie lockerer als „normal“).\n\n" + self._targets_text())
             return
         if a in RESALE_LEVELS:
             self.storage.set_state("resale_level", a)
