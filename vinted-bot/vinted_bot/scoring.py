@@ -74,6 +74,17 @@ class DealScore:
     confidence: str = "mittel"            # wie sicher die Schätzung ist: hoch / mittel / niedrig
     trend: Optional[str] = None
     fake_suspect: bool = False
+    price: float = 0.0                    # Preis des Artikels (für den Mindest-Gewinn bei billigen Teilen)
+    tier: Optional[str] = None            # Preisklasse der Marke
+
+
+def profit_needed(min_profit: float, price: float, tier: Optional[str] = None) -> float:
+    """Mindest-Gewinn fürs Schnäppchen-Radar: Bei billigen Markenteilen reicht die Hälfte des Preises
+    (8-€-Shirt: 4 € Gewinn), ab ca. 30 € gilt der volle Wert der Stufe – sonst käme kaum ein günstiges Teil durch.
+    Fast Fashion (H&M, Zara …) lohnt den Weiterverkauf kaum: dort gilt immer der volle Wert."""
+    if price <= 0 or tier == "budget":
+        return min_profit
+    return min(min_profit, max(4.0, 0.5 * price))
 
 
 def _contains_word(text: str, word: str) -> bool:
@@ -320,7 +331,7 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
     return DealScore(total=total, reference_price=ref.price, discount=discount, is_top=total >= top_threshold,
                      reasons=reasons, profit=profit, age_minutes=age_min, cheaper_than=cheaper_than,
                      rarity_level=rare.level, rarity_tags=list(rare.tags), value=value, confidence=confidence,
-                     trend=trend, fake_suspect=fake)
+                     trend=trend, fake_suspect=fake, price=item.price, tier=est.tier if est else None)
 
 
 def meets_targets(search: SearchConfig, score: DealScore) -> tuple[bool, str]:
@@ -342,7 +353,9 @@ def meets_targets(search: SearchConfig, score: DealScore) -> tuple[bool, str]:
         needed = search.min_cheaper_than if not score.rarity_level else max(50.0, search.min_cheaper_than - 30)
         if score.cheaper_than * 100 < needed:
             return False, "nicht günstig genug im Vergleich"
-    if search.min_profit is not None and (score.profit or 0) < search.min_profit:
+    needed_profit = None if search.min_profit is None else (
+        profit_needed(search.min_profit, score.price, score.tier) if search.is_resale else search.min_profit)
+    if needed_profit is not None and (score.profit or 0) < needed_profit:
         return False, "Gewinn zu klein"
     return True, ""
 

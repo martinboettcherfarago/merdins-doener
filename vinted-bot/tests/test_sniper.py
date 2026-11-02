@@ -216,3 +216,35 @@ def test_sniper_uses_the_same_estimates_and_your_brand_settings(tmp_path):
     # dieselbe Schätzung wie bei den Marken-Suchen (Marke × Kategorie × Zustand, gelernte Preise)
     brand_alert, _ = m.explain(m.effective(SearchConfig.watch("Vintage Adidas")), vintage, NOW)
     assert brand_alert.score.value == alert.score.value and brand_alert.score.discount == alert.score.discount
+
+
+# -- Stetiger Fluss: Gewinn relativ zum Preis, Auto-Stufe -----------------------------------------
+
+def test_cheap_brand_items_need_less_absolute_profit_but_fast_fashion_does_not():
+    from vinted_bot.scoring import profit_needed
+    assert profit_needed(15, 8) == 4 and profit_needed(15, 20) == 10 and profit_needed(15, 40) == 15
+    assert profit_needed(15, 8, "budget") == 15            # H&M, Zara … lohnen sich kaum
+
+
+def test_auto_level_loosens_when_little_comes_in_and_tightens_when_flooded(tmp_path):
+    m = monitor(tmp_path)
+    assert m.auto_active() and m.auto_level() == "normal" and m.level_label() == "auto (gerade „normal“)"
+    start = m.stats["started"]
+    assert m._auto_adjust(now=start + 600) is None                    # erst nach 30 Min. urteilen
+    assert m._auto_adjust(now=start + 3600) == "locker"               # 0 Treffer in einer Stunde
+    assert m.resale_targets()["min_discount"] == 30 and "Auto-Stufe" in m.notifier.texts[-1]
+    assert m._auto_adjust(now=start + 3700) is None                   # nicht ständig hin und her
+    m._alert_times.extend(start + 3700 + i * 60 for i in range(30))   # 30 Treffer in 30 Min.
+    assert m._auto_adjust(now=start + 3600 + 1900) == "normal"
+    m.storage.set_state("resale_level", "streng")                    # feste Stufe: Auto aus
+    assert not m.auto_active() and m.resale_targets()["min_discount"] == 50
+
+
+def test_stufe_auto_command(tmp_path):
+    m = monitor(tmp_path)
+    tg = FakeTelegram()
+    ctl = TelegramController(tg, m, None)
+    ctl.handle_update(msg("/stufe normal"))
+    assert not m.auto_active()
+    ctl.handle_update(msg("/stufe auto"))
+    assert m.auto_active() and "Auto-Stufe an" in tg.texts()[-1]

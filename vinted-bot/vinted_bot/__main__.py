@@ -94,7 +94,7 @@ def cmd_run(cfg: Config) -> int:
     if resale_brands:
         names += f"\n💰 Schnäppchen-Radar: {len(resale_brands)} Marken & Trends ({', '.join(resale_brands[:6])}" \
                  + (" …)" if len(resale_brands) > 6 else ")") \
-                 + f"\n🎯 Schnäppchen-Stufe: {monitor.resale_level or 'aus config.yaml'} (/stufe)"
+                 + f"\n🎯 Schnäppchen-Stufe: {monitor.level_label()} (/stufe)"
         f = monitor.global_filters()
         names += (f"\n📏 Größen: {', '.join(f['sizes']) or 'alle'} (/groesse)"
                   f" · 🚫 ausgeblendet: {', '.join(f['exclude_types']) or 'nichts'} (/kategorien)"

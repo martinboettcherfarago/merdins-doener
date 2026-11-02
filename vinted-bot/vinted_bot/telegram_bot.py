@@ -34,7 +34,7 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b>
 /marke <i>Name</i> – Marke mit eigenen Grenzen, z. B. <code>/marke carhartt bis 80 rabatt 50</code>
 /budget 30 – höchstens 30 € pro Teil · <code>/budget marken 80</code> – Ausnahme für teure Marken
 /radar – ⚡ Sniper: alle paar Sekunden die neuesten Uploads auf ganz Vinted (an/aus)
-/stufe streng – nur die allergünstigsten (auch: normal, locker)
+/stufe auto – passt sich an, damit stetig Treffer kommen (auch: locker, normal, streng)
 /wert <i>Artikel oder Link</i> – Wert schätzen, z. B. <code>/wert carhartt detroit jacke vintage</code>
 
 <b>🧠 Eigenes Modell (lernt aus Tausenden Vinted-Fotos)</b>
@@ -410,16 +410,24 @@ class TelegramController(threading.Thread):
     def _targets_text(self) -> str:
         t = self.monitor.resale_targets()
         level = self.monitor.resale_level
-        title = f"Stufe „{level}“" if level else "Einstellungen aus der config.yaml"
+        title = (f"Stufe „auto“ – gerade „{self.monitor.auto_level()}“" if self.monitor.auto_active()
+                 else f"Stufe „{level}“" if level else "Einstellungen aus der config.yaml")
         return (f"🎯 <b>{title}</b> – gemeldet wird nur, was\n"
                 f"⚡ höchstens {int(t['max_age_minutes'])} Min. online ist\n"
                 f"💸 mind. {t['min_discount']:g} % unter Marktpreis liegt\n"
                 f"🏆 günstiger als {t['min_cheaper_than']:g} % der vergleichbaren Angebote ist\n"
-                f"💰 mind. {t['min_profit']:g} € Gewinn bringt\n"
+                f"💰 mind. {t['min_profit']:g} € Gewinn bringt (bei billigen Markenteilen reicht die Hälfte des "
+                f"Preises)\n"
                 f"🏷 mind. Zustand „{html.escape(str(t['min_condition']))}“ hat")
 
     def cmd_level(self, arg: str) -> None:
         a = arg.strip().lower()
+        if a == "auto":
+            self.storage.set_state("resale_level", "auto")
+            self.reply("✅ <b>Auto-Stufe an</b> – kommen weniger als 4 Schnäppchen pro Stunde, lockere ich; kommen "
+                       "mehr als 20, werde ich strenger (zwischen „locker“ und „streng“, höchstens alle 30 Min.).\n\n"
+                       + self._targets_text())
+            return
         if a in RESALE_LEVELS:
             self.storage.set_state("resale_level", a)
             self.reply("✅ Gespeichert.\n\n" + self._targets_text()
@@ -429,7 +437,7 @@ class TelegramController(threading.Thread):
             self.storage.delete_state("resale_level")
             self.reply("✅ Es gelten wieder die Werte aus der config.yaml.\n\n" + self._targets_text())
             return
-        options = []
+        options = ["<code>/stufe auto</code> – passt sich an: hält 4–20 Schnäppchen pro Stunde (empfohlen)"]
         for name, t in RESALE_LEVELS.items():
             options.append(f"<code>/stufe {name}</code> – ≤ {t['max_age_minutes']} Min., ≥ {t['min_discount']:g} % "
                            f"unter Markt, günstiger als {t['min_cheaper_than']:g} %, ≥ {t['min_profit']:g} € Gewinn")
@@ -514,7 +522,7 @@ class TelegramController(threading.Thread):
             f"Durchläufe: {st['cycles']} · Artikel geprüft: {st['checked']} · Meldungen: {st['alerts']}",
             f"Letzter Durchlauf: vor {last} s" if last is not None else "Erster Durchlauf läuft …",
             f"Angebote per Bot: {'an' if self.account else 'aus'}",
-            f"Schnäppchen-Stufe: {self.monitor.resale_level or 'aus config.yaml'}",
+            f"Schnäppchen-Stufe: {self.monitor.level_label()}",
             "Budget: bis {:g} € · teure Marken bis {:g} €".format(*self.monitor.budget()),
             f"⚡ Sniper: {'an, alle ' + format(self.monitor.cfg.sniper_every_seconds, 'g') + ' s' if self.monitor.sniper_enabled() else 'aus'}",
         ]

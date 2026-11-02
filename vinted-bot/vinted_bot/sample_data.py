@@ -208,7 +208,7 @@ class _Collector:
         pass
 
 
-COPY_STATE = ("filter_sizes", "filter_exclude_types", "only_rare", "resale_level", "prefs", "own_prices",
+COPY_STATE = ("filter_sizes", "filter_exclude_types", "only_rare", "resale_level", "auto_level", "prefs", "own_prices",
               "budget", "budget_brands")
 
 
@@ -285,7 +285,7 @@ def run_sample(cfg: Config, source_storage: Optional[Storage] = None, seed: int 
     f = monitor.global_filters()
     t = monitor.resale_targets()
     normal, brands = monitor.budget()
-    settings = (f"Stufe {monitor.resale_level or 'aus config'} · Budget {normal:g} € (teure Marken {brands:g} €) · "
+    settings = (f"Stufe {monitor.level_label()} · Budget {normal:g} € (teure Marken {brands:g} €) · "
                 f"Größen {', '.join(f['sizes']) or 'alle'} · "
                 f"ausgeblendet: {', '.join(f['exclude_types']) or 'nichts'} · "
                 f"≥ {t['min_discount']:g} % unter Wert · ≤ {t['max_age_minutes']} Min."

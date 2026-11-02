@@ -213,6 +213,7 @@ class Config:
     ml_train_every_hours: float = 6.0
     ml_backbone: str = "fashion"         # Bildmodell: fashion (Marqo-FashionSigLIP) oder schnell (CLIP B/32)
     fake_ampel: str = "streng"           # Fake-Ampel: streng (rot = nicht melden) / warnen / aus
+    resale_auto: bool = True             # Stufe "auto": passt sich an die Trefferzahl an
     budget: float = 30.0                 # Schnäppchen-Radar: höchstens so viel kostet ein gemeldeter Artikel …
     budget_brands: float = 80.0          # … außer teure Marken (Luxus, Designer, Outdoor-Premium)
     sniper: bool = True                  # ⚡ Sniper: neueste Uploads auf ganz Vinted alle paar Sekunden
@@ -320,10 +321,11 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     except (TypeError, ValueError):
         raise ConfigError("resale → budget, budget_brands und sniper_every_seconds müssen Zahlen sein.")
     cfg.sniper = bool(section.get("sniper", True)) and bool(section.get("enabled", True))
-    level = str(section.get("level") or "normal").strip().lower()
-    if level not in RESALE_LEVELS:
-        raise ConfigError(f"resale → level muss {', '.join(RESALE_LEVELS)} sein, nicht '{level}'.")
-    cfg.resale_targets = dict(RESALE_LEVELS[level])
+    level = str(section.get("level") or "auto").strip().lower()
+    if level not in RESALE_LEVELS and level != "auto":
+        raise ConfigError(f"resale → level muss auto, {', '.join(RESALE_LEVELS)} sein, nicht '{level}'.")
+    cfg.resale_auto = level == "auto"
+    cfg.resale_targets = dict(RESALE_LEVELS["normal" if level == "auto" else level])
     filters = data.get("filters") or {}
     if "sizes" in filters:
         sizes = filters.get("sizes") or []

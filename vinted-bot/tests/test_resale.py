@@ -114,7 +114,9 @@ def test_meets_targets():
     ref = Reference(100.0)
     assert meets_targets(s, score_item(item(1, 50), ref, now=NOW, resale=True, shipping=5))[0]
     assert meets_targets(s, score_item(item(1, 70), ref, now=NOW, resale=True))[1] == "Rabatt zu klein"
-    cheap_ref = Reference(30.0)  # 50 % Rabatt, aber nur ~5 € Gewinn
+    # Billige Teile: Gewinn muss mind. die Hälfte des Preises sein (15 € -> 7,50 €), nicht volle 15 €
+    assert meets_targets(s, score_item(item(1, 15), Reference(30.0), now=NOW, resale=True, shipping=5))[0]
+    cheap_ref = Reference(27.0)  # 44 % Rabatt, aber nur ~5,50 € Gewinn
     assert meets_targets(s, score_item(item(1, 15), cheap_ref, now=NOW, resale=True, shipping=5))[1] == "Gewinn zu klein"
     assert meets_targets(s, score_item(item(1, 15), None, now=NOW, resale=True))[1] == "Marktpreis noch unbekannt"
 

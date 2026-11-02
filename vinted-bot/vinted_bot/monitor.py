@@ -7,6 +7,7 @@ import math
 import random
 import threading
 import time
+from collections import deque
 from dataclasses import replace
 from typing import Any, Callable, Optional
 
@@ -17,7 +18,7 @@ from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_mat
 from .models import Item
 from .notify import Alert
 from .scoring import (TYPE_LABELS, Reference, market_reference, meets_targets, normalize, passes_filters,
-                      price_group, product_type, score_item, suggest_offers)
+                      price_group, product_type, profit_needed, score_item, suggest_offers)
 from .scheduler import Scheduler
 from .storage import Storage
 from .vinted import VintedBlocked, VintedClient, VintedRateLimited, query_for_search
@@ -26,6 +27,8 @@ log = logging.getLogger(__name__)
 
 JUNK_TYPES = {"kleinkram", "verpackung"}   # Patches, Sticker, Kartons, Staubbeutel …
 MEDIA_TYPES = {"buch", "medien"}           # Bücher, Magazine, Kataloge, CDs …
+AUTO_ORDER = ("streng", "normal", "locker")  # Auto-Stufe bewegt sich zwischen diesen Stufen …
+AUTO_BAND = (4.0, 20.0)                      # … und hält 4–20 Schnäppchen pro Stunde
 EXPENSIVE_TIERS = ("luxus", "designer", "outdoor")  # "wirklich teure Marken" dürfen übers Budget
 WANTED_TIERS = ("premium", "streetwear", "outdoor", "designer", "luxus")  # meldet der Sniper immer
 SNIPER = "⚡ Sniper"
@@ -64,6 +67,7 @@ class Monitor:
         self._last_report = time.monotonic()
         self._brand_cache: tuple[int, set[str]] = (-1, set())
         self._watch_cache: tuple[int, list[Any]] = (-1, [])
+        self._alert_times: deque[float] = deque(maxlen=1000)   # Schnäppchen-Meldungen (für die Auto-Stufe)
 
     def _pause_example_searches(self) -> list[str]:
         """Die Beispiel-Suchen der alten Vorlage ("Air Max 90", "Carhartt Jacken") melden alles mögliche ohne
@@ -127,13 +131,60 @@ class Monitor:
 
     @property
     def resale_level(self) -> Optional[str]:
+        """Per Telegram gewählte Stufe (locker/normal/streng/auto) – None = wie in der config.yaml."""
         level = self.storage.get_state("resale_level")
-        return level if level in RESALE_LEVELS else None
+        return level if level in RESALE_LEVELS or level == "auto" else None
+
+    def auto_active(self) -> bool:
+        level = self.resale_level
+        return level == "auto" or (level is None and self.cfg.resale_auto)
+
+    def auto_level(self) -> str:
+        """Stufe, die die Auto-Stufe gerade gewählt hat."""
+        level = self.storage.get_state("auto_level")
+        return level if level in RESALE_LEVELS else "normal"
+
+    def level_label(self) -> str:
+        if self.auto_active():
+            return f"auto (gerade „{self.auto_level()}“)"
+        return self.resale_level or "aus config.yaml"
 
     def resale_targets(self) -> dict[str, Any]:
-        """Ziele für Resale-Suchen: per Telegram gewählte Stufe, sonst die Werte aus der config.yaml."""
+        """Ziele für Resale-Suchen: Auto-Stufe, per Telegram gewählte Stufe oder die Werte aus der config.yaml."""
+        if self.auto_active():
+            return dict(RESALE_LEVELS[self.auto_level()])
         level = self.resale_level
         return dict(RESALE_LEVELS[level]) if level else dict(self.cfg.resale_targets)
+
+    def _auto_adjust(self, now: Optional[float] = None) -> Optional[str]:
+        """Auto-Stufe: Kommt zu wenig rein, lockern – kommt zu viel, strenger werden. Höchstens alle 30 Min."""
+        if not self.auto_active():
+            return None
+        now = self.clock() if now is None else now
+        last = float(self.storage.get_state("auto_changed") or 0)
+        since = max(self.stats["started"], last)
+        if now - since < 1800:
+            return None
+        window = min(3600.0, now - since)
+        with self._lock:
+            count = sum(1 for t in self._alert_times if t >= now - window)
+        per_hour = count * 3600.0 / window
+        level = self.auto_level()
+        i = AUTO_ORDER.index(level)
+        if per_hour < AUTO_BAND[0] and i < len(AUTO_ORDER) - 1:
+            new, why = AUTO_ORDER[i + 1], f"nur {per_hour:.0f} Treffer pro Stunde – ich lockere"
+        elif per_hour > AUTO_BAND[1] and i > 0:
+            new, why = AUTO_ORDER[i - 1], f"{per_hour:.0f} Treffer pro Stunde – ich werde strenger"
+        else:
+            return None
+        self.storage.set_state("auto_level", new)
+        self.storage.set_state("auto_changed", str(now))
+        t = RESALE_LEVELS[new]
+        text = (f"🎚 Auto-Stufe: {why} auf „{new}“ (≥ {t['min_discount']:g} % unter Wert, ≤ "
+                f"{t['max_age_minutes']} Min. alt). Feste Stufe: /stufe normal")
+        log.info(text)
+        self.notifier.send_text(text)
+        return new
 
     def effective(self, search: SearchConfig) -> SearchConfig:
         """Suche mit den Zielen der Schnäppchen-Stufe und deinem Budget (gilt nur fürs Schnäppchen-Radar)."""
@@ -662,6 +713,8 @@ class Monitor:
         if ok:
             with self._lock:
                 self.stats["alerts"] += 1
+                if alert.resale:
+                    self._alert_times.append(self.clock())
                 if alert.worker:
                     self.stats["workers"].setdefault(alert.worker, {"cycles": 0, "checked": 0, "alerts": 0})
                     self.stats["workers"][alert.worker]["alerts"] += 1
@@ -699,7 +752,8 @@ class Monitor:
         profit = value - (alert.item.total_price or alert.item.price) - self.cfg.shipping_estimate
         discount = 1 - alert.item.price / value
         targets = self.resale_targets()
-        if discount * 100 < targets["min_discount"] or profit < targets["min_profit"]:
+        if discount * 100 < targets["min_discount"] or \
+                profit < profit_needed(targets["min_profit"], alert.item.price, alert.score.tier):
             return
         if not self.storage.claim_alert(alert.item.id):
             return
@@ -850,6 +904,7 @@ class Monitor:
                     self._last_report = time.monotonic()
             if report:
                 self._report_tempo()
+                self._auto_adjust()
 
     def _poll(self, search: SearchConfig, client: Any, label: str) -> tuple[int, bool, bool]:
         """Eine Suche abfragen. Ist die ganze Seite neu, kam seit dem letzten Blick mehr rein – dann sofort

@@ -256,7 +256,7 @@ def test_trends_minus_pauses_config_brand(cfg, tmp_path, clock):
 def test_level_command(bot):
     ctl, tg, storage, _ = bot
     ctl.handle_update(msg("/stufe"))
-    assert "Einstellungen aus der config.yaml" in tg.texts()[-1] and "/stufe streng" in tg.texts()[-1]
+    assert "Stufe „auto“ – gerade „normal“" in tg.texts()[-1] and "/stufe streng" in tg.texts()[-1]
     ctl.handle_update(msg("/stufe streng"))
     text = tg.texts()[-1]
     assert "höchstens 5 Min." in text and "mind. 50 %" in text and "günstiger als 95 %" in text
@@ -264,7 +264,7 @@ def test_level_command(bot):
     ctl.handle_update(msg("/status"))
     assert "Schnäppchen-Stufe: streng" in tg.texts()[-1]
     ctl.handle_update(msg("/stufe reset"))
-    assert ctl.monitor.resale_level is None
+    assert ctl.monitor.resale_level is None and ctl.monitor.auto_active()   # config-Standard: auto
 
 
 def test_old_resale_searches_are_migrated(cfg, tmp_path, clock):
