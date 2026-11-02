@@ -62,7 +62,7 @@ def cmd_run(cfg: Config) -> int:
     storage = Storage(cfg.database)
     monitor = Monitor(cfg, VintedClient(cfg.domain, proxy=cfg.proxy), storage, notifier)
     monitor.reviewer = build_reviewer(cfg, storage, monitor)
-    monitor.brain = build_brain(cfg, notifier)
+    monitor.brain = build_brain(cfg, notifier) if model_wanted(cfg, storage) else None
 
     controller = None
     if cfg.telegram_token:
@@ -120,6 +120,8 @@ def cmd_run(cfg: Config) -> int:
                   .replace(",", "."))
     elif b is not None:
         names += "\n🧠 Eigenes Modell: nicht installiert (ki-installieren.bat)"
+    else:
+        names += "\n🧠 Bildmodell: aus (/modell an)"
     names += f"\n🛡 Fake-Ampel: {monitor.ampel_mode()} (/ampel)"
     push = {"sniper": "nur ⚡ Sniper-Treffer", "alle": "alle Meldungen", "aus": "keine (alles lautlos)"}
     names += f"\n🔔 Push-Ton: {push[monitor.push_mode()]} (/push)"
@@ -147,6 +149,17 @@ def build_reviewer(cfg: Config, storage: Storage, monitor: Any) -> Any:
         return photo_client.item_photos(item)
 
     return AiReviewer(cfg, storage, photos, photo_client.fetch_bytes)
+
+
+def model_wanted(cfg: Config, storage: Storage) -> bool:
+    """Bildmodell an? Seit dieser Version standardmäßig aus (einmalig auch bei bestehenden Installationen);
+    einschalten mit /modell an."""
+    if storage.get_state("migrated:model_off_v1") != "1":
+        storage.set_state("migrated:model_off_v1", "1")
+        if storage.get_state("ml") is None:
+            storage.set_state("ml", "aus")
+    state = storage.get_state("ml")
+    return state == "an" or (state != "aus" and cfg.ml_enabled)
 
 
 def build_brain(cfg: Config, notifier: Any) -> Any:

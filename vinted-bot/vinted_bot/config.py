@@ -210,7 +210,7 @@ class Config:
     ai_second_look: bool = True          # KI schaut sich knapp verpasste Retro-/Trend-Teile an
     ai_max_second_looks_per_day: int = 20
     ai_hide_fakes: bool = True
-    ml_enabled: bool = True              # eigenes Bildmodell (braucht: ki-installieren.bat)
+    ml_enabled: bool = False             # eigenes Bildmodell (braucht: ki-installieren.bat) – Standard: aus
     ml_threads: int = 2
     ml_train_every_hours: float = 6.0
     ml_backbone: str = "fashion"         # Bildmodell: fashion (Marqo-FashionSigLIP) oder schnell (CLIP B/32)
@@ -361,7 +361,7 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     cfg.ai_max_second_looks_per_day = int(ai.get("max_second_looks_per_day") or 20)
     cfg.ai_hide_fakes = bool(ai.get("hide_fakes", True))
     ml = data.get("ml") or {}
-    cfg.ml_enabled = bool(ml.get("enabled", True))
+    cfg.ml_enabled = bool(ml.get("enabled", False))
     cfg.ml_threads = max(1, int(ml.get("threads") or 2))
     cfg.ml_train_every_hours = max(0.5, float(ml.get("train_every_hours") or 6))
     backbone = str(ml.get("backbone") or "fashion").strip().lower()

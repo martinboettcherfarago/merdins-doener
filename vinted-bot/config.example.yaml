@@ -36,9 +36,9 @@ filters:
   only_rare: false             # true = nur Raritäten
   fake_ampel: streng           # 🛡 streng (🔴 nicht melden) · warnen · aus   (/ampel)
 
-# 👗 BILDMODELL (lokal, kostenlos) – einmalig ki-installieren.bat ausführen, dann in Telegram /sammeln
+# 👗 BILDMODELL (optional, lokal) – braucht ki-installieren.bat und Rechenleistung; einschalten mit /modell an
 ml:
-  enabled: true
+  enabled: false               # Standard aus – der Bot sucht schneller nur mit Regeln (/modell an|aus)
   backbone: fashion            # fashion = Mode-Spezialist (~110 ms/Foto) · schnell = für schwache PCs (~40 ms)
   threads: 2                   # Prozessorkerne fürs Bildmodell
   train_every_hours: 6

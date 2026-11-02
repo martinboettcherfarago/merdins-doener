@@ -345,7 +345,8 @@ class TagEmbedder(FakeEmbedder):
 
 def test_photo_tags_show_up_and_patches_are_dropped(tmp_path):
     from vinted_bot.brain import Tag
-    cfg = config_from_dict({"resale": {"brands": ["Vintage Adidas"], "level": "locker"}}, base_dir=str(tmp_path))
+    cfg = config_from_dict({"resale": {"brands": ["Vintage Adidas"], "level": "locker"}, "ml": {"enabled": True}},
+                           base_dir=str(tmp_path))
     store = {}
     tags = [Tag("kategorie", "Trainingsjacke", 0.8, "jacke"), Tag("material", "Nylon", 0.6),
             Tag("farbe", "dunkelblau", 0.5), Tag("jahrzehnt", "90er", 0.7), Tag("stil", "Sportswear", 0.6),
@@ -417,7 +418,8 @@ def test_fashion_model_falls_back_to_fast_clip(monkeypatch):
 # -- Einfluss aufs Gemeldete: cooler Look, Geschmack, Kategorie aus dem Foto -----------------------------
 
 def carhartt_setup(tmp_path, tags, brands=("Carhartt",)):
-    cfg = config_from_dict({"resale": {"brands": list(brands), "budget": 500}}, base_dir=str(tmp_path))
+    cfg = config_from_dict({"resale": {"brands": list(brands), "budget": 500}, "ml": {"enabled": True}},
+                           base_dir=str(tmp_path))
     store = {}
     brain = Brain(cfg, lambda url: store.get(url), embedder=TagEmbedder(tags))
     from conftest import FakeClient
@@ -479,13 +481,14 @@ def test_bot_starts_without_numpy_or_torch(tmp_path, monkeypatch):
     import sys
     from vinted_bot.__main__ import build_brain
     monkeypatch.setitem(sys.modules, "vinted_bot.brain", None)   # wie "No module named 'numpy'"
-    assert build_brain(config_from_dict({}, base_dir=str(tmp_path)), FakeNotifier()) is None
+    assert build_brain(config_from_dict({"ml": {"enabled": True}}, base_dir=str(tmp_path)), FakeNotifier()) is None
 
 
 # -- Bildmodell darf die Sucher nicht ausbremsen ---------------------------------------------------------
 
 def test_only_real_candidates_get_a_photo_check_and_at_most_8_per_poll(tmp_path):
-    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "budget": 500}}, base_dir=str(tmp_path))
+    cfg = config_from_dict({"resale": {"brands": ["Carhartt"], "budget": 500}, "ml": {"enabled": True}},
+                           base_dir=str(tmp_path))
     fetched = []
     brain = Brain(cfg, lambda url: fetched.append(url) or f"IMG:30:0:{len(fetched)}".encode(),
                   embedder=FakeEmbedder())
@@ -538,3 +541,23 @@ def test_searchers_never_wait_for_the_image_model_to_load(tmp_path):
     assert brain.assess(it, "jacke", estimate_item(it, "jacke")) is None   # sofort weiter, nur Regeln
     brain.embedder.loaded = True
     assert brain.assess(it, "jacke", estimate_item(it, "jacke")) is not None
+
+
+
+def test_model_is_off_by_default_and_switchable(tmp_path):
+    from vinted_bot.__main__ import model_wanted
+    st = Storage(str(tmp_path / "s.db"))
+    on_in_config = config_from_dict({"ml": {"enabled": True}}, base_dir=str(tmp_path))
+    assert model_wanted(on_in_config, st) is False          # einmalig ausgeschaltet, auch bei "enabled: true"
+    st.set_state("ml", "an")
+    assert model_wanted(config_from_dict({}, base_dir=str(tmp_path)), st) is True   # /modell an
+    tg = FakeTelegram()
+    from conftest import FakeClient
+    m = Monitor(config_from_dict({}, base_dir=str(tmp_path)), FakeClient(), st, FakeNotifier(), clock=lambda: NOW)
+    m.brain, stopped = make_brain(tmp_path)[0], []
+    m.brain.stop = lambda: stopped.append(1)
+    ctl = TelegramController(tg, m, None)
+    ctl.handle_update(msg("/modell aus"))
+    assert m.brain is None and stopped and st.get_state("ml") == "aus" and "Bildmodell <b>aus</b>" in tg.texts()[-1]
+    ctl.handle_update(msg("/modell"))
+    assert "/modell an" in tg.texts()[-1]

@@ -43,7 +43,7 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b> – frisch hochgeladene Teile weit unter W
 👍/👎 unter jeder Meldung – lernt deinen Geschmack (/vorlieben)
 
 <b>👗 Bildmodell &amp; Echtheit</b>
-/modell · /sammeln · /trainieren – eigenes Modell
+/modell · /modell an|aus · /sammeln · /trainieren – Bildmodell (Standard: aus)
 /ampel streng|warnen|aus – 🛡 Fake-Ampel · /fake &lt;Link&gt; · /echt &lt;Link&gt;
 /ki an|aus · /pruefen &lt;Link&gt; – Claude-Bildcheck
 
@@ -791,6 +791,10 @@ class TelegramController(threading.Thread):
 
     def _brain_or_hint(self) -> Any:
         b = self.monitor.brain
+        if b is None and self.storage.get_state("ml") == "aus":
+            self.reply("🧠 Das Bildmodell ist <b>aus</b> – der Bot sucht nur mit seinen Regeln (schneller, weniger "
+                       "Rechenleistung). Einschalten: <code>/modell an</code>")
+            return None
         if b is None or not b.embedder.installed():
             self.reply("🧠 Das eigene Modell ist noch nicht installiert.\n"
                        "Windows: Bot stoppen, <b>ki-installieren.bat</b> doppelklicken (einmalig ca. 300 MB), "
@@ -801,7 +805,22 @@ class TelegramController(threading.Thread):
             return None
         return b
 
-    def cmd_model(self, _arg: str = "") -> None:
+    def cmd_model(self, arg: str = "") -> None:
+        a = arg.strip().lower()
+        if a in ("aus", "off", "stop"):
+            self.storage.set_state("ml", "aus")
+            if self.monitor.brain is not None:
+                self.monitor.brain.stop()
+                self.monitor.brain = None
+            self.reply("🧠 Bildmodell <b>aus</b> – ab sofort entscheidet der Bot nur nach Marke, Preis, Zustand und "
+                       "Titel. Das spart Rechenleistung, die Sucher sind schneller. Bleibt auch nach einem Neustart "
+                       "aus. Wieder an: <code>/modell an</code>")
+            return
+        if a in ("an", "on", "start"):
+            self.storage.set_state("ml", "an")
+            self.reply("🧠 Bildmodell <b>an</b> – es wird beim nächsten Start geladen (Bot mit Strg + C stoppen, "
+                       "start.bat neu starten). Braucht einmalig ki-installieren.bat.")
+            return
         b = self._brain_or_hint()
         if b is None:
             return

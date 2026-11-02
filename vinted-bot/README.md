@@ -47,7 +47,7 @@ Vintage Polo Sport Jacke 90s
 | 🔔 **Push nur für Sniper** | ⚡ Sniper-Treffer klingeln, alles andere kommt lautlos in den Chat (`/push`) |
 | 💰 **Wert für fast alles** | über 400 Marken × rund 50 Kategorien × Zustand, lernt aus jedem gesehenen Preis |
 | 💎 **Raritäten & Trends** | vintage, 90er, Y2K, Made in USA, Grails wie Carhartt Detroit oder Stone Island Ghost |
-| 👗 **Mode-Bildmodell** | erkennt 123 Merkmale im Foto (Kategorie, Material, Farbe, Jahrzehnt, Stil …) und lernt aus Tausenden Vinted-Fotos |
+| 👗 **Mode-Bildmodell** (optional, Standard aus) | erkennt 123 Merkmale im Foto und lernt aus Vinted-Fotos – kostet Rechenleistung, darum nur mit `/modell an` |
 | 🛡 **Fake-Ampel** | sofortiger Fake-Check: Marke × Preis, „1:1“, „AAA“, Katalogfoto … |
 | 🤖 **KI-Bildcheck** (optional) | Claude prüft die Fotos auf Echtheit, Zustand, Look und Wert |
 | 👍/👎 | lernt deinen Geschmack |
@@ -64,7 +64,7 @@ Vintage Polo Sport Jacke 90s
 5. `config.yaml` mit dem **Editor** öffnen und bei `telegram → token` deinen Token eintragen.
 6. **Chat-ID:** Im Ordner in die Adresszeile `cmd` tippen → `start.bat chat-id` → deinem Bot in Telegram `/start` schreiben → die angezeigte Zahl bei `chat_id` eintragen.
 7. **`start.bat`** starten. Fertig: Telegram meldet „Vinted-Bot läuft“.
-8. **Bildmodell (empfohlen):** Bot stoppen (Strg + C), **`ki-installieren.bat`** ausführen (ca. 400 MB), wieder `start.bat` starten und in Telegram **`/sammeln`** schreiben.
+8. **Bildmodell (optional, Standard aus):** nur bei einem starken PC sinnvoll – **`ki-installieren.bat`** ausführen (ca. 400 MB), in Telegram `/modell an`, Bot neu starten, dann `/sammeln`.
 
 Mac/Linux/Raspberry Pi: dasselbe mit `./start.sh` und `./ki-installieren.sh`.
 
@@ -123,7 +123,8 @@ Nachgeholfen wird bei: 😎 cooler Foto-Look (90er, Sportswear, Fellkragen …),
 | `/preis carhartt jacken 90` | eigenen Marktwert beibringen |
 | `/vorlieben` | was er aus deinen 👍/👎 gelernt hat |
 | **Bildmodell & Echtheit** | |
-| `/modell` · `/sammeln` · `/trainieren` | Stand, Sammel-Turbo, neu trainieren |
+| `/modell an` · `/modell aus` · `/modell` | Bildmodell ein/aus (Standard: aus), Stand |
+| `/sammeln` · `/trainieren` | Sammel-Turbo, neu trainieren (nur mit Bildmodell) |
 | `/ampel streng` · `warnen` · `aus` | Fake-Ampel |
 | `/fake <Link>` · `/echt <Link>` | dem Fake-Modell etwas beibringen |
 | `/ki an` · `/ki aus` · `/pruefen <Link>` | Claude-Bildcheck |
@@ -160,8 +161,8 @@ Fast alles geht auch per Telegram. In der `config.yaml` stehen die Startwerte:
 
 ## Bildmodell, Fake-Ampel, KI-Check
 
-### 👗 Mode-Bildmodell (lokal, kostenlos)
-Einmalig `ki-installieren.bat` ausführen. Beim ersten Start lädt der Bot **Marqo-FashionSigLIP**, ein auf Mode-Fotos spezialisiertes Bildmodell (Apache-2.0, ca. 800 MB, ~110 ms pro Foto). Auf schwachen PCs nimmst du `backbone: schnell` (CLIP ViT-B/32, ~40 ms).
+### 👗 Mode-Bildmodell (optional, Standard: aus)
+Ohne Bildmodell entscheidet der Bot nach Marke, Preis, Zustand und Titel – schneller und ohne Rechenlast. Wer einen starken PC hat, kann es zuschalten: einmalig `ki-installieren.bat` ausführen, in Telegram `/modell an`, Bot neu starten. `/modell aus` schaltet es sofort wieder ab. Beim ersten Start lädt der Bot **Marqo-FashionSigLIP**, ein auf Mode-Fotos spezialisiertes Bildmodell (Apache-2.0, ca. 800 MB, ~110 ms pro Foto). Auf schwachen PCs nimmst du `backbone: schnell` (CLIP ViT-B/32, ~40 ms).
 
 - **Sofort, ohne Training:** 123 Merkmale aus dem Foto, nämlich Kategorie (auch Aufnäher, Karton, Buch), Farbe, Material, Muster, Stil, Jahrzehnt, Details und Fotoart. Daraus folgen der 😎 Foto-Look, die Kategorie bei unklaren Titeln, das Aussortieren von Kleinkram und Hinweise für die Fake-Ampel.
 - **Eigenes Training:** Von jedem gesehenen Artikel speichert er einen Bild-Fingerabdruck (ca. 4 KB, keine Fotos) mit Preis und Favoriten. Alle 6 Stunden trainiert er daraus ein Wert-, Begehrt-, Geschmacks- (👍/👎) und Fake-Modell (`/fake`, `/echt`, Claude-Urteile). Jedes Modell wird an Artikeln geprüft, die es nicht kennt, und nur benutzt, wenn es besser ist als die Faustregel. `/modell` zeigt die Werte: niedrige „Abweichung“ ist gut (20–30 % ist realistisch), hohe „Trefferqualität“ ist gut (ab 70 % gut).
