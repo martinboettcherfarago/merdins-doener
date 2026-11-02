@@ -312,9 +312,8 @@ def score_item(item: Item, ref: Union[Reference, float, None], top_threshold: in
     # 6) Fake-Verdacht: Luxus/Designer viel zu billig
     fake = False
     if est and est.tier in ("luxus", "designer") and discount is not None and discount >= 0.75:
-        fake = True
+        fake = True          # Warnung zeigt die Fake-Ampel (bzw. Monitor, wenn die Ampel aus ist)
         rare_pts -= 15
-        reasons.append(f"⚠️ Fake-Risiko: für {est.brand or 'diese Marke'} sehr billig – Echtheit genau prüfen!")
 
     # Wie sicher ist die Schätzung?
     confidence = est.confidence if est else "mittel"

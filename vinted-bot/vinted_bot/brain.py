@@ -47,7 +47,6 @@ BACKBONES: dict[str, tuple[str, Optional[str], str]] = {
     "fashion": ("hf-hub:Marqo/marqo-fashionSigLIP", None, "Marqo-FashionSigLIP (Mode-Spezialist)"),
     "schnell": ("ViT-B-32", "laion2b_s34b_b79k", "CLIP ViT-B/32 (schnell)"),
 }
-BACKBONE = BACKBONES["schnell"][:2]   # alter Name
 EMB = 512                              # Standard-Größe (ViT-B/32); FashionSigLIP liefert 768
 TIER_KEYS = ["", "budget", "standard", "premium", "streetwear", "outdoor", "designer", "luxus"]
 FAMILY_KEYS = list(FAMILY_LABELS)
@@ -58,10 +57,6 @@ def n_features(dim: int = EMB) -> int:
 
 
 N_FEATURES = n_features()
-
-# Kurz-Stil für alte Aufrufe (style): aus den Tags abgeleitet
-STYLES = {label: prompt for label, prompt, _ in TAG_GROUPS["stil"]}
-
 
 @dataclass
 class Tag:
@@ -507,7 +502,6 @@ class BrainView:
     fake: Optional[float] = None       # Fake-Risiko
     style: str = ""
     style_conf: float = 0.0
-    photo_quality: float = 0.0
     tags: list[Tag] = field(default_factory=list)
     cool: float = 0.0                  # Cool-Faktor aus den Foto-Tags (90er, Sportswear, Fellkragen …)
     cool_bits: list[str] = field(default_factory=list)
@@ -654,11 +648,9 @@ class Brain:
                 view.tags = tags(img)
                 st = view.tag("stil")
                 view.style, view.style_conf = (st.label, st.prob) if st else ("", 0.0)
-                blurry = next((t.prob for t in view.tags if t.label == "unscharf/dunkel"), 0.0)
-                view.photo_quality = 1.0 - blurry
                 view.cool, view.cool_bits = cool_score(view.tags)
             else:
-                view.style, view.style_conf, view.photo_quality = self.embedder.style(img)
+                view.style, view.style_conf, _quality = self.embedder.style(img)
         except Exception as e:  # noqa: BLE001
             log.debug("Tag-Erkennung fehlgeschlagen: %s", e)
         m = self.models

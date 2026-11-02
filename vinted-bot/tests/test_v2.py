@@ -142,18 +142,9 @@ def test_no_duplicate_alerts_across_searches(tmp_path):
     assert [a.item.id for a in notifier.alerts] == [1]
 
 
-def test_old_names_are_migrated(tmp_path, clock):
-    st = Storage(str(tmp_path / "old.db"))
-    st.add_search(SearchConfig.from_dict({"name": "Resale · Carhartt", "keywords": "Carhartt", "mode": "resale"},
-                                         source="telegram"))
-    st.set_state("seeded:Resale · Carhartt", "1")
-    st.set_state("disabled:Resale · Stüssy", "1")  # Suche aus der config.yaml
-    st.add_price("Resale · Carhartt", 50, "b:carhartt|jacke")
-    Monitor(config_from_dict({}), FakeClient(), st, FakeNotifier(), clock=clock)
-    assert [s.name for s in st.custom_searches()] == ["Marke · Carhartt"]
-    assert st.is_seeded("Marke · Carhartt") and st.is_disabled("Marke · Stüssy")
-    assert st.price_history("Marke · Carhartt") == [50]
+def test_watch_names():
     assert watch_name("Vintage Lederjacke") == "Trend · Vintage Lederjacke"
+    assert watch_name("Carhartt") == "Marke · Carhartt"
 
 
 # -- Telegram: /wert und /radar ------------------------------------------------------------

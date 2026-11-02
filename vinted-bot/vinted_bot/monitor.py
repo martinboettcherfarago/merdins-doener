@@ -13,7 +13,7 @@ from typing import Any, Callable, Optional
 
 from .catalog import brand_info, hidden_label, is_kids, is_retro, type_hidden
 from . import fakecheck
-from .config import RESALE_LEVELS, RESALE_TARGET_KEYS, TREND_WATCHES, Config, SearchConfig, watch_name
+from .config import RESALE_LEVELS, RESALE_TARGET_KEYS, TREND_WATCHES, Config, SearchConfig
 from .knowledge import brand_key, estimate_item, rarity, size_matches, trend_match
 from .models import Item
 from .notify import Alert
@@ -55,11 +55,7 @@ class Monitor:
         self.brain: Any = None      # eigenes Bildmodell (brain.Brain), wird von __main__ gesetzt
         self.pacer = Pacer(0.0)
         self.reject_log: Optional[list[tuple[str, Item, str]]] = None  # für Probelauf/Fehlersuche
-        self._migrate_old_resale_searches()
-        self._rename_old_searches()
-        self._apply_trend_presets()
         self.paused_examples = self._pause_example_searches()
-        self.min_cycle_wait = 3.0
         self.last_fetch: dict[str, tuple[int, int]] = {}   # Suche -> (neue Artikel, Artikel insgesamt)
         self.sniper_stats = {"polls": 0, "new": 0, "gaps": 0, "alerts": 0, "since": time.monotonic()}
         self.scheduler = Scheduler()
@@ -83,49 +79,6 @@ class Monitor:
                 paused.append(s.name)
         self.storage.set_state("migrated:examples_v1", "1")
         return paused
-
-    def _rename_old_searches(self) -> None:
-        """Version 2: 'Resale · X' heißt jetzt 'Marke · X' bzw. 'Trend · X' (gesucht wurde nie nach 'Resale')."""
-        if self.storage.get_state("migrated:names_v2") == "1":
-            return
-        for s in self.storage.custom_searches():
-            if s.name.startswith("Resale · "):
-                self.storage.rename_search(s.name, watch_name(s.name.split(" · ", 1)[1]))
-        for key in self.storage.state_keys("disabled:Resale · ") + self.storage.state_keys("seeded:Resale · "):
-            prefix, old = key.split(":", 1)
-            value = self.storage.get_state(key)
-            self.storage.delete_state(key)
-            self.storage.set_state(f"{prefix}:{watch_name(old.split(' · ', 1)[1])}", value or "1")
-        self.storage.set_state("migrated:names_v2", "1")
-
-    def _apply_trend_presets(self) -> None:
-        """Schon gespeicherte Trend-Suchen bekommen neue Voreinstellungen (z. B. mehr Vintage Adidas)."""
-        from .config import TREND_OVERRIDES
-        if self.storage.get_state("migrated:trend_presets_v1") == "1":
-            return
-        presets = {normalize(k): v for k, v in TREND_OVERRIDES.items()}
-        for s in self.storage.custom_searches():
-            preset = presets.get(normalize(s.keywords or ""))
-            if s.is_resale and preset:
-                for key, value in preset.items():
-                    if getattr(s, key) is None:
-                        setattr(s, key, value)
-                self.storage.add_search(s)
-        self.storage.set_state("migrated:trend_presets_v1", "1")
-
-    def _migrate_old_resale_searches(self) -> None:
-        """Ältere Versionen haben die Resale-Ziele fest in jede Telegram-Suche geschrieben.
-        Diese Standardwerte entfernen, damit die Schnäppchen-Stufe (/stufe) für alle gilt."""
-        if self.storage.get_state("migrated:resale_targets") == "1":
-            return
-        old = {"max_age_minutes": 10, "min_discount": 40.0, "min_profit": 15.0, "min_condition": "gut"}
-        for s in self.storage.custom_searches():
-            if s.is_resale:
-                for key, value in old.items():
-                    if getattr(s, key) == value:
-                        setattr(s, key, None)
-                self.storage.add_search(s)
-        self.storage.set_state("migrated:resale_targets", "1")
 
     # -- Schnäppchen-Stufe & Trend-Marken --------------------------------------------
 
@@ -285,8 +238,7 @@ class Monitor:
         return state == "1" if state in ("0", "1") else self.cfg.sniper
 
     def sniper_search(self) -> SearchConfig:
-        url = self.storage.get_state("sniper_url") or next(
-            (s.url for s in self.all_searches() if s.sweep and s.url and s.enabled), None)
+        url = self.storage.get_state("sniper_url") or self.cfg.sniper_url
         return self.effective(SearchConfig(name=SNIPER, sweep=True, mode="resale", url=url, source="sniper"))
 
     def trend_brands(self) -> list[str]:
@@ -335,7 +287,7 @@ class Monitor:
         return list(self.cfg.searches) + custom
 
     def active_searches(self) -> list[SearchConfig]:
-        """Die Suchen der normalen Sucher (das Alles-Radar läuft als ⚡ Sniper auf der Überholspur)."""
+        """Alle aktiven Marken-, Trend- und eigenen Suchen (ohne den ⚡ Sniper)."""
         return [s for s in self.all_searches() if s.enabled and not s.sweep and not self.storage.is_disabled(s.name)]
 
     @property
@@ -543,6 +495,8 @@ class Monitor:
         if kind == "price_drop" and old_price:
             score.reasons.insert(0, f"Preis um {1 - item.price / old_price:.0%} gesenkt")
         ampel = None
+        if self.ampel_mode() == "aus" and score.fake_suspect:
+            score.reasons.append(f"⚠️ Fake-Risiko: für {est.brand or 'diese Marke'} sehr billig – Echtheit prüfen!")
         if self.ampel_mode() != "aus":
             ampel = fakecheck.check(item, est.brand or "", ptype, score.discount, est.tier,
                                     tags=view.tags if view is not None else None,

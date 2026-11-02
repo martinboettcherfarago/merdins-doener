@@ -202,26 +202,6 @@ class Storage:
             self._db.execute("INSERT OR REPLACE INTO alerted (item_id, ts) VALUES (?, ?)", (item_id, time.time()))
             self._db.commit()
 
-    def state_keys(self, prefix: str) -> list[str]:
-        return [k for k in list(self._state) if k.startswith(prefix)]
-
-    def rename_search(self, old: str, new: str) -> None:
-        """Suche umbenennen – samt gelernten Preisen, gesehenen Artikeln und Zustand."""
-        with self._lock:
-            row = self._db.execute("SELECT data FROM searches WHERE name=?", (old,)).fetchone()
-            if row:
-                data = json.loads(row[0])
-                data["name"] = new
-                self._db.execute("DELETE FROM searches WHERE name=?", (old,))
-                self._db.execute("INSERT OR REPLACE INTO searches (name, data) VALUES (?, ?)",
-                                 (new, json.dumps(data)))
-            for table in ("seen", "prices"):
-                self._db.execute(f"UPDATE OR IGNORE {table} SET search=? WHERE search=?", (new, old))
-            for prefix in ("seeded:", "disabled:"):
-                self._db.execute("UPDATE OR IGNORE state SET key=? WHERE key=?", (prefix + new, prefix + old))
-            self._db.commit()
-            self._load_caches()
-
     def get_json(self, key: str, default: Any = None) -> Any:
         raw = self.get_state(key)
         if raw is None:

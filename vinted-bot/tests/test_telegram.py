@@ -2,7 +2,7 @@ import pytest
 
 from conftest import FakeClient, FakeNotifier, item
 from vinted_bot.account import OfferResult
-from vinted_bot.config import ConfigError, SearchConfig
+from vinted_bot.config import ConfigError
 from vinted_bot.monitor import Monitor
 from vinted_bot.notify import Alert, TelegramNotifier, money, telegram_caption, telegram_keyboard
 from vinted_bot.scoring import score_item
@@ -190,7 +190,7 @@ def test_brand_watch_command(bot):
 
 
 def test_trends_command(bot):
-    from vinted_bot.config import TREND_BRANDS
+    from vinted_bot.config import TREND_WATCHES as TREND_BRANDS
     ctl, tg, storage, _ = bot
     ctl.handle_update(msg("/trends"))
     assert "▫️ Carhartt" in tg.texts()[-1]
@@ -265,19 +265,3 @@ def test_level_command(bot):
     assert "Schnäppchen-Stufe: streng" in tg.texts()[-1]
     ctl.handle_update(msg("/stufe reset"))
     assert ctl.monitor.resale_level is None and ctl.monitor.auto_active()   # config-Standard: auto
-
-
-def test_old_resale_searches_are_migrated(cfg, tmp_path, clock):
-    from conftest import FakeClient, FakeNotifier
-    storage = Storage(str(tmp_path / "m.db"))
-    old = SearchConfig.from_dict({"name": "Resale · Ganni", "keywords": "Ganni", "brands": ["Ganni"], "mode": "resale",
-                                  "max_age_minutes": 10, "min_discount": 40, "min_profit": 15,
-                                  "min_condition": "gut", "max_price": 99}, source="telegram")
-    custom = SearchConfig.from_dict({"name": "Resale · Ace", "keywords": "Ace", "mode": "resale",
-                                     "min_discount": 60}, source="telegram")
-    storage.add_search(old)
-    storage.add_search(custom)
-    Monitor(cfg, FakeClient(), storage, FakeNotifier(), clock=clock)
-    ganni, ace = storage.custom_searches()
-    assert (ganni.min_discount, ganni.max_age_minutes, ganni.max_price) == (None, None, 99)
-    assert ace.min_discount == 60  # eigener Wert bleibt

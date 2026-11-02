@@ -49,7 +49,6 @@ TREND_OVERRIDES: dict[str, dict[str, Any]] = {
                                  "Adidas Trefoil", "Adidas Firebird", "Adidas Trainingsanzug vintage",
                                  "Adidas Trainingsjacke")
 }
-TREND_BRANDS = TREND_WATCHES  # alter Name, bleibt für ältere Konfigurationen gültig
 
 # Schnäppchen-Stufen für Resale-Suchen (per Telegram: /stufe streng)
 RESALE_LEVELS: dict[str, dict[str, Any]] = {
@@ -93,7 +92,7 @@ class SearchConfig:
     max_age_minutes: Optional[int] = None  # nur Artikel, die höchstens so alt sind
     min_condition: Optional[str] = None   # z. B. "sehr gut" -> schlechtere Zustände ignorieren
     min_cheaper_than: Optional[float] = None  # günstiger als x % aller vergleichbaren Angebote
-    sweep: bool = False                    # Alles-Radar: neueste Uploads ohne Suchbegriff
+    sweep: bool = False                    # ⚡ Sniper: neueste Uploads ohne Suchbegriff
 
     @property
     def is_resale(self) -> bool:
@@ -104,7 +103,7 @@ class SearchConfig:
         if not isinstance(data, dict):
             raise ConfigError(f"Suche ist kein Objekt: {data!r}")
         sweep = bool(data.get("sweep", False))
-        name = str(data.get("name") or data.get("keywords") or ("Alles-Radar" if sweep else "")).strip()
+        name = str(data.get("name") or data.get("keywords") or ("⚡ Sniper" if sweep else "")).strip()
         if not name:
             raise ConfigError("Jede Suche braucht einen 'name' oder 'keywords'.")
         if not data.get("url") and not data.get("keywords") and not sweep:
@@ -218,6 +217,7 @@ class Config:
     budget_brands: float = 80.0          # … außer teure Marken (Luxus, Designer, Outdoor-Premium)
     sniper: bool = True                  # ⚡ Sniper: neueste Uploads auf ganz Vinted alle paar Sekunden
     sniper_every_seconds: float = 4.0
+    sniper_url: Optional[str] = None     # optional: Sniper nur für diesen Vinted-Link (Kategorie, Marken)
     filter_sizes: list[str] = field(default_factory=lambda: list(DEFAULT_SIZES))       # [] = alle Größen
     filter_exclude_types: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDE_TYPES))
     only_rare: bool = False
@@ -321,6 +321,8 @@ def config_from_dict(data: dict[str, Any], base_dir: str = ".") -> Config:
     except (TypeError, ValueError):
         raise ConfigError("resale → budget, budget_brands und sniper_every_seconds müssen Zahlen sein.")
     cfg.sniper = bool(section.get("sniper", True)) and bool(section.get("enabled", True))
+    link = section.get("sniper_link") or section.get("radar")   # "radar" = alter Name
+    cfg.sniper_url = link if isinstance(link, str) and link.startswith("http") else None
     level = str(section.get("level") or "auto").strip().lower()
     if level not in RESALE_LEVELS and level != "auto":
         raise ConfigError(f"resale → level muss auto, {', '.join(RESALE_LEVELS)} sein, nicht '{level}'.")
@@ -390,10 +392,6 @@ def watch_name(entry: str) -> str:
     return f"{'Marke' if is_brand_entry(entry) else 'Trend'} · {' '.join(str(entry).split())}"
 
 
-def resale_name(brand: str) -> str:  # alter Name
-    return watch_name(brand)
-
-
 def normalize_name(text: str) -> str:
     from .text import normalize
     return normalize(text)
@@ -418,11 +416,6 @@ def resale_searches(section: dict[str, Any]) -> list[SearchConfig]:
     for term in section.get("keywords") or []:  # zusätzliche Trend-Begriffe
         if str(term).strip():
             out.append(SearchConfig.watch(str(term), **overrides))
-    if section.get("radar"):  # Alles-Radar: neueste Uploads ohne Suchbegriff
-        radar = section["radar"]
-        out.append(SearchConfig.from_dict({"name": "Alles-Radar", "sweep": True, "mode": "resale",
-                                           "url": radar if isinstance(radar, str) else None, **{
-                                               k: v for k, v in overrides.items() if v is not None}}))
     # doppelte Marken (z. B. "trends" + "Nike") nur einmal
     unique: dict[str, SearchConfig] = {}
     for s in out:

@@ -1,7 +1,7 @@
 import pytest
 
 from conftest import NOW, FakeClient, FakeNotifier, item
-from vinted_bot.config import (RESALE_LEVELS, TREND_BRANDS, ConfigError, SearchConfig, config_from_dict, watch_name,
+from vinted_bot.config import (RESALE_LEVELS, TREND_WATCHES as TREND_BRANDS, ConfigError, SearchConfig, config_from_dict, watch_name,
                                resale_searches)
 from vinted_bot.monitor import Monitor
 from vinted_bot.notify import Alert, telegram_caption

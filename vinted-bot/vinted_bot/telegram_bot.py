@@ -903,7 +903,7 @@ class TelegramController(threading.Thread):
         self._label(arg, False)
 
     def cmd_radar(self, arg: str) -> None:
-        """⚡ Sniper (früher Alles-Radar): neueste Uploads auf ganz Vinted alle paar Sekunden."""
+        """⚡ Sniper: neueste Uploads auf ganz Vinted alle paar Sekunden (optional nur für einen Vinted-Link)."""
         a = arg.strip()
         if a.lower().startswith(("an", "on", "start")):
             link = re.search(r"https?://\S*vinted\.\S+", a)

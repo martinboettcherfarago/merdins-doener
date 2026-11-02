@@ -17,7 +17,7 @@ import logging
 import queue
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from typing import Any, Callable, Optional
 
@@ -88,7 +88,6 @@ class AiVerdict:
     urteil: str
     begruendung: str
     photos: int = 0
-    cost_usd: float = 0.0
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "AiVerdict":
@@ -256,7 +255,6 @@ class AiReviewer:
             self.last_error = f"Antwort nicht lesbar: {e}"
             return None
         verdict.photos = len(images)
-        verdict.cost_usd = cost
         return verdict
 
     def _cost(self, response: Any) -> float:
@@ -317,10 +315,6 @@ class AiReviewer:
             except Exception as e:  # noqa: BLE001
                 log.exception("KI-Check: Fehler bei der Verarbeitung: %s", e)
 
-    @property
-    def pending(self) -> int:
-        return self._queue.qsize()
-
 
 def listing_context(item: Item, alert: Any = None) -> str:
     """Angaben zum Artikel für die KI (inkl. Schätzung des Bots)."""
@@ -338,12 +332,3 @@ def listing_context(item: Item, alert: Any = None) -> str:
     if brain is not None and getattr(brain, "tags", None):
         lines.append(f"Bildmodell erkennt: {', '.join(brain.tag_labels())}")
     return "\n".join(lines)
-
-
-@dataclass
-class AiStats:
-    checked: int = 0
-    fakes_blocked: int = 0
-    ai_finds: int = 0
-    skipped: int = 0
-    errors: list[str] = field(default_factory=list)

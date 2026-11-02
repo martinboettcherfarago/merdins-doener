@@ -121,8 +121,7 @@ def cmd_run(cfg: Config) -> int:
     elif b is not None:
         names += "\n🧠 Eigenes Modell: nicht installiert (ki-installieren.bat)"
     names += f"\n🛡 Fake-Ampel: {monitor.ampel_mode()} (/ampel)"
-    log.info("Vinted-Bot %s gestartet (vinted.%s, alle %ss). Suchen: %s",
-             __version__, cfg.domain, cfg.interval_seconds, names)
+    log.info("Vinted-Bot %s gestartet (vinted.%s). Suchen: %s", __version__, cfg.domain, names)
     notifier.send_text(
         f"🤖 <b>Vinted-Bot läuft</b>\nSuchen: {names}\n"
         f"Ich lerne kurz die aktuellen Preise und melde dir dann neue Treffer."

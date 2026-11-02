@@ -186,7 +186,6 @@ def test_two_workers_alternate_and_never_double_report(tmp_path):
     client = KeyedClient(deal())
     notifier = FakeNotifier()
     m = Monitor(cfg, client, Storage(str(tmp_path / "w.db")), notifier, clock=lambda: NOW)
-    m.min_cycle_wait = 0.05
     m.scheduler_settings = {"fast_gap": 0.05, "min_gap": 0.05, "max_gap": 0.2, "stagger": 0.01}
     t = threading.Thread(target=m.run_forever, kwargs={"client_factory": lambda: client})
     t.start()
@@ -215,13 +214,3 @@ def test_more_vintage_adidas(mon):
     assert alert is not None, why
     strict = mon.effective(SearchConfig.watch("Carhartt"))  # andere Suchen bleiben bei 15 € Mindestgewinn
     assert strict.min_profit == 15
-
-
-def test_stored_adidas_watch_gets_new_presets(tmp_path):
-    from conftest import FakeClient
-    st = Storage(str(tmp_path / "p.db"))
-    st.add_search(SearchConfig.from_dict({"name": "Trend · Vintage Adidas", "keywords": "Vintage Adidas",
-                                          "brands": ["Adidas"], "mode": "resale"}, source="telegram"))
-    Monitor(config_from_dict({}), FakeClient(), st, FakeNotifier(), clock=lambda: NOW)
-    s = st.custom_searches()[0]
-    assert (s.min_discount, s.min_profit) == (35, 8)
