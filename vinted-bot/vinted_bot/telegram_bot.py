@@ -53,6 +53,7 @@ HELP = """<b>🤖 Vinted-Deal-Bot</b> – frisch hochgeladene Teile weit unter W
 /pause · /weiter – alle Meldungen anhalten/fortsetzen
 /push sniper|alle|aus – 🔔 Push-Ton nur für ⚡ Sniper-Treffer (Standard)
 /status · /live – was kam wirklich rein (Takt, Alter, Preise)? · /probelauf
+/chatid – ID dieses Chats (z. B. für eine Gruppe mit Freunden)
 
 <i>Optionen für /neu und /marke:</i> <code>bis 40</code> · <code>ab 10</code> · <code>rabatt 40</code> · <code>gewinn 15</code> · <code>frisch 10</code> · <code>günstiger 95</code> · <code>score 60</code> · <code>markt 50</code>"""
 
@@ -210,6 +211,9 @@ class TelegramController(threading.Thread):
         text = (msg.get("text") or "").strip()
         if not text:
             return
+        if text.split(" ")[0].split("@")[0].lower() in ("/chatid", "/chat_id", "/id"):
+            self.cmd_chat_id(msg)   # klappt in jedem Chat – so findet man die ID einer neuen Gruppe
+            return
         if chat != self.chat_id:
             # Fremde Chats dürfen den Bot nicht steuern – nur die eigene Chat-ID verraten wir für die Einrichtung.
             if text.startswith("/start") and not self.chat_id:
@@ -217,6 +221,25 @@ class TelegramController(threading.Thread):
                            "<code>chat_id</code> ein und starte den Bot neu.", chat_id=chat)
             return
         self.handle_command(text)
+
+    def cmd_chat_id(self, msg: dict) -> None:
+        """/chatid – zeigt die ID dieses Chats (für die config.yaml), auch in einer Gruppe."""
+        chat = msg.get("chat") or {}
+        cid, kind = str(chat.get("id", "")), chat.get("type", "")
+        name = chat.get("title") or "dein privater Chat"
+        if cid == self.chat_id:
+            text = (f"✅ Dieser Chat (<b>{html.escape(name)}</b>) ist schon eingetragen: <code>{cid}</code>")
+        else:
+            text = (f"🆔 Chat-ID von <b>{html.escape(name)}</b>: <code>{cid}</code>\n\n"
+                    "So bekommt dieser Chat die Meldungen:\n"
+                    "1. Bot stoppen (Strg + C)\n"
+                    "2. In der <code>config.yaml</code> bei <code>telegram</code> eintragen:\n"
+                    f"<code>    chat_id: \"{cid}\"</code>\n"
+                    "   (mit Anführungszeichen" + (" und dem Minus vorne" if cid.startswith("-") else "") + ")\n"
+                    "3. start.bat neu starten")
+            if kind in ("group", "supergroup"):
+                text += "\n\nTipp: Halte die ID gedrückt, um sie zu kopieren."
+        self.reply(text, chat_id=cid)
 
     def handle_command(self, text: str) -> None:
         cmd, _, arg = text.partition(" ")

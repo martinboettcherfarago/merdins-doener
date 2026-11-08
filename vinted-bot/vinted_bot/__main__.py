@@ -286,10 +286,19 @@ def cmd_chat_id(cfg: Config) -> int:
             return 1
         for upd in data.get("result", []):
             offset = upd["update_id"] + 1
-            chat = (upd.get("message") or {}).get("chat") or {}
+            msg = upd.get("message") or {}
+            chat = msg.get("chat") or {}
+            if msg.get("migrate_to_chat_id"):   # Gruppe wurde zur Supergruppe -> neue ID
+                chat = {"id": msg["migrate_to_chat_id"], "type": "supergroup", "title": chat.get("title")}
             if chat.get("id"):
-                print(f"\n✅ Deine Chat-ID: {chat['id']}\nTrage sie in der config.yaml bei telegram → chat_id ein.")
                 tg.api("getUpdates", offset=offset, timeout=0)  # Nachricht als gelesen markieren
+                if chat.get("type") in ("group", "supergroup"):
+                    print(f"\n✅ Gruppe „{chat.get('title') or '?'}“ – Chat-ID: {chat['id']}\n"
+                          f'Trage sie in der config.yaml bei telegram → chat_id ein: chat_id: "{chat["id"]}"')
+                else:
+                    print(f"\n✅ Dein privater Chat – Chat-ID: {chat['id']}\n"
+                          f'Trage sie in der config.yaml bei telegram → chat_id ein: chat_id: "{chat["id"]}"\n'
+                          "(Für eine Gruppe stattdessen in der Gruppe /chatid@DeinBotName schreiben.)")
                 return 0
 
 

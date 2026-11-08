@@ -256,6 +256,28 @@ class NtfyNotifier:
                       timeout=self.timeout).raise_for_status()
 
 
+_explained: set[str] = set()
+
+
+def _explain_telegram_error(e: Exception) -> None:
+    """Typische Telegram-Fehler einmal verständlich erklären."""
+    text = str(e).lower()
+    if "chat not found" in text and "chat" not in _explained:
+        _explained.add("chat")
+        log.error("👉 Telegram kennt die chat_id aus der config.yaml nicht – es kommen KEINE Meldungen an. "
+                  "Meist: Tippfehler, fehlendes Minus vorne oder der Bot ist nicht in der Gruppe. "
+                  "Lösung: Bot in die Gruppe/den Chat holen, dort /chatid schreiben – der Bot antwortet "
+                  "mit der richtigen ID. Die in der config.yaml eintragen und neu starten.")
+    elif ("upgraded to a supergroup" in text or "migrate" in text) and "migrate" not in _explained:
+        _explained.add("migrate")
+        log.error("👉 Die Gruppe wurde von Telegram umgestellt und hat eine neue ID. In der Gruppe /chatid "
+                  "schreiben und die neue ID in der config.yaml eintragen.")
+    elif "bot was kicked" in text or "not a member" in text or "bot is not a member" in text:
+        if "kicked" not in _explained:
+            _explained.add("kicked")
+            log.error("👉 Der Bot ist nicht (mehr) in dieser Gruppe. Bot wieder als Mitglied hinzufügen.")
+
+
 class MultiNotifier:
     """Schickt jede Nachricht an alle eingerichteten Kanäle; ein Fehler stoppt die anderen nicht."""
 
@@ -273,6 +295,7 @@ class MultiNotifier:
                 ok = True
             except Exception as e:  # noqa: BLE001 - ein Kanal darf die anderen nicht blockieren
                 log.warning("%s: Benachrichtigung fehlgeschlagen: %s", type(n).__name__, e)
+                _explain_telegram_error(e)
         return ok
 
     def send_text(self, text: str, silent: bool = False) -> None:
@@ -281,3 +304,4 @@ class MultiNotifier:
                 n.send_text(text, silent=silent)
             except Exception as e:  # noqa: BLE001
                 log.warning("%s: Nachricht fehlgeschlagen: %s", type(n).__name__, e)
+                _explain_telegram_error(e)

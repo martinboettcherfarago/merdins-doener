@@ -265,3 +265,34 @@ def test_level_command(bot):
     assert "Schnäppchen-Stufe: streng" in tg.texts()[-1]
     ctl.handle_update(msg("/stufe reset"))
     assert ctl.monitor.resale_level is None and ctl.monitor.auto_active()   # config-Standard: auto
+
+
+def test_chatid_works_in_a_new_group_and_explains_the_config(bot):
+    ctl, tg, _storage, _ = bot
+    group = {"update_id": 5, "message": {"chat": {"id": -1001234567890, "type": "supergroup", "title": "Vinted Deals"},
+                                         "text": "/chatid@MeinVintedBot"}}
+    ctl.handle_update(group)
+    method, payload = tg.calls[-1]
+    assert method == "sendMessage" and payload["chat_id"] == "-1001234567890"
+    assert "Vinted Deals" in payload["text"] and 'chat_id: "-1001234567890"' in payload["text"]
+    assert "Minus" in payload["text"]
+    ctl.handle_update(msg("/chatid"))                       # im eingetragenen Chat
+    assert "schon eingetragen" in tg.texts()[-1]
+    ctl.handle_update({"update_id": 6, "message": {"chat": {"id": -1001234567890, "type": "supergroup"},
+                                                   "text": "/stufe streng"}})
+    assert ctl.monitor.resale_level is None                 # fremde Gruppen dürfen weiterhin nichts steuern
+
+
+def test_chat_not_found_is_explained_once(caplog):
+    from vinted_bot import notify
+    notify._explained.clear()
+
+    class Broken:
+        def send_text(self, text, silent=False):
+            raise RuntimeError("Telegram sendMessage: Bad Request: chat not found")
+    n = notify.MultiNotifier([Broken()])
+    with caplog.at_level("ERROR"):
+        n.send_text("hallo")
+        n.send_text("nochmal")
+    hints = [r.message for r in caplog.records if "chat_id aus der config.yaml" in r.message]
+    assert len(hints) == 1 and "/chatid" in hints[0]
